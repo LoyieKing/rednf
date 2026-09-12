@@ -34,10 +34,17 @@ void PvP_MissionSystem::get_New_DailyMission(
     // （无符号序）⇒ 循环变量须为 unsigned；旧文 `int j` 使 4.4 产 `setg`
     // （有符号，/tmp/r5/axisB_points.tsv 记 seta→setg）。`j < m_field30`（int 成员）
     // 经同宽无指令转换即无符号比较，P196 前置已核 ORIG 为 seta ⇒ 允许改。
+    // [R18scanCF 2026-09-13 容器循环不变量修复] ORIG 0x085e284d `call
+    //   _ZNSt4listISt4pairIjjESaIS1_EEC1ERKS3_` 与 0x085e2852-58 `mov 0x3c(%eax);
+    //   mov %eax,-0x44(%ebp)`（weight=m_field3c）均在 j 循环**外**——回边
+    //   0x085e2ac8→0x085e2867 的循环体起点 0x085e2867 之后才进入循环体；旧文把
+    //   二者写在循环体内（我方 .o 0x88510a8/0x88510ad 落在回边 0x8851343→0x8851095
+    //   的循环体内）⇒ 我方每轮重建 tmp、重置 weight，而 ORIG 的 tmp.erase(li) 与
+    //   weight -= li->first 跨轮持久 ⇒ 加权选取/去重序列分叉。按 ORIG 移出循环。
+    std::list<std::pair<unsigned int, unsigned int> > tmp(m_dailyMissionList);
+    int weight = m_field3c;
     for (unsigned int j = 0; j < (unsigned int)m_field30; ++j)
     {
-        std::list<std::pair<unsigned int, unsigned int> > tmp(m_dailyMissionList);
-        int weight = m_field3c;
         // [R4-13 2026-09-12 SEMANTIC-DIFF 修复] ORIG 0x085e2875/0x085e2878/0x085e287d
         //   `mov -0x44(%ebp),%ecx; mov $0x0,%edx; div %ecx` = **无符号**除法；
         //   旧文 `int r = randInt() % weight;` 产 `sar $0x1f,%edx; idivl`（有符号）

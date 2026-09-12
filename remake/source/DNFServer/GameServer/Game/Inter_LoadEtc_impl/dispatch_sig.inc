@@ -82,16 +82,16 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         //  m_pad2308+0x19c；写点证据 CUserCharacInfo::GetContinuousItemInfo
         //  0x08677f24 / DB_LoadEtc LoadCharacItemStat.md cap 0x194）。
         user->LoadCoolTimeItemInfo(
-            reinterpret_cast<CONTINUOUS_ITEM_INFO*>(sig->m_cooltimeItem));
+            &sig->m_contItemCooltime.m_info);
         user->LoadEffectItemInfo(
-            reinterpret_cast<CONTINUOUS_ITEM_INFO*>(sig->m_effectItem));
+            &sig->m_contItemEffect.m_info);
 
         typedef charac_expand::CData CDataAlias;
         {
             // [BigUserLogic] ORIG 0x084c04c7+：GetCharacExpandData 结果留 %eax
             // 直发虚调用（不 spill）。命名变量形会让 4.4 多 2 条槽往返，改嵌套单行。
             static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(6)))->loadData(user, sig->m_expandData6);
+                ENUM_CHARAC_EXPAND_TYPE(6)))->loadData(user, (char*)&sig->m_redeemInfo);
             // [hc 收] ORIG 0x08660ec4 区：sig->m_mixedRegion 为 SIG_LOAD_ETC 载荷
             // 线格式缓冲（§5.3 序列化缓冲豁免），+0x415 为该 expand-data 的固定布局
             // 偏移；loadData(user, ptr) 取地址直传，偏移为承载格式固有，seek 无漏。
@@ -134,9 +134,9 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             static_cast<CDataAlias*>(user->GetCharacExpandData(
                 ENUM_CHARAC_EXPAND_TYPE(0x10)))->loadData(user, sig->m_mixedRegion + 0xd7c);
             static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(0xe)))->loadData(user, sig->m_expandDataE);
+                ENUM_CHARAC_EXPAND_TYPE(0xe)))->loadData(user, (char*)&sig->m_titlebook);
             static_cast<CDataAlias*>(user->GetCharacExpandData(
-                ENUM_CHARAC_EXPAND_TYPE(0xf)))->loadData(user, sig->m_expandDataF);
+                ENUM_CHARAC_EXPAND_TYPE(0xf)))->loadData(user, (char*)&sig->m_achievement);
             static_cast<CDataAlias*>(user->GetCharacExpandData(
                 ENUM_CHARAC_EXPAND_TYPE(0x11)))->loadData(user, sig->m_mixedRegion + 0x2308);
             static_cast<CDataAlias*>(user->GetCharacExpandData(
@@ -152,7 +152,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         // SigTypes_C.h:546 具名 m_achievementLastUpdate（DB_LoadEtc
         // LoadAchievement.md：+0xb1a4 解压 0x1800 数据、+0xc9a4 计数、
         // +0xc9a8 last_update get_uint → +0xc9ac 衔接具名字段）。
-        if (sig->m_achievementLastUpdate == 0)
+        if (sig->m_achievement.m_saveTime == 0)
         {
             // [BigInterLoadEtc] ORIG 0x084c0530..0x084c0538：结果留 %eax 直发
             // this（无具名槽）⇒ 链式单语句。
@@ -621,7 +621,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             // [hc 收] +0x330 为 SIG_LIMIT_ITEM_INFO 在该 SIG_LOAD_ETC 承载体缓冲
             // 中的固定布局偏移；经 view 类型 cast 直读（§5.3 序列化缓冲豁免）。
             user->SetLimitInfo(reinterpret_cast<SIG_LIMIT_ITEM_INFO*>(
-                sig->m_pad2308 + 0x330));
+                (char*)&sig->m_limitItemCount));
             user->SendLoginToPCRoomServer();
 
             {
@@ -778,8 +778,8 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 // 槽往返，单行直传复现。
                 user->setPcRoomPlayTimeData(
                     (unsigned int)GlobalData::s_systemTime_.getCurSec(),
-                    sig->m_totalPcRoomPlayTime,
-                    sig->m_pcRoomPlayTimeRewardCnt);
+                    sig->m_pcRoomPlayTime.m_totalTime,
+                    sig->m_pcRoomPlayTime.m_rewardCnt);
             }
             user->set_aura_avatar_option(*reinterpret_cast<stAuraAvatarOption*>(
                 sig->m_mixedRegion + 0xd70));

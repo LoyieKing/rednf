@@ -98,7 +98,8 @@ bool DB_MailBoxSendNewMailWithDBWork::dispatch(int userIdx, int slot,
                                  // 即可消此差，但**定义侧**在 DB_MailBox_Req_Send.cpp（非本
                                  // TU 写权）⇒ 声明/定义须同轮同步，留报告（禁单侧改致 ABI 不一致）。
     }
-    catch (int e)
+    // [R18exc 异常类型轴 2026-09-13] ORIG LSDA 类型表 = _ZTIl（long；我方案发 _ZTIi）。
+    catch (long e)
     {
         // ORIG 0x0842761c：cMyTrace(__PRETTY_FUNCTION__, 0x6899, 5) + trace("%d", e)。
         cMyTrace trace(__PRETTY_FUNCTION__, 0x6899, 5);

@@ -212,18 +212,12 @@ class CUserGlobalInfoHandle;
 class CEventCharacterHandler;
 class CShutdowManager;
 template <class T> class CServerProxyMgr;
-namespace GlobalData
-{
-extern MsgQueueMgr* s_msgq_mgr;
-extern StreamPool* s_stream_pool;
-extern CServerProxyMgr<CMonitorServerProxy>* s_monitor_proxy_mgr;
-}
-namespace GlobalData
-{
-extern CServerProxyMgr<CGuildServerProxy>* s_guild_proxy_mgr;
-extern CDoubleConnCheckServerProxy* s_double_check_proxy;
-extern WongWork::CLogGameChannel* s_pLogGameChannel;
-}
+// [R18gd 2026-09-13] GlobalData 已按 ORIG 形态 class 化（namespace→class 静态成员）；
+// 原此处 `namespace GlobalData { extern ... }` 最小声明重开点合并到权威头（唯一声明点）
+// ——符号名/mangled 与 `GlobalData::x` 访问语法零变化。
+#include "GlobalData.h"
+
+
 // [SweepLeagueMatch4·判据㉔] g_schoolMgr / g_guildAgitMgr 定义已按 ORIG 归属迁出本 TU
 // → CLeagueMatch.cpp（ORIG MatchingSystem.cpp static_init @0x085685a0 的构造点
 // 0x085685e2 / 0x08568612 实证；本文件下方 extern 声明与各头内 extern 继续生效）。

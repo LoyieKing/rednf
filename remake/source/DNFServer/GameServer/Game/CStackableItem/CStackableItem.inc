@@ -1,24 +1,14 @@
 // 最小构造/析构（ORIG 逐成员构造属后续精修批次；保证可链接）
-// b28c-L8 判词 [N(布局建模)]：fresh 复验 _ZN14CStackableItemC1Ev 292=292，唯一残差
-// 4 行 = 本类 vptr 写入时机。ORIG 0x08515763 构造序 = `call _ZN5CItemC1Ev`(0x85152d4)
-// → `add $0x148; call _ZN12AradItemInfoC1Ev`(0x8515618) → **然后**才
-// `movl $0x8c96ea8,(%eax)` 写本类 vptr → RecipeInfo(+0x174) / LotteryInfo(+0x1c0) / …
-// ⇒ AradItemInfo 必为**次基类**而非成员（CItem sizeof=0x148 权威 ⇒ 次基类恰落 +0x148，
-// 全部偏移/sizeof 不变；AradItemInfo 无虚函数 ⇒ 不引入第二 vptr）。成员模型下 4.4
-// 恒在首成员 ctor 之前写 vptr，源码不可翻。同法先例：C28L9 AvatarRechargeServer.h、
-// C28L16 AvatarFixedHiddenOptionServer.h。本波不改 CStackableItem.h（跨
-// C28L17/18/21 三方写权 CItemList.cpp + Arad_ItemBonus.cpp 消费面），spec 已广播交
-// Main 统一批次；改动清单=头继承表 + CStackableItem.cpp 12 处 + Arad_ItemBonus.cpp:431
-// + CItemList.cpp:1986 去 `m_arad148.` 前缀。
-// [b28d-N(布局建模)｜待专项批次] fresh 复验 292=292 维持 N：唯一残差 = 本类 vptr
-// 写入时机（AradItemInfo 须为次基类，跨 CItemList.cpp/Arad_ItemBonus.cpp 消费面）。
-// Main 2026-09-09 裁决：**本轮不做**（收益仅本件 4 行残差，代价为全域构造/析构语义
-// 变更 + 14 处消费点 + 多基类 RTTI/EH 风险），spec 存档待专项批次：
-//   头改 `class CStackableItem : public CItem, public AradItemInfo`，删 m_arad148 成员，
-//   去 CStackableItem.cpp 12 处 `m_arad148.` 前缀 + CItemList.cpp:1986 + Arad_ItemBonus.cpp:431；
-//   CItem sizeof=0x148 权威 ⇒ 全部偏移/sizeof 不变、AradItemInfo 无虚函数 ⇒ 不引入第二 vptr。
-// [S1Charac 2026-09-11 复核] 292=292 维持 N（残差 4 行=vptr 写入时机，属 AradItemInfo
-// 次基类布局建模，Main 已裁决本轮不做）；§6.5：本函数无 rodata 串引用 ⇒ CLEAR。
+// [R18rti 2026-09-13 · B1 已落地，原 N(布局建模) 判词作废] AradItemInfo 由成员改为
+// **第二基类**（`class CStackableItem : public CItem, public AradItemInfo`，见头注释）：
+// 本件由 DIFF→**AE**（.o size 0x3b1 == ORIG 0x3b1），C1 逐条同形 —— ORIG 0x08515762
+// 序 = `call _ZN5CItemC1Ev`(0x85152d4) → `add $0x148; call _ZN12AradItemInfoC1Ev`(0x8515618)
+// → 写本类 vptr `movl $0x8c96ea8,(%eax)` → RecipeInfo(+0x174)/LotteryInfo(+0x1c0)/…
+// 我方 .o C1（`14:` 起）同序同偏移，仅 vptr 立即数走 `_ZTV14CStackableItem+8` 重定位。
+// RTTI：`_ZTI14CStackableItem` 由 si 变 **vmi**（base[1]=AradItemInfo offset_flags 0x14802），
+// 并发射 ORIG 实有的 `_ZTI12AradItemInfo`/`_ZTS12AradItemInfo`。
+// 消费点 18 处 `m_arad148.` 前缀已全部去除（CStackableItem/*.inc 14 / CItemList/level_check.inc 1 /
+// Arad_ItemBonus.cpp 3）；CItem sizeof=0x148 权威 ⇒ 全部偏移/sizeof 不变（末尾 static_assert 兜底）。
 CStackableItem::CStackableItem()
 {
 }

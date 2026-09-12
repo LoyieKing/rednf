@@ -236,22 +236,22 @@ void CStackableItem::set_item(STStackableScript& script)
     m_int340 = script.m_field478;
     m_char344 = script.m_field3a1;
     m_amplifyMap = script.m_map3a4;
-    m_arad148.m_field0 = script.m_field178;
-    m_arad148.m_field4 = script.m_field17c;
-    m_arad148.m_str8 = script.m_str180;
-    m_arad148.m_strC = script.m_str184;
-    m_arad148.m_str10 = script.m_str188;
+    m_field0 = script.m_field178;
+    m_field4 = script.m_field17c;
+    m_str8 = script.m_str180;
+    m_strC = script.m_str184;
+    m_str10 = script.m_str188;
     if (!script.m_vec19c.empty())
     {
-        m_arad148.m_vec20.reserve(script.m_vec19c.size());
+        m_vec20.reserve(script.m_vec19c.size());
         std::copy(script.m_vec19c.begin(), script.m_vec19c.end(),
-                  std::back_inserter(m_arad148.m_vec20));
+                  std::back_inserter(m_vec20));
     }
     if (!script.m_vec190.empty())
     {
-        m_arad148.m_vec14.reserve(script.m_vec190.size());
+        m_vec14.reserve(script.m_vec190.size());
         std::copy(script.m_vec190.begin(), script.m_vec190.end(),
-                  std::back_inserter(m_arad148.m_vec14));
+                  std::back_inserter(m_vec14));
     }
     m_int360 = script.m_field418;
     m_char364 = script.m_field32c;

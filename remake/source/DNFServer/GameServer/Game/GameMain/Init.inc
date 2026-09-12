@@ -413,7 +413,7 @@ bool Init(int argc, char** argv)
         //   82a1d8a test %al,%al / je 82a1d9e   → 取反为 0 时落 false 块
         // ⇒ 原码 = `!GetRepeatEvent(0x3a)->IsEventing(0) && curSec > 0x4cbe3f0f`
         //   （旧形 `ev && ev->IsEventing(0)` 取反缺失 + 多判空守卫 = 真语义差异）。
-        long curSec = static_cast<long>(s_systemTime_.getCurSec());
+        long curSec = static_cast<long>(GlobalData::s_systemTime_.getCurSec());
         if (!GlobalData::s_event_manager->GetRepeatEvent(0x3a)->IsEventing(0) &&
             curSec > 0x4cbe3f0f)
         {

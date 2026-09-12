@@ -8,6 +8,12 @@
 // 帧 0x90 vs 我们 0x70）。
 // [L14] 本轮复核：165/173，6 块中 4 块仅为行号/地址立即数（AE 口径归一后豁免），
 // 余 2 块 = 帧/槽（N82）+ add-vs-lea（N4）⇒ 封顶。
+// [R18hp3 2026-09-13 §24.3 轴 ④ 落修] 上列「不补 trace」判词与源码不一致：源码实写
+//   `if (area == 0) { cMyTrace(0x24c, "getArea call failed (area no:%d)", areaNo); }`
+//   —— 该条件是**真实条件**（area 由 Village::getArea 返回值写 -0x18），运行期可达
+//   ⇒ 我方在 getArea 返回 0 时多打一条日志，而 ORIG 该块被 0x85c526e `e9 a7 00 00 00`
+//   恒跳过且零入边（热补死块）⇒ 运行期可观察差异。已按 P337 复刻恒假 volatile 守卫
+//   （块内容/调用点原样保留、恒跳过），见函数尾注释。
 bool CPrivateStore::IsAreaNearEntranceDungeon(CUser* user)
 {
     // [b28d-solo] ORIG 0x85c508d..0x85c50a9 五条 movl $0 的槽序：-0x1c 死局部
@@ -72,8 +78,16 @@ bool CPrivateStore::IsAreaNearEntranceDungeon(CUser* user)
         {
             return true;
         }
-        // 死块照抄（ORIG 0x5286..0x529e 无入口；保留其 cMyTrace::operator() 调用点）。
-        if (area == 0)
+        // [R18hp3 §24.3 ④ 修复] ORIG 0x85c5273..0x85c529e 是**热补死块**：
+        //   0x85c526e raw=`e9 a7 00 00 00`（jmp 0x85c531a = mov $1,%ebx）无条件
+        //   跳过该区，且字节级复核**零入边** ⇒ ORIG 运行期恒不可达（热补前该分支
+        //   体为 trace + return 0，热补后 f4==2&&f0==0 直接 return 1）。
+        //   旧形 `if (area == 0) { trace }` 是**真实条件**（area 由
+        //   Village::getArea 返回值写 -0x18，运行期可 0）⇒ 该日志可达、ORIG 不打
+        //   ⇒ 运行期可观察差异（多日志）。按 P337 复刻恒假 volatile 守卫：
+        //   块内容（cMyTrace ctor+operator() 调用点）原样保留、运行期恒跳过。
+        volatile bool deadGetAreaTrace = false;
+        if (deadGetAreaTrace)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x24c, 5)("getArea call failed (area no:%d)", areaNo);
         }

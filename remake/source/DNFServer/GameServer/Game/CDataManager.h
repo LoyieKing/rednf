@@ -3213,7 +3213,13 @@ namespace WongWork
 //   声明序 = ORIG ctor 基类调用序：CItemUpgradeTable(this+0x04) 先、IItemUpgrade(this)
 //   后（0x085461d1 add $4/call、0x085461e2 mov this/call 实证）；primary base 仍取
 //   首个多态基 IItemUpgrade @+0x00，sizeof/偏移/mangled 不变）。
-class CItemUpgrade : public CItemUpgradeTable, public IItemUpgrade
+// [R18rti 2026-09-13 · B2 RTTI 复刻] ORIG `_ZTIN8WongWork12CItemUpgradeE`（0x8c9d320）
+// base[0]=CItemUpgradeTable 的 offset_flags=0x00000400 ⇒ **非 public 继承**（我方旧形
+// 0x00000402）。该位运行期可观察：ORIG `__vmi_class_type_info::__do_find_public_src`
+// @0x08722e70 读 `test $0x2,%dl`（8722ea5）并 `je` 跳过非 public 基（8722ea8），
+// 该函数是 `__dynamic_cast` 向上/cross-cast 路径的入口 ⇒ 非 public 路径不可达。
+// private 只改 typeinfo 的 public 位：布局/成员偏移/mangled/vtable 槽/构造序零变化。
+class CItemUpgrade : private CItemUpgradeTable, public IItemUpgrade
 {
 public:
     CItemUpgrade();   // ORIG T 0x085461c8（定义 CtorProducers_2C.cpp）

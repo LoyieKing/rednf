@@ -13,6 +13,7 @@
 #include "MissionTypes.h"  // MissionInfo（SIG_REQUEST_PVP_MISSION_LIST 任务列表）
 #include "PvpResultType.h"  // SIG_SAVE_PVP 前段 PvpResultType 镜像（无依赖叶子头）
 #include "Packet_PvPResult.h"  // 权威定义（shared/packet/include；原占位 char m_pad[0x80] 移除）
+#include "PacketHeader.h"  // [R18pkt] Packet_Mannerless_User_Accusation 的真继承基类
 
 // 字段化（W8DB，ORIG 0x0842ff4e DB_SaveGameOption_1::dispatch 证据：
 // NumberToString(*(uint*)sig)=m_id、compress(sig+4,0x48)；写侧
@@ -166,24 +167,8 @@ struct SIG_SAVE_LOGGAMECHANNEL
 };
 #pragma pack(pop)
 
-// +0/+4/+8；ORIG ctor _ZN26SIG_SAVE_PC_ROOM_PLAY_TIMEC1Ev @0x0848fb64 清零三段；
-// ORIG GetInBuffer 传 sizeof=9 → pack(1)。
-#pragma pack(push, 1)
-struct SIG_SAVE_PC_ROOM_PLAY_TIME
-{
-    unsigned int m_accId;        // +0x00 ←get_acc_id()
-    unsigned int m_totalTime;    // +0x04 ←totalPcRoomPlayTime
-    unsigned char m_rewardCnt;   // +0x08 ←pcRoomPlayTimeRewardCnt
-
-    // ORIG W 0x0848fb64：movl 0→+0 / movl 0→+4 / movb 0→+8。
-    SIG_SAVE_PC_ROOM_PLAY_TIME()
-    {
-        m_accId = 0;
-        m_totalTime = 0;
-        m_rewardCnt = 0;
-    }
-};
-#pragma pack(pop)
+// [R18arr 2026-09-13] SIG_SAVE_PC_ROOM_PLAY_TIME 已上移至 SigTypes_C.h（SIG_LOAD_ETC
+// 定义之前，成员化所需）；定义体逐字节不变，本处仅留搬迁记录。
 
 // +0/+4/+8；ORIG ctor _ZN26SIG_SAVE_PC_ROOM_PLAY_TIMEC1Ev @0x0848fb64 清零三段。
 #pragma pack(push, 1)
@@ -781,11 +766,18 @@ struct MSG_STAT_PVPPLAY { char m_pad[0x10]; };
 // ORIG _ZN33Packet_Mannerless_User_AccusationC1Ev W @0x0822c1e6（0xaf）：
 // PacketHeader(0x1b66,0x15f)；+0xa=-1；+0xe=0；+0x12=4；+0x1e=0；memset(+0x22,0,0x1e)；memset(+0x5e,0,0x100)
 // isNeedTypeForChattingMsg ORIG 0x0822c1ca：return (unsigned)arg <= 2
-struct __attribute__((packed)) Packet_Mannerless_User_Accusation
+// [R18pkt 2026-09-13] 真继承 PacketHeader（= ORIG 源码形态「基类初始化列表」）：
+//   ORIG ctor 0x0822c1e6 只 `call _ZN12PacketHeaderC1Ett` 直构，无 `_ZnwjPv`/
+//   `_ZdlPvS_`/`_Unwind_Resume`；旧写法无基类 ⇒ 只能手写 placement new，4.4 恒发那
+//   三件套（+25 条）。改真继承后 ctor 走初始化列表（见 Dispatchers/
+//   Packet_Mannerless_User_Accusation.inc），与 ORIG 逐条同形。
+//   布局零变化：PacketHeader 是 pack(1) 10 字节；原 `char m_pad0[6]` + `m_uid@+0x06`
+//   合起来正好覆盖同一 10 字节区（m_uid 即基类 m_connNo 的槽位，无独立语义，全仓无
+//   消费点），删两者后首个成员仍落 +0x0a。探针（g++4.4.7 -m32 -O0）实测 sizeof 两侧
+//   同为 0x15f、offsetof m_characNo=0x0a / m_name=0x22 / m_chatMsg=0x5e / m_result=0x15e 逐值相同。
+struct __attribute__((packed)) Packet_Mannerless_User_Accusation : public PacketHeader
 {
-    char m_pad0[6];                    // +0x00 PacketHeader(type=0x1b66, size=0x15f) 区
     Packet_Mannerless_User_Accusation();   // ORIG W C1 0x0822c1e6（定义在 Dispatchers.cpp D1 依赖区）
-    unsigned int m_uid;                // +0x06
     int m_characNo;                    // +0x0a（ctor 置 -1）
     int m_type;                        // +0x0e（ctor 置 0）
     int m_serverGroup;                 // +0x12（ctor 置 4）
@@ -800,6 +792,8 @@ struct __attribute__((packed)) Packet_Mannerless_User_Accusation
     static bool isNeedTypeForChattingMsg(int type);   // ORIG W 0x0822c1ca：调用点只 push 1 参（静态）
 
 };
+static_assert(sizeof(Packet_Mannerless_User_Accusation) == 0x15f,
+              "Packet_Mannerless_User_Accusation ABI drift (R18pkt)");
 struct SIG_AVATAR_MOVE { char m_pad[0x16]; };
 // SIG_BILLING_RECORD —— 0x10e 字节计费记录（DB_BillingRecord 消费）。
 // 字段化证据（写侧 ItemVendingMachine::BillingRecord ORIG 0x0817991e 逐条栈槽，

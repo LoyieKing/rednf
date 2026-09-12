@@ -6150,11 +6150,18 @@ static_assert(sizeof(DB_BoosterGageView) == 8,
             return 0;
         if (!db->get_uint(4, ((DB_IpMonitorPunishItem*)buf)[rowCount].m_endTime))
             return 0;
-        if (rowCount <= 0x62 && i < db->get_n_rows() - 1)
+        // [R18a16] ORIG 0x084333cc 段：`cmpl $0x62,-0x24; ja <Acquire>` 与第二条件
+        // 各自独立跳同一 Acquire 靶；原 `&&` 写法使 4.4 在条件位多出 bool 物化岛
+        // （我方 .o `mov $1,%eax;jmp;mov $0,%eax;test %al,%al;je`，ORIG 无）。
+        // P225/P133 拆形（负条件 → 落入共享 Acquire 块）。
+        if (rowCount <= 0x62)
         {
-            ++rowCount;
+            if (i < db->get_n_rows() - 1)
+            {
+                ++rowCount;
+                continue;
+            }
         }
-        else
         {
             CStreamGuard guard(
                 GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x7ae9), true);

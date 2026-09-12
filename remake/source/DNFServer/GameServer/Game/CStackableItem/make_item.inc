@@ -26,7 +26,12 @@ void CStackableItem::make_item(Inven_Item& item) const
     int t = 0;
     if (getUsablePeriod() != 0)
     {
-        t = ((CSystemTime*)0x941f714)->getCurSec() +
+        // [R18scanPH 2026-09-13] 原为硬编码 ORIG 绝对地址 ((CSystemTime*)0x941f714)
+        // ——该地址在 ORIG 是 GlobalData::s_systemTime_（0x941f714，全库 508 引用），
+        // 但在本二进制布局下 s_systemTime_ 位于 0x917e54c，0x941f714 超出全部段
+        // （RW LOAD 止于 0x929db84）⇒ 原写法读未映射内存（崩溃/脏读）。
+        // 与 R17fixST 三件同口径：改用权威对象 GlobalData::s_systemTime_。
+        t = GlobalData::s_systemTime_.getCurSec() +
             getUsablePeriod() * 0x15180;
     }
     else if (getExpirationDate() != 0)

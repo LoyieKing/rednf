@@ -56,7 +56,7 @@ bool DB_LoadEtc::LoadPcRoomPlayTimeInfo(SIG_LOAD_ETC* sig)
     {
         return false;
     }
-    sig->m_totalPcRoomPlayTime = playTime.i;                 // +0xc9b3
-    sig->m_pcRoomPlayTimeRewardCnt = rewardCnt;              // +0xc9b7
+    sig->m_pcRoomPlayTime.m_totalTimeSigned = playTime.i;                 // +0xc9b3
+    sig->m_pcRoomPlayTime.m_rewardCnt = rewardCnt;              // +0xc9b7
     return true;
 }

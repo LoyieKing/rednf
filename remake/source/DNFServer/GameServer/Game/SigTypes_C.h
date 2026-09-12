@@ -21,6 +21,9 @@
 #include "PvpResultType.h"   // PvpResultType（SIG_LOAD_ETC +0x340 区）
 #include "GamePODTypes.h"    // AvatarDetailInfo（m_avatarDetail 真实元素类型，0x4b）
 #include "CTitleBook.h"      // stItemLockInfo（SIG_LOAD_INVENTORY +0x14784 锁区，8 字节）
+                             //  + stTitleBook（SIG_LOAD_ETC +0x466a 称号簿真实子对象，0x6b3a）
+#include "CAchievement.h"    // stAchievement_DBData（SIG_LOAD_ETC +0xb1a4 成就真实子对象，0x1808）
+#include "Redeem_Item__CRedeemItem.h"  // Redeem_Item::Inven_Item_Expand_RedeemInfo（SIG_REDEEMINFO_LIST_TO_DB 元素，0x44）
 #include "SIG_SAVE_EXPAND_EQUIPSLOT.h"  // SIG_SAVE_EXPAND_EQUIPSLOT（SIG_LOAD_INVENTORY +0x14aa4 子对象）
 #include "CGameOption.h"     // CHotkeyOption（SIG_LOAD_CHARAC_HOTKEY_OPTION +0x05 子对象，0xbc）
 #include "../../../shared/packet/include/STPvPBuddyDBInfo.h"
@@ -468,6 +471,115 @@ struct SIG_LOAD_PREMIUM_LETHE
 // CUser::GetEtcInfo @0x867794c 依此偏移填充；子对象区（skill/expand/aura/option）
 // 为可重叠序列化区，经命名数组 + 文档化偏移访问（同 GetContinuousItemInfo 约定）。
 // 字节打包：ORIG 在 +0xc9b3（奇数偏移）写 dword，故必须 pack(1)。
+// ============================================================================
+// [R18arr 2026-09-13] 为 SIG_LOAD_ETC 真实成员化而**上移**的三段类型定义（纯移动，
+// 逐字节不变；原分片 SigTypes_D.h / SigTypes_E.h 内的同定义同步删除）。
+// 理由：ORIG SIG_LOAD_ETC::C1（0x08491f86）在 +0x2308/+0x24a0/+0x40ce/+0xc9af 处
+// 构造这三类子对象，而分片顺序为 A→C→D→E→B ⇒ 定义必须位于 SIG_LOAD_ETC 之前。
+// ============================================================================
+// ---- 冷却道具载入结构（SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO +0x4 区）----
+// ORIG C1 0x0848fa0e：movb 0→+0；for i<=0x31 循环清零 {int,uint}@+4+i*8 两段
+// （setle 有符号界，P2/P51）。CUser::LoadCoolTimeItemInfo（ORIG 0x08658ff6）
+// 读 count@+0 与 entries{int itemIdx; uint endSec}。sizeof = 4+0x32*8 = 0x194。
+struct CONT_ENTRY
+{
+    int m_itemIdx;          // +0x00
+    unsigned int m_expireTime;  // +0x04
+};
+struct CONTINUOUS_ITEM_INFO
+{
+    // [R18arr 2026-09-13] 匿名 union 双视角（P235/P260）：整体字节视图 m_raw 供
+    // SIG_LOAD_ETC +0x230c 的 get_binary 实参（数组名退化 ⇒ 4.4 单条 `lea 0x230c(%eax),%edx`；
+    // 取址/成员取址形恒折 `add+mov` 两步 ⇒ DIFF）。布局/尺寸零变化（0x194）。
+    union
+    {
+        struct
+        {
+            unsigned char m_count;          // +0x00
+            char m_pad1[3];                 // +0x01（对齐）
+            CONT_ENTRY m_entries[0x32];     // +0x04（0x32×8 = 0x190）
+        };
+        char m_raw[0x194];                  // +0x00（同址整体视图，数组退化直传）
+    };
+
+    CONTINUOUS_ITEM_INFO()          // ORIG W 0x0848fa0e（C1/C2 同址）
+    {
+        m_count = 0;
+        for (int i = 0; i <= 0x31; ++i)
+        {
+            m_entries[i].m_itemIdx = 0;
+            m_entries[i].m_expireTime = 0;
+        }
+    }
+};
+
+// ORIG ctor 0x0848f894：+0x4 int=0 → Redeem_Item::Inven_Item_Expand_RedeemInfo
+// C1 × 0x15（esi=0x14 倒计数，步长 0x44：0x15×0x44 = 0x594 → +0x4 = 0x598 → 尾
+// 0x59c）。前 4 字节 ctor 不触碰。
+#pragma pack(push, 1)
+struct SIG_REDEEMINFO_LIST_TO_DB
+{
+    char m_pad0[4];                                // +0x000
+    int  m_field4;                                 // +0x004（ctor 清零）
+    Redeem_Item::Inven_Item_Expand_RedeemInfo m_items[0x15];  // +0x008（0x594）
+
+    SIG_REDEEMINFO_LIST_TO_DB() : m_field4(0) {}   // ORIG W 0x0848f894（C1/C2 同址）：m_items[0x15] 自动数组先于 m_field4=0，故置 init-list
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_REDEEMINFO_LIST_TO_DB) == 0x59c,
+              "SIG_REDEEMINFO_LIST_TO_DB ABI drift");
+
+// ORIG ctor 0x08491eca：仅构造 +0x4 的 CONTINUOUS_ITEM_INFO（0x194；count@+0 +
+// entries{int,uint}[0x32]）。
+#pragma pack(push, 1)
+struct SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO
+{
+    union
+    {
+        char m_pad0[4];             // +0x000
+        // UpdateCoolTimeItemInfo 0x08658bfb / UpdateEffectItemInfo：
+        // `mov %eax,(sig)` 4B 写 getCurCharacNo（Ghidra `*(undefined4*)local_18`）。
+        unsigned int m_characNo;    // +0x000
+    };
+    CONTINUOUS_ITEM_INFO m_info;    // +0x004（0x194）
+
+    SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO()  // ORIG W 0x08491eca（C1/C2 同址）
+        : m_info()
+    {
+    }
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO) == 0x198,
+              "SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO ABI drift");
+
+// +0/+4/+8；ORIG ctor _ZN26SIG_SAVE_PC_ROOM_PLAY_TIMEC1Ev @0x0848fb64 清零三段；
+// ORIG GetInBuffer 传 sizeof=9 → pack(1)。
+#pragma pack(push, 1)
+struct SIG_SAVE_PC_ROOM_PLAY_TIME
+{
+    unsigned int m_accId;        // +0x00 ←get_acc_id()
+    // [R18arr 2026-09-13] +0x04 双视角：ORIG SIG_LOAD_ETC 该槽为 int
+    // （DB_LoadEtc/LoadPcRoomPlayTimeInfo 历史判词实证「m_totalPcRoomPlayTime(int)」，
+    //  get_uint 出参走 u、store 走与字段同型的 i ⇒ 单段 store），
+    // 而 SAVE 侧（makeRequest）按 getPcRoomPlayTimeRewardCnt 语义为 unsigned。
+    // union 双视角同尺寸 ⇒ sizeof/偏移/mangled 零变化（P235/P260 范式）。
+    union
+    {
+        unsigned int m_totalTime;        // +0x04
+        int          m_totalTimeSigned;  // +0x04（SIG_LOAD_ETC +0xc9b3 视图：int 同型直存）
+    };
+    unsigned char m_rewardCnt;   // +0x08 ←pcRoomPlayTimeRewardCnt
+
+    // ORIG W 0x0848fb64：movl 0→+0 / movl 0→+4 / movb 0→+8。
+    SIG_SAVE_PC_ROOM_PLAY_TIME()
+    {
+        m_accId = 0;
+        m_totalTime = 0;
+        m_rewardCnt = 0;
+    }
+};
+#pragma pack(pop)
+
 #pragma pack(push, 1)
 // SIG_LOAD_ETC +0x263c 受限道具条目（16B；GetLimitItemUsage @0x08688dc4 字段实证）。
 struct SIG_ETC_LIMIT_ITEM
@@ -505,58 +617,41 @@ struct SIG_LOAD_ETC
     PvpResultType m_pvpResult;                       // +0x340（0x84）
     int      m_recordCount;                          // +0x3c4
     GameResultType m_records[0x64];                  // +0x3c8（0x64×0x50 = 0x1f40）
-    // +0x2308 区：GetLimitItemUsage @0x08688dc4 实证 count@+0x2638（movl $0/写
-    // index）、条目 0x263c 起 stride 0x10（dst=(idx+0x263)*0x10；字段 dst+0xc
+    // +0x2308 / +0x24a0 两段 SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO（ORIG C1 @0x08491f86
+    // 在 +0x2308 与 +0x24a0 各发 `mov this,%eax; add $0x2308|0x24a0,%eax;
+    // mov %eax,(%esp); call SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO::C1Ev`）。
+    // [R18arr 2026-09-13] blob/union 视图 → 真实成员（sizeof 0x198 与区长度逐字节
+    // 相等；成员构造由编译器自动发射，消除手写 placement new 的 `_ZnwjPv`+`_ZdlPvS_`）。
+    // 视图对应（旧名 → 新访问）：
+    //   m_cooltimeCharacNo/m_effectCharacNo → .m_characNo      @+0x2308 / +0x24a0
+    //     （CUserCharacInfo::GetContinuousItemInfo 0x08677f24/08677f43 写点）
+    //   m_cooltimeItemCount/m_effectItemCount → .m_info.m_count  @+0x230c / +0x24a4
+    //     （08677f67/08678008 `mov %dl` 截断字节）
+    //   m_cooltimeItem/m_effectItem（0x194 blob）→ .m_info            @+0x230c / +0x24a4
+    //     （DB_LoadEtc/LoadCharacItemStat.md：get_binary 目标 cap 0x194；
+    //      0x24a4+0x194 = +0x2638 精确衔接 count）
+    SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO m_contItemCooltime;  // +0x2308（0x198）
+    SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO m_contItemEffect;    // +0x24a0（0x198）
+    // +0x2638 受限道具区：GetLimitItemUsage @0x08688dc4 实证 count@+0x2638（movl $0/
+    // 写 index）、条目 0x263c 起 stride 0x10（dst=(idx+0x263)*0x10；字段 dst+0xc
     // movb ←LimitItemUsage::m_field10、dst+0x10 movl ←m_fieldc、dst+0x14 ←
-    // m_field15、dst+0x18 ←m_field19）。m_pad2308 保留兼容，union 叠加具名。
-    union
-    {
-        char m_pad2308[0x29fc - (0x3c8 + 0x1f40)];   // +0x2308（0x6f4）
-        struct
-        {
-            // CUserCharacInfo::GetContinuousItemInfo 0x08677f24 实证写点：
-            //   +0x2308 `mov %edx,0x2308(%eax)` ← +0x004 charac_no（08677f34）
-            //   +0x24a0 `mov %edx,0x24a0(%eax)` ← +0x004 charac_no（08677f43）
-            //   +0x230c `mov %dl,0x230c(%eax)` ← cooltime vector::size 截断字节
-            //            （08677f67，blob 首字节 = 序列化计数）
-            //   +0x24a4 `mov %dl,0x24a4(%eax)` ← effect vector::size（08678008）
-            // DB_LoadEtc/LoadCharacItemStat.md：cooltime_item get_binary
-            // 目标 +0x230c cap 0x194；effect_item 目标 +0x24a4 cap 0x194
-            // （0x24a4+0x194 = +0x2638 精确衔接 count）。union 叠加保留基名。
-            union
-            {
-                char m_pad2308a[0x230c - 0x2308];    // +0x2308
-                // [b28d-solo-CUserCharacInfo P211 档③] unsigned 与 m_characNo 同型：
-                // 异型使 4.4 多 `mov %eax,%edx` 中转（ORIG 0x08677f34 单段直存）。
-                unsigned int m_cooltimeCharacNo;     // +0x2308
-            };
-            union
-            {
-                char m_cooltimeItem[0x194];          // +0x230c
-                unsigned char m_cooltimeItemCount;   // +0x230c
-            };
-            union
-            {
-                char m_pad24A0[4];                   // +0x24a0
-                unsigned int m_effectCharacNo;       // +0x24a0（P211 档③，同 m_characNo）
-            };
-            union
-            {
-                char m_effectItem[0x194];            // +0x24a4（→ +0x2638）
-                unsigned char m_effectItemCount;     // +0x24a4
-            };
-            int  m_limitItemCount;                   // +0x2638
-            SIG_ETC_LIMIT_ITEM m_limitItems[(0x29fc - 0x263c) / 0x10];  // +0x263c
-        };
-    };
+    // m_field15、dst+0x18 ←m_field19）。
+    int  m_limitItemCount;                   // +0x2638
+    SIG_ETC_LIMIT_ITEM m_limitItems[(0x29fc - 0x263c) / 0x10];  // +0x263c
     unsigned char m_oneDayLetheFlag;                 // +0x29fc
     // [K2 2026-09-11 Main 批准] char→unsigned char：ORIG 0x084e8c92 段读该 blob 尾哨
     // 为 `movzbl 0x2b95(%eax),%edx`（单字节零扩展直读），`(unsigned char)char_arr[i]`
     // 在 4.4 恒多 1 条 `mov %eax,%edx`（探针 /tmp/k2p/ucmp2.cpp p7 vs /tmp/k2p/ucmp.cpp p1）
     // ⇒ 原码字段为无符号字节。同宽 1B ⇒ sizeof(SIG_LOAD_ETC)/全部偏移/mangled 不变。
-    unsigned char m_backupSkill[0x199];              // +0x29fd
+    // [R18arr 2026-09-13] blob → 真实成员：ORIG C1 @0x08491f86 在 +0x29fd/+0x2b97
+    // 各发 `mov this,%eax; add $0x29fd|0x2b97,%eax; mov %eax,(%esp);
+    // call SIG_LOAD_PREMIUM_LETHE::C1Ev`（无 operator new）⇒ 原码是真实具名成员，
+    // 由编译器自动构造。我方旧 char blob + ctor 内手写 placement new 在 4.4 下
+    // 每处多发 `_ZnwjPv` call + 判空 + `_ZdlPvS_` EH 岛（N83 形态差）。
+    // sizeof(SIG_LOAD_PREMIUM_LETHE)=0x199 与区长度逐字节相等，偏移零变化。
+    SIG_LOAD_PREMIUM_LETHE m_backupSkill;            // +0x29fd（0x199）
     unsigned char m_oneDayLetheFlag2ND;              // +0x2b96
-    unsigned char m_backupSkill2ND[0x199];           // +0x2b97（同上，0x2d2f 尾哨）
+    SIG_LOAD_PREMIUM_LETHE m_backupSkill2ND;         // +0x2b97（0x199；0x2d2f 尾哨）
     char     m_pad2d30[0x2d30 - (0x2b97 + 0x199)];     // +0x2d30 前垫
     unsigned int m_serverGroup;                        // +0x2d30（RequestDBETC ← G_CEnvironment()->m_serverEnvir.m_serverGroup）
     int      m_channelNo;                              // +0x2d34（RequestDBETC ← CEnvironment::get_channel_no）
@@ -569,44 +664,46 @@ struct SIG_LOAD_ETC
     SIG_ETC_EVENT_MESSAGE m_eventMessages[50];         // +0x2d3c（50×0x58 = 0x1130
                                                        //   → +0x3e6c 精确衔接 npc）
     unsigned int m_npcCount;                           // +0x3e6c
-    char     m_npcData[0x40c8 - 0x3e70];               // +0x3e70（0x258）
+    // [R18arr 2026-09-13] blob → 真实成员：ORIG C1 @0x08491f86 在 +0x3e70 发
+    // 倒计数构造循环（`mov $0x31,%esi` / `call stNPCRelationship_t::C1Ev` /
+    // `add $0xc,%ebx` / `sub $0x1,%esi` / `cmp $0xffffffff; setne`）⇒ 原码是
+    // 真实数组成员。sizeof=0xc × 50 = 0x258 与区长度相等，偏移零变化。
+    stNPCRelationship_t m_npcData[50];                 // +0x3e70（0x258）
     unsigned short m_curConditionEventStep;          // +0x40c8
     unsigned short m_curConditionEventRewardStep;    // +0x40ca
     unsigned short m_properDungeonClearCount;        // +0x40cc
-    char     m_expandData6[0x466a - 0x40ce];         // +0x40ce（type 6）
+    // [R18arr 2026-09-13] blob → 真实成员：ORIG C1 @0x08491f86 在 +0x40ce 发
+    // `add $0x40ce,%eax; mov %eax,(%esp); call SIG_REDEEMINFO_LIST_TO_DB::C1Ev`。
+    // sizeof(SIG_REDEEMINFO_LIST_TO_DB)=0x59c 与区长度逐字节相等 ⇒ 偏移零变化；
+    // 旧名 m_expandData6（char[0x59c]）的消费点改为 (char*)&m_redeemInfo。
+    SIG_REDEEMINFO_LIST_TO_DB m_redeemInfo;          // +0x40ce（type 6，0x59c）
     // type 0xe 区 = charac_titlebook 4 解压列（DB_LoadEtc/LoadTitleBook.md：
     // uncompress_zip 目标 0x466a/0x5718/0x86c0/0xa358，outLen 0x10ae/0x2fa8/
-    // 0x1c98/0xe4c 精确衔接）；union 保留老基名。
-    union
-    {
-        char m_expandDataE[0xb1a4 - 0x466a];         // +0x466a（type 0xe）
-        struct
-        {
-            char m_titlebookGeneral[0x10ae];         // +0x466a
-            char m_titlebookSpecific[0x2fa8];        // +0x5718
-            char m_titlebookDespair[0x1c98];         // +0x86c0
-            char m_titlebookEvent[0xe4c];            // +0xa358（→ +0xb1a4）
-        };
-    };
+    // 0x1c98/0xe4c 精确衔接）。
+    // [R18arr 2026-09-13] blob → 真实成员：ORIG C1 @0x08491f86 在 +0x466a 发
+    // `mov this,%eax; add $0x466a,%eax; mov %eax,(%esp); call stTitleBook::C1Ev`
+    // （无 operator new）⇒ 原码是真实具名成员。sizeof(stTitleBook)=0x6b3a 与区
+    // 长度逐字节相等；m_category0/1/2/3 依次落 +0x466a/0x5718/0x86c0/0xa358，
+    // 与原 union 内四段解压列偏移逐项一致 ⇒ 全部偏移零变化。
+    stTitleBook m_titlebook;                         // +0x466a（type 0xe，0x6b3a）
     // type 0xf 区 = charac_achievement（DB_LoadEtc/LoadAchievement.md：解压目标
     // 0xb1a4 cap 0x1800；条目 stride 12 首 dword 判零 ≤512 条；计数 movl
     // @0xc9a4；last_update get_uint @0xc9a8 → +0xc9ac 接具名字段）。
-    union
-    {
-        char m_expandDataF[0xc9ac - 0xb1a4];         // +0xb1a4（type 0xf）
-        struct
-        {
-            char           m_achievementData[0x1800];    // +0xb1a4
-            int            m_achievementCount;           // +0xc9a4
-            unsigned int   m_achievementLastUpdate;      // +0xc9a8
-        };
-    };
+    // [R18arr 2026-09-13] blob → 真实成员：ORIG C1 @0x08491f86 在 +0xb1a4 发
+    // `add $0xb1a4,%eax; call stAchievement_DBData::C1Ev`（无 operator new）。
+    // sizeof(stAchievement_DBData)=0x1808；m_entries[512]@+0（=0xb1a4，0x1800）、
+    // m_count@+0x1800（=0xc9a4）、m_saveTime@+0x1804（=0xc9a8）与原三字段偏移
+    // 逐项一致 ⇒ 全部偏移零变化。
+    stAchievement_DBData m_achievement;              // +0xb1a4（type 0xf，0x1808）
     unsigned char m_curVillageAttackCount;           // +0xc9ac
     unsigned char m_curRevengeDungeonCount;          // +0xc9ad
     unsigned char m_flagPresentAvengerTitle;         // +0xc9ae
-    char     m_padc9af[0xc9b3 - 0xc9af];             // +0xc9af
-    int      m_totalPcRoomPlayTime;                  // +0xc9b3
-    unsigned char m_pcRoomPlayTimeRewardCnt;         // +0xc9b7
+    // [R18arr 2026-09-13] blob+标量 → 真实成员：ORIG C1 @0x08491f86 在 +0xc9af 发
+    // `add $0xc9af,%eax; mov %eax,(%esp); call SIG_SAVE_PC_ROOM_PLAY_TIME::C1Ev`
+    // （pack(1) sizeof=9 ⇒ 覆盖 +0xc9af..+0xc9b7）。
+    // 视图对应：旧 m_totalPcRoomPlayTime → .m_totalTime @+0xc9b3、
+    //          旧 m_pcRoomPlayTimeRewardCnt → .m_rewardCnt @+0xc9b7。
+    SIG_SAVE_PC_ROOM_PLAY_TIME m_pcRoomPlayTime;     // +0xc9af（9 字节）
     int      m_curCharacUsedGiftFatigueQuantity;     // +0xc9b8
     std::bitset<32> m_bitset;                        // +0xc9bc（ORIG bitset<32>，4 字节；set/reset 成员调用）
     // +0xc9c0 混合区（skill + expand8/7/b/10/d/10 + aura + option）：
@@ -688,6 +785,15 @@ static_assert(offsetof(SIG_LOAD_ETC, m_backupSkill) == 0x29fd,
               "SIG_LOAD_ETC m_backupSkill offset drift");
 static_assert(offsetof(SIG_LOAD_ETC, m_backupSkill2ND) == 0x2b97,
               "SIG_LOAD_ETC m_backupSkill2ND offset drift");
+// [R18arr 2026-09-13] 真实成员化的偏移锁（ORIG 构造链偏移 ↔ 成员 offsetof 对照）：
+static_assert(offsetof(SIG_LOAD_ETC, m_npcData) == 0x3e70,
+              "SIG_LOAD_ETC m_npcData offset drift");
+static_assert(offsetof(SIG_LOAD_ETC, m_titlebook) == 0x466a,
+              "SIG_LOAD_ETC m_titlebook offset drift");
+static_assert(offsetof(SIG_LOAD_ETC, m_achievement) == 0xb1a4,
+              "SIG_LOAD_ETC m_achievement offset drift");
+static_assert(offsetof(SIG_LOAD_ETC, m_curVillageAttackCount) == 0xc9ac,
+              "SIG_LOAD_ETC m_curVillageAttackCount offset drift");
 
 struct SIG_LOAD_EVENTITEM
 {
@@ -1178,29 +1284,6 @@ struct user_gold_info
 };
 static_assert(sizeof(user_gold_info) == 0x3c, "user_gold_info ABI drift");
 
-// ---- 冷却道具载入结构（SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO +0x4 区）----
-// ORIG C1 0x0848fa0e：movb 0→+0；for i<=0x31 循环清零 {int,uint}@+4+i*8 两段
-// （setle 有符号界，P2/P51）。CUser::LoadCoolTimeItemInfo（ORIG 0x08658ff6）
-// 读 count@+0 与 entries{int itemIdx; uint endSec}。sizeof = 4+0x32*8 = 0x194。
-struct CONT_ENTRY
-{
-    int m_itemIdx;          // +0x00
-    unsigned int m_expireTime;  // +0x04
-};
-struct CONTINUOUS_ITEM_INFO
-{
-    unsigned char m_count;          // +0x00
-    CONT_ENTRY m_entries[0x32];     // +0x04（0x32×8 = 0x190）
-
-    CONTINUOUS_ITEM_INFO()          // ORIG W 0x0848fa0e（C1/C2 同址）
-    {
-        m_count = 0;
-        for (int i = 0; i <= 0x31; ++i)
-        {
-            m_entries[i].m_itemIdx = 0;
-            m_entries[i].m_expireTime = 0;
-        }
-    }
-};
-
+// [R18arr 2026-09-13] CONT_ENTRY / CONTINUOUS_ITEM_INFO 已上移至本文件 SIG_LOAD_ETC
+// 定义之前（SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO 成员化所需）；纯移动零改动。
 #endif  // DNF_GAME_SIG_TYPES_C_H_

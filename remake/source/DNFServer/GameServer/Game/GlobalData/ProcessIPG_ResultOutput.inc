@@ -229,10 +229,17 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
     }
     CerashopAddRestrict::Manager::UpdateBuyableRestrictItem(user, productNo, 1);
 
-    if (featuredIdx != 0 && !user->IsRestrictedGoods(featuredIdx))
+    // [R18a16] ORIG 0x08179161..0x081791b3 两守卫同靶（`cmpl $0;je skip` +
+    // `call IsRestrictedGoods;xor$1;test;je skip`）⇒ 拆两条独立守卫；原 `&&`
+    // 写法使 4.4 在条件位多出 bool 物化岛 `mov $1/jmp/mov $0/test;je`
+    // （我方 .o 0x83b95c3..0x83b95d1，ORIG 无）。P225/P133 拆形。
+    if (featuredIdx != 0)
     {
-        user->SetRestrictedGoods(featuredIdx);
-        m_ceraShop.SaveFeaturedIdx(user, featuredIdx, (int)curSec, 0);
+        if (!user->IsRestrictedGoods(featuredIdx))
+        {
+            user->SetRestrictedGoods(featuredIdx);
+            m_ceraShop.SaveFeaturedIdx(user, featuredIdx, (int)curSec, 0);
+        }
     }
 
     unsigned long bonusItemIdx = (unsigned long)-1;   // local_100[0]（ORIG 低 4B 写 0xffffffff）

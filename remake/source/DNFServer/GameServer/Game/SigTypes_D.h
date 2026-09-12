@@ -978,21 +978,8 @@ struct SIG_QUEST_SHOP_DATA
 static_assert(sizeof(SIG_QUEST_SHOP_DATA) == 0x155,
               "SIG_QUEST_SHOP_DATA ABI drift");
 
-// ORIG ctor 0x0848f894：+0x4 int=0 → Redeem_Item::Inven_Item_Expand_RedeemInfo
-// C1 × 0x15（esi=0x14 倒计数，步长 0x44：0x15×0x44 = 0x594 → +0x4 = 0x598 → 尾
-// 0x59c）。前 4 字节 ctor 不触碰。
-#pragma pack(push, 1)
-struct SIG_REDEEMINFO_LIST_TO_DB
-{
-    char m_pad0[4];                                // +0x000
-    int  m_field4;                                 // +0x004（ctor 清零）
-    Redeem_Item::Inven_Item_Expand_RedeemInfo m_items[0x15];  // +0x008（0x594）
-
-    SIG_REDEEMINFO_LIST_TO_DB() : m_field4(0) {}   // ORIG W 0x0848f894（C1/C2 同址）：m_items[0x15] 自动数组先于 m_field4=0，故置 init-list
-};
-#pragma pack(pop)
-static_assert(sizeof(SIG_REDEEMINFO_LIST_TO_DB) == 0x59c,
-              "SIG_REDEEMINFO_LIST_TO_DB ABI drift");
+// [R18arr 2026-09-13] SIG_REDEEMINFO_LIST_TO_DB 已上移至 SigTypes_C.h（SIG_LOAD_ETC
+// 定义之前，成员化所需）；定义体逐字节不变，本处仅留搬迁记录。
 
 struct SIG_RELOAD_IN_GAME_ADVERTISEMENT
 {
@@ -1065,28 +1052,8 @@ struct SIG_RESTING_USER_RESTRICT
 static_assert(sizeof(SIG_RESTING_USER_RESTRICT) == 0x4,
               "SIG_RESTING_USER_RESTRICT ABI drift");
 
-// ORIG ctor 0x08491eca：仅构造 +0x4 的 CONTINUOUS_ITEM_INFO（0x194；count@+0 +
-// entries{int,uint}[0x32]，定义于 SigTypes_C.h）。
-#pragma pack(push, 1)
-struct SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO
-{
-    union
-    {
-        char m_pad0[4];             // +0x000
-        // UpdateCoolTimeItemInfo 0x08658bfb / UpdateEffectItemInfo：
-        // `mov %eax,(sig)` 4B 写 getCurCharacNo（Ghidra `*(undefined4*)local_18`）。
-        unsigned int m_characNo;    // +0x000
-    };
-    CONTINUOUS_ITEM_INFO m_info;    // +0x004（0x194）
-
-    SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO()  // ORIG W 0x08491eca（C1/C2 同址）
-        : m_info()
-    {
-    }
-};
-#pragma pack(pop)
-static_assert(sizeof(SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO) == 0x198,
-              "SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO ABI drift");
+// [R18arr 2026-09-13] SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO 已上移至 SigTypes_C.h
+// （SIG_LOAD_ETC 定义之前，成员化所需）；定义体逐字节不变，本处仅留搬迁记录。
 
 struct SIG_SAVE_BLOOD_CLEAR_COUNT
 {

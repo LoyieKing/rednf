@@ -19,7 +19,8 @@ int CAssaultMgr::SendPacket(CUser* user, bool flag, PacketGuard* packet)
             place->SendPacket(*packet);
         }
     }
-    catch (int)
+    // [R18exc 2026-09-13] ORIG LSDA 类型表 = _ZTI10ENUM_ERROR（旧 catch(int) 不匹配）。
+    catch (ENUM_ERROR)
     {
     }
     return 1;

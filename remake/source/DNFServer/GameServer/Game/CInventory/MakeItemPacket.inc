@@ -87,11 +87,17 @@ bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& pac
         {
             ((InterfacePacketBuf&)packet).put_int(m_pEquipSlot[slot].m_addInfo);
             ((InterfacePacketBuf&)packet).put_int(m_pEquipSlot[slot].m_addInfo2);
-            // [H8InvenPvPWorld 2026-09-11 · 负结论 N18b] 试把实参常量化改回形参
-            // `invenType`（追 ORIG 0x084fca56 的 `mov 0xc(%ebp),%eax` 两段形）⇒
-            // 本件 1073/1073 → 1073/**1075**、fndiff 244/244 → 346/348 双劣化
-            // （4.4 形参形连带改变后续装载序）⇒ 回滚保留常数形。
-            ((InterfacePacketBuf&)packet).put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], INVEN_TYPE_EQUIP, slot));
+            // [R18a10 2026-09-13 · ④ 语义修复（防再犯）] ORIG 0x084fca0f
+            // `mov 0xc(%ebp),%eax` + 0x084fca12 `mov %eax,0x4(%esp)` ⇒ 第 2 实参是
+            // **形参 invenType**（非常量）。历史 [H8InvenPvPWorld 2026-09-11] 为追
+            // 机器码（1073→1075、fndiff 346）把实参写死 INVEN_TYPE_EQUIP(=1) ⇒ 调用点
+            // 传 {0,2,3} 者（CUser::SendUpdateItemList 2/3/0、CMailBoxHelper::GetPackege
+            // 2/3、CBossTower::InsertRewardItems、CUser::deleteSpecificItems、
+            // CParty::onBloodRewardTimer）会使 GetIntegratedPvPItemAttr 内部
+            // switch(invenType) 走错分支 ⇒ 出包物品属性字节错。语义优先（用户裁定：
+            // 完全复刻 ORIG 逻辑）⇒ 改回形参。ORIG 另一处 0x084fcbf0 确为常量 1，
+            // 与我方一致，不动。
+            ((InterfacePacketBuf&)packet).put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], invenType, slot));
             ((InterfacePacketBuf&)packet).put_short(m_pEquipSlot[slot].m_fieldb);
             ((InterfacePacketBuf&)packet).put_byte(m_pEquipSlot[slot].m_field0);
             // [H8InvenPvPWorld 2026-09-11 · P0] ORIG 0x084fca7f-0x084fca87 无槽：

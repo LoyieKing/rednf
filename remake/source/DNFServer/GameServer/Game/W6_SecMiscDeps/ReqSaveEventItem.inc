@@ -8,7 +8,7 @@ bool WongWork::CWebEvent::ReqSaveEventItem(unsigned int p1, unsigned int p2,
     // → guard 析构 → return 1。
     // ORIG 实参内联（Acquire 结果直传构造，无 stream 局部槽）；bool 直写
     // 字节（movzbl+store，P136）。
-    CStreamGuard guard(s_stream_pool->Acquire("WebEvent.cpp", 0xa0), true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("WebEvent.cpp", 0xa0), true);
     guard.operator*()->operator<<(0x4c);
     guard.operator*()->operator<<(-1);
     SIG_SAVE_EVENTITEM* sig =
@@ -20,6 +20,6 @@ bool WongWork::CWebEvent::ReqSaveEventItem(unsigned int p1, unsigned int p2,
     sig->m_field08 = p5;
     sig->m_field14 = p6;
     sig->m_field18 = last;
-    s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;
 }

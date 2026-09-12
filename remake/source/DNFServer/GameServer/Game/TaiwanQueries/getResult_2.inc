@@ -19,7 +19,9 @@ bool BalancePointQuery::getResult(MySQL& db)
             throw static_cast<int>(0x15b);
         return 1;
     }
-    catch (int e)   // [b28BM13] ORIG 值先物化入槽 ⇒ 按值 catch（同 BalanceQuery）
+    // [R18exc 2026-09-13] ORIG LSDA 类型表 = _ZTIj（unsigned int；原写 _ZTIi）。
+    // [b28BM13] ORIG 值先物化入槽 ⇒ 按值 catch（同 BalanceQuery）
+    catch (unsigned int e)
     {
         LogManager::logFormat(
             1, "localtaiwan/System/TaiwanCash.cpp", __FUNCTION__, 0x161,

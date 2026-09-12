@@ -35,7 +35,7 @@ int DB_LoadEtc::_loadNPCRelasionship(SIG_LOAD_ETC* sig)
     {
         return 0x1c8d;
     }
-    if (!db->get_binary(1, sig->m_npcData, 600))  // +0x3e70，cap 0x258
+    if (!db->get_binary(1, (char*)sig->m_npcData, 600))  // +0x3e70，cap 0x258
     {
         return 0x1c90;
     }

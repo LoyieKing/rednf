@@ -375,7 +375,9 @@ struct LayerView                                        // 0xe 有效 + 2 pad = 
         }
         return true;
     }
-    catch (int err)
+    // [R18exc 异常类型轴 2026-09-13] ORIG LSDA 类型表 = _ZTIj（unsigned int；
+    //   我方案发 _ZTIi）。函数签名在 advancealtar_DB/dispatch_2.inc、体在本文件。
+    catch (unsigned int err)
     {
         LogManager::logFormat(1, "localglobal/global_AdvanceAltar_Dispatcher.cpp", __PRETTY_FUNCTION__,
                               0x674, "[AdvanceAltar] query error line(%u)", err);   // [0x814174e]

@@ -70,12 +70,11 @@ public:
     void put(QUEUE_IDX queue_idx, CStreamGuard& guard);
 };
 
-namespace GlobalData
-{
-extern StreamPool* s_stream_pool;
-extern MsgQueueMgr* s_msgq_mgr;
-extern CSystemTime s_systemTime_;   // ORIG B 0x941f714（GlobalData.cpp 定义）
-}
+// [R18gd 2026-09-13] GlobalData 已按 ORIG 形态 class 化（namespace→class 静态成员）；
+// 原此处 `namespace GlobalData { extern ... }` 最小声明重开点合并到权威头（唯一声明点）
+// ——符号名/mangled 与 `GlobalData::x` 访问语法零变化。
+#include "GlobalData.h"
+
 // ===================== 简单访问器（ORIG weak inline 形态） =====================
 
 

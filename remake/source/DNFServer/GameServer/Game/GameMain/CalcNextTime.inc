@@ -12,7 +12,7 @@
 // 另保留 P196 `cur.tm_hour >= m_nTimeTable[i]` 装载序形。
 int TimerStatisticLevel::CalcNextTime()
 {
-    std::time_t now = static_cast<std::time_t>(s_systemTime_.getCurSec());
+    std::time_t now = static_cast<std::time_t>(GlobalData::s_systemTime_.getCurSec());
     std::tm cur;
     localtime_r(&now, &cur);
     // [b28d-solo-GameMain] 槽序实验：ORIG next@-0x14 / found@-0xd（next 先于

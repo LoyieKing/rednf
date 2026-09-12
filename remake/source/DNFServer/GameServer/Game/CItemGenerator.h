@@ -506,18 +506,30 @@ namespace WongWork
 // ---- CItemUpgradeTable（WongWork::CItemUpgrade 的表区子对象；upgrade_table_t
 //      非虚包装，sizeof == sizeof(upgrade_table_t) = 0x4e4。ORIG CItemUpgrade
 //      双基布局实证：IItemUpgrade@+0x00（多态主基）、表区@+0x04..0x4e7。） ----
-class CItemUpgradeTable : public upgrade_table_t
+// [R18rti 2026-09-13 · B3 RTTI 复刻] ORIG `_ZTIN8WongWork17CItemUpgradeTableE`
+// （0x8c9d37c）是 plain __class_type_info（size 8、无基类记录），且 ORIG 全库无
+// `_ZTI15upgrade_table_t` / `_ZTS15upgrade_table_t`（我方旧形 si 多发射此二符号，
+// 见 NEW 0x8b7809c/0x8b78088）⇒ 该类型**不继承** upgrade_table_t，而是内嵌成员。
+// 布局零变化：m_table 落 +0x000，sizeof 仍 0x4e4；CItemUpgrade 的次基类偏移 +0x4、
+// ctor/dtor 尾调 upgrade_table_tC1/D1 的调用形、mangled 集合全部不变。
+class CItemUpgradeTable
 {
 public:
     CItemUpgradeTable();              // W 0x0854b496（尾调 upgrade_table_t::C1）
     ~CItemUpgradeTable();             // D1/D2 W 0x0854b4aa（尾调 upgrade_table_tD1）
 
-    // ORIG W 0x0854b382：仅返回 this（表视图自引用；消费方按 upgrade_table_t* 使用）。
+    // ORIG W 0x0854b382：仅返回表视图自身（mov 0x8(%ebp),%eax; ret；消费方按
+    // upgrade_table_t* 使用）。
     const upgrade_table_t* getUpgradeInfoTable() const;
 
-    // ORIG W 0x0854b38a：importUpgradeTable(path, this) 尾透传（[P248 档①] bool）。
+    // ORIG W 0x0854b38a：importUpgradeTable(path, 表视图) 尾透传（[P248 档①] bool）。
     bool loadUpgradeScript(const char* path);
+
+private:
+    upgrade_table_t m_table;          // +0x000（原基类子对象位置；布局零变化）
 };
+static_assert(sizeof(CItemUpgradeTable) == 0x4e4,
+              "CItemUpgradeTable ABI drift (ORIG 0x4e4 == sizeof(upgrade_table_t))");
 
 // ---- 掉落类型（槽址 type*0x7110 下标；chooseItem/onTryGenerateRandomItem 共用） ----
 enum eItemDropType_t

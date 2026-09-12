@@ -18,7 +18,10 @@ bool BalanceQuery::getResult(MySQL& db)
             throw static_cast<int>(0x123);
         return 1;
     }
-    catch (int e)
+    // [R18exc 异常类型轴 2026-09-13] ORIG LSDA 类型表 = _ZTIj（unsigned int），
+    //   我方案发 _ZTIi ⇒ 类型身份不同（本函数 throw int，ORIG 侧该 catch 不匹配 ⇒
+    //   异常逃逸；照抄 ORIG 类型）。按值 catch 形保持。
+    catch (unsigned int e)
     {
         // [b28BM13] ORIG 0x0817422d = `begin_catch; mov (%eax),%eax; mov %eax,-0xc`
         // （值先物化入槽，P35/P0）⇒ 原码为按值 catch；引用形反产指针落槽+回读

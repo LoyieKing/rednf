@@ -14,9 +14,11 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     GetContinuousItemInfo(sig);
     GetLimitItemUsage(sig);
     sig->m_oneDayLetheFlag = GetOneDayLetheFlag();
-    memcpy(sig->m_backupSkill, GetCurCharacBackupSkill(), 0x199);
+    // [R18arr 2026-09-13] m_backupSkill 已由 blob 改为真实成员 SIG_LOAD_PREMIUM_LETHE
+    // （+0x29fd，sizeof 0x199）：取址形式 `&obj` 与旧数组名退化同为常量地址 ⇒ 零指令差。
+    memcpy(&sig->m_backupSkill, GetCurCharacBackupSkill(), 0x199);
     sig->m_oneDayLetheFlag2ND = GetOneDayLetheFlag2ND();
-    memcpy(sig->m_backupSkill2ND, GetCurCharacBackupSkill2ND(), 0x199);
+    memcpy(&sig->m_backupSkill2ND, GetCurCharacBackupSkill2ND(), 0x199);
     sig->m_curConditionEventStep = GetCurConditionEventStep();
     sig->m_curConditionEventRewardStep = GetCurConditionEventRewardStep();
     sig->m_properDungeonClearCount = GetProperDungeonClearCount();
@@ -27,13 +29,15 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     //   add $0x8,%edx; mov (%edx),%ecx; … call *%ecx` **全链内联**，帧仅 sub $0x10 ⇒
     //   原码无任何 `CExpandEquipslot* eXX` 具名局部（我方 12 个局部致帧 0x40、+40 指令）⇒
     //   全部改链式单表达式。
-    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)6)->getData((char*)sig->m_expandData6);
+    // [R18arr 2026-09-13] +0x40ce 区 blob → 真实成员 SIG_REDEEMINFO_LIST_TO_DB。
+    GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)6)->getData((char*)&sig->m_redeemInfo);
 
     sig->m_curVillageAttackCount = GetCurVillageAttackCount();
     sig->m_curRevengeDungeonCount = GetCurRevengeDungeonCount();
     sig->m_flagPresentAvengerTitle = getFlagPresentAvengerTitle();
-    sig->m_totalPcRoomPlayTime = getTotalPcRoomPlayTime();
-    sig->m_pcRoomPlayTimeRewardCnt = getPcRoomPlayTimeRewardCnt();
+    // [R18arr 2026-09-13] +0xc9af 区 blob+标量 → 真实成员 SIG_SAVE_PC_ROOM_PLAY_TIME。
+    sig->m_pcRoomPlayTime.m_totalTime = getTotalPcRoomPlayTime();
+    sig->m_pcRoomPlayTime.m_rewardCnt = getPcRoomPlayTimeRewardCnt();
     sig->m_curCharacUsedGiftFatigueQuantity = GetCurCharacUsedGiftFatigueQuantity();
     // ORIG 调 std::bitset<32>::set()（无参，全部 32 位置 1 → 0xffffffff）；
     // 直接赋值会经 bitset(unsigned long) ctor（EXTRA）而非 set()。
@@ -70,10 +74,11 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
         ->getData(&sig->m_mixedRegion[0xd6fc - 0xc9c0]);
     GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x10)
         ->getData(&sig->m_mixedRegion[0xd73c - 0xc9c0]);
+    // [R18arr 2026-09-13] +0x466a/+0xb1a4 区 blob → 真实成员 stTitleBook / stAchievement_DBData。
     GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xe)
-        ->getData((char*)sig->m_expandDataE);
+        ->getData((char*)&sig->m_titlebook);
     GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0xf)
-        ->getData((char*)sig->m_expandDataF);
+        ->getData((char*)&sig->m_achievement);
     GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x11)
         ->getData(&sig->m_mixedRegion[0xecc8 - 0xc9c0]);
     GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x12)

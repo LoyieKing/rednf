@@ -29,6 +29,11 @@ class SkillSlot;   // wave1: getTagCharacSkillR(653) 返回类型前置声明
 #include "PacketBuf.h"      // GameWorld / G_GameWorld / G_CDataManager
 #include "CPowerManager.h"   // 权威 CPowerManager 声明（GlobalData::s_power_manager 完整类型）
 #include "GameResultType.h"   // 权威 GameResultType（唯一声明点；取代本文件内空占位）
+// [R18gd 2026-09-13] GlobalData 已按 ORIG 形态 class 化（namespace→class 静态成员）；
+// 原 `namespace GlobalData { extern CSystemTime s_systemTime_; extern CPowerManager*
+// s_power_manager; }` 重开点合并到权威头（唯一声明点）——符号名/mangled 与访问语法
+// 零变化（_ZN10GlobalData13s_systemTime_E / _ZN10GlobalData15s_power_managerE）。
+#include "GlobalData.h"
 
 // ---- 枚举（ORIG mangling 需要类型名；与 CInventory.h 共享守卫） ----
 #ifndef DNF_ENUM_ITEMSPACE_DEFINED
@@ -324,15 +329,8 @@ class CTitleBook;   // 权威定义见 CTitleBook.h（本头经 CDataManager.h i
 
 int GetTenThousandPercentage(int value, int percent);
 
-// ---- 全局对象（真实声明在 GlobalData.h；CInventory.h 用 namespace 形态，
-//      此处合并声明避免同时包含 class/namespace 冲突） ----
+// ---- 全局对象（真实声明在 GlobalData.h 权威头，已 include） ----
 extern int DEFAULT_MAX_FATIGUE;
-
-namespace GlobalData
-{
-extern CSystemTime s_systemTime_;
-extern CPowerManager* s_power_manager;
-}
 
 // ============================================================================
 // _Charac_info 布局视图（ORIG 尺寸 0x14d1，pack(1)）。

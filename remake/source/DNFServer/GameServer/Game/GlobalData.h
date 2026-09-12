@@ -177,61 +177,71 @@ namespace expert_extraction { class CExtractionMgr; }
 namespace sync_script { class CSyncScript; }
 namespace XNuclear { class CHades_GameSvr; }
 
-// ---- GlobalData（ORIG 为类静态成员；CUserCharacInfo.h 同名单名空间已存在，
-//      故统一为 namespace 形态——静态方法→命名空间函数、静态成员→extern 全局，
-//      mangled 名不变：_ZN11GlobalData4InitEv / _ZN11GlobalData11s_msgq_mgrE）----
-namespace GlobalData
+// ---- GlobalData（ORIG 形态 = class 静态成员）----
+// [R18gd 2026-09-13] 完全复刻 ORIG：namespace→class（静态成员函数 + 静态数据成员）。
+//   ① 3 件 prett 文本对齐：ORIG .rodata raw 逐字节 =
+//      `static bool GlobalData::Init()`                    @0x08c1b1c0 size 0x1f
+//      `static bool GlobalData::initTournamentDB(const char*)` @0x08c1b100 size 0x36
+//      `static bool GlobalData::setCurrentPacketPool(THREAD_TYPE, pthread_t)` @0x08c1b0a0 size 0x45
+//      （改前我方 0x18/0x2f/0x3e，恰缺 `static ` 7 字节）；
+//   ② 符号名/mangled 零变化（namespace 成员与 class 静态成员同 mangling）：
+//      GlobalData.cpp .o `nm --defined-only | comm -3` = 0（4395=4395）、undefined 589=589；
+//   ③ 12 处 `namespace GlobalData { extern ... }` 重开点按「唯一声明点」合并（mangled/ABI 不变）：
+//      CInventory.h / CUserCharacInfo.h 与 CInventory.cpp / CGameManager.cpp /
+//      CPremiumLetheManager.cpp / CRelayBattleMgr.cpp / CItemShop.cpp → include 本头；
+//      CBoosterGage.cpp / CDisconnectDetecter.cpp / CExpandEquipslot.cpp /
+//      CSharedServerMessageManager.cpp 因本 TU 局部镜像类（StreamPool/CStreamGuard/
+//      CSystemTime/Stream）与权威头重定义冲突，保留最小值域 extern 声明（符号与 ABI 一致）；
+//      W6_SecMiscDeps.cpp 的 `using namespace GlobalData;` 改为 `GlobalData::` 限定（GCC 4.4
+//      不支持类成员 using-declaration，探针实证）——10 处引用，符号/语义零变化；
+//   ④ 逐 TU A/B（唯一变量 = 本头形态）：10 个代表 TU 四数改前=改后逐值相同
+//      （GlobalData.cpp 877/1719/9/35/767、CUser.cpp 809/1728/5/58/586 等）。
+class GlobalData
 {
-// [Q3PrettSweepA 2026-09-11 · Main 裁决登记] 已知 prett 形态差异（**评估后不修**）：
-//   ORIG prett 为 `static bool GlobalData::Init()` / `static bool GlobalData::initTournamentDB(const char*)`
-//   / `static bool GlobalData::setCurrentPacketPool(THREAD_TYPE, pthread_t)` 形态（ORIG 地址
-//   0x08299fa0 / 0x0829dd82 / 0x0829e4c4 直证；两侧符号绑定均为 `T`）⇒ ORIG 源码是
-//   `class GlobalData { static bool Init(); … }`，我方为 namespace 自由函数。
-//   修复需 namespace→class 转换（`s_*` 静态数据成员须类外定义、波及约 232 个 includer）
-//   ⇒ 收益 3 个 prett 符号 vs 全库级重构风险 ⇒ **不修**（与检查点 345 的 ARAD_Database.h
-//   方向相反：那是 class→namespace 且该类无静态数据成员/无实例，不可类推）。
-bool Init();                          // 0x08299fa0
-void Fini();                          // 0x0829e0b2
-bool InitCaptcha();                   // 0x0829d438
-void GenerateCaptchaData();           // 0x0829d4b0
-bool initTournamentDB(const char*);   // 0x0829dd82
-bool setCurrentPacketPool(THREAD_TYPE type, unsigned long threadID);
+public:
+// [Q3PrettSweepA 2026-09-11 登记的「评估后不修」项已于 2026-09-13 由 R18gd 落修，见上方判词。]
+    static bool Init();                          // 0x08299fa0
+    static void Fini();                          // 0x0829e0b2
+    static bool InitCaptcha();                   // 0x0829d438
+    static void GenerateCaptchaData();           // 0x0829d4b0
+    static bool initTournamentDB(const char*);   // 0x0829dd82
+    static bool setCurrentPacketPool(THREAD_TYPE type, unsigned long threadID);
                                       // 0x0829e4c4
 
 // ---- 全局状态 ----
-extern bool s_server_stop;                                   // 0940bd64 (1)
-extern MsgQueueMgr* s_msgq_mgr;                              // 0940bd68
-extern StreamPool* s_stream_pool;                            // 0940bd6c
-extern PacketPool* s_packet_pool_list[9];                    // 0940bd80
-extern BigStreamPool* s_big_stream_pool;                     // 0940bda4
-extern SmallStreamPool* s_small_stream_pool;                 // 0940bda8
-extern DBMgr* s_db_mgr;                                      // 0940bdac
-extern DBThread* s_db_thr;                                   // 0940bdb0
-extern DBThread* s_db_thr_for_logDB;                         // 0940bdb4
-extern DispatchThread* s_dispatch_thr;                       // 0940bdb8
-extern NetworkThread* s_net_thr;                             // 0940bdbc
-extern UdpThread* s_udp_thr;                                 // 0940bdc0
-extern AcceptThread* s_accept_thr;                           // 0940bdc4
-extern MonitorTcpThread* s_monitor_tcp_thr;                  // 0940bdc8
-extern Mutex s_accept_lock;                                  // 0940bdcc (0x18)
-extern std::queue<CUser*, std::deque<CUser*> > s_accept_que; // 0940be00 (0x28)
-extern CServerProxyMgr<CMonitorServerProxy>* s_monitor_proxy_mgr;   // 0940be28
-extern CServerProxyMgr<CGuildServerProxy>* s_guild_proxy_mgr;       // 0940be2c
-extern CServerProxyMgr<CStatisticServerProxy>* s_statistic_proxy_mgr; // 0940be30
-extern CHadesServerProxy* s_hades_proxy;                     // 0940be34
-extern CDoubleConnCheckServerProxy* s_double_check_proxy;    // 0940be38
-extern CSchoolServerProxy* s_school_proxy;                   // 0940be3c
-extern CPCRoomServerProxy* s_pcroom_proxy;                   // 0940be40
-extern CCommunityServerProxy* s_community_proxy;             // 0940be44
-extern CAuctionServerProxy* s_auction_proxy;                 // 0940be48
-extern CCeraAuctionServerProxy* s_cera_auction_proxy;        // 0940be4c
-extern CPowerManager* s_power_manager;                       // 0940be50
-extern secretshop::CSecretShop* s_secret_shop;               // 0940be54
-extern CFatigueBatteryHandle* s_fatigueBatteryHandle_;       // 0940be58
-extern CmmChannelProxy* s_channel_proxy;                     // 0940be5c
-extern CRijndael* s_pcryptRijndael_CharacView_;              // 0940be60
-extern CRijndael* s_pcryptRijndael_Password_;                // 0940be64
-extern CRijndael* s_pcryptRijndael_MousePassword_;           // 0940be68
+    static bool s_server_stop;                                   // 0940bd64 (1)
+    static MsgQueueMgr* s_msgq_mgr;                              // 0940bd68
+    static StreamPool* s_stream_pool;                            // 0940bd6c
+    static PacketPool* s_packet_pool_list[9];                    // 0940bd80
+    static BigStreamPool* s_big_stream_pool;                     // 0940bda4
+    static SmallStreamPool* s_small_stream_pool;                 // 0940bda8
+    static DBMgr* s_db_mgr;                                      // 0940bdac
+    static DBThread* s_db_thr;                                   // 0940bdb0
+    static DBThread* s_db_thr_for_logDB;                         // 0940bdb4
+    static DispatchThread* s_dispatch_thr;                       // 0940bdb8
+    static NetworkThread* s_net_thr;                             // 0940bdbc
+    static UdpThread* s_udp_thr;                                 // 0940bdc0
+    static AcceptThread* s_accept_thr;                           // 0940bdc4
+    static MonitorTcpThread* s_monitor_tcp_thr;                  // 0940bdc8
+    static Mutex s_accept_lock;                                  // 0940bdcc (0x18)
+    static std::queue<CUser*, std::deque<CUser*> > s_accept_que; // 0940be00 (0x28)
+    static CServerProxyMgr<CMonitorServerProxy>* s_monitor_proxy_mgr;   // 0940be28
+    static CServerProxyMgr<CGuildServerProxy>* s_guild_proxy_mgr;       // 0940be2c
+    static CServerProxyMgr<CStatisticServerProxy>* s_statistic_proxy_mgr; // 0940be30
+    static CHadesServerProxy* s_hades_proxy;                     // 0940be34
+    static CDoubleConnCheckServerProxy* s_double_check_proxy;    // 0940be38
+    static CSchoolServerProxy* s_school_proxy;                   // 0940be3c
+    static CPCRoomServerProxy* s_pcroom_proxy;                   // 0940be40
+    static CCommunityServerProxy* s_community_proxy;             // 0940be44
+    static CAuctionServerProxy* s_auction_proxy;                 // 0940be48
+    static CCeraAuctionServerProxy* s_cera_auction_proxy;        // 0940be4c
+    static CPowerManager* s_power_manager;                       // 0940be50
+    static secretshop::CSecretShop* s_secret_shop;               // 0940be54
+    static CFatigueBatteryHandle* s_fatigueBatteryHandle_;       // 0940be58
+    static CmmChannelProxy* s_channel_proxy;                     // 0940be5c
+    static CRijndael* s_pcryptRijndael_CharacView_;              // 0940be60
+    static CRijndael* s_pcryptRijndael_Password_;                // 0940be64
+    static CRijndael* s_pcryptRijndael_MousePassword_;           // 0940be68
 struct SecuCipherKeyRec  // ORIG BSS 0x940be80 起 16 字节记录（0x940be80..0x941f700 = 0x4e20×0x10）
 {
     Cipher* cipher;  // +0x00
@@ -239,58 +249,58 @@ struct SecuCipherKeyRec  // ORIG BSS 0x940be80 起 16 字节记录（0x940be80..
     int tblId;       // +0x08（Sanicova::CPad::GetKeyIdx(1) 读）
     char m_padC[4];  // +0x0c
 };
-extern SecuCipherKeyRec s_secu_cipher_keystring_manager_[0x4e20];  // 0940be80
-extern CTEA* s_pcryptTEA_MousePassword_;                     // 0941f700
-extern CTEA* s_pcryptTEA_SecurityCard_;                      // 0941f704
-extern WongWork::CSimpleSSO* s_psimpleSSO;                   // 0941f708
-extern WongWork::CSecurityCardCenter* s_securityCardCenter;  // 0941f70c
-extern WongWork::CGMAccounts* s_pGMAccounts_;                // 0941f710
-extern CSystemTime s_systemTime_;                            // 0941f714 (0x14)
-extern XNuclear::CHades_GameSvr s_hades_;                    // 0941f728 (8)
-extern CEventManager* s_event_manager;                       // 0941f730
-extern WongWork::IPG::CIPGHelper* s_pIPGHelper;              // 0941f734
-extern InstanceRentalSystem* s_rentalSystem;                 // 0941f738
-extern RefPvpGrade* s_ref_pvp_grade;                         // 0941f73c
-extern WongWork::CLogGameChannel* s_pLogGameChannel;         // 0941f740
-extern WongWork::CCeraShop* s_pCeraShop;                     // 0941f744
-extern CDBConnector* s_db_connector;                         // 0941f748
-extern void* s_pCompoundAvatar;                              // 0941f74c
-extern void* s_pCompoundBindCube;                            // 0941f750
-extern void* s_pTowerOfDespairMgr;                           // 0941f754
-extern Event_Upgrade_Jar* s_pEvent_UpGrade_Jar;              // 0941f758
-extern CGM_Manager* s_GM_Manager;                            // 0941f75c
-extern ItemVendingMachine* s_pItemVendingMachine;            // 0941f760
-extern CStatisticMgr* s_statisticMgr;                        // 0941f764
-extern expert_job::CExpertJobMgr* s_ExpertJobMgr;            // 0941f768
-extern break_away_prevent::CBreakAwayPreventSystem* s_BreakAwaySys; // 0941f76c
-extern Gm_List* gmList;                                      // 0941f770
-extern village_object::CVillageObjectMgr* s_villageObjectMgr;// 0941f774
-extern game_master::CGameMasterMgr* s_GameMasterMgr;         // 0941f778
-extern village_attacked::CVillageMonsterMgr* s_villageMonsterMgr; // 0941f77c
-extern village_attacked::CRevengeDungeon* s_revengeDungeonMgr;    // 0941f780
-extern CDailyScheduleManager* s_DailyScheduleManager;        // 0941f784
-extern online_preliminary::COnlinePreliminaryTeamMgr* s_onlinePreliminaryTeamMgr; // 0941f788
-extern WongWork::CCapchaDataManager s_capchaDataManager;     // 0941f7a0 (0x28)
-extern Secu_DataControl* s_pSecuDataControl;                 // 0941f7c8
-extern CSecu_ProtectionField* s_pSecuProtectionField;        // 0941f7cc
-extern WongWork::CAutoPunishRuleBlackIPMgr* g_autoPunishRuleBlackIPMgr; // 0941f7d0
-extern WongWork::CAutoPunishRuleHackTypeMgr* g_autoPunishRuleHackTypeMgr; // 0941f7d4
-extern WongWork::CBlackIPMonitor* g_blackIPMonitor;          // 0941f7d8
-extern unsigned int g_IPMonitorLastDBAccessTime;             // 0941f7dc
-extern CBusinessImpl* s_antibotBusinessImpl_;                // 0941f7e0
-extern void* s_antibotChecker_;                              // 0941f7e4
-extern CItemAmplifier* s_itemAmplifier_;                     // 0941f7e8
-extern CGlobalEffectManager* s_globalEffectManager_;         // 0941f7ec
-extern ARAD::Arad_ServerStateManager* s_serverStateManager_; // 0941f7f0
-extern CTimeGate* s_timeGate_;                               // 0941f7f4
-extern unsigned int g_GoldControlDateFlag;                   // 0941f7f8
-extern StackableAction::Action* g_Actions;                   // 0941f7fc
-extern expert_extraction::CExtractionMgr* g_ExtractionMgr;   // 0941f800
-extern CaptchaGen cg_;                                       // 0941f804 (0x14)
-extern void* g_pTeleport[2];                                 // 0941f818 (8)
-extern random_option::CRandomOptionItemHandle* g_randomOptionHandle; // 0941f820
-extern void* s_pAvatarRoulette;                              // 0941f824
-} // namespace GlobalData
+    static SecuCipherKeyRec s_secu_cipher_keystring_manager_[0x4e20];  // 0940be80
+    static CTEA* s_pcryptTEA_MousePassword_;                     // 0941f700
+    static CTEA* s_pcryptTEA_SecurityCard_;                      // 0941f704
+    static WongWork::CSimpleSSO* s_psimpleSSO;                   // 0941f708
+    static WongWork::CSecurityCardCenter* s_securityCardCenter;  // 0941f70c
+    static WongWork::CGMAccounts* s_pGMAccounts_;                // 0941f710
+    static CSystemTime s_systemTime_;                            // 0941f714 (0x14)
+    static XNuclear::CHades_GameSvr s_hades_;                    // 0941f728 (8)
+    static CEventManager* s_event_manager;                       // 0941f730
+    static WongWork::IPG::CIPGHelper* s_pIPGHelper;              // 0941f734
+    static InstanceRentalSystem* s_rentalSystem;                 // 0941f738
+    static RefPvpGrade* s_ref_pvp_grade;                         // 0941f73c
+    static WongWork::CLogGameChannel* s_pLogGameChannel;         // 0941f740
+    static WongWork::CCeraShop* s_pCeraShop;                     // 0941f744
+    static CDBConnector* s_db_connector;                         // 0941f748
+    static void* s_pCompoundAvatar;                              // 0941f74c
+    static void* s_pCompoundBindCube;                            // 0941f750
+    static void* s_pTowerOfDespairMgr;                           // 0941f754
+    static Event_Upgrade_Jar* s_pEvent_UpGrade_Jar;              // 0941f758
+    static CGM_Manager* s_GM_Manager;                            // 0941f75c
+    static ItemVendingMachine* s_pItemVendingMachine;            // 0941f760
+    static CStatisticMgr* s_statisticMgr;                        // 0941f764
+    static expert_job::CExpertJobMgr* s_ExpertJobMgr;            // 0941f768
+    static break_away_prevent::CBreakAwayPreventSystem* s_BreakAwaySys; // 0941f76c
+    static Gm_List* gmList;                                      // 0941f770
+    static village_object::CVillageObjectMgr* s_villageObjectMgr;// 0941f774
+    static game_master::CGameMasterMgr* s_GameMasterMgr;         // 0941f778
+    static village_attacked::CVillageMonsterMgr* s_villageMonsterMgr; // 0941f77c
+    static village_attacked::CRevengeDungeon* s_revengeDungeonMgr;    // 0941f780
+    static CDailyScheduleManager* s_DailyScheduleManager;        // 0941f784
+    static online_preliminary::COnlinePreliminaryTeamMgr* s_onlinePreliminaryTeamMgr; // 0941f788
+    static WongWork::CCapchaDataManager s_capchaDataManager;     // 0941f7a0 (0x28)
+    static Secu_DataControl* s_pSecuDataControl;                 // 0941f7c8
+    static CSecu_ProtectionField* s_pSecuProtectionField;        // 0941f7cc
+    static WongWork::CAutoPunishRuleBlackIPMgr* g_autoPunishRuleBlackIPMgr; // 0941f7d0
+    static WongWork::CAutoPunishRuleHackTypeMgr* g_autoPunishRuleHackTypeMgr; // 0941f7d4
+    static WongWork::CBlackIPMonitor* g_blackIPMonitor;          // 0941f7d8
+    static unsigned int g_IPMonitorLastDBAccessTime;             // 0941f7dc
+    static CBusinessImpl* s_antibotBusinessImpl_;                // 0941f7e0
+    static void* s_antibotChecker_;                              // 0941f7e4
+    static CItemAmplifier* s_itemAmplifier_;                     // 0941f7e8
+    static CGlobalEffectManager* s_globalEffectManager_;         // 0941f7ec
+    static ARAD::Arad_ServerStateManager* s_serverStateManager_; // 0941f7f0
+    static CTimeGate* s_timeGate_;                               // 0941f7f4
+    static unsigned int g_GoldControlDateFlag;                   // 0941f7f8
+    static StackableAction::Action* g_Actions;                   // 0941f7fc
+    static expert_extraction::CExtractionMgr* g_ExtractionMgr;   // 0941f800
+    static CaptchaGen cg_;                                       // 0941f804 (0x14)
+    static void* g_pTeleport[2];                                 // 0941f818 (8)
+    static random_option::CRandomOptionItemHandle* g_randomOptionHandle; // 0941f820
+    static void* s_pAvatarRoulette;                              // 0941f824
+};
 
 // g_SPremiumInfo 为全局 C 名（ORIG B 0x09483a40；无命名空间），声明见 SPremiumInfo.h。
 extern SPremiumInfo g_SPremiumInfo[0x6a];                    // 09483a40 (0x7740)

@@ -36,7 +36,13 @@ int DisPatcher_SelectDungeon::process(CUser* user, MSG_BASE& msg, ParamBase& par
 
     // ORIG +0x0fc~+0x1be（asm 权威，Ghidra C 未渲染该支）：msg[0x11]==1 ⇒ 全队
     // get_user(i≤3)→logFormat(0x198a "[HackUser]...")→leave_user(3)→DisConnSig(0x18,1,0)。
-    if (static_cast<unsigned char>(req.m_field11) == 1)
+    // [R18scanRT 2026-09-13 ④落修] ORIG 0x081c820a raw=`e9 c6 00 00 00`（`movzbl 0x11(%eax);
+    //   cmp $0x1,%al` 之后**无条件** jmp 至 0x081c82d5；热补残留字节 0x081c820f=`90`）⇒ 死块
+    //   [0x081c8210,0x081c82d5) 经全函数 BFS 可达性证明零入边（含 get_user/get_acc_id/
+    //   logFormat 0x198a/leave_user/DisConnSig）⇒ ORIG 运行期恒不执行该体。按 P337 恒假
+    //   volatile 守卫复刻（唯一写点=常量 0，读点后 jcc 恒取），块内容原样保留。
+    volatile bool deadHackUserGuard = false;
+    if (static_cast<unsigned char>(req.m_field11) == 1 && deadHackUserGuard)
     {
         for (int i = 0; i <= 3; ++i)
         {

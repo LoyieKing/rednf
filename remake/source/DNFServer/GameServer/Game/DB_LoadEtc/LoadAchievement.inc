@@ -52,7 +52,7 @@ bool DB_LoadEtc::LoadAchievement(SIG_LOAD_ETC* sig)
     unsigned int outLen = 0x1800;      // ORIG 0x08406531：srcLen 之后才初始化
     // [K2ADBLogin 2026-09-11] 负结论（同 LoadRedeemItem）：显式指针算术形实测
     //   仍产 `lea 0xb1a4(%eax),%edx`（ORIG 为 `add $0xb1a4,%eax`）⇒ N107 反向封顶。
-    if (!uncompress_zip(sig->m_expandDataF, outLen, blob, srcLen))
+    if (!uncompress_zip((char*)&sig->m_achievement, outLen, blob, srcLen))
     {
         return false;
     }
@@ -79,10 +79,10 @@ bool DB_LoadEtc::LoadAchievement(SIG_LOAD_ETC* sig)
         }
         ++count;
     }
-    sig->m_achievementCount = count;             // +0xc9a4（movl）
+    sig->m_achievement.m_count = count;             // +0xc9a4（movl）
 
     // ORIG 0x084065c4：get_uint 目标直接是 sig+0xc9a8（无 lastUpdate 局部，P0 槽律）。
-    if (!db->get_uint(1, sig->m_achievementLastUpdate))
+    if (!db->get_uint(1, sig->m_achievement.m_saveTime))
     {
         return false;
     }

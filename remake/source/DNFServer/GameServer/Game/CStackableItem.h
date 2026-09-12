@@ -369,7 +369,13 @@ struct BoosterSelectInfo
     char m_field18;                     // +0x18
 };
 
-class CStackableItem : public CItem
+// [R18rti 2026-09-13 · B1 RTTI 复刻] ORIG `_ZTI14CStackableItem`（0x8c96f40）= __vmi
+// 双基：base[0] CItem@+0x0（offset_flags 0x2）、base[1] AradItemInfo@+0x148（0x14802）。
+// 我方原为 si 单基 + 成员 `AradItemInfo m_arad148;` ⇒ 缺次基类身份、且不发射 ORIG 实有的
+// `_ZTI12AradItemInfo`（0x8c96f94，kind=class）。改为真实第二基类（P242：ORIG ctor 先构造
+// 表区子对象者即基类）。布局零变化：CItem sizeof=0x148 ⇒ 子对象仍落 +0x148；AradItemInfo
+// 非多态（无 vptr）⇒ 单 vptr 仍在 +0；sizeof/成员偏移/mangled 全部不变（末尾 static_assert 兜底）。
+class CStackableItem : public CItem, public AradItemInfo
 {
 public:
     CStackableItem();
@@ -468,7 +474,9 @@ public:
     // ORIG 0x822ca28：movzwl 0x2b4(%eax) —— 返回珍宝目标槽位（16 位，单次零扩展）
     unsigned short getJewelTargetSocket() const;
     int get_sub_type() const;             // ORIG W 0x822c9d2：return m_int2bc（定义 CStackableItem.cpp）
-    AradItemInfo m_arad148;               // +0x148（0x2c；m_field0/m_field4/3str/2vec）
+    // [R18rti · B1] 原 `AradItemInfo m_arad148;` 已提升为第二基类（见类头注释）：
+    // +0x148 子对象位置不变，成员访问一律去 `m_arad148.` 前缀（ORIG 的 C1/D1 调用点、
+    // 成员写偏移、sizeof 均不变；仅 RTTI 由 si 变 vmi + 发射 _ZTI12AradItemInfo）。
     RecipeInfo m_recipe174;               // +0x174
     LotteryInfo m_lotto;                  // +0x1c0
     CMTRand* m_pRand;                     // +0x1e0

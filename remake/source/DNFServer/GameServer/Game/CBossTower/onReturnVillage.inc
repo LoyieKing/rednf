@@ -20,9 +20,16 @@
 // [L5Free49to60 2026-09-11 复核] fresh 103 vs 104 不变；bcmp 唯一差异 = ORIG 头部
 //   无条件 `jmp`（死块前端残留）vs 我方 `je <第二条件>; mov 0x8(%ebp),%eax` 两条
 //   ⇒ 维持 N（不为凑形态引入伪死块）。
+// [R18scanRT 2026-09-13 ④落修] 用户裁定「完全复刻 ORIG（含热补/错误逻辑）」⇒ 撤销上方
+//   「维持 N/保留 body 可达」：ORIG 0x08144fde raw=`e9 37 01 00 00`（test 后**无条件** jmp
+//   至函数尾 0x0814511a `mov $1,%eax;…;ret`），死块 [0x08144fe3,0x0814511a) 经全函数 BFS
+//   可达性证明**零入边**（含 `CParty::ReturnToVillage()` @0x0814510a + `_destroy()`
+//   @0x08145115）⇒ 运行期恒不执行该体。按 P337 形（恒假 volatile 守卫，唯一写点=常量 0，
+//   读点后 jcc 恒取）复刻，**块内容原样保留**。
 int CBossTower::onReturnVillage()
 {
-    if (m_party != 0 && m_party->GetEPLPState() == 2)
+    volatile bool deadReturnVillageGuard = false;   // P337：ORIG 恒跳过（运行期恒 false）
+    if (m_party != 0 && deadReturnVillageGuard && m_party->GetEPLPState() == 2)
     {
         char memberNames[255] = {0};           // ebp-0x120（ORIG 0x08144fd9 单段
                                                // rep stos 0x3f dwords）

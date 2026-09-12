@@ -14,7 +14,7 @@ bool DB_UpdateNPCRelationship::dispatch(int userIdx, int slot, Stream* stream)
     db->set_query(
         "upDate charac_npc set npc_cnt=%d,npc_data='%s' where charac_no=%d",
         sig->m_npcCnt,
-        db->blob_to_str(0, sig->m_npcData, sig->m_npcCnt * 12),
+        db->blob_to_str(0, (char*)sig->m_npcData, sig->m_npcCnt * 12),
         characNo);
     db->exec(true);
     return 1;

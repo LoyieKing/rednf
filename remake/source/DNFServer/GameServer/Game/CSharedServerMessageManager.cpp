@@ -130,6 +130,7 @@ extern StreamPool* s_stream_pool;
 extern MsgQueueMgr* s_msgq_mgr;
 }
 
+
 // ---- CUser 族最小声明（实现属其它 TU；基类偏移 0 保证 this 直通） ----
 enum INVEN_TYPE
 {

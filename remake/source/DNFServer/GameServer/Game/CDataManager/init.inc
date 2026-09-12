@@ -1320,12 +1320,19 @@ bool CDataManager::init()
         // （Ghidra C 亦只见直调 `set_level_exp(this);` 无 if）。按用户裁定
         // 「完全复刻 ORIG 逻辑（即使是错误逻辑）」+ P337：保留块体（维持
         // cMyTrace 调用点与 ORIG 齐平），以恒 0 volatile 守卫使运行期不可达。
+        // [R18a02 2026-09-13] 形态收敛：`&&` 形在本 GCC 下产 12 条（含 3 个 je 与
+        //   `mov $1/%eax;jmp;mov $0,%eax;test;je` 物化段），嵌套 if 形仅 7 条且与
+        //   ORIG 站点（`call;xor $1;test %al,%al;jmp`）逐段同序（探针 /tmp/verify357/
+        //   R18a02/probe/p.cpp t1 vs t2）⇒ 按用户口径「我方多出的物化一律移除」改写。
         volatile bool deadLevelExpFail = false;
-        if (!set_level_exp() && deadLevelExpFail)
+        if (!set_level_exp())
+        {
+        if (deadLevelExpFail)
         {
         cMyTrace(__PRETTY_FUNCTION__, 0x2025, 9, true, true)(
             "\t- Init Level Exp Fail");
         return 0;
+        }
         }
         cMyTrace(__PRETTY_FUNCTION__, 0x2028, 9, false, true)("Success");
         cMyTrace(__PRETTY_FUNCTION__, 0x202a, 9, true, false)(
@@ -1335,11 +1342,14 @@ bool CDataManager::init()
         // 复制粘贴痕迹 “Init Level Exp Fail”（+0x4cd1）。
         // 按补丁后运行时可观察行为复刻（同 P337 恒 0 volatile 守卫）。
         volatile bool deadMobRewardFail = false;
-        if (!set_mob_reward() && deadMobRewardFail)
+        if (!set_mob_reward())
+        {
+        if (deadMobRewardFail)
         {
         cMyTrace(__PRETTY_FUNCTION__, 0x202d, 9, true, true)(
             "\t- Init Level Exp Fail");
         return 0;
+        }
         }
         cMyTrace(__PRETTY_FUNCTION__, 0x2030, 9, false, true)("Success");
         cMyTrace(__PRETTY_FUNCTION__, 0x2032, 9, true, false)(

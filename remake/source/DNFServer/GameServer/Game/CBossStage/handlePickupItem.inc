@@ -74,10 +74,12 @@ bool CBossStage::handlePickupItem(CUser* user, int itemUID, bool flag,
             routeKind = 1;
     }
     // [b28d-solo] p167：ORIG 无 getParty 调用（0 处）⇒ m_party 直读（P0）。
-    CParty* party = m_party;
+    // [R18a19 · P183/P0] ORIG 无 party 具名局部（0x0814fbbc 起两处均
+    //   `mov 0x8(%ebp),%eax; mov 0x4(%eax),%eax; mov %eax,(%esp); call
+    //   CParty::get_member_countEv` 逐次重读 m_party）⇒ 删缓存局部、改 m_party 直读。
     // [b28f 实验 A 轴/P0] ORIG 0x0814fbc0 段为寄存器直测（`mov $0x1,%eax; jmp;
     //   mov $0x0,%eax; test %al,%al; je`，无槽往返）⇒ 删具名 bool，条件内联。
-    if (party->get_member_count() > 1 &&
+    if (m_party->get_member_count() > 1 &&
         getLiveMemberCount() > 1 &&
         item.m_count != 0 &&
         (script->get_rarity() == 4 ||
@@ -90,7 +92,7 @@ bool CBossStage::handlePickupItem(CUser* user, int itemUID, bool flag,
 
     outRarity = (char)script->get_rarity();
     // [b28f 实验 A 轴/P0] 同上（ORIG 同段形）。
-    if (party->get_member_count() > 1 &&
+    if (m_party->get_member_count() > 1 &&
         getLiveMemberCount() > 1 &&
         item.m_count != 0 &&
         (script->get_rarity() == 1 ||

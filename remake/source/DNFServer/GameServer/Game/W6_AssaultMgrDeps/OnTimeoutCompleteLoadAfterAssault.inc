@@ -28,9 +28,11 @@ int CAssaultMgr::OnTimeoutCompleteLoadAfterAssault(unsigned int partyIndex, int 
             party->send_to_party(packet);
         }
     }
-    catch (int)                             // [b28d-solo] ORIG landing pad
-                                            // `cmp $0x1,%edx; je` + 存值槽 -0xc
-                                            // ⇒ 定类型 catch(int)，非 catch-all。
+    catch (ENUM_ERROR)                      // [R18exc 2026-09-13] ORIG landing pad
+                                            // `cmp $0x1,%edx; je` + 存值槽 -0xc；
+                                            // LSDA 类型表 = _ZTI10ENUM_ERROR（本函数
+                                            // 自身 throw static_cast<ENUM_ERROR>，
+                                            // 旧写 catch(int) ⇒ 自抛自不捕）。
     {
     }
     return 1;                               // [b28d-solo] P159：ORIG 尾 `mov $0x1,%eax`

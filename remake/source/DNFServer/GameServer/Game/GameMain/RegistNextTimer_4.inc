@@ -13,7 +13,7 @@
 // 各自独立调 G_CDataManager（P183）+ key 具名槽；残差帧/槽平移（N95）。
 int Timer_DungeonInoutOpenTime::RegistNextTimer()
 {
-    std::time_t now = static_cast<std::time_t>(s_systemTime_.getCurSec());
+    std::time_t now = static_cast<std::time_t>(GlobalData::s_systemTime_.getCurSec());
     std::tm t;
     std::tm* p = localtime_r(&now, &t);   // P43：ORIG 经返回值指针读字段
     // [N3Free171to190·GameMain] AE 修法（P339 声明序=槽序）：`next` 必须在 curHour

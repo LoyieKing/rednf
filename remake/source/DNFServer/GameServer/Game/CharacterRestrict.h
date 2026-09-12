@@ -17,8 +17,10 @@ public:
     static char const* enumToString(Enum e);   // ORIG T @0x0816d472
 
 private:
-    // ORIG d @0x0937014c（L local，0x10=4 项 char const*，索引即 Enum 值）：
-    // {RestrictBegin, RestrictEnd, RestrictOnDay, RestrictIP}
+    // ORIG d @0x0937014c（L local，0x10=4 项 char const*，索引即 Enum 值）raw 实证序：
+    // {RestrictBegin, RestrictOnDay, RestrictIP, RestrictEnd}
+    // 【修正 b28/R18obj2】原注释写 {RestrictBegin, RestrictEnd, RestrictOnDay, RestrictIP}
+    // 的 [1..3] 与 ORIG 轮换错位；定义处（SecurityRestrictPolicy.cpp）已按 ORIG 顺序修正。
     static char const* enumStringCharacters[4];
 };
 

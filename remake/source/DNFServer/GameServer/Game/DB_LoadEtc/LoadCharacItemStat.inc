@@ -7,7 +7,7 @@
 //   ②三处 get 结果复用同一 ok 槽（ORIG 三处 `mov %al,-0x11; movzbl; xor $1; test`；
 //   原 get_binary/get_compressed 直测少 2 条槽往返）。
 // 已修（N107 翻正）：cooltime 实参 `sig->m_cooltimeItem`（数组名退化）4.4 恒
-//   `add $0x230c,%eax; mov %eax,%edx`；改 **`&sig->m_cooltimeItem[0]`**（显式取首元素地址）
+//   `add $0x230c,%eax; mov %eax,%edx`；改 **`sig->m_contItemCooltime.m_info.m_raw`**（显式取首元素地址）
 //   即复现 ORIG `lea 0x230c(%eax),%edx`——N107 的可翻位（与 effect 的 `&m_effectItem[0]` 同形）。
 // 已修（前波）：exec/fetch 具名 ok + col 槽取后自增 + 三处 trace 临时链。
 bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC* sig)
@@ -35,7 +35,7 @@ bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC* sig)
     }
 
     int col = 0;                                             // ORIG -0xc 列号槽
-    ok = db->get_binary(col++, &sig->m_cooltimeItem[0], 0x194);  // cooltime_item +0x230c
+    ok = db->get_binary(col++, sig->m_contItemCooltime.m_info.m_raw, 0x194);  // cooltime_item +0x230c
     if (!ok)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0xac8a, 5)(
@@ -43,7 +43,7 @@ bool DB_LoadEtc::LoadCharacItemStat(SIG_LOAD_ETC* sig)
             " charac_no=%u", col, sig->m_characNo);
         return false;
     }
-    ok = db->get_binary(col++, &sig->m_effectItem[0], 0x194);    // effect_item +0x24a4
+    ok = db->get_binary(col++, sig->m_contItemEffect.m_info.m_raw, 0x194);    // effect_item +0x24a4
     if (!ok)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0xac91, 5)(

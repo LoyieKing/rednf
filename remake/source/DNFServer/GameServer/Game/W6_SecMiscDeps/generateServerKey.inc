@@ -7,7 +7,7 @@ char* WongWork::CSecurityCardCenter::generateServerKey(char* out)
     // ORIG T 0x085fe0ec (size 0x91)：
     // "%02d%02d%010d%05d%05d"(env+0x378, env+0x1b0, curSec, timeCount, rand5)
     _updateTimeCount();
-    const int curSec = s_systemTime_.getCurSec();
+    const int curSec = GlobalData::s_systemTime_.getCurSec();
     // CEnvironment 服务器标识字段尚未具名化（域外批次负责），按既有口径偏移读。
     OS_API::snprintf(out, 0x21, "%02d%02d%010d%05d%05d",
                      G_CEnvironment()->m_serverEnvir.m_serverGroup,  // +0x378

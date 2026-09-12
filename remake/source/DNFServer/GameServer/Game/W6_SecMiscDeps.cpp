@@ -41,7 +41,10 @@ namespace OS_API
     int snprintf(char* buf, unsigned int size, char const* fmt, ...);
 }
 
-using namespace GlobalData;
+// [R18gd 2026-09-13] GlobalData 已按 ORIG 形态 class 化（namespace→class 静态成员）
+// ⇒ `using namespace GlobalData;` 非法（class 不是 namespace）；GCC 4.4 亦不支持类成员的
+// using-declaration（探针实测：`using C::x;` 报 "C is not a namespace"）⇒ 本 TU 内原依赖
+// 该 using 的 10 处非限定引用改为 `GlobalData::` 限定形（符号名/mangled/语义零变化）。
 
 // ----------------------------------------------------------------------------
 // b22 桥清零（P201 + 真修，Model22）：原「handle-of-handle」§4.5 例外经 ORIG

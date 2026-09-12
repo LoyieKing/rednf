@@ -54,7 +54,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         }
         unsigned int srcLen1 = db->get_binary_length(0);
         unsigned int outLen1 = 0x10ae;   // ORIG 初始化在 call 之后
-        if (!uncompress_zip(sig->m_titlebookGeneral, outLen1, blob, srcLen1))
+        if (!uncompress_zip((char*)sig->m_titlebook.m_category0, outLen1, blob, srcLen1))
         {
             return false;
         }
@@ -68,7 +68,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         }
         unsigned int srcLen2 = db->get_binary_length(1);
         unsigned int outLen2 = 0x2fa8;   // ORIG 初始化在 call 之后
-        if (!uncompress_zip(sig->m_titlebookSpecific, outLen2, blob, srcLen2))
+        if (!uncompress_zip((char*)sig->m_titlebook.m_category1, outLen2, blob, srcLen2))
         {
             return false;
         }
@@ -82,7 +82,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         }
         unsigned int srcLen3 = db->get_binary_length(2);
         unsigned int outLen3 = 0x1c98;   // ORIG 初始化在 call 之后
-        if (!uncompress_zip(sig->m_titlebookDespair, outLen3, blob, srcLen3))
+        if (!uncompress_zip((char*)sig->m_titlebook.m_category2, outLen3, blob, srcLen3))
         {
             return false;
         }
@@ -96,7 +96,7 @@ bool DB_LoadEtc::LoadTitleBook(SIG_LOAD_ETC* sig)
         }
         unsigned int srcLen4 = db->get_binary_length(3);
         unsigned int outLen4 = 0x0e4c;   // ORIG 初始化在 call 之后
-        if (!uncompress_zip(sig->m_titlebookEvent, outLen4, blob, srcLen4))
+        if (!uncompress_zip((char*)sig->m_titlebook.m_category3, outLen4, blob, srcLen4))
         {
             return false;
         }

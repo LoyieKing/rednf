@@ -11,7 +11,7 @@
 // guard 形（P20/P21）+ P227 全表达式临时链 + 去 rec 指针缓存（P183）。
 void InitCipherKeyString()
 {
-    int t0 = static_cast<int>(s_systemTime_.getCurSec());
+    int t0 = static_cast<int>(GlobalData::s_systemTime_.getCurSec());
 
     for (int i = 0; i <= 0x1387; ++i)
     {
@@ -45,5 +45,5 @@ void InitCipherKeyString()
     // P227：全表达式临时链令 elapsed 在 ctor 前求值并以 %ebx 跨 ctor 保活（无槽）。
     cMyTrace(__PRETTY_FUNCTION__, 0x283e, 9, true, true)(
         "[!] Init CipherKeyString TotalTime : %ds",
-        static_cast<int>(s_systemTime_.getCurSec()) - t0);
+        static_cast<int>(GlobalData::s_systemTime_.getCurSec()) - t0);
 }

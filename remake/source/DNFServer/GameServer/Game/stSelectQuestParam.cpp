@@ -24,21 +24,12 @@
 
 #include "CUser.h"
 
-struct stSelectQuestParam
-{
-    stSelectQuestParam(CUser* user);
-
-    int  m_field00;   // +0x00
-    int  m_field04;   // +0x04
-    int  m_field08;   // +0x08
-    int  m_field0c;   // +0x0c
-    int  m_field10;   // +0x10
-    char m_field14;   // +0x14
-    char m_pad15[3];  // +0x15..0x17
-    int  m_field18;   // +0x18
-    int  m_field1c;   // +0x1c
-    int  m_field20;   // +0x20
-    int  m_field24;   // +0x24
-};
+// [R18 构建修复] 原处为本 TU 私有的 `struct stSelectQuestParam` 镜像（成员名 m_field00…
+//   m_field24），与 Quest.h:238 的权威定义（m_level/m_job/…）构成**重复定义**；该 TU 自权威
+//   定义落地起未再重编，故长期隐性（第十八轮改 GlobalData.h 触发重编后暴露）。
+//   现统一到 Quest.h 唯一定义点（偏移/类型逐项相同：+0x00 int / +0x04 int / +0x08 int /
+//   +0x0c int / +0x10 int / +0x14 char / +0x15 char[3] / +0x18 int / +0x1c int / +0x20 int /
+//   +0x24 int），本 TU 仅提供 ctor 定义。
+#include "Quest.h"
 
 #include "stSelectQuestParam/stSelectQuestParam.inc"

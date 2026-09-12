@@ -179,6 +179,8 @@ struct CDataManagerView
 
 #include "CSystemTime.h"
 
+#include "GlobalData.h"   // [R18scanPH] GlobalData::s_systemTime_（make_item 时间基准；原硬编码 0x941f714 已废）
+
 #include "ItemGloballyUniqueIdentifierGenerator.h"  // itemGloballyUniqueIdentifier_t 权威定义
 
 

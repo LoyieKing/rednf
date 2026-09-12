@@ -45,6 +45,7 @@ namespace GlobalData
 extern CSystemTime s_systemTime_;   // 0x0941f714
 }
 
+
 class CUser
 {
 public:

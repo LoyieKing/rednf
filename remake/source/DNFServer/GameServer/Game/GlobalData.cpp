@@ -1457,7 +1457,7 @@ extern "C" int FT_Render_Glyph(FT_GlyphSlotRec* slot, int render_mode)
 #include "GlobalData/generateImage.inc"
 
 
-// s_capchaDataManager（ORIG 0x941f7a0；namespace GlobalData 成员）定义；
+// s_capchaDataManager（ORIG 0x941f7a0；class GlobalData 静态成员）定义；
 // 类型/方法见 CCapchaDataManager.h。
 WongWork::CCapchaDataManager GlobalData::s_capchaDataManager;
 #include "GlobalData/push.inc"

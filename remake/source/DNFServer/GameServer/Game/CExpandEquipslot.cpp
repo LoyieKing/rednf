@@ -172,6 +172,7 @@ extern MsgQueueMgr* s_msgq_mgr;
 extern CSystemTime s_systemTime_;
 }
 
+
 // ---- 存档结构（0x89c 字节：characNo + 0x24 个 Inven_Item + 2 个 switch）----
 #pragma pack(push, 1)
 struct SIG_SAVE_EXPAND_CHARAC

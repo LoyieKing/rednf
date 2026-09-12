@@ -174,9 +174,9 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     }
 
     // lethe 标志低位字节落位（ORIG movzbl/mov dl）。
-    sig->m_backupSkill[0x198] = (unsigned char)letheFlag;            // +0x2b95
+    sig->m_backupSkill.m_pad196[0] = (unsigned char)letheFlag;            // +0x2b95
     sig->m_oneDayLetheFlag = (unsigned char)letheFlag;               // +0x29fc
-    sig->m_backupSkill2ND[0x198] = (unsigned char)letheFlag2;        // +0x2d2f
+    sig->m_backupSkill2ND.m_pad196[0] = (unsigned char)letheFlag2;        // +0x2d2f
     sig->m_oneDayLetheFlag2ND = (unsigned char)letheFlag2;           // +0x2b96
 
     if (sig->m_fieldC != 0)

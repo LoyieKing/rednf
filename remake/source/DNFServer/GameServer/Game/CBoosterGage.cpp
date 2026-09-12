@@ -164,6 +164,7 @@ extern MsgQueueMgr* s_msgq_mgr;
 extern CSystemTime s_systemTime_;
 }
 
+
 // CServerXml 类声明与 g_ServerString_ extern 见 NpServerXml.h（跨 TU 唯一声明点）；
 // 全局定义（C 名 g_ServerString_）在 ServerCommon/ServerXml.cpp（ORIG B 0x093fa660）。
 

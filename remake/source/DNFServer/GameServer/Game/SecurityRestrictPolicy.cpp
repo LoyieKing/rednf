@@ -87,11 +87,14 @@ static void setPolicyApplyValue(RestrictCategory::Enum code, ServicePolicy& poli
 #include "SecurityRestrictPolicy/getRestrictValue.inc"
 
 
-// ORIG d @0x0937015c（0xc=3 项）：{RestrictBegin, RestrictEnd, DropRate}
+// ORIG d @0x0937015c（0xc=3 项）raw 逐项实证（段感知：ORIG .data off=0x1325020）：
+// [0]=RestrictBegin / [1]=DropRate / [2]=RestrictEnd（0x08e1de5c 区串序逐个解引用核对）。
+// 【修正 b28/R18obj2】原写 {RestrictBegin, RestrictEnd, DropRate} 的 [1]/[2] 与 ORIG 相反：
+// getRestrictValue 以 i=1..2 索引写入 SigLoadRestrictPolicy::m_data[i]（协议载荷）⇒ 真分叉。
 // ORIG 侧为内部链接（mangled 带 L）；类外定义不允许 static，故为外部链接——
 // 仅链接可见性差异，值/索引一致，按结构噪音豁免。
 char const* SecurityRestrict::enumStringSecurity[3] = {
-    "RestrictBegin", "RestrictEnd", "DropRate"
+    "RestrictBegin", "DropRate", "RestrictEnd"
 };
 char const* MobileRestrict::enumStringMobiles[35] = {
     "RestrictBegin", "DeleteItem", "DropGold", "UseNpc", "UseMail", "UseAuction",
@@ -103,8 +106,13 @@ char const* MobileRestrict::enumStringMobiles[35] = {
     "AccountMoveGold", "AccountMoveItem", "GuildCreate", "GuildLevelUp",
     "GuildSkillUp", "GuildBreak", "CreateCharacter", "LoginChannel", "RestrictEnd"
 };
+// ORIG d @0x0937014c（0x10=4 项）raw 逐项实证：
+// [0]=RestrictBegin / [1]=RestrictOnDay / [2]=RestrictIP / [3]=RestrictEnd
+// 【修正 b28/R18obj2】原写 {RestrictBegin, RestrictEnd, RestrictOnDay, RestrictIP} 的 [1..3]
+// 与 ORIG 轮换错位：serviceRestrictStringQuery/printRestrict 以 i=0..2 索引 ⇒ 字符串分叉。
+// 语义：索引即 Enum 值（消费点 cast<Enum>(i) 遍历）。
 char const* CharacterRestrict::enumStringCharacters[4] = {
-    "RestrictBegin", "RestrictEnd", "RestrictOnDay", "RestrictIP"
+    "RestrictBegin", "RestrictOnDay", "RestrictIP", "RestrictEnd"
 };
 
 #include "SecurityRestrictPolicy/enumToString.inc"

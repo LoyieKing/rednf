@@ -9,21 +9,20 @@ int Inter_LoadEtc::ProcessOneDayLethe2ND(SIG_LOAD_ETC* sig, CUser* user, int& er
     // [Lane17 I 判词] 同 1 号（ORIG 0x084e8e1e 同构）：判据⑪ 直方图逐值全等；
     // 残差同为 3 处 uchar 比较的 eax→edx 中转（N18a/N7）⇒ 封顶。
     // p167 CLEAR 35/35；去缓存 + m_skillSlot + reason=1 已落地。
-    user->SetOneDayLetheFlag2ND((unsigned char)sig->m_backupSkill2ND[0x198]);  // +0x2d2f
+    user->SetOneDayLetheFlag2ND((unsigned char)sig->m_backupSkill2ND.m_pad196[0]);  // +0x2d2f
     CPremiumLetheManager* lethe = G_CGameManager()->GetPremiumLetheManager();
     if (lethe == 0)
         return false;
 
     // ORIG 实证同 1 号：use = !premium && (f==USE || f==CONFIRM)；无 flag/use 槽
     if (!user->isAffectedPremium(ENUM_PREMIUM_TYPE(0x21)) &&
-        ((unsigned char)sig->m_backupSkill2ND[0x198] == CPremiumLetheManager::USE_LETHE_STATE ||
-         (unsigned char)sig->m_backupSkill2ND[0x198] == CPremiumLetheManager::SKILL_CONFIRM_STATE))
+        ((unsigned char)sig->m_backupSkill2ND.m_pad196[0] == CPremiumLetheManager::USE_LETHE_STATE ||
+         (unsigned char)sig->m_backupSkill2ND.m_pad196[0] == CPremiumLetheManager::SKILL_CONFIRM_STATE))
     {
-        if (!lethe->BackToPre(user, reinterpret_cast<_Mastered_skill*>(
-                sig->m_backupSkill2ND), ENUM_SKILL_TREE_KIND(1)))
+        if (!lethe->BackToPre(user, sig->m_backupSkill2ND.m_skills, ENUM_SKILL_TREE_KIND(1)))
             return 0x4111;
 
-        if ((unsigned char)sig->m_backupSkill2ND[0x198] != CPremiumLetheManager::SKILL_CONFIRM_STATE)
+        if ((unsigned char)sig->m_backupSkill2ND.m_pad196[0] != CPremiumLetheManager::SKILL_CONFIRM_STATE)
         {
             err = 1;
             user->SetIsInitSkillFlag2ND(false);

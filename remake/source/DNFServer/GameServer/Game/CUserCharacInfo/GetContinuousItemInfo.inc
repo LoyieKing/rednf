@@ -20,10 +20,10 @@
 //   ⇒ 维持 N82附/N4 封顶，未改动。
 void CUserCharacInfo::GetContinuousItemInfo(SIG_LOAD_ETC* p) const
 {
-    p->m_cooltimeCharacNo = p->m_characNo;
-    p->m_effectCharacNo = p->m_characNo;
+    p->m_contItemCooltime.m_characNo = p->m_characNo;
+    p->m_contItemEffect.m_characNo = p->m_characNo;
     const std::vector<ContinuousItemInfo>* cool = GetCurCharacCoolTimeItemListR();
-    p->m_cooltimeItemCount = (unsigned char)cool->size();
+    p->m_contItemCooltime.m_info.m_count = (unsigned char)cool->size();
     int index = 0;
     for (unsigned int i = 0; i < cool->size(); ++i)
     {
@@ -35,7 +35,7 @@ void CUserCharacInfo::GetContinuousItemInfo(SIG_LOAD_ETC* p) const
     }
     index = 0;
     const std::vector<ContinuousItemInfo>* effect = GetCurCharacEffectItemListR();
-    p->m_effectItemCount = (unsigned char)effect->size();
+    p->m_contItemEffect.m_info.m_count = (unsigned char)effect->size();
     for (unsigned int i = 0; i < effect->size(); ++i)
     {
         ((LoadEtcEffectItemWindow*)p)->m_entries[index + 0x494].m_itemIdx =

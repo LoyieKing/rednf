@@ -98,6 +98,21 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
     // 查表 + Duff 式惰性注册链（106 项），每 case 头一个 guard+insert+goto 链，
     // 链尾（ORIG 0x58d1）leave+置位跳回重查；建表后 body 走共享尾。
     std::string s;
+    // [R18-03 2026-09-13] P334 trivial 镜像：ORIG 对本类的局部量全程 **0 ctor / 0 dtor**
+    //   （双侧调用点差集 = 我方多 4×`EquipmentAuraAppendageDataD1Ev`，落在
+    //   0x89ab66a(ice appendage)/0x89ac72b(curse appendage) 两处 push_back 的正常路径与
+    //   EH landing；ORIG 侧该 D1 符号存在但 size=0x5、**本函数区间内调用数 0**）。
+    //   4.4 因用户空析构判 non-trivial（P71）。用同字段/同序/同尺寸（0x14）平凡镜像声明
+    //   局部量、push_back 处 `reinterpret_cast` 回真实类型引用 ⇒ 消 4 次空体调用，
+    //   字段写序/偏移不变。镜像为函数内局部类，零符号发射。
+    struct EquipmentAuraAppendageDataMirror
+    {
+        int m_field0;    // +0x00
+        int m_field4;    // +0x04
+        int m_field8;    // +0x08
+        int m_fieldc;    // +0x0c
+        int m_field10;   // +0x10
+    };
     // [推断·P328④] ORIG 0x89a7604 `movl $0x0,-0xa10(%ebp)`（紧随 s 构造之后）
     // 实证函数级共享标量临时：被 [separate attack]（0x89ac3a5 `lea -0xa10` →
     // `_Z7ScanIntPi`）与 [repair price]（0x89ac44f 同槽）复用。
@@ -1553,12 +1568,13 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         int i1 = ScanInt((bool*)0);
         int i2 = ScanInt((bool*)0);
         int i3 = ScanInt((bool*)0);
-        EquipmentParameterInfo::EquipmentAuraAppendageData e;
+        EquipmentAuraAppendageDataMirror e;
         e.m_field0 = 0;
         e.m_field4 = i1;
         e.m_field8 = i2;
         e.m_fieldc = i3;
-        info->m_aura200.push_back(e);
+        info->m_aura200.push_back(
+            *reinterpret_cast<const EquipmentParameterInfo::EquipmentAuraAppendageData*>(&e));
         goto L_chain_end;
     }
     case 0x1b53:
@@ -1576,13 +1592,14 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         int j2 = ScanInt((bool*)0);
         int j3 = ScanInt((bool*)0);
         int j4 = ScanInt((bool*)0);
-        EquipmentParameterInfo::EquipmentAuraAppendageData e;
+        EquipmentAuraAppendageDataMirror e;
         e.m_field0 = 1;
         e.m_field4 = j1;
         e.m_field8 = j2;
         e.m_fieldc = j3;
         e.m_field10 = j4;
-        info->m_aura200.push_back(e);
+        info->m_aura200.push_back(
+            *reinterpret_cast<const EquipmentParameterInfo::EquipmentAuraAppendageData*>(&e));
         goto L_chain_end;
     }
     case 0x1b65:

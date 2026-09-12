@@ -1,7 +1,7 @@
 // ============================================================================
 // Arad_GiftItem_Set::level_check（ORIG 0x081a31c4，_ZN17Arad_GiftItem_Set11level_checkEP5CUserPK14CStackableItem）
 // 语义：
-//   kind  = str_to_enum(item->m_arad148.m_str8.c_str())
+//   kind  = str_to_enum(item->m_str8.c_str())    // [R18rti B1] AradItemInfo 基类化
 //   job   = user->get_charac_job()
 //   ulv   = item->getUsableLevel()
 //   data  = find(this, kind, job, ulv)
@@ -14,7 +14,7 @@ bool Arad_GiftItem_Set::level_check(CUser* user, const CStackableItem* item)
     // ORIG 0x081a31c4：无空指针防御（P140）；usableLevel 值需跨
     // get_charac_job call 存活 ⇒ 内联实参直落 %ebx（P52）；
     // characLevel 在 < 比较与 log 实参各独立重调一次（P48）。
-    int kind = str_to_enum(item->m_arad148.m_str8.c_str());
+    int kind = str_to_enum(item->m_str8.c_str());
     Data* idx = find(kind, user->get_charac_job(), item->getUsableLevel());
     if (idx == 0)
     {

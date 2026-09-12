@@ -487,7 +487,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                     __PRETTY_FUNCTION__,
                     0x955, 0);
                 t("[%s][%d]",
-                  "void WongWork::CCeraShop::ProcessIPGUserData(CUser*, WongWork::IPG::SIPGData*, WongWork::IPG::SIPGData*, Stream*)",
+                  __PRETTY_FUNCTION__,
                   0x955);
                 success = false;
             }

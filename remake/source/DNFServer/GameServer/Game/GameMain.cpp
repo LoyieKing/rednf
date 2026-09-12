@@ -101,7 +101,9 @@
 #include "TimerDispatcher.h"
 #include "GameMain/get_rand_int.inc"
 #include "GameMain/setCodePageByLocal.inc"
-using GlobalData::s_systemTime_;  // ORIG 0x0941f714（CSystemTime 全局实例）
+// [R18gd 后续] GlobalData 由 namespace 改为 class（对齐 ORIG：static 成员）⇒ GCC 4.4 不支持
+//   类成员的 using-declaration，本 TU 各使用点一律写全 `GlobalData::s_systemTime_`（同一对象，
+//   与 ORIG 0x0941f714 取址形一致）。
 
 #include "GameMain/CREATE_CEnvironment.inc"
 #include "GameMain/CREATE_CGameManager.inc"

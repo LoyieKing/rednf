@@ -31,10 +31,10 @@ bool CStackableItem::verifyUsablePlace(CUser* user)
     {
         return 0;
     }
-    if ((char)m_arad148.m_field4 < 0 ||
-        ((char)m_arad148.m_field4 >= 0 &&
+    if ((char)m_field4 < 0 ||
+        ((char)m_field4 >= 0 &&
          ((CUserCharacInfo*)user)->getCurCharFirstGrowType() ==
-             (char)m_arad148.m_field4))
+             (char)m_field4))
     {
         return 1;
     }

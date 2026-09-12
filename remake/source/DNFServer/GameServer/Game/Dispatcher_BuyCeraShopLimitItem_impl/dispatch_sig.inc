@@ -79,34 +79,40 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
         }
     }
 
-    // ---------------- 业务（ORIG 整体包在 try 中，失败 throw ENUM_ERROR 载荷 int） ----------------
+    // ---------------- 业务（ORIG 整体包在 try 中，throw ENUM_ERROR） ----------------
     CItemLimitEdition* edition = 0;
     CItem* relatedItem = 0;      // relateditem!=1 时 find_item 得到的相关道具
+    // [R18exc 异常类型轴 2026-09-13] ORIG 全部 11 处 throw 的第二实参均为
+    //   `movl $0x8b75f40,0x4(%esp)` = typeinfo for ENUM_ERROR（nm: _ZTI10ENUM_ERROR
+    //   @0x08b75f40，ORIG .text 站点 idx 284/304/317/335/361/381/402/421/443/557/614），
+    //   catch 侧 landing pad 亦按 ENUM_ERROR 匹配（type selector cmp $0x1）。
+    //   我方原写 `throw (int)` + `catch (int)` ⇒ typeinfo=_ZTIi，类型身份不同 ⇒
+    //   跨模块（本函数 catch 之外的调用方/上层）异常不可接 —— 真语义分叉。
     try
     {
         int stateRet = _checkUserState(user);
-        if (stateRet != 0) throw (int)stateRet;
+        if (stateRet != 0) throw (ENUM_ERROR)stateRet;
 
         // ORIG 传参：getItemInfo 的 key 是首个 byte（subCount），见 ORIG 汇编 +0x4dd mov %ebx(=local_22a),0x4(%esp)。
         edition = G_CDataManager()->getItemLimitEditionMgr()->getItemInfo((unsigned int)subCount);
-        if (edition == 0) throw 0x16;
+        if (edition == 0) throw (ENUM_ERROR)0x16;
 
-        if (edition->isSellComplete()) throw 0x5f;
-        if (edition->getSellEndTime() < GlobalData::s_systemTime_.getCurSec()) throw 0x16;
+        if (edition->isSellComplete()) throw (ENUM_ERROR)0x5f;
+        if (edition->getSellEndTime() < GlobalData::s_systemTime_.getCurSec()) throw (ENUM_ERROR)0x16;
 
         if (edition->getRelateditem() != 1) {
             relatedItem = G_CDataManager()->find_item(edition->getRelateditem());
-            if (relatedItem == 0) throw 0x16;
+            if (relatedItem == 0) throw (ENUM_ERROR)0x16;
         }
 
         // 余额校验：瑟拉点 / 金币 / 胜利点。
-        if (user->GetCera() < (unsigned int)edition->getPriceCera()) throw 0xb;
-        if (user->getCurCharacInvenR()->get_money() < edition->getPriceGold()) throw 0xa;
-        if ((unsigned int)user->GetWinPoint() < (unsigned int)edition->getPriceWinPoint()) throw 0xc;
+        if (user->GetCera() < (unsigned int)edition->getPriceCera()) throw (ENUM_ERROR)0xb;
+        if (user->getCurCharacInvenR()->get_money() < edition->getPriceGold()) throw (ENUM_ERROR)0xa;
+        if ((unsigned int)user->GetWinPoint() < (unsigned int)edition->getPriceWinPoint()) throw (ENUM_ERROR)0xc;
 
         // ORIG 0x082200be：ret=_checkBuyCondition(...)，ret!=0 时 throw ret（异常码=返回值）。
         int condRet = _checkBuyCondition(user, edition);
-        if (condRet != 0) throw condRet;
+        if (condRet != 0) throw (ENUM_ERROR)condRet;
 
         // ---- avatar 类型选取 ----
         unsigned short avatarTypeSel = (unsigned short)edition->getAvatarTypeSelect();
@@ -136,7 +142,7 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
             user, ipgNo, (unsigned long)edition->getRelateditem(),
             (unsigned int)edition->getRelatedItemCnt(),
             (unsigned short)avatarTypeSel, subCount, (unsigned short)avatarTypeSel);
-        if (!ok) throw 7;
+        if (!ok) throw (ENUM_ERROR)7;
 
         // ---- 限制/特供道具 ----
         // ORIG：local_2c(=restrictCode) 初始化为 featuredIdx；featuredIdx==0 时 IsSpecialItem
@@ -158,7 +164,7 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
             restrictCode = G_CDataManager()->m_itemList->GetRestrictCode(edition->getRelateditem());
         }
         if (restrictCode != 0) {
-            if (user->IsRestrictedGoods(restrictCode)) throw 0x12;
+            if (user->IsRestrictedGoods(restrictCode)) throw (ENUM_ERROR)0x12;
             user->SetRestrictedGoods(restrictCode);
         }
 
@@ -177,7 +183,9 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
         proxy->SendTcpPacket((char*)&query, (int)sizeof(query));
     }
-    catch (int err)
+    // ORIG 0x0822041e：`cmp $0x1,%edx; je; _Unwind_Resume` + `__cxa_begin_catch;
+    //   mov (%eax),%eax; mov %eax,-0x1c(%ebp)`（按值 catch、值先入槽，P229）⇒ 按值 catch。
+    catch (ENUM_ERROR err)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x100, (unsigned char)err);
     }

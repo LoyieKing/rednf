@@ -13,7 +13,8 @@ bool ConfirmQuery::getResult(MySQL& db)
             throw static_cast<int>(0x1f7);
         return 1;
     }
-    catch (int e)   // ORIG: 按值 catch —— begin_catch 后先 deref 再存槽
+    // [R18exc 2026-09-13] ORIG LSDA 类型表 = _ZTIj（unsigned int；原写 _ZTIi）。
+    catch (unsigned int e)   // ORIG: 按值 catch —— begin_catch 后先 deref 再存槽
     {
         LogManager::logFormat(
             1, "localtaiwan/System/TaiwanCash.cpp", __FUNCTION__, 0x1fd,

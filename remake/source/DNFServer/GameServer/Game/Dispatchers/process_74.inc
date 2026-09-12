@@ -47,7 +47,12 @@ int Dispatcher_UseRenameCard::process(CUser* user, MSG_BASE& msg, ParamBase& par
     }
 
     // TYPE_CHARACTER_NAME_CHANGE = 0x33
-    if (!static_cast<CStackableItem*>(stackItem)->verifyStackableAction(
+    // [R18-03 2026-09-13] ORIG 具名派生指针局部（0x081e73f5 `mov -0x10(%ebp),%eax;
+    //   mov %eax,-0xc(%ebp)` 后该槽作 verifyStackableAction 的 this）——原码即
+    //   `CStackableItem* p = (CStackableItem*)stackItem;`；cast 表达式接收者在 4.4 恒折
+    //   内联（少 1 具名槽、帧 0x74 vs ORIG 0x84）⇒ 恢复具名（P341 接收者去 cast）。
+    CStackableItem* stackable = static_cast<CStackableItem*>(stackItem);
+    if (!stackable->verifyStackableAction(
             StackableAction::TYPE_CHARACTER_NAME_CHANGE))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1fe, (unsigned char)ret);

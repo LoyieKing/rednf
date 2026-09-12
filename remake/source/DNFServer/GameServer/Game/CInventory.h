@@ -38,6 +38,11 @@ struct SIG_POSTAL_CREATURE_TEMP_PERIOD;    // ORIG 全局域；仅证 +0 uid/+4 
 #include "CExpandEquipslot.h" // 权威 CExpandEquipslot（charac_expand::CData 派生，布局 0x899；
                               // 唯一声明点，删除本头原局部最小镜像避免 ODR）
 #include "InterfacePacketBuf.h"
+// [R18gd 2026-09-13] GlobalData 已按 ORIG 形态 class 化（namespace→class 静态成员）；
+// 原中部 `namespace GlobalData { extern CSecu_ProtectionField* s_pSecuProtectionField; }`
+// 重开点合并到权威头（唯一声明点）——符号名/mangled 与访问语法零变化
+// （_ZN10GlobalData22s_pSecuProtectionFieldE）。
+#include "GlobalData.h"
 // [Lane37CUser 2026-09-10 解环] 原 `#include "CUser.h"`：本头对 CUser 的 42 处引用
 // 全为 `CUser*` 指针/形参（零 inline 解引用）⇒ 前向声明足够，断开
 // CUser.h ⇄ CInventory.h 环（供 CUser.h 反向 include 本头以建 CInventory 成员）。
@@ -456,11 +461,6 @@ public:
 private:
     std::map<SECURITY_PROTCTION, unsigned int> m_typeMap;   // +0x00（0x18）
  };
-
-namespace GlobalData
-{
-extern CSecu_ProtectionField* s_pSecuProtectionField;
-}
 
 // CSlotBoundChecker 的权威定义已迁至 CDataManager.h（eventReward +0x18 内嵌
 // 成员需完整类型，见该头 eventReward 前）；本头经 #include "CDataManager.h" 获得。

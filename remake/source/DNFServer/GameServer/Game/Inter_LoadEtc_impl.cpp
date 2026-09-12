@@ -240,10 +240,10 @@ __attribute__((weak)) int CSkillTreeParam::SetSkillTree(Inter_LoadEtc* owner)
     //    化（seta）。残差 18 块：lea-vs-add ×2（N107）、1 条 4.4 default/尾 jmp、
     //    块内槽序（i/slot1/slot2 各 -0xc 深差，N82附/N98）、`movl $0x0,-0x18` 预清落点。
     m_user->SaveBackupSkillInfo(
-        reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(m_sig->m_backupSkill),
+        &m_sig->m_backupSkill,
         ENUM_SKILL_TREE_KIND(0));
     m_user->SaveBackupSkillInfo(
-        reinterpret_cast<SIG_LOAD_PREMIUM_LETHE*>(m_sig->m_backupSkill2ND),
+        &m_sig->m_backupSkill2ND,
         ENUM_SKILL_TREE_KIND(1));
 
     int lethe1 = 0;   // ProcessOneDayLethe 结果

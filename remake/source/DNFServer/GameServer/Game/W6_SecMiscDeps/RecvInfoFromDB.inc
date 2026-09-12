@@ -53,7 +53,7 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
         // 真 bug 修正：ORIG 086c12c7 读 0x10(%ebp)=**count**（非 extra）作 %d。
         OS_API::snprintf(countStr, sizeof(countStr), "%d", (int)count);
         // P259：Acquire 结果内联进构造实参（ORIG 无 stream 局部槽）。
-        CStreamGuard guard(s_stream_pool->Acquire("WebEvent.cpp", 0x47), false);
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire("WebEvent.cpp", 0x47), false);
         // P103/P132：ORIG 调 operator*()->operator<<(int) 链（非 CStreamGuard::operator<<
         // 转发；p167 差集 MISSING operator*×2/operator<<(int)×2，EXTRA operator<<(uint)×2）。
         guard.operator*()->operator<<((int)eventIdx);
@@ -64,10 +64,10 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
         // EXTRA CGenUniqueNo::C1 证实旧 `CGenUniqueNo generator;` 多余）。
         if (codeStr == 0)
         {
-            s_stream_pool->Free(guard);   // asm +0x156
+            GlobalData::s_stream_pool->Free(guard);   // asm +0x156
             return 1;                     // asm +0x15b `mov $0x1,%ebx`
         }
-        s_pIPGHelper->IPGInput(user, codeStr, countStr,
+        GlobalData::s_pIPGHelper->IPGInput(user, codeStr, countStr,
                                CGenUniqueNo::GenUniqueNo(uniqueNoBuf),
                                _GetEventString((int)eventIdx),
                                user->getCurCharacName(), guard.Get());
@@ -142,7 +142,7 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
     int outType = 0;
     int outValue = 0;
     bool flag = false;
-    if (s_pCeraShop->IsSpecialItem((int)slot.m_addInfo, outType, outValue, flag))
+    if (GlobalData::s_pCeraShop->IsSpecialItem((int)slot.m_addInfo, outType, outValue, flag))
     {
         // ---- 商城特殊物品分支（asm +0x417..+0x5d1）----
         // 真 bug 修正：ORIG 第 3 参（count 形参）= GetRestrictCode 结果(-0x24)，
@@ -151,13 +151,13 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
         int outRestrict = 0;   // ORIG 086c1635 `movl $0x0,-0x84` 预清
         const int restrictCode =
             G_CDataManager()->m_itemList->GetRestrictCode((int)slot.m_addInfo);
-        const long curSec = (long)s_systemTime_.getCurSec();
+        const long curSec = (long)GlobalData::s_systemTime_.getCurSec();
         std::vector<Inven_Item> attached;
         CCeraShop::stCeraShopItemParam_t paramObj;
         // [b28d-solo-W6_SecMiscDeps · P0 槽对应律] ORIG 086c16fd 直接
         // `test %al,%al; je`（无 bool 槽）⇒ 原码把调用内联进 if 条件；
         // 具名 `const bool ok` 使 4.4 多发 `mov %al,-0x19; cmpb $0,-0x19` 两步。
-        if (s_pCeraShop->ProcessSpecialItem(
+        if (GlobalData::s_pCeraShop->ProcessSpecialItem(
                 user, (int)slot.m_addInfo, restrictCode, outRestrict, curSec,
                 true, attached, paramObj, '\0', '\0', false, 1))
         {
@@ -166,7 +166,7 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
             if (restrictCode != 0 && !user->IsRestrictedGoods(restrictCode))
             {
                 user->SetRestrictedGoods(restrictCode);
-                s_pCeraShop->SaveFeaturedIdx(user, restrictCode,
+                GlobalData::s_pCeraShop->SaveFeaturedIdx(user, restrictCode,
                                              (int)curSec, 0);
             }
         }

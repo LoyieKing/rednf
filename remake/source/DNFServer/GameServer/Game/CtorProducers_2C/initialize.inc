@@ -21,22 +21,27 @@ bool CItemGeneratorMgr::initialize()
     //      N104；
     //   ④ for-i 与 catch-line 槽互换（ORIG i=-0x1c / line=-0x20，4.4 相反）——
     //      N93/N98 首次使用序；i 提函数头/try 块头两形实测 130→308 劣化。
+    // R18a07 ④ 修复：ORIG 的 try 只覆盖脚本装载段（8 处 new 的 cleanup landing
+    // 0x08533c03/c4a/c91/cd8/d1f/d66/dad/df4 均为 `mov %eax,(%esp); call
+    // _Unwind_Resume`，cleanup-only、无类型过滤）⇒ new/setGeneratorType 段必须在
+    // try 之外，否则 new-expression 抛 int 时会被 catch(int) 吃掉并 return false。
+    m_generators[0] = new CMonsterDrop(3);   // operator new 0x2593a4
+    m_generators[1] = new CObjectDrop(3);    // 0x2593a4
+    m_generators[2] = new CClearReward(5);   // 0x23b84
+    m_generators[3] = new CWorldDrop(2);     // 0x1f80
+    m_generators[4] = new CDungeonDrop(2);   // 0x18
+    m_generators[5] = new CWorldDrop(2);     // 0x1f80
+    m_generators[6] = new CWorldDrop(2);     // 0x1f80
+    m_generators[7] = new CWorldDrop(2);     // 0x1f80
+
+    m_generators[0]->setGeneratorType(0);
+    m_generators[1]->setGeneratorType(1);
+    m_generators[2]->setGeneratorType(2);
+    m_generators[3]->setGeneratorType(3);
+    m_generators[4]->setGeneratorType(4);
+
     try
     {
-        m_generators[0] = new CMonsterDrop(3);   // operator new 0x2593a4
-        m_generators[1] = new CObjectDrop(3);    // 0x2593a4
-        m_generators[2] = new CClearReward(5);   // 0x23b84
-        m_generators[3] = new CWorldDrop(2);     // 0x1f80
-        m_generators[4] = new CDungeonDrop(2);   // 0x18
-        m_generators[5] = new CWorldDrop(2);     // 0x1f80
-        m_generators[6] = new CWorldDrop(2);     // 0x1f80
-        m_generators[7] = new CWorldDrop(2);     // 0x1f80
-
-        m_generators[0]->setGeneratorType(0);
-        m_generators[1]->setGeneratorType(1);
-        m_generators[2]->setGeneratorType(2);
-        m_generators[3]->setGeneratorType(3);
-        m_generators[4]->setGeneratorType(4);
 
         // 怪物掉落三脚本（ORIG 文件名「Monseter」拼写如此，忠实保留）。
         // 8 处 loadScript 检查 ORIG 均为 cmpl $0,-0x24(%ebp); setne %al; test %al,%al;

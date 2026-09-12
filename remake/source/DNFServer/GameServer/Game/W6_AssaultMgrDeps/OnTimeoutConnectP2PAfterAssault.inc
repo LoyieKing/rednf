@@ -16,9 +16,9 @@ int CAssaultMgr::OnTimeoutConnectP2PAfterAssault(unsigned int partyIndex, int ti
             party->ClearBadP2PUser();
         }
     }
-    catch (int)                             // ORIG landing pad `cmp $0x1,%edx; je`+
-                                            // _Unwind_Resume 分支 = 定类型 catch(int)，
-                                            // 非 catch(...)（其无 selector 匹配）。
+    catch (ENUM_ERROR)                      // [R18exc 2026-09-13] ORIG landing pad
+                                            // `cmp $0x1,%edx; je` + _Unwind_Resume 分支；
+                                            // LSDA 类型表 = _ZTI10ENUM_ERROR（非 catch-all）。
     {
         // ORIG 仅 begin_catch → 存值到槽 → end_catch，不消费。
     }

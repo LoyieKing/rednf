@@ -150,7 +150,7 @@ namespace ARAD
 {
     typedef std::vector<CRabbitBox> RabbitVec;
 
-    if (stackable->m_arad148.m_vec20.empty())
+    if (stackable->m_vec20.empty())
         return;
     if (stackable->get_index() == 0x28be4b)
         return;
@@ -176,8 +176,8 @@ namespace ARAD
     // P74/P50：box 与 it 均默认构造（ORIG +0x15a/+0x165），循环内赋值。
     CRabbitBox box;
     RabbitVec::iterator it;
-    it = stackable->m_arad148.m_vec20.begin();
-    while (it != stackable->m_arad148.m_vec20.end())
+    it = stackable->m_vec20.begin();
+    while (it != stackable->m_vec20.end())
     {
         box = *it;
         // P0/P48：ORIG 无 rabbitIdx 局部，getItemIndex() 在使用点各调一次

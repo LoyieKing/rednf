@@ -6,7 +6,7 @@ int CAssaultMgr::OnMoveArea(CUser* user)
     // 才 movsbl）⇒ 157→149 与 ORIG 150 逐条 AE（余 1 条尾 nop 对齐豁免）。
     // b28d-L3: DIFF/N82 — ORIG 0x082eb... 临时对象槽 -0x24 vs 我方 -0x28（N82/P112 槽序）
     // ORIG 0x82ef610：向进入袭击区域的玩家汇总可见图标（包 0x86）。
-    // 整函数 try/catch(int)（尾 landing `cmp $0x1,%edx; je resume` +
+    // 整函数 try/catch(ENUM_ERROR)（尾 landing `cmp $0x1,%edx; je resume` +
     // begin_catch `mov (%eax),%eax; mov %eax,-0xc` + end_catch），统一尾
     // `mov $0x1,%eax; ret` ⇒ 返回 int 1（P159）。view 判定为**单条 && 短路链**
     // （0x82ef6f0 ExistUser→xor$1 / CheckPlayable test / GetState cmp4 jne
@@ -59,7 +59,9 @@ int CAssaultMgr::OnMoveArea(CUser* user)
         user->Send(packet);
         }
     }
-    catch (int)
+    // [R18exc 异常类型轴 2026-09-13] ORIG 该 LSDA 类型表 = _ZTI10ENUM_ERROR
+    //   （0x8b75f40；_GetAssaultPlace 抛 ENUM_ERROR，旧写 catch(int) ⇒ 自抛自不捕）。
+    catch (ENUM_ERROR)
     {
     }
     return 1;

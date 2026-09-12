@@ -49,52 +49,29 @@ bool Village::set_village(TownScript& script)
         //   raw[0] 两处各自重算）⇒ 按闸门回滚，保留具名局部。
         int count = m_areaCount;
         int total = count + 600;
-        // [P6S6 2026-09-11 负结论·回滚] p167 线索「ORIG 本件 MISSING `Area::~Area`
-        //   x3 + `_ZdaPv` x3、EXTRA `_ZnwjPv` x3」提示 ORIG 用标准 `new Area[n]`，
-        //   故本波实测把 placement-new 循环改为 `m_pAreas = new Area[total];`：
-        //   读数**劣化** —— ours 526→**531**（ORIG 529），difflib 块 68→69，|gap| 3→2
-        //   反号（+2）⇒ 4.4 的 new[] EH/cookie 框架比 ORIG 多 5 条，按闸门回滚。
-        //   ORIG 那 3 组 `~Area`/`_ZdaPv` 调用点应属 4.1 对 new[] 的 EH 清理器形，
-        //   4.4 走 `_ZnwjPv`+`_ZdlPvS_`（placement 族）⇒ 属跨版本发射差，非语义缺口。
-        int* raw = (int*)::operator new[]((total * 0x26 + 1) * 4);
-        raw[0] = total;
-        Area* pArea = (Area*)(raw + 1);
-        for (int i = total - 1; i != -1; --i)
-        {
-            ::new (pArea) Area();
-            pArea = pArea + 1;   // §4.3：步长由 Area 真实尺寸给出（sizeof==0x98 探针实证）
-        }
-        m_pAreas = (Area*)(raw + 1);
+        // [R18-03 2026-09-13] ④ 修复：ORIG 调用点多重集 = `_Znaj`×3（数组 new）+
+        //   `Area::~Area`×3 + `_ZdaPv`×3（EH cleanup 链），**无** `_ZnwjPv`/`_ZdlPvS_`
+        //   （ORIG 0x086c33b8 段实证；nm/p167 双侧核对）。旧手写 cookie + placement-new
+        //   循环缺元素析构与 `operator delete[]`，元素构造中抛异常时 cleanup 语义分叉
+        //   （已构造元素不析构、分配内存不释放）⇒ 恢复 ORIG 真形 `new Area[n]`。
+        //   cookie 由编译器写（ORIG `mov %ebx,(%eax); lea 0x4(%eax)` 即该形）。
+        m_pAreas = new Area[total];
         g_schoolMgr.SetSchoolArea(m_areaCount, m_areaCount + 600);
     }
     else if (script.m_field0 == 8)
     {
         int count = m_areaCount;
         int total = count + 0x960;
-        int* raw = (int*)::operator new[]((total * 0x26 + 1) * 4);
-        raw[0] = total;
-        Area* pArea = (Area*)(raw + 1);
-        for (int i = total - 1; i != -1; --i)
-        {
-            ::new (pArea) Area();
-            pArea = pArea + 1;   // §4.3（同上）
-        }
-        m_pAreas = (Area*)(raw + 1);
+        // [R18-03 2026-09-13] 同上（④ 修复：恢复数组 new）。
+        m_pAreas = new Area[total];
         // [b28d-sweep] 对象语义（ORIG 0x86c3685 `movl $0x943e0e0,(%esp)`，符号 B 0x58）
         g_guildAgitMgr.SetGuildAgitAreaDomain(m_areaCount, total);
     }
     else
     {
         int count = m_areaCount;
-        int* raw = (int*)::operator new[]((count * 0x26 + 1) * 4);
-        raw[0] = count;
-        Area* pArea = (Area*)(raw + 1);
-        for (int i = count - 1; i != -1; --i)
-        {
-            ::new (pArea) Area();
-            pArea = pArea + 1;   // §4.3（同上）
-        }
-        m_pAreas = (Area*)(raw + 1);
+        // [R18-03 2026-09-13] 同上（④ 修复：恢复数组 new）。
+        m_pAreas = new Area[count];
     }
 
     m_field2c = script.m_3c;
