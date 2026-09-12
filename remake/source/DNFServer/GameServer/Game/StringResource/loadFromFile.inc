@@ -16,10 +16,18 @@
 bool StringResource::loadFromFile(const char* path, CharString* error)
 {
     FILE* fp = fopen(path, "rb");
-    if (fp == NULL)
+    // [SemB09 s2_09] 真差异修正：ORIG 0x08ad4ce4 的两条守卫 `jne +0x45`（fp != NULL
+    //   跳过）与 `je +0x45`（error == NULL 跳过）**共落同一目标**（fseek 主路径）⇒
+    //   原码是单一 `if (fp == NULL && error != NULL) {…return false;}`（&& 短路，
+    //   4.1/4.4 同形），而非「外层 if(fp==NULL){ if(error)…; return false; }」。
+    //   两者在 fp==NULL && error==NULL 时行为不同：前者落 fseek 主路径（ORIG 实际
+    //   行为，fseek/ftell 对 NULL 返 -1 ⇒ jns 不成立 ⇒ fclose+return false），
+    //   后者立即 return false（我方旧形）。按 ORIG 行为照抄原则（P171）还原。
+    //   调用点核查：全仓唯一调用者 loadString(CharString*) 由 getStr_1/loadString.inc
+    //   传栈上 &err（非 NULL），无 fp==NULL && error==NULL 的实参路径。
+    if (fp == NULL && error != NULL)
     {
-        if (error)
-            *error = "Cannot open file";
+        *error = "Cannot open file";
         return false;
     }
     fseek(fp, 0, SEEK_END);

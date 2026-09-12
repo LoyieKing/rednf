@@ -192,11 +192,12 @@ template <size_t N>
 // va_start 初始化），复现无 va_list 槽直传；4.4 仅余一条 eax→edx 实参暂存
 // （N18a/P75 装载序，13→14 条，探针 /tmp/b28d12/probe_ss{,2,3,4,5}.cpp 十余形全败）。
 // 主模板体保持不变（256/32/512 三实例 AE 零回归）。
-template <>
-__attribute__((weak)) int ss_sprintf<1024>(char (&buffer)[1024], const char* format, ...)
-{
-    return ss_vsprintf(buffer, 1024, format, (char*)__builtin_next_arg(format));
-}
+// [SemB05 2026-09-12] ss_sprintf<1024> 显式特化**删除**：本 TU（-O0）三种写法实测
+// 只能得 14 条（__builtin_next_arg + cast）或 17 条（普通 va_list），ORIG 的 13 条
+// 无槽直传形不可达。该 .o 在链接行（objects1.rsp）中先于 DNFLexWrapperStream.cpp.o
+// 出现 ⇒ 原特化会覆盖后者的**逐条全等 13 条**实例（-O2 下两种 cast 写法均产 13 条）。
+// 删除特化 + 入口改用非模板重载后，本 TU 不再定义该符号，链接取 DNFLexWrapperStream
+// 版本 ⇒ 与 ORIG 13/13 全等。语义不变（同一 va_start/va_end 契约）。
 
 // ===========================================================================
 // swap_value<IntervalSet*>  ORIG W 0x0857688f（模板；WindowsPackFiles.cpp

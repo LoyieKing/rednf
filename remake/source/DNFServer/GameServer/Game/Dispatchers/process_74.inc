@@ -9,6 +9,10 @@ int Dispatcher_UseRenameCard::process(CUser* user, MSG_BASE& msg, ParamBase& par
     //   ⇒ P0：无 `int err` 具名槽；两处使用均从 st.m_4 重读。
     // [G6-74 负结论] 试补 msg 具名引用（ORIG 序言有 -0x1c msg 槽，声明在 st 前）：
     //   实测 149→151（+2，4.4 对单用点引用不产槽形）⇒ 已回滚；保留 pMsg 删除 + 具名成员。
+    // [SemA03-exp V1b] ORIG 序言把 &msg 存入独立槽（-0x1c）并在两处 m_0e 使用处回读；
+    //   4.4 按「首次使用序」分配槽（先 → 更深）⇒ pMsg 声明须在 st 之前。
+    MSG_USE_RENAME_CARD* pMsg = reinterpret_cast<MSG_USE_RENAME_CARD*>(&msg);
+
     stUseRenameCard& st = *reinterpret_cast<stUseRenameCard*>(&param);
 
     st.m_4 = check_error(user, msg);
@@ -23,7 +27,7 @@ int Dispatcher_UseRenameCard::process(CUser* user, MSG_BASE& msg, ParamBase& par
     // ORIG 0x081e738a `movzwl 0xe(%eax),%eax; cwtl`（disp 折叠 + 1 操作数 cwtl）；
     // 裸偏移 `*(short*)(pMsg+0xe)` 产 add+movzwl 两条 ⇒ 改具名成员。
     int ret = getItem(*user, 1,
-                      static_cast<short>(reinterpret_cast<MSG_USE_RENAME_CARD*>(&msg)->m_0e),
+                      static_cast<short>(pMsg->m_0e),
                       item);
     if (ret != 0)
     {
@@ -61,7 +65,7 @@ int Dispatcher_UseRenameCard::process(CUser* user, MSG_BASE& msg, ParamBase& par
     //   **无具名槽**、失败(0)落错误分支（旧码 `if (delRet == 0)` 曾反向）。
     if (!user->getCurCharacInvenW()->delete_item(
             (INVEN_TYPE)1,
-            static_cast<short>(reinterpret_cast<MSG_USE_RENAME_CARD*>(&msg)->m_0e), 1,
+            static_cast<short>(pMsg->m_0e), 1,
             (eItemDelReason)3, true))
     {
         user->SetCharacViewState(0);

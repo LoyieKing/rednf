@@ -20,8 +20,13 @@ void TimerQueue::write_timer_queue_log() throw()
         if (log.length() > 0x800)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x101, 0)("TIMER_QUEUE_LOG : %s", log.c_str());
+            // [SemB02 链接口径残差修正] ORIG 0x86310f1 的 `je` 目标是 +0x127
+            // （跳过 trace 块**与** 紧随其后的 `_ZNSs5clearEv` 三连），即
+            // clear 位于 if 体**内**、trace 之后；原实现把 clear 放在 if 之后
+            // （无条件）⇒ 我方 je 只跳过 trace、落点 +0x11c（clear 块头），
+            // len<=0x800 时多清一次 log，属真语义差异。
+            log.clear();
         }
-        log.clear();
     }
 
     if (log.length() != 0)

@@ -23,7 +23,9 @@ bool CDataManager::GetPvPChannelGrade()
                      it->second.begin();
                  vit != it->second.end(); ++vit)
             {
-                if (G_CEnvironment()->m_serverEnvir.m_channelNo == vit->m_field0)
+                // ORIG 0x08357f4f 调 __normal_iterator::operator*（deEv）+ `mov (%eax),%eax`
+                // 读字段 ⇒ 原码必为 `(*vit).m_field0`（`vit->m_field0` 会发 ptEv，实测 DIFF 单点）。
+                if (G_CEnvironment()->m_serverEnvir.m_channelNo == (*vit).m_field0)
                 {
                     // ORIG 0x08357f83 `mov -0x1c(%ebp),%edx` + 逐 dword (0..0x20)
                     // = 经命名指针槽的聚合赋值（非 this+disp 直写）。

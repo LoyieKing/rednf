@@ -20,5 +20,9 @@ void HeroMissionValue::getStringToken(std::string& out)
     // `_ZNSolsEj` 造成符号级错配。
     ss << m_missionType << ' ' << m_field4 << ' ';
     ss << m_field6 << ' ' << m_fieldA << ' ' << m_field8;
-    out += ss.str();
+    // [SemB12 2026-09-12] ORIG 0x08164c9a 调 `_ZNSs6appendERKSs`（非
+    //   `_ZNSspLERKSs`）⇒ 原码写 append(...) 而非 `+=`（4.4 对 `+=` 发
+    //   未内联的 operator+= 弱副本调用）。语义等价（libstdc++ 的
+    //   operator+= 即转调 append）。
+    out.append(ss.str());
 }

@@ -202,8 +202,13 @@ struct dungeonEventHanaseStruct
             if (m_dialogs[i] != 0)
             {
                 delete m_dialogs[i];
-                m_dialogs[i] = 0;
             }
+            // [SemB10 s2_10 2026-09-12 · 结构性偏差修复] ORIG 0x08a61184
+            // `je 8a611a7 <+0x43>`（重置块）⇒ 原码的 `m_dialogs[i] = 0;` 在
+            // **if 之外无条件执行**；旧形把它写在 if 体末尾，4.4 产
+            // `je 856b8f6 <+0x54>`（跳过重置直落 i++）⇒ 跳转目标序号差。
+            // 语义等价（槽已为 0 时再写 0 幂等），改后 .o 与 ORIG 逐条全等。
+            m_dialogs[i] = 0;
         }
     }
     std::string* getNewDialog(ENUM_CHARACTERJOB job);  // ORIG T 0x8a615fe

@@ -2662,7 +2662,7 @@ public:
     int _remove_victim();
     // [K1] ORIG T 0x0822577e 尾部 0x08225804 `leave; ret`（无 eax 设置，P159）⇒ 返回 void。
     void _reset();
-    int _send_result();
+    void _send_result();   // ORIG 0x08225c54 尾部无 eax 物化 ⇒ void（P159/P27）
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);

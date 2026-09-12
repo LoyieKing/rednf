@@ -29,26 +29,33 @@ void CPowerManager::ClearMVPInfo()
         G_CGameManager()->GetSharedServerMessageManager();
     if (mgr != 0)
     {
+        // [SemB10 s2_10 2026-09-12 · 真语义差异修复] ORIG je 目标为**函数尾
+        // CStreamGuard 析构+epilogue**（`0f 84 8b 01 00 00` → 0x847f8cc = +0x2ee），
+        // 即 `mgr == 0` 时**整段发包体**被跳过；原重建把 `if (mgr!=0)` 只包住三条
+        // DeleteSpecificMessage（4.4 产 `je 74 39` → 紧随其后）⇒ 语义不等。
+        // Ghidra C（docs/class_func_reports/CPowerManager/ClearMVPInfo.md）实证：
+        // `if (local_1c != 0) { Delete×3; PacketGuard...; send_all_with_state; }`
+        // 整块在 if 体内，`~CStreamGuard` 在 if 之外 ⇒ 按 ORIG 恢复包块范围。
         mgr->DeleteSpecificMessage(1);
         mgr->DeleteSpecificMessage(2);
         mgr->DeleteSpecificMessage(3);
-    }
 
-    PacketGuard pkt;
-    pkt.put_header(0, 0xc0);
-    pkt.put_byte(2);
-    pkt.put_byte(3);
-    char* msg = (char*)"null string";   // ORIG char* → put_str(char*,int) 重载
-    int len = static_cast<int>(strlen(msg));
-    for (int i = 0; i < 3; ++i)
-    {
-        pkt.put_byte(i + 1);
-        pkt.put_int(len);
-        pkt.put_str(msg, len);
-        pkt.put_int(len);
-        pkt.put_str(msg, len);
-    }
+        PacketGuard pkt;
+        pkt.put_header(0, 0xc0);
+        pkt.put_byte(2);
+        pkt.put_byte(3);
+        char* msg = (char*)"null string";   // ORIG char* → put_str(char*,int) 重载
+        int len = static_cast<int>(strlen(msg));
+        for (int i = 0; i < 3; ++i)
+        {
+            pkt.put_byte(i + 1);
+            pkt.put_int(len);
+            pkt.put_str(msg, len);
+            pkt.put_int(len);
+            pkt.put_str(msg, len);
+        }
 
-    pkt.finalize(true);
-    G_GameWorld()->send_all_with_state(pkt, 3);
+        pkt.finalize(true);
+        G_GameWorld()->send_all_with_state(pkt, 3);
+    }
 }

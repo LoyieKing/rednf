@@ -477,8 +477,13 @@ struct DB_AvatarInsertView
     unsigned char m_abilityNo; // +0x09
     int m_period;              // +0x0a（0/7..30 分支）
     unsigned char m_obtainFrom;// +0x0e
-    char* m_agency;            // +0x0f（%s 指针）
-    char m_pad13[0x15];        // +0x13..+0x27
+    // [SemA08 2026-09-12 §6双视图/真语义差异修复] ORIG 0x0840003x 段 set_query 第 9
+    // 实参为 `mov 0x8(%ebp),%eax; add $0xf,%eax; mov %eax,-0xc0a0(%ebp)` = **取
+    // &sig->m_agency（内联串地址）**，旧建模 `char* m_agency` 使 4.4 发
+    // `mov 0xf(%eax),%eax`（解引用读 4 字节）⇒ 传 %s 的内容不同（线格式包不含
+    // 主机指针；同函数 m_jewel[0x1e] 亦内联数组）。0x0f+0x19=0x28 与下一字段
+    // m_hiddenOption 精确衔接 ⇒ sizeof=0x53、全部偏移零变化。
+    char m_agency[0x19];       // +0x0f..+0x27（内联串，%s）
     unsigned short m_hiddenOption;     // +0x28
     unsigned short m_emblemEndurance;  // +0x2a
     signed char m_stat;        // +0x2c（movsbl）
@@ -5326,15 +5331,13 @@ struct DB_SecuRewardOutView
     // 0x0841ad6f）、-0xac/-0xb0（0x0841aee7/0x0841aea1）、-0xb4/-0xb8 确为顶部
     // 具名迭代器，但 ORIG 区间内**无** `_Rb_tree_iterator<int,int>::C1Ev` call
     // （4.1 把空 ctor 内联为 0 条）；4.4 对顶部声明必发 6×5=30 条
-    // （clean 401 vs orig 371 ⇒ DIFF）。改「各循环前原位初始化」后 371=371、
-    // 仅余槽号差（4.4 复用 -0x70/-0x74 一对，ORIG 六槽独立 ⇒ N82），但本 TU
-    // 因此不再发射 W 符号 `_ZNSt17_Rb_tree_iteratorISt4pairIKiiEEC1Ev`/`C2Ev`
-    // （ORIG 0x080fa898 W 0xe 有）⇒ TU 账 identical −1 / near +1 /
-    // missing(our-only) −1，触「identical 不得下降」闸门 ⇒ 回滚留 N。
-    std::map<int, int>::iterator it;
-    // [J4S1 P212/P309 变体B] 仅 `it` 保留顶部默认构造（保住 ORIG 实有的 W 符号
-    // _ZNSt17_Rb_tree_iteratorISt4pairIKiiEEC1Ev @0x080fa898）；其余 5 个改原位
-    // 初始化，消 5×5=25 条 4.4 空 ctor call 序列（ORIG 4.1 已内联为 0 条）。
+    // （clean 401 vs orig 371 ⇒ DIFF）。6 个迭代器一律改「各循环前原位初始化」。
+    // [SemA10 2026-09-12 Main 批准] 原「仅 it 保留顶部默认构造以保住 ORIG 实有的
+    //   W 符号 _ZNSt17_Rb_tree_iteratorISt4pairIKiiEEC1Ev @0x080fa898」的做法已删：
+    //   该声明使本函数多 5 条（379 vs ORIG 374），且 ORIG 区间内并无该 ctor call
+    //   （4.1 内联为 0 条）⇒ 删后 our_insns 回到 ORIG 条数；代价 = 本 TU 少发射该
+    //   W 符号（Main 明确允许 TU missing −1，前提 identical 不降，A/B 见 slice10 报告）。
+    // （此前 5 个迭代器已改原位初始化，消 5×5=25 条 4.4 空 ctor call 序列。）
     struct tm* ptm = localtime_r(&cur, &tmVal);
     ptm->tm_sec = 0;
     time_t dayStart = mktime(ptm);
@@ -5359,8 +5362,9 @@ struct DB_SecuRewardOutView
     // P171/P328⑤：ORIG 无 `movl $0,槽` 预清（裸声明只占槽不占指令）⇒ 不写初始化。
     int dungeon;
     int down;
-    it = G_GameWorld()->getStatisticsToObserveCrash()
-             ->m_userLastCrashDungeonId.begin();
+    std::map<int, int>::iterator it =
+        G_GameWorld()->getStatisticsToObserveCrash()
+            ->m_userLastCrashDungeonId.begin();
     std::map<int, int>::iterator end =
         G_GameWorld()->getStatisticsToObserveCrash()
             ->m_userLastCrashDungeonId.end();

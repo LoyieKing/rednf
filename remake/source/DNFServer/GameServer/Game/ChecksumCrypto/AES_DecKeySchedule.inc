@@ -6,7 +6,14 @@ void AES_DecKeySchedule(unsigned char* key, unsigned long keyLen,
     alg->num = (keyLen + 3) >> 2;
 
     unsigned long esk[60];
-    RIJNDAEL_KeySchedule(key, keyLen, esk);
+    // [SemA03+SemA02 2026-09-12 harness 实测] ORIG 以 32 位字反序装载 key（与
+    // AES_EncKeySchedule 同轴，见其同名注释）；解密侧必须同法反序，否则
+    // Dec 与 Enc 的密钥调度不自洽（我方 Dec(Enc(pt)) 会错）。
+    unsigned char kb[32];
+    for (unsigned long i = 0; i < keyLen; i += 4)
+        for (int j = 0; j < 4; ++j)
+            kb[i + j] = key[i + (3 - j)];
+    RIJNDAEL_KeySchedule(kb, keyLen, esk);
     // [b28d-41] 真 bug 修复：原写 `alg->num / 4 + 6`，对 AES-128（num=4）得 7 轮
     // （应为 Nk+6=10；AES-192/256 同理得 7/8 而非 12/14）⇒ 等效解密轮密钥
     // dk[0]=esk[nr*4] 取到 esk[28] 而非 esk[40]，AES 解密 roundtrip 全错。

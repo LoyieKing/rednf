@@ -16,18 +16,19 @@ bool NewAccountLevelUpEventToJob::processLevelUpToJob(CUser& user, bool growup)
     std::vector<LevelUpRewardItemData> rewards;    // vector C1 0x081b8c00
     if (growup)
     {
-        // [P1T5 · .h 申请证据] ORIG 0x081b830a `call _Z14G_CDataManagerv` 后
-        // 0x081b830f `lea 0xb5f8(%eax),%edx` ⇒ ORIG 的 m_levelUpReward 偏移 = 0xb5f8；
-        // 我方 CDataManager.h:3796 注释 + 实测 `lea 0x50ac(%eax),%edx`（本 TU 0x1b 处）。
-        // 差 0x6534（≈25.9KB）⇒ CDataManager 成员布局缺口，属共享头（P321-S2），
-        // 本泳道只报告不改。注：m_itemList（本函数后半 create_item 处）同样受影响。
-        if (!G_CDataManager()->m_levelUpReward.get_data_when_growup(key, rewards))
+        // [SemA01 2026-09-12 真语义修正] ORIG 0x081b830a `call _Z14G_CDataManagerv`
+        // 后 0x081b830f `lea 0xb5f8(%eax),%edx`。0xb5f8 = m_newAccountLevelUp(+0xb5e0)
+        // + 0x18 = stNewAccountLevelUpToJobScript::m_levelUp18（CDataManager.h:3951/3007）。
+        // 旧译写成角色级 m_levelUpReward(+0x50ac) ⇒ 读错表（真语义差异）。
+        if (!G_CDataManager()->m_newAccountLevelUp.m_levelUp18
+                 .get_data_when_growup(key, rewards))
             return false;                          // ebx=0 出口
     }
     else
     {
         LevelUpRewardItemData data;                // C1 0x081b88bc
-        if (!G_CDataManager()->m_levelUpReward.get_data(key, data))
+        if (!G_CDataManager()->m_newAccountLevelUp.m_levelUp18
+                 .get_data(key, data))
             return false;
         rewards.push_back(data);                   // push_back 0x081b8a52
     }

@@ -15,6 +15,9 @@ void StatisticsShusiaService::incDungeonFailure(int dungeonIdx)
     }
     else
     {
-        it->second += 1;
+        // [SemB04 2026-09-12] P167 判据（it->second vs (*it).second 决定实例化
+        // operator-> 还是 operator*）：ORIG 0x0860c2xx 调 `_Rb_tree_iterator::deEv`
+        // （operator*），我方 `it->second` 调 `ptEv` ⇒ 改 `(*it).second` 复现 ORIG。
+        (*it).second += 1;
     }
 }

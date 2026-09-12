@@ -36,7 +36,6 @@ int CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
                 equip->m_itemType <= Inven_Item::ITEM_TYPE_9)
                 return 0x17;                           // ORIG 0x085a745f `mov $0x17,%ebx`
         }
-    }
 
     drop.m_count = 0;                                  // byte +0x00 = 0
     // ORIG 0x085a7470/0x085a747a：m_field1(+0x01)/m_addInfo(+0x02) 的拷贝发射在
@@ -61,6 +60,11 @@ int CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
         invenItem.m_random.m_random;
     drop.m_item.m_upgradeSep.SetUpgradeSeparate(
         invenItem.m_upgradeSep.GetUpgradeSeparate());  // +0x43
+    }                                                  // [真差异修复] ORIG 0x085a742f
+                                                       // `je 0x085a754f`：m_addInfo==0
+                                                       // 时**跳过整段 drop 字段填充**
+                                                       // 直达 drop_item 调用（我方原
+                                                       // 置于 if 外 ⇒ 无条件填充并掉落）
 
     int slotIdx = reinterpret_cast<CBattle_Field*>(&m_battleField)
                       ->drop_item(drop);               // 按值传 0x54 字节

@@ -34,8 +34,16 @@ int CExchangeRandomItemReward::deleteUsedMaterialItem(
                 (INVEN_TYPE)1, materials[i].first, materials[i].second,
                 (eItemDelReason)3, true))
         {
-            returnItems.push_back(std::make_pair(slotItem.m_addInfo,
-                                                 materials[i].second));
+            // [SemB02 链接口径残差修正] ORIG 0x0810efbb 调用的实例是
+            // `_ZSt9make_pairIRmRiE...`（make_pair<unsigned long&, int&>），随后
+            // `_ZNSt4pairIiiEC1ImiEEOS_IT_T0_E`。Inven_Item::m_addInfo 在本仓
+            // 声明为 unsigned int ⇒ 我方实例为 `IRjRiE`/`C1IjiE`（.o 重定位直证）。
+            // 共享头改型受 N134「两端冲突」门槛（全消费点 A/B）约束，故此处用
+            // 「同址 unsigned long 左值视图」复现 ORIG 的模板实参：reinterpret_cast
+            // 到引用是纯左值转换，不产生任何指令，4 字节同址、无语义变化。
+            returnItems.push_back(std::make_pair(
+                *reinterpret_cast<unsigned long*>(&slotItem.m_addInfo),
+                materials[i].second));
             ++i;
         }
         else

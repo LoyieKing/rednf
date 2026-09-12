@@ -416,10 +416,11 @@ unsigned long getExchangeServerThreadID()
 // B+) CACHE_CHARACTER_TYPE
 // ============================================================================
 
-#include "ExchangeServer_Infra/CACHE_CHARACTER_TYPE.inc"
-
-
-#include "ExchangeServer_Infra/dtor_CACHE_CHARACTER_TYPE.inc"
+// [SemA06 2026-09-12 · P299/P318 CWG434] 原两处 include（C1/D1 空体定义）已停用：
+//   删用户声明改隐式合成后不得再有类外定义（否则“定义无声明”编译错，且会重新
+//   把该类变成 user-provided）。两个 .inc 文件本体保留（内容已注释）。
+//#include "ExchangeServer_Infra/CACHE_CHARACTER_TYPE.inc"
+//#include "ExchangeServer_Infra/dtor_CACHE_CHARACTER_TYPE.inc"
 
 
 #include "ExchangeServer_Infra/GetMemberPosition.inc"

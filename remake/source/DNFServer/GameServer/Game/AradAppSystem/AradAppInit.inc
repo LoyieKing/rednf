@@ -10,11 +10,22 @@ int AradAppSystem::AradAppInit(int argc, char** argv)
 {
     std::cerr << "[!] Server Starting...\n";
     srand(time(0));
-    if (argc != 2)
-    {
-        std::cerr << "[!] Check Args Fail!!\n";
-        return 0;
-    }
+    // [SemA05 2026-09-12 · Main 裁决「跟随 ORIG 运行时可观察行为」（§P368⑨ 运行时热补族）]
+    // ORIG 0x0817de2e `83 7d 08 02` = cmpl $0x2,0x8(%ebp)，紧随 0x0817de32 `eb 1b` = **无条件 jmp**
+    // 0x0817de4f，跳过 0x0817de34..0x0817de4d 的 argc 错误块（打印 "[!] Check Args Fail!!\n" + return 0）；
+    // 全函数无任何跳转指向 0x0817de34 ⇒ 该块**不可达（死块）** ⇒ ORIG 二进制的可观察行为 = **不检查 argc**。
+    // 不可造性：4.4 -O0 对 `if` 恒发条件跳转（探针 /tmp/probe_ai.cpp v1 `if(argc!=2){}` / v2
+    // `if(argc==2){}else{}` / v3 `switch(argc)` 同旗标同头集实测恒发 `74 1b` je；b28d-32 探针
+    // /tmp/lane32_probe1.cpp 同结论）⇒ 合法 C++ 在 -O0 下不可能产出「cmp + 无条件 jmp + 保留死块」。
+    // ⇒ 按 ORIG 行为删除该检查，原源码形保留备查（下方注释）。
+    // 【运行风险 · 即 ORIG 的真实行为，非我方缺陷】argc≠2（如 argc==1）时本函数**不再**返回 0，
+    // 而是继续执行 open_log(argv[1])（argv[1] 可能为 NULL）—— 与 ORIG 二进制逐位一致。
+    //   if (argc != 2)
+    //   {
+    //       std::cerr << "[!] Check Args Fail!!\n";
+    //       return 0;
+    //   }
+    (void)argc;   // 保留形参（mangled/签名不变），ORIG 行为不使用其做校验
     if (!open_log(argv[1]))
         return 0;
     if (!HistoryLog::Init())

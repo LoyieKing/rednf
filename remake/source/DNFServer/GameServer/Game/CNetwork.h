@@ -459,8 +459,11 @@ bool CNetwork<N1, N2>::Parsing_ServerPacket(int recvLen)
         if (m_recvOffset != 0)
         {
             m_recvBuf -= m_recvOffset;
-            memcpy(&header, m_recvBuf, 0xa);
         }
+        // [SemB12 2026-09-12 真语义差异修复] ORIG 0x0846d11c 的 `je +0xdc` 落点 =
+        //   memcpy 段起点（idx61）⇒ offset==0 时**仍执行** memcpy（否则 header 未
+        //   初始化即被读）；旧写法把 memcpy 放块内，我方 `je` 落 idx68 跳过它。
+        memcpy(&header, m_recvBuf, 0xa);
         packetSize = header.packetSize;
         // [b28d-solo-CNetwork] ORIG 0x0846d153 段实证：`cmpl $0x9; jbe <log>; cmpl
         // $0x1800; jbe <dispatch>` ⇒ 原码是负极性短路 `ps<=9 || ps>0x1800` 走 log；
@@ -539,11 +542,16 @@ bool CNetwork<N1, N2>::Parsing_AuctionServerPacket(int recvLen)
 
     while (true)
     {
+        // [SemB00 2026-09-12] 真语义差异修复（ORIG 0x082f7ee2 段实证）：
+        // ORIG `je`（m_recvOffset==0，0x082f7f1f）落点 = 0x082f7f52（**memcpy 段
+        // 起点**）⇒ 原码为 `if (off != 0) { m_recvBuf -= off; }` 后 **无条件**
+        // memcpy；旧写法把 memcpy 关进 if 内，m_recvOffset==0 时 headerBuf 未
+        // 初始化即 getSize（真语义偏差）。
         if (m_recvOffset != 0)
         {
             m_recvBuf -= m_recvOffset;
-            memcpy(headerBuf, m_recvBuf, 0x12);
         }
+        memcpy(headerBuf, m_recvBuf, 0x12);
         packetSize = reinterpret_cast<nsl::PACKET_HEADER*>(headerBuf)->getSize();
         // [b28d-solo-CNetwork] ORIG 0x082f7f7d 段实证：`cmpl $0x11; jbe <log>;
         // cmpl $0x5000; jbe <dispatch>` ⇒ 负极性短路 `ps<=0x11 || ps>0x5000`

@@ -270,9 +270,14 @@ bool CTradeSpace::change_trade_state(CUser* user, int state)   // SIGFIX: bool�
                 int totalMoney =
                     user->getCurCharacInvenR()->get_money() + goldMe;
                 // ORIG Ghidra：float 精度比较 + bool 汇聚岛（mov$1/$0;test al）
+                // [SemA16] 真差异修正（ORIG 0x0852fe04..0x0852fe25 直证）：
+                //   fildl r1; fldl 0x8c98630(=0.01, **double**); fmulp; fstps -0x11c;
+                //   flds -0x11c; fldl 0x8c98638(=0.7, **double**); faddp; fmulp;
+                // 即「(float)(double 0.01 * r1) 截断后，再以 double 加 0.7、乘 totalMoney」；
+                // 旧形全程 float（flds 常量 + 无 fstps 往返）⇒ 边界值两侧结果不同。
                 bool hack;
-                if ((float)goldMe <=
-                        (0.7f + 0.01f * (float)r1) * (float)totalMoney ||
+                if ((double)goldMe <=
+                        (0.7 + (float)(0.01 * r1)) * (double)totalMoney ||
                     goldMe < 10000)
                     hack = false;
                 else

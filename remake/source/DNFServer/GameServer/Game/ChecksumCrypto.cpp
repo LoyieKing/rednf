@@ -192,7 +192,14 @@ CNChecksumSha512& CNChecksumSha512::operator=(CNChecksumSha512 const&)
 // ---------------------------------------------------------------------------
 
 #define SHA_ROTR32(x, n) (((x) >> (n)) | ((x) << (32 - (n))))
-#define SHA_ROTR64(x, n) (((x) >> (n)) | ((x) << (64 - (n))))
+// [SemA14 2026-09-12 · ORIG 实证] ORIG 的 SHA512 内核用**有符号 64 位**语义：其 x86 序列
+// 为 `shrd $n,%ebx,%ecx; sar $n,%ebx; shl $(64-n),%edx; or` —— `>>` 是**算术**右移
+// （符号扩展），非标准 SHA512 的无符号逻辑右移。证据：mmap 回原址实跑 ORIG
+// `_ZL16SHA512_TransformPmS_`(0x080c077c)，端到端 SHA512("abc")=e30e76550195626f…
+// （≠ 标准 ddaf35a1…）；W[18]=σ1(W[16]) 只有把 >>19/>>61/>>6 全改算术右移才得
+// ORIG 的 0xfe01827a17b3dffc。10 组向量（1B..4096B）修后逐字节相等。
+#define SHA_ROTR64(x, n) ((unsigned long long)((((long long)(x)) >> (n)) | ((x) << (64 - (n)))))
+#define SHA_SHR64(x, n) ((unsigned long long)(((long long)(x)) >> (n)))
 
 static const unsigned int k_sha256K[64] = {
     0x428a2f98u, 0x71374491u, 0xb5c0fbcfu, 0xe9b5dba5u,
@@ -237,11 +244,12 @@ static const unsigned long long k_sha512K[80] = {
 };
 
 // [b28d-Main·检查点18] 原 static 助手改宏（ORIG 无这些局部符号；宏展开零符号、行为等价）。
-#define sha256BE(p) ({ const unsigned char* _p = (const unsigned char*)(p); \
-    ((unsigned int)_p[0] << 24) | ((unsigned int)_p[1] << 16) | \
-    ((unsigned int)_p[2] << 8) | (unsigned int)_p[3]; })
+// [SemA14 2026-09-12 · ORIG 实证] ORIG 装载为 u32 直接读（无字节交换；大端机假设）。
+#define sha256BE(p) (*(const unsigned long*)(p)) /* u32 direct load (ORIG) */
 
 // [b28d-SymChecksum·检查点18同法] 原 static 助手改宏（ORIG 无该局部符号；宏展开零符号）。
+// [SemA14 2026-09-12 · ORIG 实证] 长度域 = bswap32 后直写 = **大端**
+// （Final 0x080be28d..0x080be2e3：ror/and/or 两处 + mov %eax,(%edx)）⇒ 保持逐字节 BE。
 #define sha256StoreBE(v, p) do { \
     unsigned int _v = (unsigned int)(v); \
     unsigned char* _p = (unsigned char*)(p); \
@@ -250,19 +258,27 @@ static const unsigned long long k_sha512K[80] = {
     _p[2] = (unsigned char)(_v >> 8); \
     _p[3] = (unsigned char)_v; } while (0)
 
+// [SemA14 2026-09-12 · ORIG 实证] 摘要输出 = **直写**（Final 0x080be303..0x080be319：
+// `mov (%edx,%ecx,4),%edx; mov %edx,(%eax)`，无 bswap；长度域那份不适用）。
+#define sha256StoreLE(v, p) do { *(unsigned long*)(p) = (unsigned long)(v); } while (0)
+
+// [SemA14 2026-09-12 · ORIG 实证] ORIG 装载段（0x080c0791..0x080c07f3）为
+// `mov (%eax),%eax; … or …; mov 0x4(%eax),%eax; … or …` = **两个 32 位半字交换**
+// （低地址半字落**高** 32 位），全段无 bswap/逐字节拼装。实测 ORIG W[0]=
+// 0x80636261_00000000（"abc\x80" 的 le32 在高位）、W[15]=0x18 ⇒ 与下式逐值吻合。
 #define sha512BE(p, v) do { \
-    const unsigned char* _p = (const unsigned char*)(p); \
-    unsigned long long _v = 0; \
-    for (int _i = 0; _i < 8; ++_i) _v = (_v << 8) | _p[_i]; \
-    (v) = _v; } while (0)
+    const unsigned long* _p = (const unsigned long*)(p); \
+    (v) = ((unsigned long long)_p[0] << 32) | (unsigned long long)_p[1]; } while (0)
 
 // [b28d-SymChecksum·检查点18同法] 原 static 助手改宏（ORIG 无该局部符号；宏展开零符号）。
+// [SemA14 2026-09-12 · ORIG 实证] 同上：ORIG 的存储亦为**两个 32 位半字交换**
+// （高半字写**低**地址）。实测 ORIG SHA512_Final 写长度域后 ctx->buffer[112..127]
+// = 00 00 00 00 | 18 00 00 00（值 0x18 的高半 0 在前），与下式一致。
 #define sha512StoreBE(v, p) do { \
     unsigned long long _v = (v); \
-    unsigned char* _p = (unsigned char*)(p); \
-    for (int _i = 7; _i >= 0; --_i) { \
-        _p[_i] = (unsigned char)(_v & 0xff); \
-        _v >>= 8; } } while (0)
+    unsigned long* _p = (unsigned long*)(p); \
+    _p[0] = (unsigned long)(_v >> 32); \
+    _p[1] = (unsigned long)_v; } while (0)
 
 static void SHA256_Transform(unsigned long* dataWords, unsigned long* stateWords)
 {
@@ -314,8 +330,8 @@ static void SHA256_Transform(unsigned long* dataWords, unsigned long* stateWords
     unsigned long long w[80]; \
     for (int t = 0; t < 16; ++t) sha512BE(bl + t * 8, w[t]); \
     for (int t = 16; t < 80; ++t) { \
-        unsigned long long s0 = SHA_ROTR64(w[t-15], 1) ^ SHA_ROTR64(w[t-15], 8) ^ (w[t-15] >> 7); \
-        unsigned long long s1 = SHA_ROTR64(w[t-2], 19) ^ SHA_ROTR64(w[t-2], 61) ^ (w[t-2] >> 6); \
+        unsigned long long s0 = SHA_ROTR64(w[t-15], 1) ^ SHA_ROTR64(w[t-15], 8) ^ SHA_SHR64(w[t-15], 7); \
+        unsigned long long s1 = SHA_ROTR64(w[t-2], 19) ^ SHA_ROTR64(w[t-2], 61) ^ SHA_SHR64(w[t-2], 6); \
         w[t] = w[t-16] + s0 + w[t-7] + s1; } \
     unsigned long long a=st[0], b=st[1], c=st[2], d=st[3]; \
     unsigned long long e=st[4], f=st[5], g=st[6], h=st[7]; \

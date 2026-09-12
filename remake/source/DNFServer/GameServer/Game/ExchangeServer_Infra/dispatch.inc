@@ -21,14 +21,17 @@ void CExchangeServerThread::dispatch(void* arg)
         exit(-1);
     }
 
-    if (!m_exchangeServer.SendExchangeServerInfo())
-    {
-        cMyTrace(__PRETTY_FUNCTION__, 0x469, 0)("SendExchangeServerInfo failed!");
-        return;                       // ORIG jmp 尾部
-    }
-
+    // [SemB06 s2_06 · 真语义差异修复] ORIG 控制流：0x8493c55 `je <0x8493d6b=while 条件>`
+    // （Prepare 成功 → 直接进循环条件），0x8493d77 `jne <0x8493c9d=Send 检查块>`
+    // （未停止 → **回到 Send 检查**）⇒ ORIG 的 SendExchangeServerInfo 检查位于
+    // **while 循环体内**（每轮迭代都调用），非循环外一次。移入循环体。
     while (!GlobalData::s_server_stop)         // 标志 @0x0940bd64
     {
+        if (!m_exchangeServer.SendExchangeServerInfo())
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0x469, 0)("SendExchangeServerInfo failed!");
+            return;                       // ORIG jmp 尾部（0x8493ce8）
+        }
         // P15 赋值即条件（同 WaitForEvent OnAccept 判据）。
         Stream* msg = 0;
         if ((msg = m_exchangeServer.GetMessage()) != 0)

@@ -42,7 +42,13 @@ int CUser::customizingSkillCommand(STSkillCommandData& data)
         // `_ZSt9make_pairIRsR18STSkillCommandDataE` = make_pair<short&, T&>；
         // arg1 直接传 data 指针 = &data.m_command，因 m_command 偏移 0）
         // ⇒ 须写成员表达式而非具名 int key 局部（后者产 pair<int&,T&> 另一实例）。
-        cmds->insert(std::make_pair(data.m_command, data));
+        // [SemB07 2026-09-12] 字段声明为 `unsigned short m_command`（ORIG 侧 0x08655028
+        // `movzwl (%eax),%eax; cwtl` 实证为无符号读+符号扩展 ⇒ 字段本身 unsigned），
+        // 而 ORIG 的 make_pair 实例是 `IRs`（short&）⇒ 用 reinterpret_cast 取 **short 左值**视图
+        // （同尺寸同址、零指令，纯语言 cast）令 4.4 推导 `make_pair<short&, STSkillCommandData&>`，
+        // 与 ORIG 的 `_ZSt9make_pairIRsR18STSkillCommandDataE…` 及
+        // `_ZNSt4pairIKi18STSkillCommandDataEC1IsS1_EEOS_IT_T0_E` 逐符对齐。
+        cmds->insert(std::make_pair(data.m_commandS, data));
     }
     enableSaveSkill();
     return true;

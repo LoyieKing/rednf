@@ -14,13 +14,16 @@ bool DB_LoadAccountCargo::dispatch(int userIdx, int slot, Stream* stream)
     SIG_ACCOUNT_CARGO_DATA* sig;
     int binLen;
     unsigned int outLen;
-    // [Q5W8LT 2026-09-11 负结论·回滚] 曾试删此初始化器（想消我方 41 条 4.4 inline
-    // memset 展开），实测 our 189 / ORIG 225（gap +36 劣化）⇒ ORIG 0x0843b3c9 起
-    // **确实**有清零（`lea -0x1043(%ebp),%edx; mov $0x100f,%ebx; ...; shr $0x2,%ecx;
-    // rep stos %eax,%es:(%edi)` 共 49 条），只是 4.1 用 rep stos 而 4.4 用逐字节/字
-    // 对齐循环（41 条，无 rep stos）⇒ 编译器 stringop 策略差，非源形可控。保留初始化器。
-    char buf[0x100f] = { '\0' };
+    // [SemA09 slice09 负结论] outLen/binLen 声明序互换（P339 猜测）实测**零效**：
+    // 14 处残差（-0x30/-0x34、-0x2c/-0x34 两组互换）逐值不变 ⇒ 4.4 槽按首次
+    // 使用序（N98）分配，声明序不可翻；该件残差归 N82/N98（槽相位），已回滚互换。
     static const int compressed_buff_size = 0x100f;  // ORIG _ZZ…DB_LoadAccountCargo…E20compressed_buff_size
+    // [SemA09 slice09 · P0 声明点律] ORIG 的清零块（0x0843b5??：`lea -0x1043(%ebp),%edx;
+    // mov $0x100f,%ebx; …; shr $0x2,%ecx; rep stos %eax,%es:(%edi)`，共 49 条）位于
+    // `get_uint(1,sig->m_money)` 返回值检查**之后**、`get_binary(2,…)` **之前** ⇒ 原码
+    // buf 的声明点即首次使用点；-O0 下声明点决定初始化发射位置 ⇒ 声明下移至此。
+    // [Q5W8LT 2026-09-11 负结论·回滚] 曾试删此初始化器（想消我方 41 条 4.4 inline
+    // memset 展开），实测 our 189 / ORIG 225（gap +36 劣化）⇒ ORIG 确有清零，初始化器必须保留。
 
     *stream >> mId;
     db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
@@ -42,6 +45,7 @@ bool DB_LoadAccountCargo::dispatch(int userIdx, int slot, Stream* stream)
         return 0;
     if (db->get_uint(1, sig->m_money) != 1)
         return 0;
+    char buf[0x100f] = { '\0' };
     if (db->get_binary(2, buf, compressed_buff_size) != 1)
         return 0;
     binLen = db->get_binary_length(2);

@@ -59,7 +59,10 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
         CInventory shadow;                                     // -0x9f8 副本
         InventoryMemory qmem;                                  // -0xcb37（ORIG C1 0x822d3b8）
         shadow.SetInventoryMemory(&qmem);                      // ORIG 0x822d4f6
-        shadow.setCopy(*getCurCharacInvenR());
+        // [SemA04 2026-09-12] ORIG 0x0866ecf9.. 调 `_ZNK15CUserCharacInfo21getCurCharacInvenRefREv`
+        // （RefR）再 setCopy：两访问器函数体相同（`CUR->m_inven + 0xda`），但 ORIG 此处用 RefR、
+        // 0x0866fd13 段用 R —— 重建把两者**配对写反**（见下方 GetInvenSlot 处同步修正）。
+        shadow.setCopy(*getCurCharacInvenRefR());
         std::vector<int> swapList;                             // -0x158
         bool okAll = false;
 
@@ -271,7 +274,9 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
                     addedDef->IsAvatarItem())                // vtable+0x10 无参 bool 虚调用（ORIG 0x866fd47）
                     ampFlag = 2;
                 Inven_Item chkItem =
-                    getCurCharacInvenRefR()->GetInvenSlot(ampFlag, slotE0);
+                    // [SemA04 2026-09-12] ORIG 0x0866fd13 段为 getCurCharacInvenR（非 RefR）；
+                    // 与上方 setCopy 处的 RefR 构成配对——重建此两处写反，此处改回 R。
+                    getCurCharacInvenR()->GetInvenSlot(ampFlag, slotE0);
                 stAmplifyOption_t& amp = *&chkItem.m_amp;
                 // [SubD C2 2026-09-11] ORIG 0x0866f989 无 `and $0xff,%eax`；
                 // `put_byte(int)` 内部按 (unsigned char) 截断 ⇒ 语义等价。

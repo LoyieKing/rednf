@@ -70,7 +70,9 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
         // `mov 0x4(%eax),%esi`（GetLastMapInfo 返回值直解引用），0x085a8597
         // 每次重算 +0x334/1000（-0x4c 除法临时），均无槽往返。
         memberUser(this, i)->m_historyLog.MapClear(
-            kill, (int)(bd(this).m_field8 / 1000),
+            // [SemA16] 直证（T2）：ORIG 0x085a85ae 段 `mul %edx; mov %edx,%eax;
+            // shr $0x6` = 无符号 /1000（m_field8 为 u64 m_playedTime 低 32 位）。
+            kill, (int)((unsigned int)bd(this).m_field8 / 1000),
             bf(this).GetLastMapInfo()->m_mapIndex);
 
         if (kill == 0)
@@ -80,7 +82,10 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
         }
 
         // 时长/击杀比异常：quotient=kill/sec，>4 时上报 min(q-4,100) → 0x340
-        const unsigned int sec = bd(this).m_field8 / 1000;
+        // [SemA16] 直证（T2）：ORIG 0x085a8687 段 `mov $0x10624dd3,%edx; mul %edx;
+        // mov %edx,%eax; shr $0x6` = **无符号** /1000；m_field8 为 int 时 4.4 产
+        // `imul + sar $0x6 + sar $0x1f + sub`（有符号）⇒ 负值输入两侧行为不同（真差异）。
+        const unsigned int sec = (unsigned int)bd(this).m_field8 / 1000;
         if (sec != 0)
         {
             const unsigned int quotient = (unsigned int)kill / sec;
@@ -125,7 +130,9 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
             {
                 // [真 bug 修正] 基准是 m_playedTime/1000（ORIG 0x085a88e0 读 -0x20，
                 // 由 0x085a8897 段 /1000 写入），不是原始 tick（旧码差 1000 倍）。
-                const unsigned int secQ = bd(this).m_field8 / 1000;
+                // [SemA16] 直证（T2）：ORIG 0x085a88ae 段 `mul %edx; mov %edx,%eax;
+                // shr $0x6` = 无符号 /1000（负值时无符号商 ≠ 有符号商，真差异）。
+                const unsigned int secQ = (unsigned int)bd(this).m_field8 / 1000;
                 const unsigned int q = secQ / 5;         // mul 0xcccccccd shr 2
                 const unsigned int rem = secQ - q * 5;   // sec%5
                 if (rem == 0)

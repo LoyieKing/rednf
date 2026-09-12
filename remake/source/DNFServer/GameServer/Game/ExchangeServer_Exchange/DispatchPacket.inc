@@ -13,9 +13,11 @@ int CExchangeServer::DispatchPacket(CSession* session, char* data,
 {
     // [b28d-solo-Exchange] 返回类型 bool→int（ORIG 尾 `mov %ebx,%eax` 无 bool
     // 归一、0x315 直传；调用点 Session:177 存 int moved 后 `cmpl $0` 佐证）。
-    // case 叶块物理序 = ORIG 地址序 0x84930ab(0x84)/0x84930cb(0x85)/
-    // 0x84930eb(0x82)/0x849310b(0x83)；default 与函数尾 return 0 共享
+    // case 叶块物理序 = ORIG 地址序 0x84930ab(0x82)/0x84930cb(0x83)/
+    // 0x84930eb(0x84)/0x849310b(0x85)；default 与函数尾 return 0 共享
     // `mov $0x0,%ebx` 块（0x84931a8），非 pktCode。
+    // [SemB04 2026-09-12] case 书写序须逐字按 ORIG 叶块地址升序（P324）——
+    // 旧序 0x84/0x85/0x82/0x83 使我方叶块物理序反（链接口径 NEAR 残差根因）。
     PacketGuard guard;
     // [b28e] ORIG 0x8493150 `mov -0x10(%ebp),%ebx` 在 cMyTrace ctor 之前读槽并
     // 跨 ctor 保活（P87/P227）；对照 pktCode 的 `(int)pktCode` 实参形使 4.4
@@ -40,14 +42,21 @@ int CExchangeServer::DispatchPacket(CSession* session, char* data,
     case 1:
         switch (pktCode)
         {
+        // [SemB04 2026-09-12][真语义修复] ORIG 决策树（0x8493033 段）逐值落点：
+        //   cmp$0x84->0x84930ab(call OnRecvPacketCharacInfo)
+        //   cmp$0x85->0x84930cb(call OnRecvPacketCharacInfoRet)
+        //   cmp$0x82->0x84930eb(call OnRecvPacketServerInfo)
+        //   cmp$0x83->0x849310b(call OnRecvPacketServerInfoRet)
+        // ⇒ 原重建把 0x82/0x83 与 0x84/0x85 的处理函数**互换**（协议分派错）；
+        //   叶块物理序（书写序，P324）= CharacInfo/CharacInfoRet/ServerInfo/ServerInfoRet。
         case 0x84:
-            return OnRecvPacketServerInfo(session, guard);
-        case 0x85:
-            return OnRecvPacketServerInfoRet(session, guard);
-        case 0x82:
             return OnRecvPacketCharacInfo(session, guard);
-        case 0x83:
+        case 0x85:
             return OnRecvPacketCharacInfoRet(session, guard);
+        case 0x82:
+            return OnRecvPacketServerInfo(session, guard);
+        case 0x83:
+            return OnRecvPacketServerInfoRet(session, guard);
         default:
             // P221/P227 临时链：ORIG 0x849312b `movzbl -0x9(%ebp),%ebx` 保活
             // + default 尾 jmp 共享 return 0 块（0x84931a8）⇒ 用 break 出 switch。

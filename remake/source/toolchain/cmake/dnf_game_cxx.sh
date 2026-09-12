@@ -33,6 +33,29 @@ done
 # ---------------------------------------------------------------------------
 H46="${ROOT}/lsd44/v4.4.6/usr/include/c++/4.4.6"
 case "$src" in
+    # [SemA09 slice09 · i486 轴 · P0.1 必守程序已过（Main 批准 2026-09-12）]
+    #   ExpertJobLink4 原档 = 下方大队列 446h46（4.4.6 后端 + 4.4.6 头集原位替换）；
+    #   本 case 置于大队列之前 ⇒ 同档再叠 `-march=i486 -mtune=generic`（N85/P230② x87 比较族）。
+    #   A/B（唯一变量 = +i486；档位/头集/后端全同）：四数逐值不变
+    #     （identical=96 ae=188 near=0 diff=6 missing=33）、`nm --defined-only | comm -3` = 0；
+    #   改善：TU Σndiff 274→270，`expert_job::CDisjointer::complete_disjoint` ndiff 55→51 ——
+    #     ORIG `fucompp;fnstsw %ax;test $0x45,%ah;sete` 复现，默认 4.4.7 档产 `fucomip/fstp/seta`。
+    *Game/ExpertJobLink4.cpp)
+        _newargs="-B${ROOT}/cc1plus446bin/ -march=i486 -mtune=generic"
+        _swapped=""
+        for _a in "$@"; do
+            case "$_a" in
+                *c++/4.4.7*)
+                    if [ -z "$_swapped" ]; then
+                        _swapped=1
+                        _newargs="$_newargs -isystem${H46} -isystem${H46}/x86_64-redhat-linux -isystem${H46}/backward"
+                    fi
+                    continue ;;
+            esac
+            _newargs="$_newargs $_a"
+        done
+        # shellcheck disable=SC2086
+        set -- $_newargs ;;
     *Game/ARAD.cpp | \
             *Game/Action.cpp | \
             *Game/AdditionalEffectData.cpp | \
@@ -869,6 +892,26 @@ case "$(basename "$src" .cpp)" in
             #   ⚠ 与其它旗标臂同规矩：**全局核账定稿**。
             *ServerCommon/ServerXml.cpp)
                 exec "$C6446R" "$@" ;;
+
+            # [SemA09 slice09 · i486 轴 · P0.1 必守程序已过（Main 批准 2026-09-12）]
+            #   N85/P230② x87 比较 lowering：ORIG 为 `fucompp;fnstsw %ax;test $0x5/%0x45,%ah;sete`，
+            #   默认 4.4.7 档产 `fucomip %st(1),%st;fstp %st(0);setae/seta`；+i486 后逐条复现 ORIG。
+            #   A/B（唯一变量 = +`-march=i486 -mtune=generic`，同源码同旗标）：
+            #     W6_AssaultMgrDeps  identical=36 ae=51 near=0 diff=2 missing=7（逐值不变）
+            #       · GetRequestAssaultNeedMoney ndiff 51→34（5 处 x87 段，TU Σndiff 200→183）
+            #   注：ExpertJobLink4 同理，但因它已在下方大队列（446h46）中匹配，专属 case 置于
+            #   文件上方 `case $src` 首块（见 36 行处）。
+            #   `nm --defined-only | comm -3` = 0 行；`-mtune=generic` 必须同带（P230 历史）。
+            # [SemA16 申请 · SemA09 落地 2026-09-12] CTradeSpace.cpp 同族（N85 x87）：
+            #   A/B（SemA16 提供，唯一变量 = +i486）：TU 四数逐值不变、comm-3=0（328 符号）、
+            #   missing 45→45、目标件 `change_trade_state` ndiff **715→701（−14）**、x87 段复现 ORIG。
+            # [SemA17 申请 · SemA09 落地 2026-09-12] CParty.cpp 同族（N85 x87）：
+            #   A/B（SemA17 提供，唯一变量 = +i486）：TU 四数逐值不变（identical 146 / ae 334 /
+            #   near 0 / diff 27 / missing 86）、comm-3=0、逐件 verdict（593 符号）零差、
+            #   TU Σnd 14061→14024（−37）；`CParty::MakeTournamentReward` 449/448 gap+1 → 449/449 gap0、
+            #   nd 51→44；x87 段 `fucomip/fstp/seta` → `fnstsw %ax;test $0x45,%ah;sete` = ORIG。
+            *Game/W6_AssaultMgrDeps.cpp | *Game/CTradeSpace.cpp | *Game/CParty.cpp)
+                exec "$C6" "$@" -march=i486 -mtune=generic ;;
 
             *)
                 exec "$C6" "$@" ;;

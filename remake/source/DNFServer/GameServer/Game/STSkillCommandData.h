@@ -60,7 +60,15 @@ struct STSkillCommandData
         memset(&m_key0, 0, 5);
     }
 
-    unsigned short m_command;       // +0x00
+    // [SemB07 2026-09-12] 有符号同址视图（零布局影响）：ORIG 0x08655028 `movzwl (%eax),%eax;
+    // cwtl` 证明字段本体为 **unsigned short**；而 ORIG make_pair 第一实参是 **short 左值**
+    // （mangled `_ZSt9make_pairIRsR18STSkillCommandDataE`）。给出无 cast 的同址 short 视图
+    // ⇒ 4.4 不再对 `&data.m_command` 插 `mov %eax,%edx` 地址转换中转，逐条对齐 ORIG。
+    union
+    {
+        unsigned short m_command;   // +0x00
+        short          m_commandS;  // +0x00（同址有符号视图，仅 make_pair 实参用）
+    };
     unsigned char m_count;          // +0x02
     union
     {

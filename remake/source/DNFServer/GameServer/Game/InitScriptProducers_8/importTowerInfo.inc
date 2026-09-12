@@ -21,11 +21,15 @@ int importTowerInfo(const char* dir, const char* list,
             end = fileList.m_fileMap.end();
         while (it != end)
         {
-            unsigned int key;                          // ORIG -0x197c（块首声明）
             stDeathTower_t tower;
             // P312/P214③：`={0}` 触发 4.4 内联 rep stos 慢路（ORIG 20+ 条）
             char path[0xff] = {0};
-            key = static_cast<unsigned int>(it->first);
+            // [SemB09 s2_09] ② 库实例化修正：ORIG 0x0890b8d0 的调用目标是
+            //   `_ZSt9make_pairIRKjR14stDeathTower_tE…`（_T1 = **const** unsigned int&），
+            //   我方非 const 局部推出 `IRj`。两处实参装载逐条相同（均为
+            //   `lea -0x197c(%ebp),%edx; mov %edx,0x4(%esp)` 引用传递）⇒ 原码该局部
+            //   是 `const` 左值。改为 const 一次初始化（位置 = ORIG 的写入点）。
+            const unsigned int key = static_cast<unsigned int>(it->first);
             std::sprintf(path, "%s%s", dir, it->second.c_str());
 
             if (importDeathTowerScript(path, tower) != 0)

@@ -36,10 +36,14 @@ int CRedeemItem::Send_RedeemList(CUser* user)
         packet.put_short((int)entry->m_item.m_fieldb);       // +0x0b 耐久
         packet.put_byte((int)(unsigned char)entry->m_item.m_field0); // +0x00 绑定标记
 
-        if (!G_GameWorld()->IsEnchantRevisionChannel())
-            packet.put_int(entry->m_item.m_fieldd);          // +0x0d 强化信息
-        else
+        // [SemA00 2026-09-12] P354：ORIG 0x085f7508 段为**正极性直判**
+        //   `call IsEnchantRevisionChannel; test %al,%al; je <put_int(item->0xd)>`
+        //   ⇒ then 块 = put_int(0) 直落、else 块 = put_int(m_fieldd) 挂 je 目标。
+        //   我方旧形 `if (!f())` 产 `call; xor $0x1,%eax; test; je`（多 1 条 xor 且块序反）。
+        if (G_GameWorld()->IsEnchantRevisionChannel())
             packet.put_int(0);
+        else
+            packet.put_int(entry->m_item.m_fieldd);          // +0x0d 强化信息
 
         packet.put_byte((int)entry->m_item.m_amp.getAbilityType() & 0xff);
         packet.put_short((int)entry->m_item.m_amp.getAbilityValue() & 0xffff);

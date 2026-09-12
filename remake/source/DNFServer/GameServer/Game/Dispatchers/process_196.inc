@@ -14,11 +14,14 @@ int Dispatcher_SaveCharacterOption::process(CUser* user, MSG_BASE& msg, ParamBas
     }
     // ORIG 0x081ce9xx：err<0 块在前（`test; jns` 越过），两臂汇入**共享尾 return**
     // （4.4 对独立早返恒就地物化 `mov $0,%eax` ⇒ 用 if/else 而非二次 return）。
+    // [SemB06 s2_06] ORIG 0x081ce9f1 `jmp <+0xaa=leave>`（**跳过**尾 `mov $0x0,%eax`）
+    // ⇒ 该分支源码是 `return LineFunc(...)`（返回 LineFunc 的 int 值），非
+    // `LineFunc(...);` + 共享 `return 0;`（后者多一跳落到 mov $0x0 ⇒ 返回值被改写）。
     if (p.m_4 < 0)
     {
-        LineFunc(0x283d,
-                 __PRETTY_FUNCTION__,
-                 p.m_4, (unsigned int)user->get_acc_id());
+        return LineFunc(0x283d,
+                        __PRETTY_FUNCTION__,
+                        p.m_4, (unsigned int)user->get_acc_id());
     }
     else
     {

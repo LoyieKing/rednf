@@ -42,7 +42,9 @@ bool findFileWithServerToken(char* path)
         ss_strcpy(path, 0x104, full.c_str());
         // ORIG 982 `movzbl s_b;xor$1;test;je pack`：pack==0 fall=access，
         // pack==1 je=PackSet；P22 `if(!f())`⇒xor+test 同 line 数。
-        if (!UseScriptPack())
+        // [SemA02 2026-09-12] 本 .inc 宿主改为 ScriptExtras.cpp（RDAR 域，与
+        // s_bUseScriptPack 同 TU）⇒ 直接读同 TU static，复现 ORIG `movzbl <A>,%eax`。
+        if (!s_bUseScriptPack)
         {
             if (access(path, 0) == 0)
                 return true;

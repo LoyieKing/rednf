@@ -68,7 +68,9 @@ extern bool UseScriptPack();  // [b28e P248 档② 两全形] 与 ScriptExtras.c
                               // 消解；调用点仍差 1 条 call vs TU-local movzbl（P189 封顶）。
 extern PackSet g_script_package;  // ORIG B 0x9494fe0（OnlyOrigBatch12.cpp 定义）
 
-#include "LinkMiscSecuTimerSolo/findFileWithServerToken.inc"
+// [SemA02 2026-09-12 正位迁移] findFileWithServerToken 已迁往 ScriptExtras.cpp
+// （ORIG 中它与 UseScriptPack/s_bUseScriptPack 同属 RDARScript.cpp 域）⇒ 本处不再定义。
+extern bool findFileWithServerToken(char* path);   // ORIG T 0x088bb7db（ScriptExtras.cpp）
 
 
 #include "LinkMiscSecuTimerSolo/getScriptFileFullPath.inc"

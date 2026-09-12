@@ -5,7 +5,9 @@ void forceEmitBatch12()
         char buf32[32];
         char buf512[512];
         char buf30[30];
-        ss_sprintf(buf1024, "%d", 1);
+        // [SemB05] 1024 实例改由 DNFLexWrapperStream.cpp（-O2，13 条 = ORIG）发射；
+        // 本处调用非模板重载，避免本 TU 再发射 17 条变体覆盖之。
+        ss_sprintf(&buf1024[0], sizeof(buf1024), "%d", 1);
         ss_sprintf(buf256, "%d", 1);
         ss_sprintf(buf32, "%d", 1);
         ss_sprintf(buf512, "%d", 1);

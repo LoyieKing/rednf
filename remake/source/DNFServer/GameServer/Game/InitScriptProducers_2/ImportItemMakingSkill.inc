@@ -23,10 +23,10 @@ scan_top:
         {
             while (true)
             {
-                const int lv = ScanInt(&ok);
+                int lv = ScanInt(&ok);
                 if (!ok)
                     break;
-                const int exp = ScanInt(&ok);
+                int exp = ScanInt(&ok);
                 if (!ok)
                     return 0x27b2;
                 out.m_vec18.push_back(std::make_pair(lv, exp));
@@ -58,7 +58,7 @@ scan_top:
             while (true)
             {
                 stUpgradeWithCompound data;              // ctor 清零（ORIG clear）
-                const int key = ScanInt(&ok);
+                int key = ScanInt(&ok);
                 if (!ok)
                     break;
 

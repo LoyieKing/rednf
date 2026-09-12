@@ -87,9 +87,15 @@ unsigned int CharacAdvanceAltarManager::setSlot(bool isSet, const CMDPacketStruc
     // [b28d-solo-advancealtar_Manager] ORIG 该点用 const_iterator::eq（p167
     // MISSING eq / EXTRA ne）；`!(==)` 形实测 275 vs 274（多 1 条）劣于 `!=` 的
     // AE 274=274 ⇒ 保 `!=`（语义等价，模板实例差记 N）。
-    if (buyIt != items->end())
+    // [SemB08 2026-09-12 真语义修正（推翻上判）] ORIG 0x08131d5c 段逐条直证：
+    //   `call _ZNKSt23_Rb_tree_const_iteratorISt4pairIKiN12advancealtar8_BuyItemEEEeqERKS5_`
+    //   → `test %al,%al` → `je <+0x210 继续主流程 getSlotMap>` → `mov $0x3,%eax` → `jmp <epilogue>`。
+    //   %al 是 `(it == end)` ⇒ 语义为「**未找到才** return 3」，我方原写 `!=`（找到才 return 3）
+    //   **方向相反**。p167 的 Counter 口径对「eq↔ne 同计数换名」失明，历史判词「模板实例差」
+    //   因此错误；按 ORIG 改回 `==`（同时消 MISSING eq / EXTRA ne）。
+    if (buyIt == items->end())
     {
-        return 3;                        // 已购买过
+        return 3;                        // 未购买过（ORIG 语义）
     }
 
     std::map<unsigned char, _Slot>* slots =

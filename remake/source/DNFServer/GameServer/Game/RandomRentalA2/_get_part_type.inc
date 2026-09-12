@@ -20,9 +20,10 @@ int CRandomOptionItemHandle::_get_part_type(int limit)
         for (std::vector<PartSelectonField>::const_iterator i = it->second.m_vec0.begin();
              i != it->second.m_vec0.end(); ++i)
         {
-            if (r < (unsigned int)i->m_weight)
+            // [SemB06 s2_06] ORIG 两处取元素用 `deEv`（operator*）⇒ `(*i).member`。
+            if (r < (unsigned int)(*i).m_weight)
             {
-                return i->m_partType;
+                return (*i).m_partType;
             }
         }
     }

@@ -17,7 +17,17 @@ void AES_Encrypt(void* pNumArea, unsigned char* block)
     unsigned long nr = num + 6;      // Nb=4：Nk(4/6/8)+6 → 10/12/14 轮
 
     unsigned char state[16];
-    std::memcpy(state, block, 16);
+    // [SemA03 harness 实测·真语义差异修复] ORIG 的 AES 是 **32 位字反序（bswap32）变体**：
+    //   同一 key/pt 下 ORIG ct = eedb5aad8361c787703a4e608bb9165b，
+    //   标准 AES ct = 69c4e0d86a7b0430d8cdb78070b4c55a（openssl 实证）；
+    //   关系式（python 全排列搜索唯一命中）：
+    //     ORIG_Enc(pt) = bswap32( std_aes( bswap32(key), bswap32(pt) ) )
+    //   等价做法 = 输入按 4 字节字反序装入 state、输出按 4 字节字反序回写 block
+    //   （key 侧同序处理见 AES_EncKeySchedule.inc）。ORIG 加解密自洽
+    //   （Dec(Enc(pt))==pt 实测），故 Decrypt 侧须同法（已报 SemA02/Main）。
+    for (int _w = 0; _w < 4; ++_w)
+        for (int _j = 0; _j < 4; ++_j)
+            state[_w * 4 + _j] = block[_w * 4 + (3 - _j)];
     aesAddRoundKey(state, rk);
     for (unsigned long r = 1; r < nr; ++r) {
         aesSubBytes(state);
@@ -28,5 +38,7 @@ void AES_Encrypt(void* pNumArea, unsigned char* block)
     aesSubBytes(state);
     aesShiftRows(state);
     aesAddRoundKey(state, rk + nr * 4);
-    std::memcpy(block, state, 16);
+    for (int _w = 0; _w < 4; ++_w)
+        for (int _j = 0; _j < 4; ++_j)
+            block[_w * 4 + _j] = state[_w * 4 + (3 - _j)];
 }

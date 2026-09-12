@@ -36,11 +36,18 @@ void CDeleteGuild::execute()
         static_cast<unsigned int>(user->get_charac_guildkey());
     // ORIG：`(*guard)->operator<<(x)`（operator* de()）标识调用形态。
     (*guard)->operator<<(0x1df);
-    (*guard)->operator<<(user->GetUID());
+    // [SemB08 2026-09-12 重载序列直证] ORIG 四处 `<<` 的 callee 序列（raw #48/#58/#68/#78）
+    //   = `lsEi, lsEi, lsEj, lsEj`；我方原为 `lsEi, lsEj, lsEj, lsEi`（GetUID 与
+    //   get_charac_guildkey 两处**互换**）。p167 的 Counter 口径对「同多重集换位」失明
+    //   （差集为空 ⇒ 假 CLEAR），故按调用点 cast 对齐（同宽转换零指令、不入 mangled、
+    //   不改任何头声明/ABI）。
+    (*guard)->operator<<(static_cast<int>(user->GetUID()));
     (*guard)->operator<<(user->getCurCharacNo());
     // [L11·round3] p167 直证：ORIG 该处为 `_ZN12CStreamGuardlsEi`（int 实参），
     // 我方 `static_cast<unsigned int>` 发 `lsEj` ⇒ MISSING lsEi ×1 / EXTRA lsEj ×1。
-    (*guard)->operator<<(static_cast<int>(user->get_charac_guildkey()));
+    // [SemB08 2026-09-12 直证推翻] ORIG raw #78（本条 `<<` 的 callee）= `lsEj`（unsigned）；
+    // 上一条 round3 判词与 ORIG 反汇编不符（#48/#58 才是 lsEi）。改回 unsigned。
+    (*guard)->operator<<(static_cast<unsigned int>(user->get_charac_guildkey()));
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 
     user->set_guild_create_right(0);

@@ -19,7 +19,10 @@ CCommandMap::~CCommandMap()                    // 0x082a7d88
         if (cmd != 0)
         {
             delete cmd;
-            cmd = 0;
         }
+        // [SemB07 2026-09-12] ORIG 0x082a7e2e 的 `je` 落点是本槽清零（`movl $0x0,-0xc(%ebp)`）
+        // ⇒ 原码把该死写入放在 if **之外**（P171 照抄原码死写入；P0 槽-局部对应律：
+        // 该槽有 store 往返 ⇒ 原码必有该语句）。移出后 je 落点与 ORIG 同位。
+        cmd = 0;
     }
 }

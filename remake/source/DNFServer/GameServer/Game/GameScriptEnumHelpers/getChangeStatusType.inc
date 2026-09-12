@@ -13,20 +13,24 @@
 // else{enter 双检}：ours 1294 → 1383 == ORIG 1383（残余仅 .o relocation 显示，
 // relink 后按 AE 口径核销）。
 // ---------------------------------------------------------------------------
-// [b28d-lane16 DIFF→AE] ORIG 08892b0d：p167 CLEAR；本轮把 guard 回跳的 `continue`
-// 改 `goto retry`（标签置于 static 三件套之后、`if (__inited)` 之前）⇒ 复现 ORIG
-// 0x088944e5 `jmp +0xc` 直跳，消 4.4 的 2 条 jmp 中转跳板（P164 循环旋转族）。
+// [b28d-lane16 DIFF→AE] ORIG 08892b0d：p167 CLEAR；guard 回跳用 `goto retry`。
+// [SemB03 2026-09-12 修正] retry 标签必须在 **static 三件套之前**：ORIG 0x088944e5
+//   的 `jmp` 落点 = 0x08892b19（`mov $<guard>,%eax; movzbl; test; jne <body>` 的
+//   guard 检查起点，函数内偏移 +0xc），即源级 retry 在 `static` 声明**之前**
+//   （跳回后重做一次 guard 检查）。旧形把标签放在三件套之后 ⇒ 落点 +0x106
+//   （直接 `movzbl <__inited>`，跳过 guard 检查）⇒ 两侧同一 jmp 落点不同。
+//   两种落点在 guard 已置位时行为相同（guard 检查幂等），但字节不等 ⇒ 本修正。
 // [laneC 复核] 逐条归一化比对 1383=1381：残差仅 2 条**中段对齐 nop**（§6.1 豁免）；
-// p167 调用点全等（含 56 条 insert/惰性注册链）⇒ 维持 AE 判词。
+// p167 调用点全等（含 56 条 insert/惰性注册链）。
 int getChangeStatusType(std::string& s)
 {
     for (;;)
     {
+    retry:
         static EnumLookupMap __lookup;      // ORIG _ZZ19getChangeStatusTypeRSsE8__lookup
         static SpinLock __init_lock;        // ORIG ...E11__init_lock
         static bool __inited = false;       // ORIG ...E8__inited
-                int idx;
-    retry:
+        int idx;
         if (__inited)
         {
             EnumLookupMap::const_iterator it = __lookup.find(s.c_str());

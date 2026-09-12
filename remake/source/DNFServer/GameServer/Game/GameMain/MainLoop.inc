@@ -123,7 +123,14 @@ bool MainLoop()
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
             cnt300 = 0;
         }
-        ++cnt300;
+        // [SemB04 2026-09-12][真语义修复] ORIG 0x0829fc36 `jne 0x829fcf1(+0x2c6)`
+        // （cnt300!=300 → ++cnt300）与 0x0829fcd4 `jmp 0x829fcf5(+0x2ca)`（if 体结束
+        // **跳过** ++cnt300）⇒ 原码是 if/else 二选一，不是无条件 `++cnt300`。
+        // 旧形使命中轮把计数器置 0 后又自增成 1（周期相位偏移 1 轮）。
+        else
+        {
+            ++cnt300;
+        }
 
         sleep_ext(1, 0);
         ++cnt30;

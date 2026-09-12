@@ -16,10 +16,11 @@ bool TrainingQuestScript::getApplyLevel(std::multiset<int>* out)
                  m_selectProb.m_pairs.begin();
              it != m_selectProb.m_pairs.end(); ++it)
         {
-            acc += it->second;
+            // [SemB06 s2_06] ORIG 两处 `deEv`（operator*）⇒ `(*it).member`。
+            acc += (*it).second;
             if (val < acc)
             {
-                tmp.push_back(it->first);
+                tmp.push_back((*it).first);
                 break;
             }
         }

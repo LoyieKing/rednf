@@ -40,6 +40,8 @@ void CUsedFatigueGiveItem::sendEventItemFromFatigue(CUser* user, unsigned int fa
             user,
             EVENT_MAIL_REF(static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_mail),
             true);
+        // ORIG 0x811072b `jmp 0x811074f`（epilogue）⇒ 发信成功记日志后**退出循环**；
+        // sent==0 时 `je 0x811072d`（条件判定段）继续尝试下一档。缺 return 会多发成功邮件。
         if (sent != 0)
         {
             LogManager::logFormat(1, "EventClassify.cpp",
@@ -48,6 +50,7 @@ void CUsedFatigueGiveItem::sendEventItemFromFatigue(CUser* user, unsigned int fa
                 "CUsedFatigueGiveItem::sendEventItemFromFatigue(m_id:%d, charac_no:%d, reward:%d)",
                 user->get_acc_id(), user->getCurCharacNo(),
                 static_cast<UsedFatigueGiveItemScript*>(m_script1c)->m_mail.m_itemIdx);
+            return;
         }
     }
 }

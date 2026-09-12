@@ -54,8 +54,12 @@ unsigned int Dispatcher_EnchantByBead::check_error(CUser* user, MSG_BASE& msg, P
     // 具名 const_iterator 令 find 先求值（ORIG 先 find 后 end，sret -0x28/-0x20）。
     if (!static_cast<const CStackableItem*>(pItem)->m_set3d8.empty())
     {
+        // [SemB07 2026-09-12] P323：4.4 对 `static_cast<const C*>(p)->m.method()` 的内联形
+        // 仍选**非 const** 重载（ORIG 为 `_ZNKSt3setIiSt4lessIiESaIiEE4findERKi`）⇒ 写显式
+        // 视图**引用** cast `static_cast<const M&>(expr)` 才出 const 版（零额外槽）。
         std::set<int>::const_iterator it =
-            static_cast<const CStackableItem*>(pItem)->m_set3d8.find(
+            static_cast<const std::set<int>&>(
+                static_cast<const CStackableItem*>(pItem)->m_set3d8).find(
                 item2->m_addInfo);
         if (it == static_cast<const CStackableItem*>(pItem)->m_set3d8.end())
             return 0x13;

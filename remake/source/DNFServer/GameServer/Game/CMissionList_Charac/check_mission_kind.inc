@@ -32,11 +32,14 @@ void CMissionList_Charac::check_mission_kind(
                 }
                 ClearMission(user, (short)index);
             }
-        }
-        if (cleared)
-        {
-            Send_Fail_Mission(user, m_missionList[kind].m_index);
-            cleared = false;
+            // [SemB04 2026-09-12] ORIG 0x085e62e7 `je <+0x154 尾>`：canUpdate 失败
+            // 直达函数尾（跳过 cleared 检查）；cleared 在本路径必为 false（唯一写点
+            // 是下方块内），故下移进 canUpdate 块不改变语义、复现 ORIG 尾直达形。
+            if (cleared)
+            {
+                Send_Fail_Mission(user, m_missionList[kind].m_index);
+                cleared = false;
+            }
         }
     }
 }

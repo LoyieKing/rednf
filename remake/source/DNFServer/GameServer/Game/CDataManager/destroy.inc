@@ -113,6 +113,11 @@ void CDataManager::destroy()
         // operator delete(p)（destroy.md 0x8357a66 尾段）→ 等价 delete。
         // 权威类（PvPTypes.h）无用户析构，隐式析构 + operator delete 由编译器生成。
         delete m_choiceItem.m_blueMarbleScriptMgr;
-        m_choiceItem.m_blueMarbleScriptMgr = 0;
     }
+    // [SemB02 链接口径残差修正] ORIG 0x08357e6c 的 delete 内建守卫 `je` 落点为
+    // +0x425（= 本清零语句起点，0x08357e8b `movl $0x0,0xb4a8(%eax)`），即清零在
+    // if **之外**无条件执行；原实现写在 if 体内 ⇒ 我方 4.4 把守卫落点优化到
+    // +0x432（epilogue，跳过清零）。对 p==0 的清零幂等，语义等价，但跳转目标
+    // 逐值不等（链接口径非 identical 的唯一残差）。
+    m_choiceItem.m_blueMarbleScriptMgr = 0;
 }

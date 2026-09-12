@@ -52,14 +52,22 @@ bool check_argv(int argc, char** argv)
     // ORIG printf 再独立 G_CEnvironment()+0x318（P183 重物化，勿缓存 shellsKey）。
     std::printf("lls_key :: %s\n",
                 reinterpret_cast<char*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x318));
-    // ORIG 0x829eb66-0x829eb6f：keyOk 存栈后 movzbl/xor/test 紧跟无条件
-    // jmp 0x829eb87——FAIL 路径（0x829eb71）无跳转引用，系 -O0 死块（P184），
-    // 源码保留 if(!keyOk){puts(FAIL);return 0;} 以发射该 puts。
+    // [SemA01 2026-09-12 · Main 裁决：跟随 ORIG 运行时可观察行为]
+    // ORIG 0x829eb66-0x829eb6f：`movzbl -0x15(%ebp),%eax; xor $1,%eax; test %al,%al;`
+    // 后为**无条件 `jmp 0x829eb87`**，且 FAIL 块（0x829eb71 `puts("[!] Server key
+    // Check FAIL"); return 0`）在整函数 263 条指令中**无任何入边**（无指令引用
+    // 0x829eb71）⇒ 4.1 -O0 保留的静态死块（P184 族）⇒ **ORIG 运行时可观察行为 =
+    // 打印 "[!] Server key Check OK" 并继续运行（永不 return 0）**。
+    // 故此处不检查 keyOk（依项目「运行时可观察行为」政策跟随 ORIG）；死块原样保留在
+    // `#if 0` 中以备对照，不做删除。keyOk 仍保留（发射 ncl_check_key 调用与槽写入）。
+#if 0   // ORIG 0x829eb71 死块（无入边，运行时不可达）
     if (!keyOk)
     {
         std::puts("[!] Server key Check FAIL");
         return 0;
     }
+#endif
+    (void)keyOk;
     std::puts("[!] Server key Check OK");
 
     op = argv[2];

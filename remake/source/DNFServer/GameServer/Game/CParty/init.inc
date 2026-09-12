@@ -21,6 +21,10 @@ void CParty::init()
     // b28d-solo-CParty：ORIG 0x859ab7a `lea 0x1(%eax),%edx`（P30/N1：4.4 对
     // int+1 恒折 add+mov）。试形记录（已回滚）：(unsigned char) 窄化 / (char)
     // 截断 / 目标 char 直赋 三形均产 add+mov 且总数 201→203 反劣 ⇒ 判 N1。
+    // [SemA06 2026-09-12 试形·负结论] ORIG 0859aa5f `lea 0x1(%eax),%edx`；历史已试
+    //   (uchar)/(char)/直赋三形均产 add+mov，本轮第 4 形**交换操作数**
+    //   （`1 + get_rand_int(0xff)`）实测亦产 add+mov（.o 口径 204 逐值不变）
+    //   ⇒ 维持 N1 封顶，已还原原形。
     m_titleIndex = get_rand_int(0xff) + 1;
     m_userMax = 4;
     m_dungIndex = (unsigned short)0xffff;

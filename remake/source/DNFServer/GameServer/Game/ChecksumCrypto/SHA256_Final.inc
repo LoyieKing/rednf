@@ -19,5 +19,7 @@ void SHA256_Final(SHA256_ALG_INFO* ctx, unsigned char* out)
     SHA256_Transform(reinterpret_cast<unsigned long*>(ctx->buffer),
                      reinterpret_cast<unsigned long*>(ctx));
     for (int i = 0; i < 8; ++i)
-        sha256StoreBE(ctx->state[i], out + i * 4);
+        // [SemA14 2026-09-12 · ORIG 实证] 摘要输出为直写（非 BE）：
+        // ORIG 0x080be303..0x080be319 `mov (%edx,%ecx,4),%edx; mov %edx,(%eax)`。
+        sha256StoreLE(ctx->state[i], out + i * 4);
 }

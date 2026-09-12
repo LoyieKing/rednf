@@ -23,7 +23,12 @@ bool importAvatarColorVariation(AvatarColorInfo* out)
             for (;;)
             {
                 colorRGB rgb;                          // ctor：三字节置 0xff
-                const int key = ScanInt(&ok);
+                // [SemB10 s2_10 2026-09-12] 去 `const`：ORIG 0x088d44xx 两处
+                // insert 的 make_pair 实例为 `_ZSt9make_pairIRiR...`（**非 const**
+                // int 左值），我方 `const int key` 生 `IRKi`（const int&）⇒ 调不同
+                // 实例（P61：实例由实参左值性/cv 决定）。key 无其它使用点，去 const
+                // 零副作用、布局/mangled 不变。
+                int key = ScanInt(&ok);
                 if (!ok)
                     break;
                 rgb.m_r = static_cast<unsigned char>(ScanInt(&ok));

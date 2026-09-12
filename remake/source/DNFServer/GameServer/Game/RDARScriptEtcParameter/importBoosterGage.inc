@@ -55,10 +55,17 @@ bool importBoosterGage(char* path, BoosterGageData* out)
         }
         else if (token == "[booster point]")
         {
-            bool okBp = false;                     // ORIG 每轮 movb $0,-0x14
+            bool okBp;                             // ORIG -0x14 独立槽（无初值）
             BoosterPoint bp;                       // ORIG -0x19..-0x15 固定槽
             for (;;)
             {
+                // [SemB10 s2_10 2026-09-12 · 结构性偏差修复] ORIG 内层回边
+                // `jmp 0x8913bd4` 落点 = `movb $0x0,-0x14(%ebp)`（okBp 预清）
+                // ⇒ 原码的 `okBp = false;` 是**循环体内赋值语句**（P198① 两句式：
+                // 声明在循环外无初值、预清在循环内），旧形只有声明处一次预清，
+                // 回边落点前移到 `lea -0x14(%ebp),%eax`（跳过预清，偏移
+                // +0x156→+0x15a，链接口径差一行）。语义等价（预清幂等）。
+                okBp = false;
                 bp.m_dwItemIdx = (unsigned long)ScanInt(&okBp);   // →-0x19
                 if (!okBp)
                     break;

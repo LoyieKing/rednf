@@ -30,8 +30,17 @@ public:
     void setCacheTime(unsigned int t)          // +0x34880
     { m_cacheTime = t; }
 
-    CACHE_CHARACTER_TYPE();              // ORIG C1 0x8492262 W
-    ~CACHE_CHARACTER_TYPE();             // ORIG D1/D2 0x84922d6 W
+    // [SemA06 2026-09-12 · P299/P318 CWG434] 原为两行用户声明
+    //   `CACHE_CHARACTER_TYPE();`（ORIG C1 0x8492262 W）
+    //   `~CACHE_CHARACTER_TYPE();`（ORIG D1/D2 0x84922d6 W）
+    // 定义体本就是空体（体内容全部由编译器按成员/子对象布局生成，见
+    // ExchangeServer_Infra/CACHE_CHARACTER_TYPE.inc 与 dtor_….inc 的注释），
+    // 故删除用户声明改由编译器**隐式合成**：mangled 名/sizeof/全部成员偏移不变，
+    // 但使 `CNode() : T()` 的 T() 成为真正的 value-initialization，从而恢复
+    // ORIG（4.1.2）的 value-init 前置零初始化
+    // （ORIG CNodeC1 0x8495dba：`memset(this,0,0x3f85c)` → `call T::C1`）。
+    // 符号侧：C1/C2/D1/D2 由 t(local) 变 W(weak)，与 ORIG 的 W 一致，体不变
+    // （C1 0x73 / D1 0x18，ExchangeServer_Infra TU 实测）。
     // ORIG 0x848fd7c W：按 ENUM 返回成员区 (offset,size)；bool& 为命中标志。
     int GetMemberPosition(ENUM_INTERNALPACKET type, int* size, bool& found);
 

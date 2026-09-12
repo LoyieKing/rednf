@@ -776,6 +776,7 @@ dnf_service(game
         ${SVC_DIR}/DNFLexCore.cpp
         ${SVC_DIR}/CompiledDNFLexCore.cpp
         ${SVC_DIR}/WStringInst.cpp   # libstdc++ wstring 显式实例化 TU（路由见 SRC_OPTS）
+        ${SVC_DIR}/StrIosInst.cpp    # libstdc++ char 族（string/ostream/istream/iostream）显式实例化 TU（SemB04）
         ${SVC_DIR}/FlexLexerEngine.cpp   # vendored flex 2.5.35 引擎（原 FlexLexerCore.cpp 已删）
         ${SVC_DIR}/Arad_Script.cpp
         ${SVC_DIR}/SlangFilter.cpp
@@ -1136,6 +1137,10 @@ dnf_service(game
         # ORIG 的 libstdc++ wstring-inst.o 为 Red Hat 32 位默认 -march=i486 -mtune=generic 构建；
         # gnu++0x 头补出 initializer_list 族 7 符号（4.4 头），三者齐备后整 TU 与 ORIG 零差。
         "${SVC_DIR}/WStringInst.cpp|-O2 -std=gnu++0x -march=i486 -mtune=generic"
+        # SemB04 2026-09-12：char 族同法（ORIG 的 string-inst/iostream-inst/ostream-inst.o 亦为
+        # Red Hat 32 位默认 -march=i486；我方链接器现取 c6root 归档的 i686 版 ⇒ 5 件 stl DIFF）。
+        # 探针实证：33/33、15/15、15/15、51/51、10/10 助记符全等（/tmp/lane_diff/SemB04/probe）。
+        "${SVC_DIR}/StrIosInst.cpp|-O2 -std=gnu++0x -march=i486 -mtune=generic"
         # 解析 `#include "X.h"`（Game/ 不在 INCLUDES 里）⇒ 补 `-iquote${SVC_DIR}`。
         # 用 `-iquote` 而非 `-I`：只影响引号包含、且位于 -I 之前但排在「当前文件目录」
         # 之后，不改动尖括号包含/系统头解析 ⇒ 对其它文件零影响。

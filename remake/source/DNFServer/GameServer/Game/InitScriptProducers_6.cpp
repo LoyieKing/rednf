@@ -148,13 +148,15 @@ typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
         if (!ScanType(token, true))
             break;
 
-        // ORIG 重派发跳回 +0x8e（__lookup guard）：静态声明位于循环体内。
-        static LookupMap __lookup;
-        static SpinLock __init_lock;
-        static bool __inited = false;
-
         for (;;)
         {
+            // ORIG 重派发落点 = +0x8e（__lookup 的 __cxa_guard 检查起点）：
+            // [SemB03 2026-09-12] retry 标签必须在 static 三件套**之前**，
+            // 使 `goto retry` 跳回后重做一次 guard 检查（ORIG 每轮穿过 guard 测试）。
+        retry:
+            static LookupMap __lookup;
+            static SpinLock __init_lock;
+            static bool __inited = false;
             int id;
             if (__inited)
             {
@@ -167,7 +169,7 @@ typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
                 if (__inited)
                 {
                     __init_lock.leave();
-                    continue;
+                    goto retry;
                 }
                 id = 0;
             }

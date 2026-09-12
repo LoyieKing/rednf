@@ -29,19 +29,23 @@ bool MakePVPRoom(CUser* user, MSG_MAKE_PVP_ROOM& msg, ENUM_CMDPACKET cmd, PVP_BA
             user->Send(packet);
             return false;
         }
-    }
 
-    // 公平 PvP 给品计数门（ORIG 0x81f7a1d..0x81f7a62：give <= get_pvp_item_give → err 7）
-    // P0 槽-局部律：ORIG 无槽往返（GetGiveItem 结果留 %esi、limit 留 %eax 直比）⇒ 全内联右值
-    if ((int)((fair_pvp::CFairPvPScore*)user->GetCharacExpandData(
-                  (ENUM_CHARAC_EXPAND_TYPE)7))->GetGiveItem()
-        <= G_CDataManager()->m_serverParameter.get_pvp_item_give(user->get_pvp_grade()))
-    {
-        packet.put_byte(0);                              // 0x81f7a64..0x81f7aaf
-        packet.put_byte(0x7);
-        packet.finalize(1);
-        user->Send(packet);
-        return false;
+        // [SemB06 s2_06 · 真语义差异修复] ORIG 0x81f799f `je <0x81f7ab9 = 幽灵状态门>`
+        // （**频道门为假 → 跳过本节直达幽灵门**）而 0x81f79c6 `je <0x81f7a1d = 给品门>`
+        // （段位检查通过 → 给品门）⇒ 给品计数门**嵌套在频道门 if 内**（仅 0xf/0x10 频道检查），
+        // 非平级。原平级写法使任何频道都检查给品门（行为差异）。
+        // 公平 PvP 给品计数门（ORIG 0x81f7a1d..0x81f7a62：give <= get_pvp_item_give → err 7）
+        // P0 槽-局部律：ORIG 无槽往返（GetGiveItem 结果留 %esi、limit 留 %eax 直比）⇒ 全内联右值
+        if ((int)((fair_pvp::CFairPvPScore*)user->GetCharacExpandData(
+                      (ENUM_CHARAC_EXPAND_TYPE)7))->GetGiveItem()
+            <= G_CDataManager()->m_serverParameter.get_pvp_item_give(user->get_pvp_grade()))
+        {
+            packet.put_byte(0);                          // 0x81f7a64..0x81f7aaf
+            packet.put_byte(0x7);
+            packet.finalize(1);
+            user->Send(packet);
+            return false;
+        }
     }
 
     // 幽灵状态门（ORIG 0x81f7ab9..0x81f7b13）

@@ -133,6 +133,15 @@ static bool s_bUseScriptPack = false;     // ORIG d _ZL16s_bUseScriptPack 0x93f4
 
 #include "ScriptExtras/UseScriptPack.inc"
 
+// [SemA02 2026-09-12 正位迁移] findFileWithServerToken ORIG T 0x088bb7db 紧随
+// UseScriptPack 0x088bb7cf（12 字节后）且直接读 _ZL16s_bUseScriptPack(0x93f4d24)
+// ⇒ ORIG 中二者同属 RDARScript.cpp 域；旧宿主 LinkMiscSecuTimerSolo.cpp 只能经
+// `call _Z14UseScriptPackv` 间接读（P189 免 1 条 call 差）。迁入本 TU（= RDAR 域）
+// 后直接读同 TU static ⇒ 调用点 `movzbl <A>,%eax` 与 ORIG 同形。
+#include "../../../Library/Include/Core/SecureStdio.h"   // ss_strcpy
+#include <unistd.h>                                       // access
+#include "LinkMiscSecuTimerSolo/findFileWithServerToken.inc"
+
 
 // ORIG g_szScriptFilePriorityBaseDirectory B 0x0949b168 (0xc)：
 // std::vector<std::string>（SetPriorityBaseDirectory push、

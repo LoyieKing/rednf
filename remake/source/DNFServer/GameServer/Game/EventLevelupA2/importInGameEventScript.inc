@@ -12,28 +12,10 @@ InGameEventScript* InGameEventScriptLoader::importInGameEventScript(
     InGameEventScript* script = 0;
     bool loaded = true;
 
+    // [SemA01 P324 试形] case 书写序 = ORIG 叶块物理序（由 ORIG new-size 序列
+    // 0x50,0x24,0x6c,0x68,0x64,0x10,0x30,0x34,0x78,0x18,0x64 反推）。
     switch (recordType)
     {
-    case 0x194:  // 升级奖励（new 0x6c）
-        script = new LevelUpRewardScript();
-        loaded = importLevelUpRewardScript(
-            static_cast<LevelUpRewardScript*>(script), path.c_str());
-        break;
-    case 0x65:   // 疲劳消耗赠物（new 100）
-        script = new UsedFatigueGiveItemScript();
-        loaded = importUsedFatigueGiveItemEventScript(
-            static_cast<UsedFatigueGiveItemScript*>(script), path.c_str());
-        break;
-    case 0x56:   // 出勤签到（new 0x78）
-        script = new AttendanceScript();
-        loaded = importAttendanceScript(
-            static_cast<AttendanceScript*>(script), path.c_str());
-        break;
-    case 0x5c:   // 网吧游戏时长（new 0x18）
-        script = new PcBangPlayTimeScript();
-        loaded = importPcBangPlayTimeScript(
-            static_cast<PcBangPlayTimeScript*>(script), path.c_str());
-        break;
     case 0x191:
     case 0x192:
     case 0x19c:  // 账号首次登录 / 每日变体共用 AccountFirstLoginScript（new 0x50）
@@ -45,6 +27,11 @@ InGameEventScript* InGameEventScriptLoader::importInGameEventScript(
         script = new AddItemCountDBScript();
         loaded = importAddItemCountDBEventScript(
             static_cast<AddItemCountDBScript*>(script), path.c_str());
+        break;
+    case 0x194:  // 升级奖励（new 0x6c）
+        script = new LevelUpRewardScript();
+        loaded = importLevelUpRewardScript(
+            static_cast<LevelUpRewardScript*>(script), path.c_str());
         break;
     case 0x196:  // 交换随机奖励（new 0x68）
         script = new ExchangeRandomItemRewardScript();
@@ -70,6 +57,21 @@ InGameEventScript* InGameEventScriptLoader::importInGameEventScript(
         script = new ObjectBringUpScript();
         loaded = importObjectBringUpEventScript(
             static_cast<ObjectBringUpScript*>(script), path.c_str());
+        break;
+    case 0x56:   // 出勤签到（new 0x78）
+        script = new AttendanceScript();
+        loaded = importAttendanceScript(
+            static_cast<AttendanceScript*>(script), path.c_str());
+        break;
+    case 0x5c:   // 网吧游戏时长（new 0x18）
+        script = new PcBangPlayTimeScript();
+        loaded = importPcBangPlayTimeScript(
+            static_cast<PcBangPlayTimeScript*>(script), path.c_str());
+        break;
+    case 0x65:   // 疲劳消耗赠物（new 100）
+        script = new UsedFatigueGiveItemScript();
+        loaded = importUsedFatigueGiveItemEventScript(
+            static_cast<UsedFatigueGiveItemScript*>(script), path.c_str());
         break;
     default:     // 未建模类型：ORIG 保持 ptr=0、ok=1，直接返回 0
         return 0;

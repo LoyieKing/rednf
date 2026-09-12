@@ -22,24 +22,34 @@ int DoSuperFastHash(unsigned char* data, unsigned int len, unsigned int& hash)
         data += 4;
         rem += rem >> 11;
     }
-    if (tmp == 2)
+    // [SemA13-slice13] 残差①：ORIG 0x0808c21f 决策链为 `mov -0x4(%ebp),%eax;
+    //   cmp $0x2,%eax; je; cmp $0x3,%eax; je; cmp $0x1,%eax; jne`（寄存器比较 +
+    //   fall-through 落 case 1 块）= switch 形态；if/else 链在 4.4 恒折 mem 直比
+    //   （`cmpl $0x2,-0x4(%ebp)`）⇒ 改 switch，case 书写序照 ORIG 决策序 2/3/1。
+    // 残差②（真语义差异）：ORIG case 3 与 case 1 的字节装载均为 `movzbl (%eax),%eax;
+    //   movzbl %al,%eax`（0x080c2b7/0x080c238 实证）⇒ 原码为无符号取字节；我方
+    //   `(unsigned int)(int)(signed char)data[n]` 产 `movsbl`（data[n]>=0x80 时
+    //   高位置 1、与 ORIG 结果不同）⇒ 删 (int)(signed char) 双重 cast。
+    // [SemA13-slice13] case 书写序 = ORIG 叶块物理序 1/2/3（P324：叶块物理序=书写序；
+    //   ORIG 0x0808c235(case1) → 0x0808c254(case2) → 0x0808c288(case3)）。
+    switch (tmp)
     {
+    case 1:
+        rem += (unsigned int)data[0];
+        rem ^= rem << 10;
+        rem += rem >> 1;
+        break;
+    case 2:
         rem += ((unsigned int)data[1] << 8) + (unsigned int)data[0];
         rem ^= rem << 11;
         rem += rem >> 17;
-    }
-    else if (tmp == 3)
-    {
+        break;
+    case 3:
         rem += ((unsigned int)data[1] << 8) + (unsigned int)data[0];
         rem ^= rem << 16;
-        rem ^= (unsigned int)(int)(signed char)data[2] << 18;
+        rem ^= (unsigned int)data[2] << 18;
         rem += rem >> 11;
-    }
-    else if (tmp == 1)
-    {
-        rem += (unsigned int)(int)(signed char)data[0];
-        rem ^= rem << 10;
-        rem += rem >> 1;
+        break;
     }
     rem ^= rem << 3;
     rem += rem >> 5;

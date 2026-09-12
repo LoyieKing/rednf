@@ -13,9 +13,13 @@ int Dispatcher_MailBox_Extract::process(CUser* user, MSG_BASE& msg, ParamBase& p
     }
     if (p.m_4 < 0)
     {
-        LineFunc(0x245d,
-                 __PRETTY_FUNCTION__,
-                 p.m_4, user->get_acc_id());
+        // [SemB12 2026-09-12 真语义差异修复] ORIG 0x081ccec5 的 `jmp +0x97`
+        //   直落 `leave;ret`（**跳过** +0x92 的 `mov $0x0,%eax`）⇒ error 路径
+        //   返回 LineFunc 的返回值（int），非 0；旧写丢 `return` 使 %eax 被
+        //   清零（多一条 `mov $0x0,%eax` 且行为不同）。
+        return LineFunc(0x245d,
+                        __PRETTY_FUNCTION__,
+                        p.m_4, user->get_acc_id());
     }
     else
     {

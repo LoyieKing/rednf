@@ -39,10 +39,16 @@ void OneADayItemShopEvent::questClearLog(DeliveryMsg& msg)  // 0x081ba21e
             // ORIG：两次 operator+（text+lex 后接 +sep）⇒ 原码为左结合累加式。
             text = text + boost::lexical_cast<std::string>(pr.first) + sep;
         }
-    }
-    if (text.size() < 100)
-    {
-        memcpy(sig.m_data, text.c_str(), text.size());  // SIG 内嵌文本区（≤100）
+        // [SemB08 2026-09-12] ORIG 控制流直证：外层守卫失败时 `je` 落点 = makeRequest
+        //   （ORIG 0xf6 处 je → +0x364 = `lea -0xbc(%ebp),%eax; call makeRequest`），
+        //   即 memcpy 块**在外层 if 体内**（ok==0 时跳过 memcpy 段）。我方原先把
+        //   `if (text.size() < 100)` 平铺在 if 之外 ⇒ je 落 +0x31e（memcpy 段）⇒ 跳转
+        //   目标与 ORIG 不符。移入 if 体后行为不变（守卫失败时 text 恒空 ⇒ memcpy(_,_,0)
+        //   无副作用），控制流与 ORIG 对齐。
+        if (text.size() < 100)
+        {
+            memcpy(sig.m_data, text.c_str(), text.size());  // SIG 内嵌文本区（≤100）
+        }
     }
 
     DB_InsertEventStageLog::makeRequest(sig);

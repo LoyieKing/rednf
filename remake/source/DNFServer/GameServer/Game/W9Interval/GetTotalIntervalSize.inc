@@ -8,7 +8,9 @@ long IntervalSet::GetTotalIntervalSize()               // T @0x0857363c
     std::vector<Interval>::iterator it;
     long total = 0;
     it = m_intervals.begin();
+    // [SemB06 s2_06] ORIG 用 `deEv`（__normal_iterator::operator*）取元素再读成员，
+    // 非 `ptEv`（operator->）⇒ 源须写 `(*it).m_size`（两侧等价，符号名不同）。
     for (; it != m_intervals.end(); ++it)
-        total += it->m_size;
+        total += (*it).m_size;
     return total;
 }

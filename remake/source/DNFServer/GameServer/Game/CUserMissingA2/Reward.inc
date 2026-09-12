@@ -53,9 +53,12 @@ bool CHARAC_LOAD_MERCENARY::Reward(CUser* user,
 
     if (gold < 1)
     {
-        int term = GetCompetitionPeriodTerm(&isFinal);
+        // [SemA04 2026-09-12] ORIG 0x081b3e62-0x081b3e94：GetCompetitionPeriodTerm 的
+        // 返回值**直接**作 MercenaryReturn 第 4 实参（`mov %eax,0x10(%esp)`），无 term
+        // 具名槽 ⇒ 按 P0 槽-局部双向对应律内联为实参表达式（原具名局部多 1 槽且
+        // 求值提前，时序/帧双错位）。
         user->m_historyLog.MercenaryReturn(m_characNo, m_field28, m_field2c,
-                                           term, gold, 0);
+                                           GetCompetitionPeriodTerm(&isFinal), gold, 0);
         m_field28 = 0;
         m_field2c = 0;
         m_field30 = 0xff;
@@ -67,19 +70,21 @@ bool CHARAC_LOAD_MERCENARY::Reward(CUser* user,
     const char* msgText = g_scriptStringManager_.findString(
         4, serverMessage.c_str(), 0);
     strncpy(strMessage, msgText, 0xff);
-    size_t msgLen = strlen(strMessage);
+    // [SemA04 2026-09-12] ORIG 0x081b3f27-0x081b3f40：GetServerGroup 的 call 在 strlen
+    // **之前**、strlen 结果落 -0x5c 临时槽（实参跨调用暂存），无 msgLen 具名局部
+    // ⇒ 按 P44/P329（变参/多实参日志的具名中间量必须内联回实参位）内联。
     WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-        mailTitle.c_str(), emptyItem, gold, m_characNo, strMessage, msgLen,
+        mailTitle.c_str(), emptyItem, gold, m_characNo, strMessage,
+        strlen(strMessage),
         0x1e, user->GetServerGroup(), false, false);
 
-    // ORIG 0x081b3f?? 无预清（`movzbl -0x3a,%eax; test` 直读，GetCompetitionPeriodTerm
-    // 命中路径必写）⇒ 不初始化（P198① 反向：ORIG 无 movb $0）。
-    bool isFinal2;
-    int term2 = GetCompetitionPeriodTerm(&isFinal2);
+    // [SemA04 2026-09-12] ORIG 0x081b3f9a-0x081b3ff7：第二处 GetCompetitionPeriodTerm
+    // 传的仍是 **-0x3a 槽**（与 gold<1 分支同一 isFinal 变量；该处无预清）且返回值
+    // `mov %eax,0x10(%esp)` 直接作第 4 实参 ⇒ 复用函数头 isFinal（P0：无 term2 具名槽）。
     user->m_historyLog.MercenaryReturn(m_characNo, m_field28, m_field2c,
-                                       term2, gold, 0);
+                                       GetCompetitionPeriodTerm(&isFinal), gold, 0);
 
-    char status = isFinal2 ? 2 : 1;
+    char status = isFinal ? 2 : 1;
     // ORIG 0x081b3fc?：emptyItem.m_addInfo 两处各自独立读取（P48 无 CSE，
     // `mov 0x9407ec2,%eax` ×2），不设 itemIdx 具名局部。
     CItem* pItem = G_CDataManager()->find_item(emptyItem.m_addInfo);
