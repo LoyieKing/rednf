@@ -145,11 +145,14 @@ void CParty::game_start(CUser* user)
     basicPacket.put_int(hellVal);
 
     std::vector<int> hellQuests;                            // -0x70
-    bool hellEnable =
-        (m_hellWorldMap != 0 && m_hellWorldMap->IsInHellDungeon() &&
-         reinterpret_cast<CBattle_Field*>(&m_battleField)
-             ->IsEnableHellDungeon());
-    if (hellEnable)
+    // [R26a04 形态修复] ORIG 0x0859de05..0x0859de1c 直证：三合取谓词的物化只留 %al
+    //   （`call IsEnableHellDungeon; test %al,%al; je …; mov $0x1,%eax; jmp …;
+    //     mov $0x0,%eax; test %al,%al; je <body>`），**无 bool 具名槽**。
+    //   我方原具名 hellEnable 落 -0x2e(%ebp) 并多出
+    //   `mov %al,-0x2e(%ebp); cmpb $0x0,-0x2e(%ebp)`（2 条 + 4B 帧）
+    //   ⇒ 内联进 if 条件（短路序不变）。与同函数 [G7-sub] mismatch 内联同法。
+    if (m_hellWorldMap != 0 && m_hellWorldMap->IsInHellDungeon() &&
+        reinterpret_cast<CBattle_Field*>(&m_battleField)->IsEnableHellDungeon())
     {
         CheckClearQuestHellParty(hellQuests);
         size_t qn = hellQuests.size();                      // -0x10

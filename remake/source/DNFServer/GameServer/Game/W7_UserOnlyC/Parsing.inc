@@ -139,12 +139,17 @@ bool CUser::Parsing(int received)
             const int streamLen = static_cast<int>(size) + 8;
             CStreamGuard guard(true);
             // 每个分支各自 Set（ORIG 3 处 Set 调用点，P48）。
+            // [R26a08 §32.2/§15-A 形态修 2026-09-13] ORIG 0x08647d5e 第二档入口保留
+            // 4.1 的**冗余重测**：`cmpl $0xfff,-0x1c(%ebp); jle <Big段>` —— 首档已排除
+            // <=0xfff ⇒ 该条恒不成立（dead），4.1 不消除短路链中已知条件。4.4 会复用
+            // 前次比较结果，故条件必须写成 `&&` 全链才产出同款冗余 cmp/jle（先例：
+            // DispatchServerPacket/dispatchPacket.inc、ExchangeServer 池选择族）。
             if (streamLen <= 0xfff)
                 guard.Set(GlobalData::s_small_stream_pool->Acquire("user.cpp", 0x758));
-            else if (streamLen > 0x3fff)
-                guard.Set(GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x760));
-            else
+            else if (streamLen > 0xfff && streamLen <= 0x3fff)
                 guard.Set(GlobalData::s_stream_pool->Acquire("user.cpp", 0x75c));
+            else
+                guard.Set(GlobalData::s_big_stream_pool->Acquire("user.cpp", 0x760));
 
             // P48：每次写入均重调 operator*；put_binary 经 operator->。
             (**guard) << 0;

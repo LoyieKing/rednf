@@ -93,7 +93,10 @@ int Dispatcher_SelectItem::dispatch_sig(CUser* user, PacketBuf& packet)
             *itemIt, (eItemAddReason)8, true, true);
         if (slot < 0)
         {
-            char title[21];
+            // [R26size 2026-09-13 §32.2.3 尺寸轴 ④] ORIG title = char[20]：
+            //   ORIG 0x08229f21 `movl $0x14,0x8(%esp)` + `lea -0x7d(%ebp),%eax`（strncpy size=20，
+            //   起址 -0x7d）；我方基线 0x081c9d96 `$0x15` + `lea -0x89(%ebp)`（size=21）⇒ 多 1B。
+            char title[20];
             strncpy(title,
                     g_scriptStringManager_.findString(
                         4, "game_server_msg_171", (bool*)0),

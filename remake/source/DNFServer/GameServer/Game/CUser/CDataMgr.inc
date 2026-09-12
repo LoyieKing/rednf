@@ -12,7 +12,13 @@ charac_expand::CDataMgr::CDataMgr()
     //   尾 word，4.1 对常量 memset 的内联形，N78b 不可翻案）→ `mov %ebx,(%esp);
     //   call CCharacExpertJob::CCharacExpertJob()` ⇒ 指针不再落具名槽：以
     //   `new (memset(::operator new(N), 0, N)) T()` 单表达式表达（P0/P183）。
-    m_pad[0] = new (memset(::operator new(0x30), 0, 0x30)) expert_job::CCharacExpertJob();
+    // [R26size 2026-09-13 §32.2.3 尺寸轴 ④] ORIG 0x0832a781 `movl $0x30,(%esp); call _Znwj`（分配 0x30）
+    //   后仅清 46B：0x0832a798 `mov $0xb,%ecx` + `rep stos`（11 dword = 44B）
+    //   + 0x0832a7a3 `mov %ax,(%edx)`（2B + `add $0x2,%edx`）⇒ ORIG 原码 memset 长度常量 = 0x2e，
+    //   尾部 2 字节（对象对齐填充区）不初始化；我方原写 0x30（48B，多清 2B）。
+    //   （类 sizeof 仍为 0x30：vptr+0x04/+0x06..0x10 成员 + m_recipeFlag[0x1e]@+0x10 ⇒ 0x2e 后
+    //    4 字节对齐填充；46 系原码硬编码长度，非 sizeof。）
+    m_pad[0] = new (memset(::operator new(0x30), 0, 0x2e)) expert_job::CCharacExpertJob();
 
     // slot1 +0x04：ORIG 0x0832a7c6 `mov %eax,-0x20(%ebp)`（此件 ORIG 有槽）→ 同上
     m_pad[1] = new (memset(::operator new(0x2c), 0, 0x2c)) CCharacBloodDungeon();
