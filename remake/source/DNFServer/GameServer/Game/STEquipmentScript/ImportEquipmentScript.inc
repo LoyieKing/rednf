@@ -3104,7 +3104,11 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                                 {
                                     std::pair<ItemUpgradeType::T,
                                               std::pair<int, int> > kv;
-                                    kv.first = (ItemUpgradeType::T)t;
+                                    // [R4a00 SEMANTIC-DIFF 修复] ORIG 0x0899b364
+                                    // `mov -0x1168(%ebp),%eax; mov %eax,-0x1178(%ebp)`
+                                    // 实证 kv.first 取自 upgType（进入本分支时恒 0），
+                                    // 非循环变量 t ⇒ 照抄 ORIG 原码语义（含其怪癖）。
+                                    kv.first = (ItemUpgradeType::T)upgType;
                                     kv.second = std::pair<int, int>(upgMin, upgMax);
                                     script->m_upgrade6fc.insert(kv);
                                 }

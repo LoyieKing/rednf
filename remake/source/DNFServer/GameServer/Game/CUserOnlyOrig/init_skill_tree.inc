@@ -70,7 +70,11 @@ void CUser::init_skill_tree(ENUM_SKILL_TREE_KIND kind)
     // [A06 2026-09-10 轴B 试行记录·已回退] 地址自校通过（ORIG 0x0866bed9
     // `cmp -0x20(%ebp),%eax; setg` ↔ 我方 0x824260f `cmp -0x24(%ebp),%eax; seta`，上下文同构），
     // 但改 int 后 **delta 56→58 反劣**（seta 2→0 形态虽对齐，4.4 另生中转）⇒ 按「严格改善才留」回退。
-    for (unsigned int i = 0; i < giveVec.size(); ++i)
+    // [R4a15 2026-09-12 复刻·Main 裁定] 按 ORIG setg（有符号）语义复刻 `int i` 形；
+    //   受控 A/B（同工具同时点，RB=unsigned vs INT）：setg 对齐 ✓（原 seta）；
+    //   eq2 结构差异段 22→**21**；align 差异块 11→11；TU 四数 497/979/1/40/284
+    //   逐值不变 ⇒ **不劣化（略优）⇒ 保留 int 形**（A06 旧读数经复测不复现）。
+    for (int i = 0; i < (int)giveVec.size(); ++i)
     {
         // ORIG 循环体顺序：先 get_charac_job、再 getCurCharacSkillW，
         // slot->growtype_skill(job, pair.first, pair.second, kind)。

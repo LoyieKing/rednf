@@ -252,19 +252,21 @@ end:
 // ORIG 0x083607d8：ratio 先行物化到局部（fmuls 直乘内存槽），两段循环分别
 // 遍历 m_genRefs1(+0x468)/m_genRefs0(+0x428)，元素 +0x10=m_dropRate 按
 // ROUND(v*ratio) 截断缩放；float 比较为 i486 形态。尾部空块中继岛按 P223
-// goto 尾空标签形复现；x87 分步 flds+fdivp vs 4.4 fdivs 折叠属 N85附②。
-// [b28d-solo-CDataManager DIFF-N] 本轮复核（o 96 / n 95）：唯一实质残差 =
-// ratio 除法 ORIG `flds 0xb3f0; flds rate; fdivp` vs 4.4 `flds 0xb3f0;
-// fdivs rate`（N85附② 跨版本中端差）。六形探针 /tmp/p_x87div.cpp s1..s6
-// 全败：s1 直除/s2 具名 cur/s4 两语句/s5 double 提升/s6 +0.0f 恒 `fdivs`；
-// s3 volatile 分母产 `flds+fdivrp`（助记符与语义方向均异且多槽）。
-// 4.4 对 `/` 恒折内存操作数除法，无源码形可产 ORIG 的 `fdivp`；后续地址列
-// 因 2 字节长度差整体错位致 ndiff 虚高（difflib 伪差）。语义等价封顶。
+// goto 尾空标签形复现。
+// [R4a12 真语义修复 2026-09-12] 旧注释把该处判为「N85 跨版本中端差、语义等价」
+// 系误判：AT&T `fdivp %st,%st(1)`（ORIG 0x08360805 字节 DE F1，= Intel FDIVRP）
+// 的语义是 ST(0)/ST(1) = 后压/先压，非「先压/后压」（实测探针 /tmp/verify357/R4a12/p4.c：
+// fdivp(6,2)=0.333 而 fdivs(6,2)=3）。ORIG 序为 `flds 0xb3f0(this)`（旧 m_dropRate，
+// 先压）→ `flds 0xc(%ebp)`（rate，后压）→ `fdivp` ⇒ ratio = rate / m_dropRate；
+// 旧源码写 `m_dropRate / rate`（4.4 编成 `flds 0xb3f0; fdivs 0xc(%ebp)` = 旧/新）
+// ⇒ 缩放系数**方向相反**（旧码在 rate 上升时反而缩小 ref.m_dropRate），与 ORIG 0x083607fc..
+// 0x08360807 不符。按 ORIG 原始表达式改正为 rate / m_dropRate。
+// 助记符 fdivs vs fdivp 的 lowering 差属 N85 附②（形态），语义以本式为准。
 __attribute__((target("arch=i486"))) void CDataManager::SetItemDropRate(float rate)
 {
     if (m_dropRate == rate)
         return;
-    float ratio = m_dropRate / rate;
+    float ratio = rate / m_dropRate;
     m_dropRate = rate;
     m_itemGeneratorMgr->setDropRatio(rate);
     for (int i = 0; i < (int)m_serverParameter.m_genRefs1.size(); ++i)

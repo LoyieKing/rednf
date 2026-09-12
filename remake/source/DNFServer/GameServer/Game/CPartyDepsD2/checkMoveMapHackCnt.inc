@@ -120,14 +120,21 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
         m_field1aa0 = 0;
 
         // 技能节奏记疑判定（边界语义见函数头注）：
-        //   level<20 或未存活 或 c==0 → 不记疑；
-        //   否则 q=playTime/5：rem==0 时 c>q 记疑；rem!=0 时 c>=q 记疑。
+        //   [R4a05 ④ 修复] ORIG 0x085a88da `jle 85a8ace` + 0x085a88f0 `je 85a8ace`：
+        //   level<=0x13 或 m_arr54[i]==0 ⇒ **整个豁免/记疑段被跳过**
+        //   （0x85a8ace `mov $0x0,%eax` → 0x85a8ad5 `je 85a8b78` 跳过记疑）。
+        //   旧码把这两个前置检查短路折叠进 suspectBoundary ⇒ 低等级/未存活成员
+        //   仍落入豁免段，未豁免即被误记 hack（0x84）。
+        //   进入豁免段 = level>0x13 && arr54!=0 && (c==0 || (rem==0 ? c<=q : c<q))：
+        //   c==0 按 ORIG 0x085a8908 `je 85a89a4` 进豁免段（suspectBoundary 保持 false）。
         bool suspectBoundary = false;
         {
             const int level = memberUser(this, i)->get_charac_level();
             const int c = m_field1aa4[i];
-            if (level >= 0x14 && m_battleData.m_arr54[i] != 0 && c != 0)
+            if (level >= 0x14 && m_battleData.m_arr54[i] != 0)
             {
+                if (c != 0)
+                {
                 // [真 bug 修正] 基准是 m_playedTime/1000（ORIG 0x085a88e0 读 -0x20，
                 // 由 0x085a8897 段 /1000 写入），不是原始 tick（旧码差 1000 倍）。
                 // [SemA16] 直证（T2）：ORIG 0x085a88ae 段 `mul %edx; mov %edx,%eax;
@@ -139,35 +146,36 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
                     suspectBoundary = ((unsigned int)c > q);
                 else
                     suspectBoundary = ((unsigned int)c >= q);
-            }
-        }
+                }
 
-        if (!suspectBoundary)
-        {
-            // 任务豁免：(0x10d3,idx 0xb,diff 2)/(0x10d4,0xc,2)/(0x10d8,0xf,diff>0)
-            bool exempt = false;
-            // P48：ORIG 三段豁免各自独立 call getCurCharacQuestR（0 缓存），
-            // 具名 UserQuest* 局部会合并为单次 call → P167 MISSING 2。
-            if (memberUser(this, i)->getCurCharacQuestR()->IsDoingQuest(0x10d3) &&
-                bf(this).get_dungeon_index() == 0xb &&
-                bf(this).get_dungeon_diff() == 2)
-                exempt = true;
-            else if (memberUser(this, i)->getCurCharacQuestR()->IsDoingQuest(0x10d4) &&
-                     bf(this).get_dungeon_index() == 0xc &&
-                     bf(this).get_dungeon_diff() == 2)
-                exempt = true;
-            else if (memberUser(this, i)->getCurCharacQuestR()->IsDoingQuest(0x10d8) &&
-                     bf(this).get_dungeon_index() == 0xf &&
-                     bf(this).get_dungeon_diff() > 0)
-                exempt = true;
+                if (!suspectBoundary)
+                {
+                    // 任务豁免：(0x10d3,idx 0xb,diff 2)/(0x10d4,0xc,2)/(0x10d8,0xf,diff>0)
+                    bool exempt = false;
+                    // P48：ORIG 三段豁免各自独立 call getCurCharacQuestR（0 缓存），
+                    // 具名 UserQuest* 局部会合并为单次 call → P167 MISSING 2。
+                    if (memberUser(this, i)->getCurCharacQuestR()->IsDoingQuest(0x10d3) &&
+                        bf(this).get_dungeon_index() == 0xb &&
+                        bf(this).get_dungeon_diff() == 2)
+                        exempt = true;
+                    else if (memberUser(this, i)->getCurCharacQuestR()->IsDoingQuest(0x10d4) &&
+                             bf(this).get_dungeon_index() == 0xc &&
+                             bf(this).get_dungeon_diff() == 2)
+                        exempt = true;
+                    else if (memberUser(this, i)->getCurCharacQuestR()->IsDoingQuest(0x10d8) &&
+                             bf(this).get_dungeon_index() == 0xf &&
+                             bf(this).get_dungeon_diff() > 0)
+                        exempt = true;
 
-            if (!exempt)
-            {   // SetETC(0x84, c) 结果作为 addServerHackCnt 第 4 参 → 0x84
-                const int etc =
-                    memberUser(this, i)->SetETC(0x84, m_field1aa4[i]);
-                memberUser(this, i)->getHackAnalyzer()->addServerHackCnt(
-                    memberUser(this, i), (WongWork::ENUM_HACKTYPE)0x84, 1,
-                    (unsigned int)etc, 0);
+                    if (!exempt)
+                    {   // SetETC(0x84, c) 结果作为 addServerHackCnt 第 4 参 → 0x84
+                        const int etc =
+                            memberUser(this, i)->SetETC(0x84, m_field1aa4[i]);
+                        memberUser(this, i)->getHackAnalyzer()->addServerHackCnt(
+                            memberUser(this, i), (WongWork::ENUM_HACKTYPE)0x84, 1,
+                            (unsigned int)etc, 0);
+                    }
+                }
             }
         }
         m_field1aa4[i] = 0;

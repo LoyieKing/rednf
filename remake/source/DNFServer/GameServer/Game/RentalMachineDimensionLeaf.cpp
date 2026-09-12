@@ -75,8 +75,9 @@ public:
     virtual ~RentalMachineDimension(); // ORIG D1 @0x0826eba2 / D0 @0x0826ec04
 
     // 槽2 Rent / 槽3 Ready / 槽4 CheckRentableItem：ORIG T（本体 GlobalData.cpp）
-    virtual int Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
-                      InstanceRentalSystem::RentOutput& output);
+    // 返回类型 ENUM_ERROR（ORIG prett @0x8bf9f60 直证）。
+    virtual ENUM_ERROR Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
+                            InstanceRentalSystem::RentOutput& output);
     virtual bool Ready();
     virtual bool CheckRentableItem(unsigned int itemIdx);
 

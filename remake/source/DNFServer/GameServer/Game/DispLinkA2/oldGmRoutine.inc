@@ -788,6 +788,10 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         if (pItem == 0)
         {
             char b[0xff] = {0};     // [R3a01 修复] ORIG 0x082103bf 为 255B（0x3f+word+byte）
+            // [R4b01 2026-09-12 · Main 裁决回滚] R4a01 曾把本串改成 "cannot find item"（误修）：
+            // ORIG 0x082103e7 `movl $0x8bc3069,0x4(%esp)`，0x8bc3069 处 raw 字节实测为
+            // "cannot find item (%s) \0"（含尾空格）；ORIG 全库计数 长串=2 / 短串=0，
+            // 且 ORIG 同点 0x082103e3 压入 c_str() 到 0x8(%esp) ⇒ %s 实参被消费，保留原形。
             std::sprintf(b, "cannot find item (%s) ", name.c_str());
             PacketGuard g;
             g.put_header(0, 0xc);
@@ -932,6 +936,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         if (pItem == 0)
         {
             char b[0xff] = {0};     // [R3a01 修复] ORIG 0x08211337 为 255B（0x3f+word+byte）
+            // [R4b01 2026-09-12] 同 0x082103e7：ORIG 0x0821136c 亦取 0x8bc3069 ⇒ 保留下方原形。
             std::sprintf(b, "cannot find item (%s) ", args[1].c_str());
             PacketGuard g;
             g.put_header(0, 0xc);

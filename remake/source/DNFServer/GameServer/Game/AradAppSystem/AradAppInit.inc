@@ -26,6 +26,18 @@ int AradAppSystem::AradAppInit(int argc, char** argv)
     //       return 0;
     //   }
     (void)argc;   // 保留形参（mangled/签名不变），ORIG 行为不使用其做校验
+    // [R4a20-v4 #16/P337 2026-09-12] 上述被热补跳过的错误块在 ORIG 镜像中**仍然存在**
+    //   （0x0817de34..0x0817de4d：第 2 条 `cerr << "[!] Check Args Fail!!\n"` + return 0），
+    //   而原实现直接删除该块 ⇒ P167 缺 1 个 `_ZStlsISt11char_traitsIcEERSt13basic_ostreamIcT_ES5_PKc`
+    //   调用点 + 缺 `[!] Check Args Fail!!\n` 串 + gap −7（42 vs 35，本轮第四轮核验实测）。
+    //   按用户口径「完全复刻 ORIG（含热补后行为）」+ P337 配方（恒 0 volatile 守卫）保留块与调用点：
+    //   守卫恒假 ⇒ 运行时可观察行为与 ORIG 逐位一致（不校验 argc）。
+    volatile bool deadGuard = false;
+    if (deadGuard)
+    {
+        std::cerr << "[!] Check Args Fail!!\n";
+        return 0;
+    }
     if (!open_log(argv[1]))
         return 0;
     if (!HistoryLog::Init())

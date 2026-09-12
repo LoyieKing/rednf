@@ -86,11 +86,16 @@ void CParty::set_clear_reward_exp_parameter(CUser* user, uint exp,
     }
 
     int pcRoomSameUserBonus = 0;                            // -0x1c local_20
-    // ORIG 0x085adc8a/0x085adc9f：GetPCRoomNo 两次独立调用（P48），G_CDataManager 二次直呼
+    // ORIG 0x085adcbe/0x085adcd2：GetPCRoomNo 两次独立调用（P48），G_CDataManager 二次直呼
     if (static_cast<unsigned int>(user->GetPCRoomNo()) != 0 &&
         existSamePCRoomUser(static_cast<unsigned int>(user->GetPCRoomNo())))
     {
-        pcRoomSameUserBonus = G_CDataManager()->m_serverParameter.m_76c;  // +0x7d4
+        // [R4a17 2026-09-12 SEMANTIC-DIFF 修复] ORIG 0x085adcea..0x085adcf5 段
+        // `call G_CDataManager; mov 0x7d4(%eax),%eax; mov %eax,-0x1c(%ebp)` =
+        // **原始 dword 位型直搬**（无 x87 转换）；旧码隐式 float→int 截断
+        // （flds+fldcw+fistpl）后按位型写入 +0x34 ⇒ m_pcRoomSameUserBonus 浮点值错误。
+        pcRoomSameUserBonus = *reinterpret_cast<int*>(
+            &G_CDataManager()->m_serverParameter.m_76c);      // +0x7d4 原始 dword
     }
 
     float returnUserBonus = 0.0f;                           // -0x18 local_1c

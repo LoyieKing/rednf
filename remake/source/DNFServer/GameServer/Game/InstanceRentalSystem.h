@@ -15,6 +15,16 @@ class IRentalMachine;
 
 class CUser;   // Rent/CheckRentableItem 形参（前置即可）
 
+// ENUM_ERROR（IRentalMachine::Rent 返回类型）。ORIG prett 实串
+// `virtual ENUM_ERROR RentalMachinePcRoom::Rent(CUser&, const InstanceRentalSystem::
+// RentInput&, InstanceRentalSystem::RentOutput&)`（0x8bfafe0 直证，size 0x80；
+// Dimension 版 0x8bf9f60）⇒ ORIG 返回类型为 ENUM_ERROR（P174）。按仓库既有
+// DNF_GAME_ENUM_ERROR_DEFINED guard 惯例合并定义（值域与 ORIG 一致：仅 0）。
+#ifndef DNF_GAME_ENUM_ERROR_DEFINED
+#define DNF_GAME_ENUM_ERROR_DEFINED
+enum ENUM_ERROR { ENUM_ERROR_NONE = 0 };
+#endif
+
 class InstanceRentalSystem
 {
 public:
@@ -134,8 +144,10 @@ class IRentalMachine
 public:
     virtual ~IRentalMachine() {}
 
-    virtual int Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
-                     InstanceRentalSystem::RentOutput& output) = 0;   // 槽2
+    // 返回类型 int→ENUM_ERROR：ORIG prett 串直证（0x8bfafe0/0x8bf9f60）；返回类型
+    // 不入 mangled，sizeof/偏移/vtable 零变化（§8.3/R2，Main 2026-09-12 批准）。
+    virtual ENUM_ERROR Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
+                            InstanceRentalSystem::RentOutput& output) = 0;   // 槽2
     virtual bool Ready() = 0;                                          // 槽3
     virtual bool CheckRentableItem(unsigned int itemIdx) = 0;          // 槽4
 };

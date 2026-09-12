@@ -52,6 +52,7 @@ STMapScript::STMapScript(const STMapScript& other)      // ORIG C1 0x0837e698
       m_keepStateAxisX(other.m_keepStateAxisX),         // u16 @0x249 成对
       m_keepStateAxisY(other.m_keepStateAxisY),
       m_keepStateAxisZ(other.m_keepStateAxisZ),         // byte @0x24b
+      m_24c(other.m_24c),                               // int @0x24c（ORIG 0837ec2e 4 字节 dword 拷贝实证）
             m_vecMonsterSpawnPos(other.m_vecMonsterSpawnPos), // vector@0x94(0x250)
       m_vecAICharacter(other.m_vecAICharacter),         // vector@0x97(0x25c)
       m_apcRandomPoint(other.m_apcRandomPoint),         // param_1[0x9a]

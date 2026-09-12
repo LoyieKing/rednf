@@ -38,7 +38,15 @@ void PvP_MissionSystem::get_New_DailyMission(
     {
         std::list<std::pair<unsigned int, unsigned int> > tmp(m_dailyMissionList);
         int weight = m_field3c;
-        int r = static_cast<CMTRand*>(m_trand)->randInt() % weight;
+        // [R4-13 2026-09-12 SEMANTIC-DIFF 修复] ORIG 0x085e2875/0x085e2878/0x085e287d
+        //   `mov -0x44(%ebp),%ecx; mov $0x0,%edx; div %ecx` = **无符号**除法；
+        //   旧文 `int r = randInt() % weight;` 产 `sar $0x1f,%edx; idivl`（有符号）
+        //   ⇒ randInt() 高位/负值时取模结果不同。两操作数按 unsigned 取模后
+        //   r 仍为 int（ORIG 0x085e28c7/0x085e28ca `cmp -0x2c(%ebp),%eax; jge` = 有符号比较，
+        //   ⇒ 原码 r 为 int、仅除法为无符号）。同族先例：CInGameAdvertisementManager
+        //   ::RandNum / CItemList::_FindItemRelateCreationRate 同法已修。
+        int r = static_cast<unsigned int>(static_cast<CMTRand*>(m_trand)->randInt())
+                % static_cast<unsigned int>(weight);
         int sum = 0;
         for (std::list<std::pair<unsigned int, unsigned int> >::iterator li =
                  tmp.begin(); li != tmp.end(); ++li)

@@ -5,7 +5,9 @@
 bool CDBConnector::Connect(DBConnInfo infoMap)
 {
     // ORIG 0x080ec760：按值遍历连接表；idx==0/5 跳过；cMyTrace 记录
-    // "Open(type:%2d, %s/%d/%s/%s)"（.rodata 0x8b356a4）；Open 失败即 false。
+    // "\t\t- Open(type:%2d, %s/%d/%s/%s"（.rodata 0x8b356a4 逐字节，含 "\t\t- "
+    // 前缀、结尾无 ')'；ORIG 引用点 0x080ec856 `movl $0x8b356a4,0x4(%esp)`）；
+    // Open 失败即 false。
     // [b28d-solo-GlobalData] p167 修：ORIG 全程逐字段重调 operator->（ptEv×7，
     // P157/P183 禁 idx/info 缓存）；cMyTrace 为 5 参重载 `C1EPKciibb`
     // （str, 0x4e, 9, true, true；旧 3 参形 MISSING 5 参 + EXTRA 3 参）。
@@ -39,7 +41,7 @@ bool CDBConnector::Connect(DBConnInfo infoMap)
             // (db, user) 反序（R2L 先算 user+4）。注意 +0x04 基址来自 pair 的
             // second 偏移，与 CEnvironment.h 布局一致（QueryConnInfo 0x080ecb53
             // db@+0x42 直证）。
-            ("Open(type:%2d, %s/%d/%s/%s)", (int)it->first, it->second.m_host,
+            ("\t\t- Open(type:%2d, %s/%d/%s/%s", (int)it->first, it->second.m_host,
              it->second.m_port, it->second.m_user, it->second.m_db);
         if (!Open(it->first, (ENUM_SERVER_GROUP)0, it->second))
         {

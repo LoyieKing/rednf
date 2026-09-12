@@ -103,7 +103,9 @@ bool procSpecialPassiveObjectVerifyError(SPOBJ_ACTION_DATAS& action,
                 orderRate.m_groupIdx = tvIdx;
                 orderRate.m_rate = rate;
 
-                const unsigned char diffSlot = git->second.m_field54;
+                // [R4a06 ④ 符号性修复] 同 procSpecialPassiveObject：ORIG 0x089e72f1/0x089e72fb/
+                //   0x089e7343/0x089e734d 同形（`movzbl` 读 + `movsbl` 符号扩展）⇒ signed char。
+                const char diffSlot = git->second.m_field54;
 
                 std::map<unsigned short, STHellPartyGroupOrder>::iterator mit =
                     localOrders.find(static_cast<unsigned short>(cnt));

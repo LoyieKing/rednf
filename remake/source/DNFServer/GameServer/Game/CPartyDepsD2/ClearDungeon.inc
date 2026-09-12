@@ -101,7 +101,12 @@ void CParty::ClearDungeon()
         }
     }
     PacketGuard packet;
-    if (m_battleField.m_pDungeon->m_bloodDungeonType >= 1)
+    // [R4a08 SEMANTIC-DIFF 修复] ORIG 0x085a973b/0x085a9741/0x085a9748/0x085a974a 段：`movzbl 0x89f(%eax),%eax;
+    //   test %al,%al; jle <skip>` = **有符号**比较 `(signed char)field > 0`
+    //   （字段值 >=0x80 视为负 ⇒ 跳过 BloodRound）。原写 `>= 1` 在 4.4 产
+    //   `je`（==0 语义），对 >=0x80 的值分叉 ⇒ 按 ORIG 有符号语义修正
+    //   （P196 同宽字节符号序；同 TU 先例 Dungeon_check_error.inc:34）。
+    if ((int)(signed char)m_battleField.m_pDungeon->m_bloodDungeonType > 0)
     {
         bf(this).m_bloodReward.onFinishBloodRound(
             true, (short)bf(this).m_bloodRound.getBloodRoundOrder(), this, m_battleField.m_pDungeon);

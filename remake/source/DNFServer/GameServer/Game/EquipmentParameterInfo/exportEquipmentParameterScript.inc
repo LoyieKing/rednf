@@ -39,16 +39,22 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
              std::numeric_limits<float>::epsilon() * fabs(info->m_separateRate[0])) ||
             (fabs(info->m_separateRate[1] - 1.0f) >
              std::numeric_limits<float>::epsilon() * fabs(info->m_separateRate[1])))
+            // [R4a18 ④ 复刻 ORIG] ORIG 0x89ad385/0x89ad3a6 对两实参做 `fnstcw+fldcw $0xc,%ah
+            // +fistpl`（float→int 截断）后按 **4 字节 int** 传 varargs，格式串仍 "%+f"
+            // （本函数 fistp 共 4 点：0x89ad385/0x89ad3a6 = 本处两实参、0x89ad456、0x89ad514）
+            // （Ghidra 的 (int)ROUND(...) 即此，ORIG 自身 UB）；原直传 double（fstpl 8B）偏离。
             fprintf(file, "[separate rate] %+f %+f\n",
-                    (double)info->m_separateRate[0], (double)info->m_separateRate[1]);
+                    (int)info->m_separateRate[0], (int)info->m_separateRate[1]);
     }
 
     if (info->m_physicalAbsoluteDamage != 0)   fprintf(file, "[physical absolute damage] %+d\n", info->m_physicalAbsoluteDamage);
     if (info->m_physicalDamageReduce != 0)     fprintf(file, "[physical damage reduce] %+d\n", info->m_physicalDamageReduce);
-    if (info->m_physicalAbsoluteDefense != 0.0f) fprintf(file, "[physical absolute defense] %+.2f\n", (double)info->m_physicalAbsoluteDefense);
+    // [R4a18 ④] ORIG 0x89ad456 fistpl ⇒ int 实参（同 separate rate，UB 复刻）
+    if (info->m_physicalAbsoluteDefense != 0.0f) fprintf(file, "[physical absolute defense] %+.2f\n", (int)info->m_physicalAbsoluteDefense);
     if (info->m_magicalAbsoluteDamage != 0)    fprintf(file, "[magical absolute damage] %+d\n", info->m_magicalAbsoluteDamage);
     if (info->m_magicalDamageReduce != 0)      fprintf(file, "[magical damage reduce] %+d\n", info->m_magicalDamageReduce);
-    if (info->m_magicalAbsoluteDefense != 0.0f) fprintf(file, "[magical absolute defense] %+.2f\n", (double)info->m_magicalAbsoluteDefense);
+    // [R4a18 ④] ORIG 0x89ad514 fistpl ⇒ int 实参（同 separate rate，UB 复刻）
+    if (info->m_magicalAbsoluteDefense != 0.0f) fprintf(file, "[magical absolute defense] %+.2f\n", (int)info->m_magicalAbsoluteDefense);
 
     // 抗性
     if (info->m_fireResistance != 0)        fprintf(file, "[fire resistance] %+d\n", info->m_fireResistance);

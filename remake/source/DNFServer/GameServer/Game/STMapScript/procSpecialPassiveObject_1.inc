@@ -77,7 +77,12 @@ bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,
             }
 
             // pair 视图 +0x58 = second.m_field54（难度槽位）
-            const unsigned char diffSlot = git->second.m_field54;
+            // [R4a06 ④ 符号性修复] ORIG 0x089e7d42/0x089e7d4c（+ 0x089e7d94/0x089e7d9e 本地数组）
+            //   `movzbl -0x100(%ebp),%edx; movsbl %dl,%edx` = **符号扩展**索引读取 ⇒
+            //   原码 diffSlot 是 signed char（m_field54 为 unsigned char 字段，故读取仍 movzbl，
+            //   扩展段 movsbl）。我方原为 unsigned char ⇒ 4.4 仅 movzbl（零扩展），
+            //   m_field54 ≥ 0x80 时索引分叉（ORIG 负索引 vs 我方正索引）。
+            const char diffSlot = git->second.m_field54;
 
             bool ok2 = false;
             int rate = ScanInt(&ok2);                     // -0x10 组序号

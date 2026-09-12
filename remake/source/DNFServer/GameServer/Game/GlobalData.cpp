@@ -878,8 +878,10 @@ public:
 
     // 槽2 Rent：ORIG T 0x082704e6（0x258 字节 pc_room 租赁事务链，本体待
     // pc_room 域批次 —— 报告 RentalMachinePcRoom/Rent.md）。声明占位保 vtable 序。
-    virtual int Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
-                      InstanceRentalSystem::RentOutput& output);
+    // 返回类型 ENUM_ERROR：ORIG prett 串 `virtual ENUM_ERROR RentalMachinePcRoom::
+    // Rent(...)` @0x8bfafe0 直证（P174）；不入 mangled/布局。
+    virtual ENUM_ERROR Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
+                            InstanceRentalSystem::RentOutput& output);
     // 槽3 Ready：ORIG 0x0827073e = checkAllRentalItemScript() 尾调。
     virtual bool Ready();
     // 槽4 CheckRentableItem：ORIG 0x08270752 = m_impl->m_set.find(idx)!=end。
@@ -907,8 +909,10 @@ public:
     virtual ~RentalMachineDimension() {}
 
     // 槽2 Rent：ORIG T 0x0826ec22（与 PcRoom 同构，本体待 pc_room 域批次）。
-    virtual int Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
-                      InstanceRentalSystem::RentOutput& output);
+    // 返回类型 ENUM_ERROR：ORIG prett 串 `virtual ENUM_ERROR RentalMachineDimension::
+    // Rent(...)` @0x8bf9f60 直证（P174）；不入 mangled/布局。
+    virtual ENUM_ERROR Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
+                            InstanceRentalSystem::RentOutput& output);
     // 槽3 Ready：ORIG 0x0826ee94 = checkAllRentalItemScript() 尾调。
     virtual bool Ready();
     // 槽4 CheckRentableItem：ORIG 0x0826eea8 = m_impl->m_set.find(idx)!=end。

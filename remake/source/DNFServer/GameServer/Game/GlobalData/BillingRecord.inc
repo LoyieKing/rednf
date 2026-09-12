@@ -155,8 +155,14 @@ void ItemVendingMachine::BillingRecord(CUser* user, int a3, int a4, int a5,
     // `mov 0x8(%ebp),%eax; movzbl 0x796d8(%eax),%eax; ret`（无 testb/setne，生产端
     // 形同 uchar 直返），且探针（4.4.7 -m32 -O0 /tmp/pu_probe.cpp）证 `bool g(S*)
     // { return s->f; }`（f=unsigned char）恒 +2 条 ⇒ 改 bool 反使 identical 掉级；
-    // 字段亦不可 bool 化（InterDispatcher.cpp:18163 可写 >1）。按 P321 T3（两端
-    // 矛盾 ⇒ ORIG 声明自不一致）记 N。
-    if (!user->GetPuUser())
+    // 字段亦不可 bool 化（InterDispatcher.cpp:18163 可写 >1）。
+    // [R4a01 2026-09-12 · 第四轮 SEMANTIC-DIFF 修复] 旧写 `!user->GetPuUser()` 在
+    // 返回类型 uchar 下降为 `test %al,%al; sete %al; test %al,%al; je` = **v==0 才补存**；
+    // ORIG 0x08179e56..0x08179e66 为 `call; xor $0x1,%eax; test %al,%al; je 0x8179e98`
+    // = **v!=1 才补存**（定性 (b)：ORIG 本体 0x08692b74 为 uchar 直传无归一化 ⇒ 值域 0..255，
+    // 由 Inter_LoadPuUserCheck 0x084e7ff1 `movzbl (%eax),%edx; mov %dl,0x796d8(%eax)` 直写任意值）
+    // ⇒ v∈2..255 时 ORIG 发 DB_SavePuUserCheck::makeRequest 而旧形跳过（行为分叉）。
+    // 按 ORIG 可观察语义改写为 `!= 1`（Main 第四轮裁定：只改消费点，不动 GetPuUser 本体）。
+    if (user->GetPuUser() != 1)
         DB_SavePuUserCheck::makeRequest(user->get_acc_id());
 }

@@ -3,9 +3,12 @@
 // `!IsPcRoomUser && !m_field11`（两条 je 同落继续块，旧写 `|| m_field11==1` 逻辑相反）；
 // ②RentInput::m_field11 uchar→bool（P248 档②）+ 嵌套 if（P133①）；
 // ③m_bEquip 取反+两臂交换（P47/P222）| ORIG 0x082704e6
-int RentalMachinePcRoom::Rent(CUser& user,
-                              const InstanceRentalSystem::RentInput& input,
-                              InstanceRentalSystem::RentOutput& output)
+// [R4lead 2026-09-12 · P174] 返回类型 int→ENUM_ERROR：ORIG prett 实串
+// `virtual ENUM_ERROR RentalMachinePcRoom::Rent(CUser&, const InstanceRentalSystem::
+// RentInput&, InstanceRentalSystem::RentOutput&)` @0x8bfafe0（size 0x80）直证。
+ENUM_ERROR RentalMachinePcRoom::Rent(CUser& user,
+                                     const InstanceRentalSystem::RentInput& input,
+                                     InstanceRentalSystem::RentOutput& output)
 {
     // ORIG 0x082704f4..0x08270513（真语义 bug 修正）：`call IsPcRoomUser; xor $1;
     // test; je <继续>` + 内层 `movzbl 0x11; xor $1; test; je <继续>`；两条 je 同落
@@ -17,17 +20,17 @@ int RentalMachinePcRoom::Rent(CUser& user,
     {
         if (!input.m_field11)
         {
-            return 7;   // ENUM_ERROR 7
+            return (ENUM_ERROR)7;   // ENUM_ERROR 7
         }
     }
     if (!pc_room::CheckRentableEnvironment(user))
     {
-        return 7;   // ENUM_ERROR 7
+        return (ENUM_ERROR)7;   // ENUM_ERROR 7
     }
     int err = CheckupAllRentalItems(user, input);
     if (err != 0)
     {
-        return err;
+        return (ENUM_ERROR)err;
     }
 
     pc_room::DeleteAllRentalItemInSameSectionForNewRent(user, output.m_deleted,
@@ -50,7 +53,7 @@ int RentalMachinePcRoom::Rent(CUser& user,
                 "scriptSectionIndex(%d), scriptSeqIndex(%d)",
                 (int)(signed char)elem.m_sectionIdx,
                 (int)(signed char)elem.m_itemIdx);
-            return 1;   // ENUM_ERROR 1
+            return (ENUM_ERROR)1;   // ENUM_ERROR 1
         }
         // ORIG `test %al,%al; je <ProcessInsertItem>`（equip 直落）⇒ 条件取反 +
         // 两臂交换复现 4.1 else-first 布局（P47/P222，同 Dimension::Rent）。
@@ -67,5 +70,5 @@ int RentalMachinePcRoom::Rent(CUser& user,
             log(user, info.m_field0);
         }
     }
-    return 0;   // 0=成功
+    return (ENUM_ERROR)0;   // 0=成功
 }
