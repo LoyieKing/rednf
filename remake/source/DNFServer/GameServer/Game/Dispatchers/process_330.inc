@@ -73,14 +73,18 @@ int Dispatcher_SeriaRoom_Ani_Deco_Event::process(CUser* user, MSG_BASE& msg, Par
     invenW->delete_item(INVEN_TYPE(1), static_cast<int>(slot), 1,
                         static_cast<eItemDelReason>(3), true);
 
-    seriaRoom_AniDeco updated = info;                           // m_field0 不变
-    updated.m_field2 =
+    // [R15a03 2026-09-12 形态修复] ORIG 0x081e8a3f `movzwl -0x2e(%ebp),%eax; add $0x1;
+    //   mov %ax,-0x2e(%ebp)`（就地自增同一槽）→ 0x081e8a4d `mov -0x30(%ebp),%edx;
+    //   mov %edx,0x4(%esp)`（同一对象整体传参）⇒ 原码直改 info、**无**副本局部；
+    //   旧文 `seriaRoom_AniDeco updated = info;` 多发一对 4B 拷贝（我方 -0x3c→-0x40）
+    //   与整帧槽平移 4。删副本、改直写 info（语义等价：info 其后不再作他用）。
+    info.m_field2 =
         static_cast<short>(static_cast<unsigned short>(info.m_field2 + 1));
-    user->setSeriaRoomAniDecoInfo(updated);
+    user->setSeriaRoomAniDecoInfo(info);
 
     DB_UpdateSeriaRoomAnimationDeco::makeRequest(
         user->get_acc_id(), user->GetServerGroupToPvP(),
-        user->getCurCharacNo(), info.m_field0, updated.m_field2);
+        user->getCurCharacNo(), info.m_field0, info.m_field2);
 
     // [R3a01 修复] ORIG 0x081e8ac1 `mov (%eax),%edx` 直接解引用 GetRepeatEvent(0x69)
     //   返回值，**无** NULL 检查（Ghidra C 同证 (**(code**)(*piVar11+0x34))(piVar11,0)）

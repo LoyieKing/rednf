@@ -42,9 +42,16 @@ bool CBossStage::consistMap(const CMap* map)
     if (!arranges->empty())
     {
         counter = 0;
-        for (std::vector<STAICharacterMapArrangeData>::const_iterator it =
-                 arranges->begin();
-             it != arranges->end(); ++it)
+        // [R15a13 · ④ 修复（P13）] ORIG 0x0814bf95/bfbd：begin→-0xad4、end→-0xad8
+        //   （**具名** end 迭代器）后 `jmp cond`，条件块只 `ne(it,itEnd)`
+        //   ⇒ 原码为**循环外缓存 end()一次**；我方原形 `it != arranges->end()`
+        //   在条件位每轮重算（4.4.7 探针实证：同源形恒把 end() 落条件块）。
+        //   语义等价（容器 const），本条按 ORIG 源形复刻。
+        std::vector<STAICharacterMapArrangeData>::const_iterator it =
+            arranges->begin();
+        const std::vector<STAICharacterMapArrangeData>::const_iterator itEnd =
+            arranges->end();
+        for (; it != itEnd; ++it)
         {
             // P167：ORIG 用 operator*（p167 MISSING de / EXTRA ptEv）⇒ (*it)
             // [R13a12 2026-09-12 ② 调用点差集] ORIG 0x0814bfd8 `mov %eax,-0x30(%ebp)` =
@@ -275,8 +282,12 @@ bool CBossStage::consistMap(const CMap* map)
             ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_4)
             ->generateSpecificItem(refGen4, result);
 
-        for (std::vector<Inven_Item>::iterator d = result.m_dropItems.begin();
-             d != result.m_dropItems.end(); ++d)
+        // [R15a13 · ④ 修复（P13）] ORIG 0x0814caed/0x0814cb08：begin→-0xa??、end→-0xaf0
+        //   后 `jmp 814cc30`（条件块只 `ne`）⇒ 同第一处：end() 循环外一次。
+        std::vector<Inven_Item>::iterator d = result.m_dropItems.begin();
+        const std::vector<Inven_Item>::iterator dEnd =
+            result.m_dropItems.end();
+        for (; d != dEnd; ++d)
         {
             map_item drop;
             drop.m_count = 1;              // ORIG movb $1（0830b5ab 同型）

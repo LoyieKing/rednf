@@ -18,8 +18,12 @@ bool WarRoom::HandleGetItem(CUser* user, int idx)
     //   一组 `mov %eax,X; mov X,%eax` 槽往返链（4.4 对具名局部恒写栈）⇒ 无源码可择项，维持 N95。
     char flag = 1;
     CUser* target = 0;
-    map_item fieldItem;
+    // [R15a12 形态修复] ORIG 0x086bea3a..0x086bea54 构造序 = **PacketGuard 先、
+    //   map_item 后**（`lea -0x4c; call PacketGuardC1Ev` 在前、`lea -0xcc; call
+    //   map_itemC1Ev` 在后）⇒ 源码声明序须为 packet → fieldItem；原序相反令
+    //   两条 ctor 调用次序与 ORIG 相反（构造序=声明序）。
     PacketGuard packet;
+    map_item fieldItem;
     bool ok = m_field.GetFieldItem(idx, fieldItem) != 0;
     if (ok != 1)
     {

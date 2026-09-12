@@ -190,11 +190,25 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
         input.m_remainSec = MB_ENTRY(i)->m_attachType;
 
         CMailBox::CMail* added = box->AddNewMail(input);
-        if (added != 0 && box->FindPackageLoadLack(MB_ENTRY(i)->m_letterId) == 0)
+        // [R15a12 形态修复] ORIG 0x08552df2/0x08552e19 为**两个独立直跳守卫**
+        // （`cmpl $0,槽; je skip` + `test %al,%al; jne skip`，无 bool 物化岛）
+        // ⇒ 源码须拆嵌套 if；`&&` 链令 4.4 生成 `xor $1; test; je; mov $1/%eax;
+        //   jmp; mov $0/%eax; test; je` 五条物化（P360/P225）。
+        if (added != 0)
         {
-            count = count + 1;
-            if (!bFirstLoad) {
-                added->MakePacket(&packet, nowSec, user);
+            // P354 反向 if-else（空 then + else）消 4.4 的 `xor $0x1` 物化：
+            // FindPackageLoadLack 返回 bool（CMailBoxHelper.h:165），ORIG
+            // 0x08552e19 `test %al,%al; jne <skip>` 无 xor；写 `== 0` 正极性
+            // 会令 4.4 多发一条 xor（P292/P354）。
+            if (box->FindPackageLoadLack(MB_ENTRY(i)->m_letterId) != 0)
+            {
+            }
+            else
+            {
+                count = count + 1;
+                if (!bFirstLoad) {
+                    added->MakePacket(&packet, nowSec, user);
+                }
             }
         }
     }
@@ -242,12 +256,13 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
             packet.put_int((int)std::strlen(mit->second.m_message));
             packet.put_str(mit->second.m_message,
                            (int)std::strlen(mit->second.m_message));
-            // P292 全链 bool：ORIG 0x085530xx 条件 `xor $0x1; test %al; je`
-            // ⇒ 源码为 `== 0` 极性（真=无限 → put_int(0)）。
-            if (isUnlimitMail(info, mit->second.m_letterId) == 0)
-                packet.put_int(mit->second.m_period);
-            else
+            // [R15a12 形态修复] ORIG 0x0855313e 实证 `test %al,%al; je <else>`
+            // （**无 xor**）、then = put_int(0) ⇒ 源码为正极性 `!= 0`；负极性
+            // `== 0` 令 4.4 多发 `xor $0x1,%eax`（P354）。
+            if (isUnlimitMail(info, mit->second.m_letterId) != 0)
                 packet.put_int(0);
+            else
+                packet.put_int(mit->second.m_period);
             packet.put_short((int)mit->second.m_flag);
             count = count + 1;
             box->m_letterInfo.erase(mit);
@@ -271,11 +286,12 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
             len = (int)std::strlen(MB_DETAIL(i)->m_message);
             packet.put_int(len);
             packet.put_str(MB_DETAIL(i)->m_message, len);
-            // ORIG 0x085535xx：isUnlimitMail == 0 → put_int(+0x1141)，否则 put_int(0)。
-            if (isUnlimitMail(info, MB_DETAIL(i)->m_letterId) == 0)
-                packet.put_int(MB_DETAIL(i)->m_period);
-            else
+            // [R15a12 形态修复] ORIG 0x0855338e 实证 `test %al,%al; je <else>`
+            // （**无 xor**）、then = put_int(0) ⇒ 正极性。
+            if (isUnlimitMail(info, MB_DETAIL(i)->m_letterId) != 0)
                 packet.put_int(0);
+            else
+                packet.put_int(MB_DETAIL(i)->m_period);
             packet.put_short((int)MB_DETAIL(i)->m_flag);
             count = count + 1;
         }

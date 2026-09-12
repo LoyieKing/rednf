@@ -53,12 +53,13 @@ int Dispatcher_AuctionMyBiddingInfo::dispatch_sig(CUser* user, PacketBuf& packet
     {
         if (gmList[i] == (int)user->getCurCharacNo())   // [R4 2026-09-11 · 符号名轴] 原 s_gmList（定义已删）
         {
-            cMyTrace trace(
-                __PRETTY_FUNCTION__,
-                0xc84e, 0);
-            // ORIG [69]：characNo 经 %ebx 直传（无栈槽）。
-            trace("Trace Auction Delay, %s(%d)", "REQ AuctionMyBiddingInfo",
-                  (int)user->getCurCharacNo());
+            // [R15a03 2026-09-12 P227 试验] ORIG 0x08216c88 `call getCurCharacNo;
+            //   mov %eax,%ebx` **在** ctor 0x08216cc1 之前求值并以 %ebx 跨 ctor 保活，
+            //   其后 0x08216cd2 `mov %ebx,0xc(%esp)`；两语句形（具名 trance + 单独调用）
+            //   使 4.4 恒 ctor 后求值 ⇒ 改「构造即调用」全表达式临时链。
+            cMyTrace(__PRETTY_FUNCTION__, 0xc84e, 0)(
+                "Trace Auction Delay, %s(%d)", "REQ AuctionMyBiddingInfo",
+                (int)user->getCurCharacNo());
             break;
         }
     }

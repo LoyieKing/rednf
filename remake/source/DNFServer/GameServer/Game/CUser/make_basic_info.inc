@@ -110,10 +110,14 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
         pkt.put_byte(6);
         for (int i = 0; i < 6; ++i)
             pkt.put_byte((int)(char)getDemensionInoutValue((char)i));
-        if (!GlobalData::s_revengeDungeonMgr->IsOpenRevengeDungeon())
-            pkt.put_byte(0);
-        else
+        // [R15a12 形态修复] ORIG 0x0865b556 正极性：`call IsOpenRevengeDungeon;
+        //   test %al,%al; je <else>`（then=GetCurRevengeDungeonCount 直落、
+        //   else=put_byte(0) 在后，**无 xor**）⇒ 源码须写正极性 if/else；
+        //   负极性 `if (!...)` 令 4.4 多发 `xor $0x1,%eax`（P354）。
+        if (GlobalData::s_revengeDungeonMgr->IsOpenRevengeDungeon())
             pkt.put_byte((int)GetCurRevengeDungeonCount());
+        else
+            pkt.put_byte(0);
         pkt.put_byte((int)(char)getUltimateInoutValue(2));
         const TOD_UserState* tod = (const TOD_UserState*)GetCharacExpandData(
             (ENUM_CHARAC_EXPAND_TYPE)0xd);

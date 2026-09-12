@@ -208,7 +208,10 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     }
 
     // ---- DATE_FORMAT 生日/注册时间 ----
-    unsigned int regDate = 0;
+    // [R15a08 P348] ORIG 该槽无 `movl $0x0` 清零（get_uint(4) 前无写：
+    //   0x08413c5e 前最近清零点仅 -0x24/-0x28/-0x130/-0x134/-0x1e0/-0x1e4 六处，
+    //   无本槽）⇒ 去初值；get_uint 必写该 ref、失败即 return ⇒ 不可观察。
+    unsigned int regDate;
     if (!db->get_uint(4, regDate))
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x3a71, 5);

@@ -6320,6 +6320,8 @@ yy_match:
 			++yy_cp;
 			}
 		while ( yy_base[yy_current_state] != 10084 );
+
+yy_find_action:
 		yy_act = yy_accept[yy_current_state];
 		if ( yy_act == 0 )
 			{
@@ -6327,8 +6329,6 @@ yy_match:
 			yy_current_state = (yy_last_accepting_state);
 			yy_act = yy_accept[yy_current_state];
 			}
-
-yy_find_action:
 
 		YY_DO_BEFORE_ACTION;
 

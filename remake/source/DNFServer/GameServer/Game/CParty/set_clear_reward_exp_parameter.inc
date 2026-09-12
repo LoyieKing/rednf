@@ -80,9 +80,15 @@ void CParty::set_clear_reward_exp_parameter(CUser* user, uint exp,
     }
 
     float periodItemRate = 0.0f;                            // -0x20 local_24
-    if (user->IsExpItemAffected() && user->EnablePeriodExpItem())
+    // [R15a11 P360/P225] ORIG 0x085adc8f/0x085adc9e 两处 `test %al,%al; je 0x085adcb0`
+    //   **同落出口**（无 bool 汇聚岛、无 `mov $1/$0` 物化）；写 `&&` 链时 4.4 恒插
+    //   `mov $1,%eax; jmp; mov $0,%eax; test %al,%al; je`（+5 条）⇒ 拆嵌套 if 复现。
+    if (user->IsExpItemAffected())
     {
-        periodItemRate = user->GetExpAffectRate();
+        if (user->EnablePeriodExpItem())
+        {
+            periodItemRate = user->GetExpAffectRate();
+        }
     }
 
     int pcRoomSameUserBonus = 0;                            // -0x1c local_20

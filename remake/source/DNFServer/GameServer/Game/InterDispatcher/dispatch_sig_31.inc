@@ -51,9 +51,11 @@ int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 
     if (buf.m_count != 0)
     {
-        Stream* stream = GlobalData::s_stream_pool->Acquire(
-            "InterDispatcher.cpp", 0x2c1f);
-        CStreamGuard guard(stream, true);
+        // [R15a11 P259] ORIG 0x084cf219 `call Acquire; movl $0x1,0x8(%esp); mov %eax,0x4(%esp)`
+        //   无 stream 具名槽（我方旧形 -0xc 槽 + 2 条 store/load、并使 i/target/pPkt 整体 +4）
+        //   ⇒ Acquire 结果内联进 guard 构造实参。
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                               "InterDispatcher.cpp", 0x2c1f), true);
         guard.operator*()->operator<<(0x4d);
         guard.operator*()->operator<<(-1);
         guard->put_binary(&buf, 0x18);

@@ -131,14 +131,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 char const* key = token.c_str();
                 std::map<char const*, int, less_TCHAR>::const_iterator it =
                     __lookup.find(key);
-                if (it != __lookup.end())
-                {
-                    idA = it->second;
-                }
-                else
-                {
-                    idA = -1;
-                }
+                idA = (it != __lookup.end()) ? it->second : -1;
             }
             switch (idA)
             {
@@ -1149,14 +1142,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                         char const* keyB = token.c_str();
                         std::map<char const*, int, less_TCHAR>::const_iterator itB =
                             __lookup_0.find(keyB);
-                        if (itB != __lookup_0.end())
-                        {
-                            idB = itB->second;
-                        }
-                        else
-                        {
-                            idB = -1;
-                        }
+                        idB = (itB != __lookup_0.end()) ? itB->second : -1;
                     }
                     switch (idB)
                     {
@@ -2606,7 +2592,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     std::string key;
                     boolScratch = ScanType(key, true);
                     script->m_field10e = 1;
-                    bool cont;
+                    register bool cont;
                     if (key == "[input]")
                     {
                         for (;;)
@@ -2733,7 +2719,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 // 循环体内还有一个未被消费的 std::vector<float> 临时（ORIG 0899a24b
                 // 构造、两条退出路径各析构一次），照其形态保留。
                 std::string appendageName;
-                bool cont;
+                register bool cont;
                 do
                 {
                     if (!ScanStr(&appendageName))
@@ -3028,14 +3014,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                              char const* key = scanBuf.c_str();
                              std::map<char const*, int, less_TCHAR>::const_iterator it =
                                  __lookup_1.find(key);
-                             if (it != __lookup_1.end())
-                             {
-                                 idC = it->second;
-                             }
-                             else
-                             {
-                                 idC = -1;
-                             }
+                             idC = (it != __lookup_1.end()) ? it->second : -1;
                          }
                          switch (idC)
                          {
