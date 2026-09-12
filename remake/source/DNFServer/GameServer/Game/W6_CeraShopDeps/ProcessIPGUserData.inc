@@ -99,10 +99,19 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
         }
 
         stCeraShopIPGRequest_t* q = stream->GetOutBuffer<stCeraShopIPGRequest_t>();
-        const int groupIdx = q->m_groupIdx;              // +0x04
+        // [R25a15 ④] 非 const：ORIG 0x08322be3 起在 groupIdx==10 分支内
+        //   复用同一槽（-0x98）承载 followGroup 语义（见该分支注释）。
+        int groupIdx = q->m_groupIdx;                    // +0x04
         const int seq = q->m_seq;                        // +0x24
         const int itemCountField = q->m_itemCount;       // +0x20
         const int featuredIdxReq = q->m_featuredIdx;     // +0x28
+        // [R25a15 ④] ORIG 0x08321f86..0x08321f8f 直证（`mov 0x1c(%eax),%eax;
+        //   mov %eax,-0x88`）：_processAvatarGift 第 3 参（ORIG 0x0832229e 0xc(%esp)）、
+        //   AddAvatarItem 第 2 参（ORIG 0x08322317 0x8(%esp)）与
+        //   SetChildrensDayEventValue 第 3 参（ORIG 0x08322464 0xc(%esp)）取的是
+        //   q->m_avatarField(+0x1c)，非 m_featuredIdx(+0x28)（后者只用于
+        //   ProcessSpecialItem 0xc(%esp) 与 IsRestrictedGoods，ORIG 0x083227f8/0x08322eff）。
+        const unsigned int avatarFieldReq = q->m_avatarField;   // +0x1c
         const unsigned int productNo = q->m_productNo;   // +0x00
         // [R17a15 形态修复·ORIG 直证] ORIG 0x08321fa3/0x08321faf 为两条独立装载
         //   （`mov 0x8(%eax),%eax` int → -0x80 槽；`movzwl 0xc(%eax); mov %ax,-0x7c`
@@ -184,7 +193,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
             {
                 if (buyFlag == 1)
                 {
-                    _processAvatarGift(user, itemIdx, featuredIdxReq,
+                    _processAvatarGift(user, itemIdx, avatarFieldReq,
                                        static_cast<char>(avatarSelB),
                                        static_cast<char>(avatarSelA),
                                        BufAt(reqData, 0x7d), accIdReq, characNoReq);
@@ -193,7 +202,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                 {
                     CInventory* invW = user->getCurCharacInvenW();
                     insertSlot = invW->AddAvatarItem(
-                        itemIdx, featuredIdxReq, false,
+                        itemIdx, avatarFieldReq, false,
                         static_cast<char>(avatarSelB),
                         static_cast<char>(avatarSelA), BufAt(reqData, 0x7d),
                         eAvatarItemAddReason(0), false, 0);
@@ -214,7 +223,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                             {
                                 const int kindValue = found->GetItemType();
                                 user->SetChildrensDayEventValue(kindValue, insertSlot,
-                                                                featuredIdxReq);
+                                                                avatarFieldReq);
                             }
                         }
                     }
@@ -333,13 +342,18 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                                        static_cast<unsigned char>(avatarSelB),
                                        static_cast<unsigned char>(avatarSelA), resultItems, itemParam,
                                        '\0');
-                int followGroup = -1;
+                // [R25a15 ④] ORIG 槽复用直证：`movl $0xffffffff,-0x98(%ebp)`（0x08322be3）
+                //   → 命中包后 `movl $0x7,-0x98(%ebp)`（0x08322c29）→ `cmpl $0x7,-0x98(%ebp)`
+                //   （0x08322c33）→ 发包 `mov -0x98(%ebp),%eax`（0x08322fa7）。
+                //   -0x98 即 groupIdx 槽（初值 `mov 0x4(%eax),%eax; mov %eax,-0x98`，0x08321f53）。
+                //   我方旧稿独立 `int followGroup` 使该 put_int 发出 groupIdx 原值而非 -1/7。
+                groupIdx = -1;
                 CItem* pkg = G_CDataManager()->find_item(itemIdx);
                 if (pkg != 0 && pkg->isCerashopPackageItem())
                 {
-                    followGroup = 7;
+                    groupIdx = 7;
                 }
-                if (followGroup != 7)
+                if (groupIdx != 7)
                 {
                     resultItems.clear();
                 }

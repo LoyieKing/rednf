@@ -281,13 +281,24 @@ void CParty::ClearDungeon()
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, GetPartyIndex(),
                                         (TIMER_MESSAGE)0x2c, 2, (int)key, 0x2c);
             Packet_TowerOfDespair_Statistic_GTS todStat;
-            todStat.m_key.m_0 = (int)todState->getLastEnterLayer().GetLayer();
-            todStat.m_key.m_4 = 0;
-            CStatisticServerProxy* proxy =
-                GlobalData::s_statistic_proxy_mgr->GetServerProxy(
-                    (ENUM_SERVER_GROUP)0);
-            if (proxy != 0)
-                proxy->SendPacket((char*)&todStat, 0x17);
+            // [R25-08 ④ 字段轴修复] ORIG 0x085a9e66 `mov %eax,-0xb9(%ebp)`：gts 基址
+            //   = -0xc7（ORIG 0x085a9e35 `lea -0xc7(%ebp)` 作 C1 receiver）⇒ 目标
+            //   = gts+0xe = m_key.m_4（Key@+0xa，m_4@+0xe），与同族
+            //   _do_after_dungeon_start.inc 的 `gts.m_key.m_4 = …GetLayer()` 一致；
+            //   旧码写 m_key.m_0（gts+0xa）⇒ 发包层数字段错位（可观察：统计端读到 0）。
+            todStat.m_key.m_4 = (int)todState->getLastEnterLayer().GetLayer();
+            // [R25-08 ④ 位宽轴修复] ORIG 0x085a9e6c `movb $0x0,-0xb5(%ebp)` = gts+0x12
+            //   = m_flag 的**1 字节**清零（旧码以 `m_key.m_4 = 0` 占位：4 字节写 +
+            //   漏 m_flag 显式写）。
+            todStat.m_flag = 0;
+            // [R25-08 ④ §15-C/#17 多余判空移除] ORIG 0x085a9e73..0x085a9e9d 为
+            //   `lea -0xc7(%ebp),%ebx; mov 0x940be30,%eax; movl $0x0,0x4(%esp);
+            //    mov %eax,(%esp); call GetServerProxy; movl $0x17,0x8(%esp);
+            //    mov %ebx,0x4(%esp); mov %eax,(%esp); call SendPacket`
+            //   —— GetServerProxy 结果直传 receiver，**无 test/je 判空** ⇒ 删除我方
+            //   多出的防御守卫（用户裁定：完全复刻 ORIG）。
+            GlobalData::s_statistic_proxy_mgr->GetServerProxy(
+                (ENUM_SERVER_GROUP)0)->SendPacket((char*)&todStat, 0x17);
         }
     }
     for (int slot = 0; slot < 4; ++slot)

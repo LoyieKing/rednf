@@ -525,7 +525,12 @@ struct CharacInfoFields
     int m_bloodBestRound;                  // +0xec4
     unsigned int m_bloodBestTime;          // +0xec8
     CharacInfoBloodMap m_bloodBestMap;       // +0xecc（0x18）
-    unsigned char m_isExpItemAffected;     // +0xee4
+    bool m_isExpItemAffected;              // +0xee4（[R25scanLD 2026-09-13] ORIG bool：
+                                           //   消费点 0x085adc8a `call; test %al,%al; je`
+                                           //   无 setne（P292/P321-T3）⇒ callee bool；
+                                           //   定义体 13 条无归一化 ⇒ 字段亦 bool
+                                           //   （bool 返回 + uchar 字段会多 setne 岛 17 条）。
+                                           //   宽度 1B 不变、偏移 +0xee4 不变。）
     float m_expAffectRate;                 // +0xee5
     bool m_isDisguiseCharac;               // +0xee9
     unsigned char m_disguiseKind;          // +0xeea
@@ -781,7 +786,13 @@ public:
     void ClearUselessEffectItem(unsigned int expireTime);
     bool EnablePeriodExpItem();
     bool EnablePeriodExpDouble();
-    unsigned char IsExpItemAffected();
+    // [R25scanLD 2026-09-13 · 类型轴 ④] ORIG 返回 bool：唯一消费点 CParty 0x085adc8a
+    //   `call; test %al,%al; je`（无 setne）⇒ bool（P292/P321-T3，消费端直证）；
+    //   我方原 uchar 在 4.4.7 下多发 `test; setne %al; test; je`（+3）。
+    //   定义体两侧 13/13 全等已复核：bool 返回须与 bool 字段同步（见 :528），
+    //   否则三元 `m_selected ? CUR->m_isExpItemAffected : 0` 走 uchar→bool 归一（17 条）。
+    //   返回类型不入 mangled ⇒ 符号/ABI 不变；调用点仅 1 处、取址点 0（全库扫描）。
+    bool IsExpItemAffected();
     float GetExpAffectRate();
     void SetExpAffectItemEffect(bool flag, float rate);
     void SetIsAffectedExpDouble(bool flag);

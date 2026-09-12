@@ -1377,13 +1377,18 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
     else if (args[0] == "SetAvengerReady")
     {
         int v = std::atoi(args[1].c_str());
-        ARAD::Arad_DataManager* dm = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
-        ARAD::Arad_EventPeriodDataManager* period =
-            static_cast<ARAD::Arad_EventPeriodDataManager*>(
-                // ORIG：std::string 直接就地构造进 by-value 形参槽（无 copy ctor），
-                // 故内联临时，避免额外 _ZNSsC1ERKSs 与其析构。
-                dm->findGameScript(std::string("Arad_EventPeriodDataManager")));
-        period->setCreatePeriod_GM(v);
+        // [R25a01 形态修复·P0/P183] ORIG 0x08212dad..0x08212dcb 无 dm/period 具名槽：
+        //   `call Singleton<Arad_DataManager>::Get; lea -0x134(临时Ss),%edx;
+        //    mov %edx,0x4(%esp); mov %eax,(%esp); call findGameScript;
+        //    mov %ebx(v),0x4(%esp); mov %eax,(%esp); call setCreatePeriod_GMEi`；
+        //   析构点 ~Ss@0x08212dea / ~allocator@0x08212e15 均在该调用**之后**。
+        //   我方具名 period（-0x54 槽）使析构点提前到调用之前（形态差）⇒ 全内联链式复刻。
+        static_cast<ARAD::Arad_EventPeriodDataManager*>(
+            // ORIG：std::string 直接就地构造进 by-value 形参槽（无 copy ctor），
+            // 故内联临时，避免额外 _ZNSsC1ERKSs 与其析构。
+            ARAD::Singleton<ARAD::Arad_DataManager>::Get()
+                ->findGameScript(std::string("Arad_EventPeriodDataManager")))
+            ->setCreatePeriod_GM(v);
     }
     // ---- SetCreateTime ----
     else if (args[0] == "SetCreateTime")

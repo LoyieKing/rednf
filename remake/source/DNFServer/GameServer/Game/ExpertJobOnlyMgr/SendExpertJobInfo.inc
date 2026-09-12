@@ -49,8 +49,12 @@ int CCharacExpertJob::SendExpertJobInfo(CUser* user)
                 // `p != 0`（OnEnchantByBead 0x0849ed52 `cmpl $0; jne`）**折**直跳
                 // ⇒ 4.1 对 `ptr == 0` 独有的 setcc 物化，无源形可造，记 N96 附。
                 stRecipeInfo* info = 0;
-                info = script->GetRecipeInfo(i);
-                if (info == 0)
+                // [R25a06 2026-09-13 · §31 P352 试探] ORIG 0x0832b572 为
+                //   `cmpl $0x0,-0xc(%ebp); sete %al; test %al,%al; jne <continue>`
+                //   三条 setcc 物化（4.1 对「赋值内嵌条件」的 lowering）；旧两句式
+                //   （info=…; if(info==0)）4.4 折成单条 `je`。P352：`if ((lv = f()) == X)`
+                //   一句写可令 4.4 复现 setcc 物化（本形 ==0 ⇒ sete）。
+                if ((info = script->GetRecipeInfo(i)) == 0)
                     continue;
                 // b28d-solo [R2 适配]：STExpertJobScript.h 将 m_pad 拆为真实字段
                 // m_field0(+0x00, ulong)；本 TU 按 ORIG 0x0832b57d/0x586 的

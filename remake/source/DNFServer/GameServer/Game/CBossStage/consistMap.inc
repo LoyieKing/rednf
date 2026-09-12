@@ -89,7 +89,16 @@ bool CBossStage::consistMap(const CMap* map)
             mob.m_level = (char)(unsigned char)ai->getLevel();
             mob.m_dropCnt = arr.m_camp;                       // +0x10 dword（STMapScript 批次命名 m_camp；
                                                               //   本调用面按等级消费，语义双证待裁决）
-            m_stageData.Add_Mob(mob);                         // ctor 已清 +0x11/+0x12
+            // [R25a06 2026-09-13 · §31 形态复刻（**非**语义 ④）] ORIG
+            //   0x0814c17c/0x0814c183 两条 `movb $0x0,-0xf3f/-0xf3e`（=mob +0x11/+0x12
+            //   逐字节写 0，槽归属：-0xf3f/-0xf3e = -0xf50(mob)+0x11/+0x12，由
+            //   0x0814c158 `movb $0x5,-0xf48`(=+0x8)/0x0814c16a `mov %al,-0xf40`(=+0x10)
+            //   定基址）位于 m_dropCnt 写之后、C1ERKS 之前；我方缺此两写。
+            //   运行期等价声明：本循环头 `memset(&mob,0,0x34c)` 已把 +0x11/+0x12 清零
+            //   ⇒ 补写不改变任何可观察值，属形态对齐。字节视图 m_field11b0/1 见 WarField.h。
+            mob.m_field11b.m_field11b0 = 0;
+            mob.m_field11b.m_field11b1 = 0;
+            m_stageData.Add_Mob(mob);
             ++counter;
         }
     }
@@ -142,6 +151,13 @@ bool CBossStage::consistMap(const CMap* map)
                 mob.m_roleType = 5;
                 mob.m_level = (char)(unsigned char)ai->getLevel();
                 mob.m_dropCnt = 100;                          // ORIG 立即数 100
+                // [R25a06 2026-09-13 · §31 形态复刻（**非**语义 ④）] ORIG
+                //   0x0814c572/0x0814c579 两条 `movb $0x0,-0xf3f/-0xf3e`
+                //   （mob +0x11/+0x12；同循环 0x0814c550 `movb $0x5,-0xf48` 定基址）
+                //   位于 `movl $0x64,-0xf24`(m_dropCnt) 之后、C1ERKS 之前；我方缺。
+                //   运行期等价：循环头 memset(&mob,0,0x34c) 已清零 ⇒ 仅形态对齐。
+                mob.m_field11b.m_field11b0 = 0;
+                mob.m_field11b.m_field11b1 = 0;
                 m_stageData.Add_Mob(mob);
                 ++counter;
             }

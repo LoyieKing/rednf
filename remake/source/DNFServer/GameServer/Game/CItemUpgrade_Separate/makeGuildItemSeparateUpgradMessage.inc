@@ -41,7 +41,11 @@ void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
     register bool boardReady;
     if (success && newLevel > 5)
     {
-        char msgBuf[255];
+        // [R25-08 ④ §27.3 尺寸族] ORIG 槽图闭合证据：strncpy 目标 `lea -0x2b7(%ebp)`
+        //   （ORIG 0x0867a303 / 0x0867a619）与 tail 起点 `lea -0x1b7(%ebp)`（ORIG
+        //   0x0867a3fa / 0x0867a710）间距 = 0x100 ⇒ msgBuf 实占 0x100 = 256 字节
+        //   （旧码 255 ⇒ 我方 msgBuf 起 -0x2b6，与 ORIG 差 1 字节且缓冲区错位）。
+        char msgBuf[256];
         std::strncpy(msgBuf,
                      g_scriptStringManager_.findString(4, "game_server_msg_248",
                                                        static_cast<bool*>(0)),
@@ -87,7 +91,7 @@ void CUser::makeGuildItemSeparateUpgradMessage(const char* name, int oldLevel,
             return;
         }
 
-        char msgBuf[255];
+        char msgBuf[256];   // [R25-08 ④] 同上：ORIG 0x0867a619 strncpy 目标 -0x2b7
         std::strncpy(msgBuf,
                      g_scriptStringManager_.findString(4, "game_server_msg_249",
                                                        static_cast<bool*>(0)),

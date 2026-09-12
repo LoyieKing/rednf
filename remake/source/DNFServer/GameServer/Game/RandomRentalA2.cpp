@@ -216,11 +216,20 @@ namespace random_option
 // ---- _get_level_limit —— T 0x085f0f9a（_get_level_limit.md 全文转写）------
 // ORIG 域常量（nm：_ZN13random_optionL13kMaxItemLevelE / L15KItemStartLevelE /
 // L18KItemLevelIntervalE / L15MAX_RANDOM_SEEDE / L16MAX_OPTION_VALUEE，r 段）
-static const int kMaxItemLevel = 80;
-static const int KItemStartLevel = 10;
-static const int KItemLevelInterval = 10;
-static const int MAX_RANDOM_SEED = 64;
-static const int MAX_OPTION_VALUE = 100;
+// [R25a06 2026-09-13 · §31.2 线索 #2 现场读数 · 数据宽度对齐（形态）]
+//   ORIG nm -S + raw 双侧：`_ZN13random_optionL16MAX_OPTION_VALUEE` 1B=0x64、
+//   `L15MAX_RANDOM_SEEDE` 1B=0x40、`L13kMaxItemLevelE` 2B=0x0050、
+//   `L15KItemStartLevelE` 2B=0x000a、`L18KItemLevelIntervalE` 2B=0x000a
+//   （ORIG .rodata 连续区 0x08af2ddc..0x08af2de3，地址升序 = 声明逆序）；
+//   我方原 5×`int`（4B）⇒ 宽度偏大。改后值逐字节不变、恒等值不可观察
+//   （无指令引用该宽度的可观察后果）⇒ **非语义 ④**，属形态对齐。
+//   注：ORIG 该 `_ZL` 副本 315 份（每 TU 发射）vs 我方 1 份 = 4.1↔4.4
+//   static-const 发射差，登记不修。
+static const short kMaxItemLevel = 80;
+static const short KItemStartLevel = 10;
+static const short KItemLevelInterval = 10;
+static const unsigned char MAX_RANDOM_SEED = 64;
+static const unsigned char MAX_OPTION_VALUE = 100;
 
 #include "RandomRentalA2/_get_level_limit.inc"
 
