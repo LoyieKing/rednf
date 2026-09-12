@@ -32,7 +32,11 @@ int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* dat
     {
         // [R14a05 2026-09-12 负结论] P161 嵌套组件（Rec@+0x20 步长 0x68 + m_data@+0xe）
         //   已试并回滚：4.4 仍先载基址（多 1 条 mov），差异量与平铺形相同、零收益。
-        packet.put_binary(data + i * 0x68 + 0x2e, 0x68);
+        // [R17a13] ORIG 0x084e5d59 `add -0x10(%ebp),%eax` = 从 pPkt 具名槽取基址；
+        //   旧形直接写形参 data（0x10(%ebp)）⇒ 4.4 前向替换成帧参直读（P358），
+        //   与 ORIG 槽读不同形。改回经 pPktAddr（MPKT 同源）表达。
+        packet.put_binary(
+            reinterpret_cast<char*>(pPktAddr) + i * 0x68 + 0x2e, 0x68);
     }
     packet.finalize(true);
 

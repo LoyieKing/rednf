@@ -316,6 +316,12 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
                 if ((int)bonusItemIdx != -1)
                 {
                     std::vector<Inven_Item> bonusItems;
+                    // [R17a14 2026-09-13] ORIG 0x8179571 `mov $0; call vector<pair<int,int>>::C1Ev`
+                    //   （槽 -0x12c，紧随 bonusItems 的 -0x120 之后，步长 0xc×2）+ 0x81795e3
+                    //   与 0x81795f7 两处 `call vector<pair<int,int>>::D1Ev`（正常/EH 各一）
+                    //   直证：原码此处另声明一个**从未使用**的 std::vector<std::pair<int,int>>
+                    //   （死对象，仅构造/析构）。按 P171「原码死写入/遗留行为照抄」复刻。
+                    std::vector<std::pair<int, int> > bonusItemPairs;
                     m_ceraShop._processAdditionalItem(user, bonusItemIdx,
                                                       (unsigned short)bonusCount, 0, 0xff,
                                                       bonusItems, param, 0);

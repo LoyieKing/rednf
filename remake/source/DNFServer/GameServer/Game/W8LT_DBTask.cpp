@@ -5004,19 +5004,32 @@ char* getList2inQuery(const std::vector<int>& list, char* out)
             return 0;
         if (!db->get_uint(3, row.m_lastPlay))
             return 0;
-        if (GlobalData::s_ref_pvp_grade->getPvPExpLossGrade() <= row.m_pvpGrade &&
-            (int)row.m_lastPlay <= limitTime && refPoint < row.m_pvpPoint)
+        // [R17a06] P360：ORIG 0x08428db2/0x08428dc1/0x08428dd5 三个失败出口同落
+        // 0x08428e79（rows.push_back 后的循环尾）；条件 1 在 if 条件位 => 4.1 发
+        // `call; cmp; setle %al; test %al,%al; je`（0x08428dad/0x08428db2），条件 2/3
+        // 内存比较直跳（jg/jle）。写 `&&` 链时 4.4 把三条件融合成 `mov $1/mov $0`
+        // 岛（我方多 11 条）⇒ 拆嵌套 if 逐个复现（P360 推广）。
+        if (GlobalData::s_ref_pvp_grade->getPvPExpLossGrade() <= row.m_pvpGrade)
         {
-            if (GlobalData::s_ref_pvp_grade->getPvPExpLossExp() + refPoint <
-                row.m_pvpPoint)
-                // [b28d-solo] P270：ORIG 调 push_back(int&&)（EOi），
-                // 值传选中 const& 版本 ⇒ 显式右值 cast。
-                lists[0].push_back(static_cast<int&&>((int)row.m_characNo));
-            else
-                lists[1].push_back(static_cast<int&&>((int)row.m_characNo));
-            int tmp = row.m_pvpPoint -
-                      GlobalData::s_ref_pvp_grade->getPvPExpLossExp();
-            row.m_pvpPoint = std::max(refPoint, tmp);
+            if ((int)row.m_lastPlay <= limitTime)
+            {
+                if (refPoint < row.m_pvpPoint)
+                {
+                    // [R17a06] ORIG 0x08428ddb 先 `mov -0xb0(%ebp),%ebx`（pvpPoint 跨
+                    // call 保活）再 `call getPvPExpLossExp; add; cmp %eax,%ebx; setg`
+                    // ⇒ 左操作数写 pvpPoint（P243 读取序）。
+                    if (row.m_pvpPoint >
+                        GlobalData::s_ref_pvp_grade->getPvPExpLossExp() + refPoint)
+                        // [b28d-solo] P270：ORIG 调 push_back(int&&)（EOi），
+                        // 值传选中 const& 版本 ⇒ 显式右值 cast。
+                        lists[0].push_back(static_cast<int&&>((int)row.m_characNo));
+                    else
+                        lists[1].push_back(static_cast<int&&>((int)row.m_characNo));
+                    int tmp = row.m_pvpPoint -
+                              GlobalData::s_ref_pvp_grade->getPvPExpLossExp();
+                    row.m_pvpPoint = std::max(refPoint, tmp);
+                }
+            }
         }
         // ORIG push_back 直传整个 16B 行对象（&base @0x08428e79）。
         rows.push_back(row);

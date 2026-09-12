@@ -20,11 +20,17 @@ int getNpcRoleByString(std::string name)
     int result = -1;                        // ORIG 089fecfa movl $0xffffffff,-0x20(%ebp)
     for (;;)
     {
+    retry:
+        // [R17a19 2026-09-13 · 回跳目标对齐] ORIG 的两处 `goto retry` 落点 =
+        //   __lookup 的 **__cxa_guard 检查首条**（0x089fed01 `mov $0x94fe7d0,%eax`；
+        //   表尾回跳 0x08a008f1 同靶）。原写 `retry:` 落在 static 声明之后 ⇒ 4.4 把
+        //   goto 目标定在 `__inited` 检查（我方 0x85e971a `movzbl __inited`），
+        //   跳过了 guard 检查。标签前移（goto 跳过 static 声明合法）即落回 guard
+        //   检查首条（P333 状态机 retry 锚点形）。
         static EnumLookupMap __lookup;      // ORIG _ZZ18getNpcRoleByStringSsE8__lookup
         static SpinLock __init_lock;        // ORIG ...E11__init_lock
         static bool __inited = false;       // ORIG ...E8__inited
                 int idx;
-    retry:
         if (__inited)
         {
             EnumLookupMap::const_iterator it = __lookup.find(name.c_str());

@@ -159,28 +159,43 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
     }
     // ---- show lp：查询幸运点 ----
-    else if (args[0] == "show" && args[1] == "lp")
+    // [R17a01 §15 A 轴/#33 守卫存在性] ORIG 0x0820c8ca 判 `args[0]=="show"`（不匹配 →
+    //   下一命令检查点），0x0820c8f5 判 `args[1]=="lp"`（**不匹配 → 0x08213440 共享
+    //   ret0 块 = return 0**）。原 `&&` 合并短路使 args[1]!="lp" 时继续 else-if 链，
+    //   落到下方 tautological 的 `args[0]=="show"` 分支（ORIG 0x0820cdbc 为死块）⇒ 多调
+    //   DisPatcher_DebugCommand::_debugCommandVisible 并写 -0x12d 标志 ⇒ 行为分叉。
+    //   按 P133/§16.1 拆为「外层 args[0] + 内层独立否定守卫」复刻 ORIG 落点。
+    else if (args[0] == "show")
     {
-        int luck = user->GetCurCharacLuckPoint();
-        std::string text("remained luck point : ");
-        // [R3a01 修复·语义优先] ORIG 此点确为 255B（0x0820c982 `mov $0x3f,%ecx` +
-        //   `mov %ax,(%edx)/add $2/mov %al,(%edx)` = 0x3f*4+2+1 = 255）。旧「负结论·
-        //   保留 0x100」按 gap/形态指标取舍；按用户 2026-09-12 裁定（完全复刻 ORIG，
-        //   含尺寸）改回 0xff ⇒ 我方 4.4 展开 10 条 vs ORIG 9 条属 N 类形态代价。
-        char b[0xff] = {0};
-        std::sprintf(b, "(%d) ", luck);
-        text += b;
-        A2_SEND_STR(user, text);
+        if (args[1] == "lp")
+        {
+            int luck = user->GetCurCharacLuckPoint();
+            std::string text("remained luck point : ");
+            // [R3a01 修复·语义优先] ORIG 此点确为 255B（0x0820c982 `mov $0x3f,%ecx` +
+            //   `mov %ax,(%edx)/add $2/mov %al,(%edx)` = 0x3f*4+2+1 = 255）。旧「负结论·
+            //   保留 0x100」按 gap/形态指标取舍；按用户 2026-09-12 裁定（完全复刻 ORIG，
+            //   含尺寸）改回 0xff ⇒ 我方 4.4 展开 10 条 vs ORIG 9 条属 N 类形态代价。
+            char b[0xff] = {0};
+            std::sprintf(b, "(%d) ", luck);
+            text += b;
+            A2_SEND_STR(user, text);
+        }
         return 0;
     }
     // ---- max lp：+100000 幸运点 ----
-    else if (args[0] == "max" && args[1] == "lp")
+    // [R17a01 §15 A 轴/#33] ORIG 0x0820cb28 判 args[0]=="max"（不匹配 → 下一命令），
+    //   0x0820cb53 判 args[1]=="lp"（**不匹配 → 0x08213440 共享 ret0 = return 0**）；
+    //   成功路径同样 jump ret0。原 `&&` 合并短路使 args[1]!="lp" 时继续链 ⇒ 拆开复刻。
+    else if (args[0] == "max")
     {
-        user->IncCurCharacLuckPoint(100000);
-        user->enableSaveCharacStat();
+        if (args[1] == "lp")
         {
-            std::string s("100000 luck point!!");
-            A2_SEND_STR(user, s);
+            user->IncCurCharacLuckPoint(100000);
+            user->enableSaveCharacStat();
+            {
+                std::string s("100000 luck point!!");
+                A2_SEND_STR(user, s);
+            }
         }
         return 0;
     }
@@ -560,31 +575,44 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         DoUserDefineCommand(user, 0x7d, b);
     }
     // ---- ulti max ----
-    else if (args[0] == "ulti" && args[1] == "max")
+    // [R17a01 §15 A 轴/#33] ORIG 0x0820f007 判 args[0]=="ulti"（不匹配 → 0x0820f217
+    //   下一命令），0x0820f044 判 args[1]=="max"（**不匹配 → 0x08213440 ret0**）；
+    //   成功路径 0x0820f212 `jmp 0x08213440` 亦 return 0。
+    else if (args[0] == "ulti")
     {
-        // ORIG 0x0820f04a..0x0820f074：G_CDataManager()->get_limit_inout_count(2)
-        // 的 char 返回值经 movsbl 直接落 0x8(%esp)，不物化中间变量。
-        user->setUltimateInoutValue(
-            2, G_CDataManager()->get_limit_inout_count((ENUM_BLOOD_TYPE)2));
+        if (args[1] == "max")
         {
-            std::string s("Add ultimate inout max count!!");
-            A2_SEND_STR(user, s);
+            // ORIG 0x0820f04a..0x0820f074：G_CDataManager()->get_limit_inout_count(2)
+            // 的 char 返回值经 movsbl 直接落 0x8(%esp)，不物化中间变量。
+            user->setUltimateInoutValue(
+                2, G_CDataManager()->get_limit_inout_count((ENUM_BLOOD_TYPE)2));
+            {
+                std::string s("Add ultimate inout max count!!");
+                A2_SEND_STR(user, s);
+            }
         }
+        return 0;
     }
     // ---- dimen max ----
-    else if (args[0] == "dimen" && args[1] == "max")
+    // [R17a01 §15 A 轴/#33] ORIG 0x0820f22a 判 args[0]=="dimen"（不匹配 → 0x0820f462
+    //   下一命令），第二条件（"max"）不匹配 → 0x08213440 ret0；成功路径亦 return 0。
+    else if (args[0] == "dimen")
     {
-        // ORIG 0x0820f26d..0x0820f2c4：循环条件为 `i <= 5`（cmpl $0x5 / setle），
-        // 且 get_dimensionInout 的 char 返回值经 movsbl 直接进实参槽，无中间变量。
-        for (int i = 0; i <= 5; ++i)
+        if (args[1] == "max")
         {
-            user->setDemensionInoutValue(static_cast<char>(i),
-                                         G_CDataManager()->get_dimensionInout(i));
+            // ORIG 0x0820f26d..0x0820f2c4：循环条件为 `i <= 5`（cmpl $0x5 / setle），
+            // 且 get_dimensionInout 的 char 返回值经 movsbl 直接进实参槽，无中间变量。
+            for (int i = 0; i <= 5; ++i)
+            {
+                user->setDemensionInoutValue(static_cast<char>(i),
+                                             G_CDataManager()->get_dimensionInout(i));
+            }
+            {
+                std::string s("Add dimension inout max count!!");
+                A2_SEND_STR(user, s);
+            }
         }
-        {
-            std::string s("Add dimension inout max count!!");
-            A2_SEND_STR(user, s);
-        }
+        return 0;
     }
     // ---- dontsend on/off ----
     else if (args[0] == "dontsend")
@@ -1169,11 +1197,17 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         user->m_gmBossMapIndex = v;                    // +0x796d0
     }
     // ---- reset fatigue ----
-    else if (args[0] == "reset" && args[1] == "fatigue")
+    // [R17a01 §15 A 轴/#33] ORIG 0x08212344 判 args[0]=="reset"（不匹配 → 0x082123ca
+    //   下一命令），0x0821237d 判 args[1]=="fatigue"（**不匹配 → 0x08213440 ret0**）；
+    //   成功路径 0x082123c0 亦 `mov $0,%ebx; jmp ret0` ⇒ 拆成外层 args[0] + 内层条件。
+    else if (args[0] == "reset")
     {
-        G_TimerQueue()->InsertTimer(
-            static_cast<TimerEntry::OBJ_TYPE>(2), 0,
-            static_cast<TIMER_MESSAGE>(0x50), 3, 0, 0);
+        if (args[1] == "fatigue")
+        {
+            G_TimerQueue()->InsertTimer(
+                static_cast<TimerEntry::OBJ_TYPE>(2), 0,
+                static_cast<TIMER_MESSAGE>(0x50), 3, 0, 0);
+        }
         return 0;
     }
     // ---- apply_effect ----

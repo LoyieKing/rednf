@@ -19,13 +19,19 @@ bool CUser::master_new_skills(_Mastered_skill* skills, ENUM_SKILL_TREE_KIND kind
     //   安全性：两支互斥且每个使用点前必赋值（skill/slotNo 的 0 初始化仍在循环内保留）。
     //   不提升 `std::vector`/`std::pair`/`CSkill* skill`：前二者非平凡（P331 禁提前声明
     //   非 POD，会提前发射 ctor/dtor 改帧序）；skill 在循环内重置，保持原形。
-    CCharacList* chars = 0;
-    bool got = false;
-    int i = 0;
-    int skillId = 0;
-    int level = 0;
-    int group = 0;
-    int slotNo = 0;
+    // [R17a19 2026-09-13 · P348] 删函数头 7 个初值：ORIG 0x0866b53e 头部只有
+    //   usedSp/usedSfp 两条 `movl $0x0`（0x0866b54a/-0x54、0x0866b551/-0x58），
+    //   下列 7 个局部在 ORIG 头部**无**清零（各使用点前必赋值：chars/got 在两互斥
+    //   分支内赋值、i 在 for-init、skillId/level/group 在循环内、slotNo 循环内先 `=0`）
+    //   ⇒ 原码声明不带初值。我方旧形多发 7 条 `movl/movb $0x0`（-0x2c/-0x25/-0x24/
+    //   -0x20/-0x1c/-0x18/-0x14）并使后续槽基整体偏移。
+    CCharacList* chars;
+    bool got;
+    int i;
+    int skillId;
+    int level;
+    int group;
+    int slotNo;
     ((SkillSlot*)getCurCharacSkillR())->calcUsedSP(skills, usedSp, usedSfp);
 
     // ORIG 0x0866b586..0x0866b6a9：SP/SFP 段逐处重调 getter（无 remainSp/sfpKind 缓存，

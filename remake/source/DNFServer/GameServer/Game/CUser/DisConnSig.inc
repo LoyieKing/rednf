@@ -202,20 +202,23 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
             // +0x12 起 memcpy hwSpec[+4]（0xc/条 × count）；SendPacket 长
             // count*0xc+0x12（布局对照 shared/packet/include 权威头）。
             char* hwSpec = getClientHWSpec();
-            unsigned char hwCount = (unsigned char)hwSpec[1];
             Packet_Client_Spec_Statistic specPkt;
-            char* specBase = (char*)&specPkt;
-            specPkt.m_type = 1;                                       // +0x0a
-            specPkt.m_count = hwCount;                                // +0x0b
-            specPkt.m_errorCode = param;                              // +0x0c（movl）
-            specPkt.m_errorLine = (short)GetLastLoginChannelNo();     // +0x10
-            memcpy((char*)specPkt.m_specs, hwSpec + 4, hwCount * 0xc);
-            int specLen = (int)(unsigned short)(hwCount * 0xc + 0x12);
+            specPkt.m_type = 1;                                        // +0x0a
+            specPkt.m_count = (unsigned char)hwSpec[1];                // +0x0b
+            specPkt.m_errorCode = param;                               // +0x0c（movl）
+            specPkt.m_errorLine = (short)GetLastLoginChannelNo();      // +0x10
+            memcpy((char*)specPkt.m_specs, hwSpec + 4, specPkt.m_count * 0xc);
+            // [R17a04 ④] ORIG 0x0864930a `mov %ax,-0xcbc(%ebp)` 把实际长度写回
+            //   PacketHeader::packetSize（栈对象 base -0xcbe 的 +0x2；0x08649307 为其前的
+            //   `add $0x12,%eax`），0x08649311
+            //   `movzwl -0xcbc(%ebp),%eax` 再读回该字段作 SendPacket 第 3 参；旧形
+            //   只写独立局部 specLen ⇒ 出包包头长度字段恒为 ctor 的 0xc06（高危#2）。
+            specPkt.packetSize = (unsigned short)(specPkt.m_count * 0xc + 0x12);
             // [R9a14 ④ #17/#33] ORIG 0x08649339→0x08649349：GetServerProxy 返回值直接
             //   作 this（0x0864933e/42/46 实参），无 `cmpl $0x0`/`je` 判空 ⇒ 删除守卫。
             GlobalData::s_statistic_proxy_mgr
                 ->GetServerProxy((ENUM_SERVER_GROUP)GetServerGroup())
-                ->SendPacket(specBase, specLen);
+                ->SendPacket((char*)&specPkt, (int)specPkt.packetSize);
         }
         // ORIG +0x95a：队列 1 投递（在 if(+0x8d0df) 块之后，无条件执行）。
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);

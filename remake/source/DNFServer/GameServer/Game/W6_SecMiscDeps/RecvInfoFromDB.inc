@@ -174,8 +174,11 @@ unsigned int WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemI
     }
 
     // ---- 普通背包插入分支（asm +0x5d6..+0x6ea）----
+    // [R17a13] ORIG 0x086c17f4 `movl $0xffffffff,-0x1c(%ebp)` 先于 call ⇒ 原码有
+    //   `= -1` 预置（P171 死写入照抄；我方旧形缺该 store，hints CONST O-only -1×1）。
+    int newSlot = -1;
     CInventory* invW = user->getCurCharacInvenW();
-    const int newSlot = invW->insertItemIntoInventory(
+    newSlot = invW->insertItemIntoInventory(
         slot, (eItemAddReason)spaceCode, true, false);
     if (newSlot == -1)
     {

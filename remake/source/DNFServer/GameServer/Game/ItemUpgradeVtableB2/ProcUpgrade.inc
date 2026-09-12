@@ -146,17 +146,24 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
 
     // 升级表：增幅物品用 CItemAmplifier 表，否则表区子对象的 getUpgradeInfoTable。
     const upgrade_table_t* table;
-    if (!target.m_amp.hasAbility())
+    // [R17a19 2026-09-13 · P354 极性轮] 原写 `if (!hasAbility()) {表区表} else {增幅表}`
+    //   ⇒ 4.4 产 `call; xor $0x1,%eax; test; je`（我方多一条 xor）+ **块序相反**。
+    //   ORIG 0x08547c9d..0x08547cb2 实证：`test %al,%al; je 0x08547ca4`（=!hasAbility 跳走）
+    //   + 增幅表块**直落**（0x8547cad call CItemAmplifier::getUpgradeInfoTable，
+    //   尾 `jmp 0x08547cb2` 汇合）+ 表区块 0x08547ca4 `mov 0x8(%ebp),%eax; add $0x4,%eax;
+    //   …; call getUpgradeInfoTable` ⇒ 原码为**正向 if/else（then=增幅表直落，
+    //   else=表区表）**，无 xor。改写为正向 if/else（语义不变）。
+    if (target.m_amp.hasAbility())
+    {
+        table = GlobalData::s_itemAmplifier_->getUpgradeInfoTable();
+    }
+    else
     {
         // [b28d-solo-ItemUpgradeVtableB2] P49/P167：删匿名 namespace inline
         // helper（helper 在 -O0 是真实 call ⇒ ORIG 无的 EXTRA 符号）；基类
         // CItemUpgradeTable 成员直调，this 自动 +0x04 调整（ORIG 0x08547ca4
         // `add $0x4,%eax` + call getUpgradeInfoTable）。
         table = getUpgradeInfoTable();
-    }
-    else
-    {
-        table = GlobalData::s_itemAmplifier_->getUpgradeInfoTable();
     }
 
     upgrade_info_t info;                           // -0x284（ctor 自清零）

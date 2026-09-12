@@ -43,6 +43,18 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
     //   状态机结构完整）；帧 0x1a3c vs ORIG 0x19fc（N82 槽复用）。13 个 missing
     //   段抽查（08991f60/0899925d/0899b26e/0899b3ed 等）均为 4.1 switch 决策树与
     //   叶子块布局差，非语义缺口 ⇒ 维持封 N。
+    // [R17a00 2026-09-13 独立复核 · 形态保真修复 ×1]
+    //   ① 修复（四闸门全过，保留）：ORIG 0899a307/0899a334/0899a361/0899a38e 在四次
+    //      `ScanInt(&rateFlag)` 之后各有 `movzbl -0x1145(%ebp),%eax; mov %al,-0x1145(%ebp)`
+    //      （4.1 未 fold 的 (bool) 自读写、语义 NOP）。补 `rateFlag = (bool)rateFlag;`
+    //      ×4（[change status on change hp] 段）⇒ 新 .o 该处 4 对逐条同形（-0x10bb 槽）、
+    //      位置与 ORIG 一致；A/B 四数 710/1440/2/6/464 逐值零劣化；符号集
+    //      `nm --defined-only` 3129=3129 逐名零差，仅本函数 size 0xb234→0xb268(+0x34)。
+    //   ② 回滚留证（未达同形）：case 0x877 原写 `if (ScanInt(&levelAniIdx) && ScanStr(&scanBuf))`
+    //      ⇒ 4.4 产 bool 物化（mov $1/jmp/mov $0/test），ORIG 089958ed/08995906 为两条
+    //      独立 `xor $1; test; jne <nop 岛>`（0899c97b/0899c97e）。拆双 goto 后物化消除
+    //      且四数不变，但 4.4 恒产 `je <fall>; jmp <岛>`（两跳、两守卫共岛）≠ ORIG 单跳，
+    //      §16.3 闸门③不达标 ⇒ 已回滚（保留原 `&&` 写法）。
     // 声明顺序 = ORIG prologue 构造/初始化执行顺序（帧槽位由声明序决定，
     // 注释内为 ORIG %ebp 槽位，报告 0x08991b00-0x08991d8b）：
     std::string tmp;                       // ORIG -0x106c（各 case 第一读取暂存）
@@ -2741,9 +2753,17 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                             rate.m_appendage = appendage;
                             rateFlag = true;
                             rate.m_rate1 = (float)ScanInt(&rateFlag);
+                            // ORIG 0899a307 / 0899a334 / 0899a361 / 0899a38e 逐次
+                            // `movzbl -0x1145(%ebp),%eax; mov %al,-0x1145(%ebp)`
+                            // ——每次 ScanInt 后对 bool 出参做 (bool) 归一化写回
+                            // （4.1 不 fold 该自读写；语义为 NOP，照抄形态）。
+                            rateFlag = (bool)rateFlag;
                             rate.m_rate3 = (float)ScanInt(&rateFlag);
+                            rateFlag = (bool)rateFlag;
                             rate.m_rate2 = (float)ScanInt(&rateFlag);
+                            rateFlag = (bool)rateFlag;
                             rate.m_rate4 = (float)ScanInt(&rateFlag);
+                            rateFlag = (bool)rateFlag;
                             if (rateFlag)
                             {
                                 script->m_rate6e8.push_back(rate);

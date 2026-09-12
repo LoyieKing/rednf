@@ -82,9 +82,12 @@ void CUser::AddDailyItem()
     tmp.m_addInfo2 = 1;
     tmp.m_addInfo = 0x1cab;
     int slot = -1;              // ORIG 0x0865715d `movl $0xffffffff,-0x14` 预清（P198①）
-    slot = getCurCharacInvenW()->insertItemIntoInventory(
-        tmp, eItemAddReason_0xd, true, true);
-    if (slot == -1)
+    // [R17a19 2026-09-13 · P352 赋值内嵌条件] ORIG 0x08657215..0x08657221 实证：
+    //   `call insertItemIntoInventory; mov %eax,-0x14(%ebp); cmpl $0xffffffff,-0x14(%ebp);
+    //   sete %al; test %al,%al; je` ⇒ 原码是**一句写** `if ((slot = f(...)) == -1)`。
+    //   旧形（先赋值后 `if`）在 4.4 折成 `cmpl; jne`（丢 sete 物化）。
+    if ((slot = getCurCharacInvenW()->insertItemIntoInventory(
+             tmp, eItemAddReason_0xd, true, true)) == -1)
     {
         char sender[0x15];
         strncpy(sender,

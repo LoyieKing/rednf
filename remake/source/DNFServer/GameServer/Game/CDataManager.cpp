@@ -38,6 +38,7 @@
 #include "FlexLexer.h"
 #include "SlangFilter.h"  // SlangFilter 权威声明（destroy() 按ORIG经虚 D0 析构）
 #include "GlobalData.h"      // GlobalData::s_ref_pvp_grade / s_db_mgr / s_p* 全局
+#include "STCharacterScript.h"  // STCharacterScript::naExpTable（set_level_exp 权威表，ORIG 0x94fe960）
 
 // ---- init() 依赖（ORIG 0x08358332 链）----
 #include "sync_script.h"             // CSyncScript/STEquipmentPartSetPiece（须先于 deps 头）
@@ -81,8 +82,6 @@ public:
     static T* inst_ptr();
 };
 
-extern CSystemTime g_systemTimeInst;
-extern int g_levelExpTable[256];
 
 class CMapListImpl;
 class CMonsterManagerImpl;
@@ -128,10 +127,6 @@ extern int PVP_DM_BATTLE_TIME[2];
 int PVP_RELAY_BATTLE_TIME[2] = {0, 0};
 
 // ===================== 本 TU 局部依赖类/全局定义（后续批次替换） =====================
-
-// 全局数据（ORIG 属于其它 TU；当前先在此提供可链接定义）
-CSystemTime g_systemTimeInst;  // TODO(后续批次)
-int g_levelExpTable[256] = {0};  // TODO(后续批次)
 
 #include "CDataManager/dtor_CAutoMarketConditionsControl.inc"
 

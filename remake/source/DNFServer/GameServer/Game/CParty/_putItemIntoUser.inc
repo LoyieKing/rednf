@@ -112,7 +112,19 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
     int slot = ci->getCurCharacInvenW()->insertItemIntoInventory(items[1],
                                                                 (eItemAddReason)0xb,
                                                                 true, true);
-    bool isTournament = m_battleField.m_pDungeon != 0 && m_battleField.m_pDungeon->isTournamentDungeon() != 0;
+    // [R17a19 2026-09-13 · P198 预清两句式] ORIG 0x085ab0c3..0x085ab0e4 实证：m_pDungeon 先落**具名槽**
+    //   （0x085ab0c6 `mov 0xcac(%eax),%eax` / 0x085ab0cc `mov %eax,-0x38(%ebp)`）+ bool **预清**
+    //   （0x085ab0cf `movb $0x0,-0x31(%ebp)`）+ 独立 `if (pDungeon != 0)` 条件赋值
+    //   （0x085ab0d9 回读 -0x38 / 0x085ab0df call isTournamentDungeon / 0x085ab0e4 `mov %al,-0x31`）
+    //   ⇒ 无短路物化。我方旧形（`a != 0 && a->f() != 0` 单表达式）
+    //   在 4.4 产 `test; je; …call; test; je; mov $1; jmp; mov $0; mov %al,槽` 两段岛
+    //   （多 1 je + 2 jmp + 2 mov），槽基亦浅 4。
+    CDungeon* pDungeon = m_battleField.m_pDungeon;
+    bool isTournament = false;
+    if (pDungeon != 0)
+    {
+        isTournament = pDungeon->isTournamentDungeon();
+    }
     if (slot < 1)
     {
         // P167：ORIG 两分支各一次完整邮件块（findString-155 + find_item +

@@ -78,12 +78,13 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
         const int itemCountField = q->m_itemCount;       // +0x20
         const int featuredIdxReq = q->m_featuredIdx;     // +0x28
         const unsigned int productNo = q->m_productNo;   // +0x00
-        // +0x08 起 8 字节镜像装载：低 32 位 m_itemIdx，bit32..47 为 m_stackCount
-        // （ORIG C 整读 ulong；其后消费仅用低 32 位物品号）。
-        const unsigned long long itemIdx64 =
-            static_cast<unsigned long long>(
-                static_cast<unsigned int>(q->m_itemIdx)) |
-            (static_cast<unsigned long long>(q->m_stackCount) << 32);
+        // [R17a15 形态修复·ORIG 直证] ORIG 0x08321fa3/0x08321faf 为两条独立装载
+        //   （`mov 0x8(%eax),%eax` int → -0x80 槽；`movzwl 0xc(%eax); mov %ax,-0x7c`
+        //   ushort → -0x7c 槽），**无** or/64 位构造；全部消费点只取低 32 位
+        //   （唯一 64 位形参 _processAdditionalItem 第 2 参是 `unsigned long`，ORIG
+        //   调用点 0x08322bca `mov -0x80(%ebp),%eax; mov %eax,0x8(%esp)` 只传 4 字节）
+        //   ⇒ 原码无 64 位局部，删除我方多余的 or 物化。
+        const int itemIdx = q->m_itemIdx;                    // +0x08
         const unsigned short stackCount = q->m_stackCount;   // +0x0c
         const unsigned char avatarSelB = q->m_avatarType0;   // +0x2c
         const unsigned char avatarSelA = q->m_avatarType1;   // +0x2d
@@ -143,7 +144,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
             {
                 if (buyFlag == 1)
                 {
-                    _processAvatarGift(user, static_cast<int>(itemIdx64), featuredIdxReq,
+                    _processAvatarGift(user, itemIdx, featuredIdxReq,
                                        static_cast<char>(avatarSelB),
                                        static_cast<char>(avatarSelA),
                                        BufAt(reqData, 0x7d), accIdReq, characNoReq);
@@ -152,7 +153,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                 {
                     CInventory* invW = user->getCurCharacInvenW();
                     insertSlot = invW->AddAvatarItem(
-                        static_cast<int>(itemIdx64), featuredIdxReq, false,
+                        itemIdx, featuredIdxReq, false,
                         static_cast<char>(avatarSelB),
                         static_cast<char>(avatarSelA), BufAt(reqData, 0x7d),
                         eAvatarItemAddReason(0), false, 0);
@@ -165,7 +166,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                             CCeraShopGoods* goods = reinterpret_cast<CCeraShopGoods*>(
                                 G_CDataManager()->FindGoods(groupIdx));
                             CItem* found =
-                                G_CDataManager()->find_item(static_cast<int>(itemIdx64));
+                                G_CDataManager()->find_item(itemIdx);
                             // [R9a15] ORIG 0x08322439 直证：无 goods/found 判空，
                             // 直接 `mov -0x48(%ebp),%eax; call GetSticker`（我方旧稿多
                             // 两级短路守卫 + bool 归一岛，属 §14 #33「ORIG 无守卫我方有」）。
@@ -183,7 +184,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                             4, "game_server_msg_104", 0);
                         CMailBoxHelper::ReqDBSendNewAvatarMail(
                             user, user->getCurCharacNo(),
-                            static_cast<int>(itemIdx64), featuredIdxReq,
+                            itemIdx, featuredIdxReq,
                             static_cast<char>(avatarSelB),
                             static_cast<char>(avatarSelA), BufAt(reqData, 0x7d),
                             errMsg, static_cast<int>(strlen(errMsg)));
@@ -204,12 +205,12 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
             else if (groupIdx == 2 || groupIdx == 7 || groupIdx == 9)
             {
                 slotKind = 1;
-                CItem* src = G_CDataManager()->find_item(static_cast<int>(itemIdx64));
+                CItem* src = G_CDataManager()->find_item(itemIdx);
                 Inven_Item item;
                 if (src != 0)
                 {
                     src->make_item(item);     // ORIG vtable slot2（make_item 填 Inven_Item）
-                    item.m_addInfo = static_cast<int>(itemIdx64 & 0xffffffffu);
+                    item.m_addInfo = itemIdx;
                     item.m_fieldb = stackCount;
                 }
                 if (buyFlag == 1)
@@ -225,7 +226,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
             else if (groupIdx == 4)
             {
                 slotKind = 1;
-                CItem* src = G_CDataManager()->find_item(static_cast<int>(itemIdx64));
+                CItem* src = G_CDataManager()->find_item(itemIdx);
                 if (src == 0)
                 {
                     success = false;
@@ -234,10 +235,10 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                 {
                     Inven_Item item;
                     src->make_item(item);
-                    item.m_addInfo = static_cast<int>(itemIdx64 & 0xffffffffu);
+                    item.m_addInfo = itemIdx;
                     item.m_fieldb = stackCount;
                     const bool okSpecial = ProcessSpecialItem(
-                        user, static_cast<int>(itemIdx64), featuredIdxReq, restrictCode,
+                        user, itemIdx, featuredIdxReq, restrictCode,
                         curSec, false, resultItems, itemParam, '\0', '\0', false, 1);
                     if (!okSpecial)
                     {
@@ -259,12 +260,12 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
             }
             else if (groupIdx == 3)
             {
-                CItem* src = G_CDataManager()->find_item(static_cast<int>(itemIdx64));
+                CItem* src = G_CDataManager()->find_item(itemIdx);
                 Inven_Item item;
                 if (src != 0)
                 {
                     src->make_item(item);
-                    item.m_addInfo = static_cast<int>(itemIdx64 & 0xffffffffu);
+                    item.m_addInfo = itemIdx;
                     item.m_fieldb = stackCount;
                     if (buyFlag == 1)
                     {
@@ -285,10 +286,10 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
             }
             else if (groupIdx == 10)
             {
-                _processAdditionalItem(user, itemIdx64, stackCount, avatarSelB,
+                _processAdditionalItem(user, static_cast<unsigned long>(itemIdx), stackCount, avatarSelB,
                                        avatarSelA, resultItems, itemParam, '\0');
                 int followGroup = -1;
-                CItem* pkg = G_CDataManager()->find_item(static_cast<int>(itemIdx64));
+                CItem* pkg = G_CDataManager()->find_item(itemIdx);
                 if (pkg != 0 && pkg->isCerashopPackageItem())
                 {
                     followGroup = 7;

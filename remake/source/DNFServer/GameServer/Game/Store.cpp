@@ -60,8 +60,10 @@ extern CDeathTowerValueStatistic* GetInstanceDeathTowerValueStatistic()
 #include "Store/SendDeathTowerValueStatistic.inc"
 
 
-// 修理价格系数（由 InitEquipmentScript 从脚本加载）
-static float g_repairRate = 0.0f;
+// 修理价格系数 itemRepairCost_：ORIG B 0x94f7c08（float）。
+// 定义 InitScriptProducers_4.cpp:91；写点 = InitEquipmentScript 的
+// `[repair cost]` → ScanFloat（与 ORIG 0x89917af fstps 同构）。
+extern float itemRepairCost_;
 
 #include "Store/getEquipmentRepairPrice.inc"
 

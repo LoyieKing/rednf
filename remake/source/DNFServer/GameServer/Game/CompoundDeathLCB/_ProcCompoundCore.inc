@@ -64,7 +64,36 @@ ENUM_ERROR CCompoundAvatar::_ProcCompoundCore(CUser* user, stCompoundAvatarInfo&
                 resultIdx = getItemIndex(rec->m_optsC[subType], r);  // +0x194
             }
             if (resultIdx < 1)
+            {
                 weight = rec->m_a[subType];                    // +0x004 兜底权重
+            }
+            else
+            {
+                // [R17a09 2026-09-12 · ④ 真语义差修复] ORIG 的「find_item +
+                // IsAvatarItem + slot 重选」段位于**本 else 分支内**（ORIG 0x0833309e
+                // 段直证：`call find_item; mov %eax,-0x30; cmpl $0,-0x30; je <return1>`
+                // → 虚调用 `call *%edx`（vptr+0x10）→ `mov -0x30,%eax; mov %eax,-0x2c;
+                // cmpl $0,-0x2c; jne <slot>` → `getAvatarOptionSize/get_rand_int/
+                // mov %dx,0xd4` + `cmp $0x63; jbe` 清零；Ghidra C 同段为
+                // `if (local_4c < 1) { local_3c = m_a; } else { p = find_item(local_4c);
+                //  if (p == 0 || !virt(p)) return 1; local_30 = p; if (p == 0) return 1;
+                //  slot = get_rand_int(p->getAvatarOptionSize()); clamp; }`）。
+                // 旧稿把该段并入函数尾的 `resultIdx != 0 && find_item != 0` 块 ⇒
+                // 路径「初始 resultIdx < 1 且后续③/②得非 0 结果」时会**多赋 slot**、
+                // 在非 avatar item 上**多一次 return 1**，与 ORIG 可观察行为分叉。
+                // 现按 ORIG 位置与次序照抄（含 `p2 == 0` 死检查 = ORIG 原码缺陷）。
+                CEquipItem* pItem = reinterpret_cast<CEquipItem*>(
+                    G_CDataManager()->find_item(resultIdx));
+                if (pItem == 0 || !CI_IsAvatarItem(pItem))
+                    return static_cast<ENUM_ERROR>(1);
+                CEquipItem* pItem2 = pItem;                    // ORIG local_30 (-0x2c)
+                if (pItem2 == 0)
+                    return static_cast<ENUM_ERROR>(1);
+                info.m_slot = static_cast<unsigned short>(get_rand_int(
+                    pItem2->getAvatarOptionSize()));
+                if (info.m_slot > 99)
+                    info.m_slot = 0;
+            }
         }
         else
         {
@@ -128,23 +157,11 @@ ENUM_ERROR CCompoundAvatar::_ProcCompoundCore(CUser* user, stCompoundAvatarInfo&
     if (resultIdx != 0 && G_CDataManager()->find_item(resultIdx) != 0)
     {
         // ---- 成功路径：删两件材料 ----
-        CItem* item = G_CDataManager()->find_item(resultIdx);
-        // [R5a09 2026-09-12 · ⑤④] ORIG 0x083330c0 `add $0x10,%eax` + 0x083330cb
-        // `call *%edx`（对象 = find_item(resultIdx) 结果；Ghidra C 段
-        // `(**(code **)(*(int *)local_34 + 0x10))(local_34)`）⇒ 槽 vptr+0x10 =
-        // CEquipItem::IsAvatarItem（_ZTV10CEquipItem @0x08c96e20，vtable+0x18 =
-        // 0x08514d46 nm 实证）；旧稿误按 +0x14 调 IsCreatureItem（0x08514d72）
-        // ⇒ 与 ORIG 调用了不同虚函数，已改回。已核两侧 _ZTV10CEquipItem 逐槽一致
-        // （+0x10=IsAvatarItem / +0x14=IsCreatureItem）⇒ 非头布局差。
-        // 本 TU 风格：槽偏移显式（见 CompoundDeathLCB.cpp 的 CI_VCALL 说明）。
-        if (!CI_IsAvatarItem(item))
-            return static_cast<ENUM_ERROR>(1);
-        // ORIG 0x083330ec：槽位由目标 item 的 avatar option size 随机重选，
-        // 且 >0x63(99) 时清零（覆盖客户端传入 slot）。
-        info.m_slot = static_cast<unsigned short>(get_rand_int(
-            reinterpret_cast<CEquipItem*>(item)->getAvatarOptionSize()));
-        if (info.m_slot > 99)
-            info.m_slot = 0;
+        // [R17a09 2026-09-12 · ⑤④] 本块**只做存在性检查 + 删材料**：ORIG 0x083332be
+        // 段直证 `cmpl $0,-0x48; je <return1>; call find_item; test %eax; jne <body>`
+        // （无取指针、无 virtual 调用、无 slot 写；取指针/IsAvatarItem/slot 段在
+        // 上方 `resultIdx < 1` 的 else 分支内，见该处注释）。旧稿在本块内二次
+        // `find_item` + `IsAvatarItem` + slot 重选 = 结构错位（已移出）。
         // [g06 2026-09-11 · Main 批准：真语义缺口修正] ORIG 为**两处独立早返**（反汇编
         //   实证 `call; xor $1; test %al,%al; je <next>; mov $0x16,%eax; jmp <epilogue>`
         //   ×2）⇒ `delete_item` 失败时 ORIG 返回 **0x16**，旧稿经 `&&` 链落到函数尾

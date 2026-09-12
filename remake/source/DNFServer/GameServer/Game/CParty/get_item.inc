@@ -183,7 +183,12 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                     bonusGold += over;
                     gain += over;
                 }
-                if (mi.m_count != 0)
+                // [R17a10 ④] ORIG 守卫为**两个合取项**：0x085a43b9 `movzbl -0x2bc`
+                //   (=mi.m_count) + 0x085a43c8 `cmpl $0x0,-0xa4(%ebp)`(=gainBase)
+                //   两跳同落 +0x99f ⇒ 源码 `mi.m_count != 0 && gainBase > 0`。
+                //   旧写仅 `mi.m_count != 0`：gainBase<=0 时我方仍执行本块
+                //   （多发 GetInvenSlot(0,11)/加成包）。
+                if (mi.m_count != 0 && gainBase > 0)
                 {
                     Inven_Item pet1 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 11);
                     int pct = 0;
@@ -206,7 +211,10 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                     Inven_Item pet2 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 19);
                     if (pet2.m_addInfo == 0x5e7f)
                     {
-                        int extra = (int)(2.5 * (double)gainBase);
+                        // [R17a10 ④] ORIG 0x085a45b2 `fildl v; fldl 0x8cbbbe0; fmulp`
+                        // = (double)v * 0.1（0x8cbbbe0 raw = 9a 99 99 99 99 99 b9 3f = 0.1）
+                        // 旧写 2.5 使该分支额外金币/gain 放大 25 倍（真语义 bug）。
+                        int extra = (int)(0.1 * (double)gainBase);
                         bonusGold += extra;
                         gain += extra;
                     }
@@ -368,7 +376,9 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                     bonusGold += over;
                     gain += over;
                 }
-                if (mi.m_count != 0)
+                // [R17a10 ④] 第二处同形合取项（ORIG 0x085a4537 `movzbl -0x2bc`;
+                //   0x085a4546 `cmpl $0x0,-0xa4(%ebp)`; 两跳同落 +0xa59）。
+                if (mi.m_count != 0 && gainBase > 0)
                 {
                     Inven_Item pet1 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 11);
                     int pct = 0;
@@ -391,7 +401,9 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                     Inven_Item pet2 = m_member[i].m_pUser->getCurCharacInvenR()->GetInvenSlot(0, 19);
                     if (pet2.m_addInfo == 0x5e7f)
                     {
-                        int extra = (int)(2.5 * (double)gainBase);
+                        // [R17a10 ④] 同第一处：ORIG 0x085a504d `fldl 0x8cbbbe0`(=0.1)，
+                        // 非 2.5。
+                        int extra = (int)(0.1 * (double)gainBase);
                         bonusGold += extra;
                         gain += extra;
                     }
@@ -523,8 +535,20 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
     // ORIG 0x085a563b 区：史诗路由物品先经 CSpecialItemRoutingManager::StartRouting
     // 起路由；成功(返回 0)即消费返回 1，失败(返回码≠0)发 0x2e 错误包返回 0。
     // （Ghidra C 未渲染此块，按汇编 + CBossStage::RoutingPickupItem 权威模板转写。）
-    item->get_rarity();   // ORIG 0x085a5631：路由判定前独立取稀有度(Ghidra C 3199 实证)
-    if (item->IsRoutingItem())
+    // [R17 ④ 热补复刻] ORIG 0x085a56ce `cmp $0x4,%eax`（raw 83 f8 04）+ 0x085a56d1
+    // raw `eb 16`（**无条件** jmp 0x085a56e9；原字节应为 `74 16`=je）⇒ 比较后恒跳
+    // `mov $0x0,%eax`（判定 b 恒 0）；IsRoutingItem 调用点 0x085a56d9 与主线
+    // 0x085a56f6..0x085a57c8（含 StartRouting 0x085a572e）**恒不可达**
+    // （Ghidra C 同证：`/* WARNING: Removing unreachable block (ram,0x085a56f6) */` 等三处）。
+    // 依 P337：恒 0 `volatile bool` 守卫强制发射该段并与 ORIG 同形；不删块结构。
+    char routingChecked = 0;                 // 判定 b：热补后恒 0（ORIG `mov $0x0,%eax`）
+    volatile bool routingHotfix = false;     // ORIG 0x085a56d1 热补等效：恒 0，读不可折叠
+    if (item->get_rarity() != 4)             // ORIG 0x085a56c9 call + 0x085a56ce cmp $4
+    {
+        if (routingHotfix)                   // 恒假 ⇒ 下列调用与主线恒不可达
+            routingChecked = item->IsRoutingItem();   // ORIG 0x085a56d9（热补后无入口）
+    }
+    if (routingChecked)
     {
         CSpecialItemRoutingManager* mgr =
             G_CGameManager()->GetSpecialItemRoutingManager();

@@ -1,6 +1,6 @@
 int CDataManager::IsDBLogItem(unsigned int itemIdx)
 {
-    int cur = g_systemTimeInst.getCurSec();
+    int cur = GlobalData::s_systemTime_.getCurSec();
     for (std::vector<stDBLogItem>::const_iterator it = m_dbLogItems.begin();
          it != m_dbLogItems.end(); it++)
     {

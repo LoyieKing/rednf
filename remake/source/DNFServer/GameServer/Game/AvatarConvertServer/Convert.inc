@@ -121,9 +121,15 @@ bool AvatarConvertServer::Convert(CUser* user,
             uiId, (unsigned int)user->getCurCharacNo());
         return false;
     }
+    // [R17a19 2026-09-13 · ④ 实参序修正] ORIG 0x08192b2c 段压参实证：
+    //   0x14(%esp)=0(e)、0x10(%esp)=%ebx(sig->m_slot+10 ⇒ **d**)、
+    //   0xc(%esp)=$0x5(**c**)、0x8(%esp)=uiId(b)、0x4(%esp)=0x36(a)。
+    //   SendAvatarEvent case 0x36（CInventory/SendAvatarEvent.inc）：m_itId=c /
+    //   m_slot=(char)d ⇒ 旧形把两者互换（协议字段 itId/slot 错位）。同族调用点
+    //   （deleteAvatarItem/process_recipe_avatar_items 等）亦为 (0x36, uid, 5, slot+10, 0)。
     user->getCurCharacInvenW()->SendAvatarEvent(0x36, (int)uiId,
-                                                (int)(unsigned short)sig->m_slot + 10,
-                                                5, 0);
+                                                5,
+                                                (int)(unsigned short)sig->m_slot + 10, 0);
     // [L3-b 串轴] ORIG 0x08192ca5 立即数 0x8b9a913（.rodata 空串 ""）⇒
     // makeRequest 第3参是空串，非 "AVATAR CONVERT"（原实现发明串）。
     DB_UpdateAvatarHistory::makeRequest(user->getCurCharacNo(), (int)uiId,

@@ -6,7 +6,7 @@ int getEquipmentRepairPrice(int baseCost, int curEndurance, int maxEndurance,
 
     float price = 0;
     price = (float)(((growthGrade + 5) * baseCost) / 10)
-            * g_repairRate / (float)maxEndurance * (float)(maxEndurance - curEndurance);
+            * itemRepairCost_ / (float)maxEndurance * (float)(maxEndurance - curEndurance);
     price *= rate;
     return (int)price;
 }

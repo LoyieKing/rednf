@@ -30,13 +30,17 @@ int CDisjointer::complete_disjoint(CUser* requestUser, PacketGuard& packet)
         get_rand_int(GetScript()->m_gainExp2 - GetScript()->m_gainExp1 + 1) +
         GetScript()->m_gainExp1;
 
-    // ORIG 0x85d328d 用 getCurCharacInvenR()（const 版）取背包。
+    // [R17a14 2026-09-13 P0/P183/P329] ORIG 0x85d3287..0x85d3292：`mov 0xc(%ebp),%eax;
+    //   mov %eax,(%esp); call getCurCharacInvenR; mov %eax,-0x10(%ebp)` —— inven 为**具名
+    //   局部**（槽 -0x10）且在 additionalExp 构造（0x85d329b）**之前**求值；
+    //   0x85d32a6..0x85d32d9 三个实参**均无具名槽**（exp 结果 `mov %eax,0x4(%esp)` 直压作
+    //   GetCurExpertJobLevel 实参、level 结果留 %ebx、type 结果直压 0x4(%esp)）⇒ 内联实参链。
+    const CInventory* inven = requestUser->getCurCharacInvenR();
     STItemScript::SEXPERTJOB::stExpertJobAdditionalExp additionalExp;
-    int jobExp = requestUser->GetCurCharacExpertJobExp();
-    int jobLevel = requestUser->GetCurExpertJobLevel(jobExp);
-    int jobType = requestUser->GetCurCharacExpertJobType();
-    requestUser->getCurCharacInvenR()->GetExpertJobAddtionalExp(
-        (ENUM_EXPERT_JOB_TYPE)jobType, jobLevel, additionalExp);
+    inven->GetExpertJobAddtionalExp(
+        (ENUM_EXPERT_JOB_TYPE)requestUser->GetCurCharacExpertJobType(),
+        requestUser->GetCurExpertJobLevel(requestUser->GetCurCharacExpertJobExp()),
+        additionalExp);
     if ((float)get_rand_int(100) < additionalExp.m_field0)
         expGain = additionalExp.m_field4 + expGain;
 

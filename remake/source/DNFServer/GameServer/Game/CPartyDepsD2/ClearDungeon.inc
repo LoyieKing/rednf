@@ -244,11 +244,15 @@ void CParty::ClearDungeon()
                 int itemIdx = item.m_addInfo;
                 itemList[i].first = itemIdx;
                 CItem* card = G_CDataManager()->find_item(itemIdx);
-                if (card != 0 && !card->is_stackable())
-                    itemList[i].second = 1;
-                else
+                // R17a18 ④ 修复：ORIG 0x085a9c35..0x085a9c42 为「直调 is_stackable（无判空）
+                // + 可堆叠侧 fall-through 到 m_addInfo2、je 落 second=1 岛」；我方原多出
+                // `card != 0 &&` 合取项 ⇒ 按用户裁定移除（照抄 ORIG 缺陷），并写正向 if 以复现
+                // ORIG 的 `test %al,%al; je <second=1>` 形态（无 xor 物化）。
+                if (card->is_stackable())
                     // ORIG 1315 段直接读字段 +0x07（m_addInfo2），无 get_add_info call
                     itemList[i].second = item.m_addInfo2;
+                else
+                    itemList[i].second = 1;
             }
             bf(this).m_todReward.m_todMap = itemList;
             if (bf(this).m_todReward.m_todPos.first != -1)

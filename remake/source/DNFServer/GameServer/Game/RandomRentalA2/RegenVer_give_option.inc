@@ -103,6 +103,11 @@ bool CRandomOptionItemHandle::RegenVer_give_option(
     std::vector<OptionGroup> groupVec = ogIt->second.m_vec0;
     // [Lane13 视图 cast 反模式] 同 give_option：字节视图 → 权威头具名字段直访问。
 
+    // [R17a08 2026-09-13 P0/§23 循环不变量] ORIG 的 iterator 默认构造
+    // （`_ZN9__gnu_cxx17__normal_iteratorIP11OptionGroup...C1Ev` @0x085f202d）
+    // 发射在 for-init（`movl $0x0,-0xc`）**之前** = 循环外；我方原先声明在
+    // if 块内 ⇒ C1Ev 落在回边覆盖区内（每轮发射点不同）。声明上提后与 ORIG 同点。
+    std::vector<OptionGroup>::iterator victim;
     for (int slotI = 0; slotI < quantity && slotI <= 2; ++slotI)
     {
         unsigned long bound = (unsigned long)remaining;
@@ -115,7 +120,6 @@ bool CRandomOptionItemHandle::RegenVer_give_option(
                 .get_value();
         if (sel < groupVec.size())
         {
-            std::vector<OptionGroup>::iterator victim;
             victim = groupVec.begin() + sel;
             // [K2ERandomBoss 2026-09-11] P167 同 give_option：ORIG 同一 victim
             // 解引用两次（deEv×2）、无 `vector::ixEj`。

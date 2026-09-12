@@ -44,7 +44,9 @@ namespace
 // ORIG 布局断言：AuctionNeedInfo 0x28（put_binary 长度；trans1.m_tranNo 落在
 // +0x14、trans2.m_tranNo 落在 +0x20，与 BillingSuccess/Fail 读参偏移一致）。
 typedef char (*AuctionNeedInfoSizeAssert)[sizeof(ItemVendingMachine::AuctionNeedInfo) == 0x28 ? 1 : -1];
-AuctionNeedInfoSizeAssert g_auctionNeedInfoSizeAssert = 0;
+// [R17fixAS 2026-09-13] ORIG `nm` 无 g_auctionNeedInfoSizeAssert 符号（全库仅此一处
+// 使用该 typedef）⇒ 删除变量定义以消 only-NEW 符号；断言本体保留在 typedef 中
+// （sizeof != 0x28 时数组长度为 -1，编译期即失败）。该变量无任何读/写点，删除零运行期语义影响。
 
 // ============================================================================
 // W8_LongTail 批次 5 符号（ItemVendingMachine.h 声明；ORIG objdump 逐指令核对，
