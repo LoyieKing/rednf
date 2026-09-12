@@ -230,9 +230,14 @@ bool CBossStage::consistMap(const CMap* map)
             if (m_dungeon->get_standard_level() <= 0 ||
                 m_dungeon->get_standard_level() > 200)
             {
-                // ORIG 该路径不推进迭代器直接回到循环判定——标准等级恒在域内
-                // 时不可达；为防重建服务死循环改为跳过并注释差异。
-                ++it;
+                // [2026-09-12 用户裁定：**完全复刻 ORIG 逻辑（即使是错误逻辑）**]
+                // ORIG 0x0814ca0f `mov $0x1,%eax; jmp 0x0814ca1b` → `test %al,%al;
+                // jne 0x0814cc86`（索引 811 = 循环判定块 `end(); _List_const_iterator::ne`）
+                // ⇒ 该路径【不推进迭代器】直接回到循环判定 ⇒ 标准等级 ≤0 或 >200 时
+                // 同元素重跑（**ORIG 自身在此域外输入下不前进/不终止**）。
+                // 此处照抄 ORIG：**不写 ++it**（本循环的 ++it 位于循环体末尾）。
+                // 域内输入（1..200）不触发该分支；脚本侧 mv_ac 无 clamp，含域外值即
+                // 与 ORIG 同步不终止（复刻优先，安全阈值由运维侧脚本校验保证）。
                 continue;
             }
             genLevel =
