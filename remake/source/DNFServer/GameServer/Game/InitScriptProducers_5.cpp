@@ -34,7 +34,7 @@ extern char g_itemShopScriptBaseDirectory[0x100];    // B 0x094fe160  CItemShop.
 extern STScriptFileList g_itemShopScriptFileList;    // B 0x094fe260  CItemShop.cpp
 extern char g_PvpMissionScriptBaseDirectory[0x100];  // B 0x09500100  PvP_MissionSystem.cpp
 extern STScriptFileList g_PvpMissionScriptFileList;  // B 0x09500200  PvP_MissionSystem.cpp
-extern char g_creatureScriptBaseDirectory[0x104];    // B 0x094ff4e0  CreatureScript.cpp
+extern char g_creatureScriptBaseDirectory[0x100];    // B 0x094ff4e0 size 0x100  CreatureScript.cpp
 // g_creatureScriptFileList 权威型 STScriptFileList（CreatureScript.h:285；B 0x094ff5e0）
 extern char g_ChattingEmoticonScriptBaseDirectory[0x100];    // B 0x094f6bc0  CChattingEmoticonList.cpp
 extern STScriptFileList g_ChattingEmoticonScriptFileList;    // B 0x094f6cc0  CChattingEmoticonList.cpp（本批正为对象模型）

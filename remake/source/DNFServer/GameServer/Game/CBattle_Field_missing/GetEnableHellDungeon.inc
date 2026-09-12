@@ -5,6 +5,9 @@ bool* CBattle_Field::GetEnableHellDungeon()
 {
     // mov $0x93701ec,%eax; ret（POD 无 guard 的函数局部
     // static，V 符号 _ZZN13CBattle_Field20GetEnableHellDungeonEvE19enable_hell_dungeon）。
-    static bool enable_hell_dungeon;
+    // [R21scanEC §27.1 静态初值族] ORIG .data/PROGBITS 0x93701ec = `01`（raw 读，
+    // 文件偏移 0x13281ec）⇒ 原码初值 **true**；旧无初值形落 .bss（false）⇒
+    // 未 Set 时 IsEnableHellDungeon 默认值与 ORIG 分叉。
+    static bool enable_hell_dungeon = true;   // ORIG V 0x93701ec = 0x01
     return &enable_hell_dungeon;
 }

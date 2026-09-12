@@ -23,8 +23,11 @@ public:
     // m_nCurEventInterval 0x943c144）——GetExpRate/AddExpRate/SubExpRate/
     // TurnOnEvent/TurnOffEvent/GetEventInterval 逐指令转写自 ORIG。
     static int m_nExpRate;
-    static int m_nCurEvent[0x100];
-    static int m_nCurEventInterval[0x100];
+    // [R21scanEC §27.3] ORIG nm -S：m_nCurEvent 0x943c13c size 0x8（+8=0x943c144）、
+    // m_nCurEventInterval 0x943c144 size 0x8（+8=0x943c14c=CMapList::mapPvpMapInfo_ 闭合）
+    // ⇒ 原声明是 int[2]（旧 [0x100] 系 4× 超配）。
+    static int m_nCurEvent[2];
+    static int m_nCurEventInterval[2];
 };
 
 #endif  // DNF_GAME_CSERVEREVENT_H_

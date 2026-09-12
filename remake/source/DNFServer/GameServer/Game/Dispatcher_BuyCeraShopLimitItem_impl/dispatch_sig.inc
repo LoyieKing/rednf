@@ -138,11 +138,14 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
         }
 
         // ---- CCeraShop 购买条件（ORIG 参数映射）----
-        int ok = GlobalData::s_pCeraShop->checkBuyingCondition(
-            user, ipgNo, (unsigned long)edition->getRelateditem(),
-            (unsigned int)edition->getRelatedItemCnt(),
-            (unsigned short)avatarTypeSel, subCount, (unsigned short)avatarTypeSel);
-        if (!ok) throw (ENUM_ERROR)7;
+        // [R21bool/T1] P0+P354：ORIG 0x08220290 `call; xor $0x1,%eax; test %al,%al;
+        // je 0x082202c3`（无 int 局部槽往返、取反直判；callee 已 bool）⇒ 删 `int ok`
+        // 局部、调用内联进 if（语义不变：ok==0 时 throw）。
+        if (!GlobalData::s_pCeraShop->checkBuyingCondition(
+                user, ipgNo, (unsigned long)edition->getRelateditem(),
+                (unsigned int)edition->getRelatedItemCnt(),
+                (unsigned short)avatarTypeSel, subCount, (unsigned short)avatarTypeSel))
+            throw (ENUM_ERROR)7;
 
         // ---- 限制/特供道具 ----
         // ORIG：local_2c(=restrictCode) 初始化为 featuredIdx；featuredIdx==0 时 IsSpecialItem

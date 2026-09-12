@@ -324,7 +324,10 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int checkComboSkillIndex(short idx);   // ORIG 0x0825f292
+    // [R21bool/T1] int→bool：ORIG 调用点 0x0825f0ac `call; xor $0x1,%eax;
+    // test %al,%al; jne`（P292 无 setne）；定义体 0x0825f2f0 岛 `mov $0,%eax`
+    // + 命中路径 `mov $1,%eax` ⇒ 值域 {0,1}；mangled 不变。
+    bool checkComboSkillIndex(short idx);   // ORIG 0x0825f292
 };
 
 class Dispatcher_GM_Command : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>

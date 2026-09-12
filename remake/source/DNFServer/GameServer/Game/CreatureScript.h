@@ -300,7 +300,9 @@ public:
 // 均按 map 语义访问，故此处直接声明为 std::map<int,std::string>（0x18B，
 // 与 STScriptFileList 布局一致），避免跨头 class/struct 声明冲突。
 extern STScriptFileList g_creatureScriptFileList;   // b28d-Main：ORIG 真型 STScriptFileList（+0x00 即 map<int,string>；探针 66/66）
-extern char g_creatureScriptBaseDirectory[0x104];
+// [R21scanEC §27.3] ORIG nm -S：0x94ff4e0 **size 0x100**（+0x100=0x94ff5e0=
+// g_creatureScriptFileList 闭合）⇒ 旧 [0x104] 超配 4 字节。
+extern char g_creatureScriptBaseDirectory[0x100];
 
 // ---- 解析函数（ORIG T）----
 bool importCreatureScript(CreatureScript* script, const char* path);

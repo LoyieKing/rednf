@@ -99,10 +99,14 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.put_byte(garena->getMobileAuth() ? 1 : 0);
     }
     packet.put_byte(user->GetAge());
-    packet.put_byte(user->IsPCRoomUser() ? 1 : 0);
+    // [R21scanTYP §27.2 类型轴] ORIG 0x084c82a0 `call; movzbl %al,%eax` 直传入参槽
+    //   （callee 恒返 0 ⇒ 删归一化无语义风险；形态对齐 ORIG 直传）。
+    packet.put_byte(user->IsPCRoomUser());
     packet.put_byte(G_GameWorld()->GetChannelType());
     packet.put_byte(G_CDataManager()->GetUpgradeRevisionPvPChannel());
-    packet.put_byte(user->isTournamentAccount() ? 1 : 0);
+    // ORIG 0x084c8301 `call; movzbl %al,%eax`（直传；字段只经 setTournamentAccount(bool)
+    // 与 false 写 ⇒ 值域 {0,1} ⇒ 删归一化为形态修复）。
+    packet.put_byte(user->isTournamentAccount());
     packet.put_int(user->get_acc_id());
     // P48/P0：ORIG 6 次独立 G_CEnvironment()（strlen/put_str 双臂各一，TCPPort/UDPPort 各一）。
     packet.put_int(strlen(G_CEnvironment()->m_serverEnvir.m_relayIP));
@@ -117,8 +121,10 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_byte(user->getSecurityCard()->isActivate() ? 1 : 0);
     packet.put_byte(user->getSecurityCard()->isCertified() ? 1 : 0);
     packet.put_byte(user->getPad()->getVersionInfo());
-    packet.put_byte(user->getPad()->isCertified() ? 1 : 0);
-    packet.put_byte(user->isRestingUser() ? 1 : 0);
+    // ORIG 0x084c84ad `call; movzbl %al,%eax`（CPad::isCertified 直传；setCertified(bool) ⇒ {0,1}）。
+    packet.put_byte(user->getPad()->isCertified());
+    // ORIG 0x084c84cd `call; movzbl %al,%eax`（isRestingUser 直传；setRestingUserRestrict(bool) ⇒ {0,1}）。
+    packet.put_byte(user->isRestingUser());
 
     unsigned char ipBuf[0x4c];
     memset(ipBuf, 0, 0x4c);                        // ORIG call memset 0x4c（rep stos 内联形≠ORIG）
@@ -175,7 +181,10 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->setAntibotKey(antibotRet);
     }
 
-    packet.put_byte(user->getUserEventCharacterFlag() ? 1 : 0);
+    // [R21scanTYP §27.2 · ④ 真语义差] ORIG 0x084c874e `call; movzbl %al,%eax` 直传**原始字节**；
+    //   字段经 setUserEventCharacterFlag(unsigned char)（包/DB 来源 uchar，值域 [0,255]，可 >1）
+    //   ⇒ 旧码 `? 1 : 0` 把 ≥2 归一为 1，协议字段分叉。删归一化后与 ORIG 同形同值。
+    packet.put_byte(user->getUserEventCharacterFlag());
     packet.put_byte(user->getOnlinePreliminaryPlayType());
     packet.put_byte(online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam());
     packet.put_byte(GlobalData::s_pGMAccounts_->isGM(

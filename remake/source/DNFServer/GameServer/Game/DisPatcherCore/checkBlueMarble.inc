@@ -2,7 +2,8 @@
 // [b28d-29] AE：38=38 全等（同上重定位归一）  (ORIG 0x081c9172 insn 38->39)
 // （checkBlueMarble.md 全文转写）。
 // [b28d-solo-DisPatcherCore] 复核 AE：ORIG 38 / ours 38 insn 全等（AE 口径，重定位归一）。
-int DisPatcher_SelectDungeon::checkBlueMarble(CParty* party)
+// [R21bool/T1] 返回类型 int→bool（声明侧 DisPatcherCore.h 同步）。
+bool DisPatcher_SelectDungeon::checkBlueMarble(CParty* party)
 
 {
     if (party == 0)

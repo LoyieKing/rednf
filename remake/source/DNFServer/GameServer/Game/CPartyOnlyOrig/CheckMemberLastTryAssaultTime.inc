@@ -1,6 +1,7 @@
 // ORIG T 0x085bcab6（CheckMemberLastTryAssaultTime.md）：任一成员 600 秒内
 // 有混沌击杀时间记录即 1（禁止立即组队袭击）。
-int CParty::CheckMemberLastTryAssaultTime()
+// [R21bool/T1] 返回类型 int→bool（声明侧 CParty.h 同步）。
+bool CParty::CheckMemberLastTryAssaultTime()
 {
     for (int i = 0; i <= 3; i++)
     {

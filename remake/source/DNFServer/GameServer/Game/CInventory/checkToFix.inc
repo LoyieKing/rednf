@@ -1,4 +1,5 @@
-int CInventory::checkToFix() const
+// [R21bool/T1] 返回类型 int→bool（声明侧 CInventory.h 同步）。
+bool CInventory::checkToFix() const
 {
     // ORIG 0x8509616：i 单槽 -0xc（两循环复用）；两条件拆双层 if——
     // checkStackableLimit 实参形为 get_add_info 先 call(0x850966a，结果留 %eax

@@ -25,7 +25,12 @@ bool DB_MailBox_Req_Delete::dispatch(int userIdx, int slot, Stream* stream)
     }
     else
     {
-        static char strQuery[0x100];
+        // [R21scanPH §27.3] ORIG `_ZZN21DB_MailBox_Req_Delete8dispatchEiiP6StreamE8strQuery`
+        // nm size = 4098 (0x1002) @0x943c240（.bss），下一符号
+        // `_ZZ24put_compressed_blob_dataP5MySQLiPciPS1_E15compressedLength` @0x943d244 闭合（+2）
+        // ⇒ 原码缓冲为 4098 字节；原 0x100 小于 ORIG ⇒ 复刻 ORIG 的截断/越界语义（getList2inQuery
+        // 用 sprintf 无界追加，缓冲尺寸即行为边界）。
+        static char strQuery[0x1002];
         db->set_query(
             "upDate postal set delete_flag=%d,receive_time=now() where postal_id %s",
             sig->m_type, getList2inQuery(&sig->m_count, strQuery));

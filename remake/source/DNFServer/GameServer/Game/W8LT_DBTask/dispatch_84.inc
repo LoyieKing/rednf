@@ -189,7 +189,10 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Free(guard);
             return 0;
         }
-        int creatureType = 0;
+        // [R21a15 §27.5] ORIG 0x08420b8e 段：`lea -0xe4(%ebp),%eax` 前**无**
+        // `movl $0x0` 清零 ⇒ 原码未初始化（`int creatureType;`）；旧版多写
+        // `= 0` 多发 1 条 `movl $0x0,-N(%ebp)`（用户裁定：照抄 ORIG，含未初始化读）。
+        int creatureType;
         // ORIG 0x08420b8e：`call get_int; xor $0x1,%eax; test %al,%al; je`（内联）。
         if (!db->get_int(6, creatureType))
         {
@@ -200,7 +203,8 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             return 0;
         }
         out->m_flag50 = (unsigned char)creatureType;
-        int noCharge = 0;
+        // [R21a15 §27.5] 同上：ORIG 0x08420c93 `lea -0xe8(%ebp),%eax` 前无清零。
+        int noCharge;
         if (!db->get_int(7, noCharge))
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x577e, 5);

@@ -42,6 +42,11 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
     }
     switch (id)
     {
+    case 0:                     // P163：ORIG 0x0899d093 `test %eax,%eax; je 0x0899d3a2`
+                                // 与 0x0899d099 `cmp $0xf22,%eax; je 0x0899d3a2` **同落**
+                                // 同一叶（叶首 = `movzbl __inited; xor $1; test; je;
+                                // movl $0xf22,…` = case 0xf22 注册链头）⇒ 缺该 case 时
+                                // 注册轮 id=0 落 default（链尾）⇒ __lookup 恒空、find 恒 miss。
     case 0xf22:
         if (!__inited)
         {

@@ -49,8 +49,11 @@ int Dispatcher_CeraPackageOpen::process(CUser* user, MSG_BASE& msg,
     {
         // ---- 构造特殊商品处理入参（ORIG 0x081e7a1c..0x081e7b31 逐指令转写）----
         WongWork::CCeraShop::stCeraShopItemParam_t ceraParam;   // ORIG ctor 0x0817a244
-        const int subCount = (int)(unsigned int)(unsigned char)*(M + 0x10);
-        for (int i = 0; i < subCount; ++i)
+        // [R21-20 2026-09-13 §27.4] ORIG 0x081e7a8c 循环尾 `mov -0x2c(%ebp),%eax;
+        //   movzbl 0x10(%eax),%eax` = 每轮重读 msg+0x10 字段（全函数无具名 count 槽、
+        //   循环体内无该字段写点 ⇒ 字段值恒定但 ORIG 逐轮重读）⇒ 删具名 subCount 缓存，
+        //   循环条件内联表达式（P0：ORIG 无槽往返 ⇒ 原码为内联右值）。
+        for (int i = 0; i < (int)(unsigned int)(unsigned char)M[0x10]; ++i)
         {
             // ORIG pair<int,int> ctor（Rm/Rh）：first=*(ulong*)(M+(i+2)*8+4) 低 32 位，
             // second=*(uchar*)(M+(i+2)*8+8)。显式 pair 构造（非 make_pair）。

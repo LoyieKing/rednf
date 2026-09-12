@@ -240,7 +240,11 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             }
 
             pkt.put_int(GetCurCharacChaosPoint());
-            pkt.put_byte(0xe < GetAge() ? 1 : 0);
+            // [R21-12 ④] ORIG 0x0865be2c 段 = `call GetAge; cmp $0xe,%eax; seta %al;
+            //   movzbl %al,%edx`（**无符号** >）；m_age 为 unsigned int（CUser.h:2465）
+            //   ⇒ 原码为无符号比较。我方原写 `0xe < GetAge()` 生有符号 `jle` + 0 岛，
+            //   m_age=0xffffffff（未设置/越界）时与原码分叉 ⇒ 复刻无符号语义。
+            pkt.put_byte(0xeU < (unsigned int)GetAge());
             pkt.put_byte((int)(char)getPowerSide());
             pkt.put_byte((int)(char)isJoinPowerWar());
             pkt.put_byte(GetCurCharacExpertJobType());

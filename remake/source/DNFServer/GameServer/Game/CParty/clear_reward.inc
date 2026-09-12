@@ -152,9 +152,13 @@ void CParty::clear_reward(int param)
     {
         if (_checkValidUser(i))
         {
-            ServiceRestrictManager* restrictMgr =
-                ARAD::Singleton<ServiceRestrictManager>::Get();
-            if (restrictMgr->isRestricted(RestrictCategory::Enum_3, 1))
+            // [R21-07 形态修复] ORIG 0x085ae63d/0x085ae649 无 receiver 具名槽
+            // （`call ARAD::Singleton<ServiceRestrictManager>::Get; movl $1,0x8(%esp);
+            // movl $3,0x4(%esp); mov %eax,(%esp); call isRestricted`）⇒ 原码为链式
+            // 调用（P356/P183）；旧具名局部多发 `mov %eax,-0x150(%ebp)` +
+            // `mov -0x150(%ebp),%eax` 两条 ⇒ 移除。
+            if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+                    RestrictCategory::Enum_3, 1))
             {
                 minStdDropRate =
                     std::min(m_member[i].m_pUser->getStdDropRate(), minStdDropRate);
@@ -266,9 +270,9 @@ void CParty::clear_reward(int param)
         user->reset_guild_temp_exp();
 
         {
-            ServiceRestrictManager* restrictMgr =
-                ARAD::Singleton<ServiceRestrictManager>::Get();
-            if (restrictMgr->isRestricted(RestrictCategory::Enum_3, 1))
+            // [R21-07 形态修复] 同第一处：ORIG 为链式调用（无 receiver 具名槽）。
+            if (ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+                    RestrictCategory::Enum_3, 1))
             {
                 ref.m_dropRate = user->getStdDropRate();
             }

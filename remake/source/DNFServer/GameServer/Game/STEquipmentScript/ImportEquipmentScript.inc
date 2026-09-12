@@ -55,6 +55,22 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
     //      独立 `xor $1; test; jne <nop 岛>`（0899c97b/0899c97e）。拆双 goto 后物化消除
     //      且四数不变，但 4.4 恒产 `je <fall>; jmp <岛>`（两跳、两守卫共岛）≠ ORIG 单跳，
     //      §16.3 闸门③不达标 ⇒ 已回滚（保留原 `&&` 写法）。
+    // [R21a00 2026-09-13 桶 r21_00 独立复核 · §27.5 形态修复 ×2（全轴复核判 EQUAL）]
+    //   ① cnt[4] → 4 个独立具名标量 cnt0..cnt3（ORIG 全函数取址为 4 条单 lea
+    //      `lea -0x108c/-0x1088/-0x1094/-0x1090(%ebp),%eax`（0x08994dd4/0x08994dde/
+    //      0x08994e09/0x08994e13），从无 `add $K`；数组形多 3 条 add）。改后 .o 该处
+    //      4 条单 lea 逐条命中 + 清零点顺序（-0x1088→-0x108c→-0x1090→-0x1094）与 ORIG 一致。
+    //   ② modOut[2] → modOut0/modOut1 两个独立标量（ORIG 0x0899c93e/0x0899c948 两条单 lea）。
+    //   两处合计消除 4 条 `add $0x4/0x8/0xc,%eax`：函数内 add $0x4 6→5 / $0x8 4=4 / $0xc 3=3
+    //      （ORIG 5/4/3）；本函数 size 0xb268→0xb25c（-12B = 4×3B）。
+    //   四闸门：① 备份 /tmp/verify357/R21a00/bak/（pre/pre2，md5 校验）；
+    //   ② A/B 四数 710/1440/2/6/464 逐值零劣化（o/o2/o3 三次编译同值）；
+    //   ③ 新 .o 同形（上列 lea/add 计数逐值等于 ORIG）；④ `nm -S --defined-only`
+    //      2691=2691 逐名零差、仅本函数 size 变化（其余符号仅段内地址前移）。
+    //   复核结论：p167 1292=1292（差集纯 C1↔C2/D1↔D2 别名镜像 P93）；rodata 串 231=231
+    //      raw 逐项相等；非栈写点 106=106、读点 20=20、.text 函数地址 6=6、数据立即数
+    //      242=242；前向 jcc 分类 je 571/568、其余逐类相等（差 3 = 3 处 P354 极性族）；
+    //      残差全部落 N82/N127（帧 0x19fc vs 0x1a1c）+ P75/P211/P223/P354 形态族。
     // 声明顺序 = ORIG prologue 构造/初始化执行顺序（帧槽位由声明序决定，
     // 注释内为 ORIG %ebp 槽位，报告 0x08991b00-0x08991d8b）：
     std::string tmp;                       // ORIG -0x106c（各 case 第一读取暂存）
@@ -67,11 +83,19 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
     int normalLayerId = 0;                 // ORIG -0xb0
     std::string normalPath("");            // ORIG -0x1084（string("") 带 allocator 形参）
     int curJob = 0xb;                      // ORIG -0xac（0xb = 全职业缺省）
-    int cnt[4];                            // ORIG -0x1088..-0x1094（参数解析器计数输出）
-    cnt[0] = 0;
-    cnt[1] = 0;
-    cnt[2] = 0;
-    cnt[3] = 0;
+    // [R21a00 §27.5 形态修复] ORIG 是 4 个**独立具名标量**（非数组）：其取址一律单条
+    // `lea -0x108c/-0x1088/-0x1094/-0x1090(%ebp),%eax`（ORIG 0x08994dd4 / 0x08994dde /
+    // 0x08994e09 / 0x08994e13），全函数无 `add $K` 偏移形；数组形必生 `lea 基址; add $K`
+    // （ORIG 0x08994dd4 段 vs 我方旧 `lea -0x1094; add $0x8`）。ORIG 槽序：
+    // cnt0@-0x1094 / cnt1@-0x1090 / cnt2@-0x108c / cnt3@-0x1088（清零点索引 50..53）。
+    int cnt0;                              // ORIG -0x1094（参数解析器计数输出）
+    int cnt1;                              // ORIG -0x1090
+    int cnt2;                              // ORIG -0x108c
+    int cnt3;                              // ORIG -0x1088
+    cnt0 = 0;
+    cnt1 = 0;
+    cnt2 = 0;
+    cnt3 = 0;
     bool aniMode = false;                  // ORIG -0xa5（[expand ani]..[/expand ani] 区）
     STEquipmentAniScript jobLayer;         // ORIG -0x12d4
     int jobLayerId = 0;                    // ORIG -0xa4
@@ -1114,14 +1138,14 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             if (curParam == &script->m_param1c0)
             {
                 consumed = importEquipmentParameterInfo(curParam, token, path,
-                                                        cnt[3], cnt[2]);
+                                                        cnt3, cnt2);
             }
             else
             {
                 consumed = importEquipmentParameterInfo(curParam, token, path,
-                                                        cnt[1], cnt[0]);
+                                                        cnt1, cnt0);
             }
-            if (!consumed && cnt[3] < 0 && cnt[2] < 0)
+            if (!consumed && cnt3 < 0 && cnt2 < 0)
             {
                 return false;            // ORIG fail-return（不 unload）
             }
@@ -2288,8 +2312,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 curParam = &script->m_paramMap678[key];
                 curParam->m_414 = 1;
-                cnt[1] = 0;
-                cnt[0] = 0;
+                cnt1 = 0;
+                cnt0 = 0;
                     goto stage2_switch_end;
                 }
                     /*FALLTHRU*/
@@ -2323,8 +2347,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 int layKey = 0;
                 curParam = &script->m_paramMap678[layKey];
                 curParam->m_414 = 1;
-                cnt[1] = 0;
-                cnt[0] = 0;
+                cnt1 = 0;
+                cnt0 = 0;
                     goto stage2_switch_end;
                 }
                     /*FALLTHRU*/
@@ -3617,14 +3641,20 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 if (__inited)
                 {
                     // 未命中第二段：模块标签处理（ORIG default LAB_0899c902）。
-                    int modOut[2];
-                    modOut[0] = -1;
-                    modOut[1] = -1;
-                    bool okMod = processModuleTagSet(modOut[1], modOut[0], &token,
+                    // [R21a00 §27.5 形态修复] ORIG 是 2 个**独立具名标量**（非数组）：
+                    // 取址为两条单 lea `lea -0x11b8/lea -0x11b4(%ebp),%eax`
+                    // （ORIG 0x0899c93e / 0x0899c948，无 `add $0x4`）；数组形会多一条
+                    // `lea 基址; add $0x4`。槽序：modOut0@-0x11b8（第二实参，读回 m_808）
+                    // / modOut1@-0x11b4（第一实参）；清零点 ORIG 0x0899c911/0x0899c91b。
+                    int modOut0;                   // ORIG -0x11b8（第二实参，读回 m_808）
+                    int modOut1;                   // ORIG -0x11b4（第一实参）
+                    modOut0 = -1;
+                    modOut1 = -1;
+                    bool okMod = processModuleTagSet(modOut1, modOut0, &token,
                                                      a, true);
-                    if (modOut[0] != -1 && okMod)
+                    if (modOut0 != -1 && okMod)
                     {
-                        script->m_808 = modOut[0];
+                        script->m_808 = modOut0;
                     }
                 }
                     }

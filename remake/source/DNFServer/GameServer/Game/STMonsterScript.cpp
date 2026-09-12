@@ -52,7 +52,7 @@ std::string getObjectCategoryString(ENUM_CATEGORY cat);         // T 0x08a3ca81�
 #include "STMonsterScript/importAIInfoScript.inc"
                         bool byLevel);                              // T 0x08a390db
 extern "C" const char* ACTIVEOBJECT_STATE_STRING[16];           // D 0x093f4d80（CharacterAIA2.cpp）
-extern "C" const char* ACTIVESTATUS_ATTACK_TAG[20];             // D 0x093f54e0（CharacterAIA2.cpp）
+extern "C" const char* ACTIVESTATUS_ATTACK_TAG[19];             // D 0x093f54e0 size 0x4c（19 指针）
 
 #include "STMonsterScript/Clear.inc"
 

@@ -16,7 +16,11 @@ public:
     bool WaitUntilExitThread();  // ORIG 0x82a396e：join 8 个线程全局后返回 true
 
     // 字段由 Reset/EnableShutdown 反汇编实证：+0x00 byte（shutdown 使能位）、
-    // +0x04 int、+0x08 int；其余保留 pad 至 0x10。
+    // +0x04 int、+0x08 int。
+    // [R21scanPH §27.3] 无尾 pad：ORIG `_ZZ25GetInstanceShutdowManagervE8instance`
+    // nm size = 12 (0xc) @0x943bc90（.bss），下一符号 `_ZNSt12_GLOBAL__N_16ignoreE`
+    // @0x943bc9c 紧贴闭合 ⇒ 原码 sizeof(CShutdowManager) == 12（原多写 `char m_padC[4]`
+    // 致 sizeof 16，与本 ORIG 证据矛盾）。
     void Reset();                       // ORIG W 0x082a6f88
     void EnableShutdown(bool on);       // ORIG W 0x082a6f70
     void OnAllUserLogout();             // ORIG T 0x082a36bc
@@ -31,7 +35,6 @@ public:
     char m_pad1[3];
     int m_field4;                       // +0x04
     int m_field8;                       // +0x08
-    char m_padC[4];
 };
 
 CShutdowManager* GetInstanceShutdowManager();  // ORIG 0x82a6fbb（W）

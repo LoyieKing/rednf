@@ -29,9 +29,12 @@
 // XorSeed 须为本 TU 首个强符号（此前 crc_table 在它之前 ⇒ 键名错为
 // _ZN10Encryption9crc_tableE）。三者均 BSS/常量初始化（非动态初始化对象），
 // 前置定义只改 GI 选名，符号集合与构造序零变化。
-unsigned int Encryption::XorSeed = 0;
+unsigned char Encryption::XorSeed = 0;   // ORIG B 0x0943d560 size 1
+unsigned int Encryption::ShiftSeed = 0;  // ORIG B 0x0943d564（= XorSeed+3 对齐填充后，紧随）
+// [R21scanEC §27.3 顺序轴] ORIG nm -S 相对偏移：XorSeed@0(1) → ShiftSeed@+4(4) →
+// crc_table@+0x20(0x400)（0x943d560/0x943d564/0x943d580）⇒ crc_table 定义须后置；
+// XorSeed 仍是本 TU 首个强符号 ⇒ P327 GI 键名 `_GLOBAL__I__ZN10Encryption7XorSeedE` 不变。
 unsigned int Encryption::crc_table[256];
-unsigned int Encryption::ShiftSeed = 0;
 
 #include "index_array.inc"
 

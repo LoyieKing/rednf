@@ -364,7 +364,10 @@ public:
     int set_single_play(CUser* user);   // ORIG 返回 eax=1（0x859b142）
     void game_start(CUser* user);
     bool IsExistUser(CUser* user);
-    int isMyMember(unsigned int userNo);
+    // [R21bool/T1] int→bool：ORIG 调用点 0x081ebfaa `call; test %al,%al; je`
+    // （P292 无 setne 无 xor）；定义体 0x085b674b/0x085b6761 双岛 `mov $1/$0,%eax`
+    // ⇒ 值域 {0,1}；mangled 不变。
+    bool isMyMember(unsigned int userNo);
     bool _checkValidUser(int idx);
     bool checkValidUser(int idx);   // ORIG W 0x08145868（转发 _checkValidUser；定义 CParty.cpp:1902）
     bool CheckQuestConnection(int questIdx, ENUM_MAZE_QUEST_TYPE type);   // ORIG T 0x085b6478（定义 PartyClosureC2.cpp）
@@ -725,7 +728,10 @@ public:
     bool isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& param);
     int getPartyMemberAvgLevel();   // ORIG T 0x0859f582 返回 eax（有效成员平均等级）
     int CheckMemberFatigue();
-    int CheckMemberLastTryAssaultTime();   // ORIG 0x085bcab6：0/1
+    // [R21bool/T1] int→bool：ORIG 五调用点（0x081ef6ae/0x081ef76f/0x081f11df/
+    // 0x081f126b/0x081f77b4）皆 `call; test %al,%al; je`（P292）；定义体
+    // 0x085bcb39 `mov $0,%eax` + 命中 `mov $1,%eax` ⇒ 值域 {0,1}；mangled 不变。
+    bool CheckMemberLastTryAssaultTime();   // ORIG 0x085bcab6：0/1
     char GetFirstValidMemberState();   // ORIG 返回 al（ProcessGiveUp 比较 5/0xc）
     void GetValidPartyMember(std::vector<int>& list);
     void GetRoutingDiceMemberList(std::vector<std::pair<int, int> >& list,

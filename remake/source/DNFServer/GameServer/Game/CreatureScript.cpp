@@ -37,7 +37,7 @@
 
 
 // ---- 全局（ORIG 属 RDARScriptObject.cpp/RDARScriptAttackInfo.cpp）----
-char g_creatureScriptBaseDirectory[0x104];
+char g_creatureScriptBaseDirectory[0x100];   // ORIG B 0x94ff4e0 size 0x100
 
 // ORIG g_creatureScriptFileList（STScriptFileList，+0x00 即 map<int,string>）。
 STScriptFileList g_creatureScriptFileList;
@@ -147,7 +147,7 @@ std::string MODULE_NAME_TAG[17][2] = {
 //   #11 = "bleeding]"（我方旧 "bleeding" 缺尾 ]）
 //   #18 = "none"（索引 18 因消费点循环 i<=0x11 不可达，ORIG 侧亦为 "none" 非 NULL；照抄）
 // 其余 16 项与 ORIG 逐字节一致。
-extern "C" const char* ACTIVESTATUS_ATTACK_TAG[20];   // D 0x093f54e0（CharacterAIA2.cpp）
+extern "C" const char* ACTIVESTATUS_ATTACK_TAG[19];   // D 0x093f54e0 size 0x4c=19 指针（无 NULL）
 extern "C" const char* ACTIVE_STATUS_NO_BOX_BRACKET_TAG[19];
 const char* ACTIVE_STATUS_NO_BOX_BRACKET_TAG[19] = {
     "slow", "freeze", "poison", "stun", "curse", "blind", "lightning",

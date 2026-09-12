@@ -826,7 +826,10 @@ public:
                          const stAvatarEmblemInfo_t& emblem, const char* agency,
                          unsigned long hidden, const stAvatarExpansionInfo_t& expansion);
     void CheckNFix();
-    int checkToFix() const;
+    // [R21bool/T1] int→bool：ORIG 调用点 0x086533a4 `call; test %al,%al; je`
+    // （P292 无 setne 无 xor）；定义体 0x08509718/0x08509731 双岛 `mov $1/$0,%eax`
+    // ⇒ 值域 {0,1}；mangled 不变（`_ZNK10CInventory10checkToFixEv`）。
+    bool checkToFix() const;
     void ChecknFixWineAndMoru();
     bool FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot) const;  // b28d-Main(P292)：ORIG 0x08680e92 调用点同形 ⇒ bool
     void SendItemLockList(const Inven_Item* items, int count,

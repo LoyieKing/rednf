@@ -137,7 +137,10 @@ public:
     int pvp_request_pvp_rank();
     bool recv_pvp_rank_all() const;
     bool recv_pvp_end_result_all() const;
-    int recv_pvp_end_result_team(CUser* user) const;
+    // [R21bool/T1] int→bool：ORIG 调用点 0x081f89d3 `call; test %al,%al; je`
+    // （P292 无 setne 无 xor）；定义体 0x085dc1c1 `mov $1,%eax` + 0/0xff 早退
+    // ⇒ 值域 {0,1}；mangled 不变。
+    bool recv_pvp_end_result_team(CUser* user) const;
     int SetPVPResult(int seat, const PvpResultType& result);
     bool request_fight(CUser* user);
     void revengeMission(bool flag);

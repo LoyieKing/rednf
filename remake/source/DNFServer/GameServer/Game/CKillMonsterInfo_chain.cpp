@@ -82,10 +82,15 @@
 
 
 // ---- GetInstanceHellPartyItemStatistic —— ORIG T 0x0860fcb6 ---------------
-// 函数级 static 单例（ORIG .bss instance 0x0947334c，占 0x24 字节）。
+// 函数级 static 单例（ORIG .bss instance 0x0947334c）。
+// [R21scanPH §27.3] ORIG nm size = **1** @0x0947334c，下一符号
+// `_ZZ29GetInstanceExpertJobStatisticvE8instance` @0x09473350 闭合（1 + 3 对齐）
+// ⇒ 原码占位对象仅 1 字节（消费点只把 &instance 作 this 传给非虚
+// CHellPartyItemStatistic::SendHellPartyItemStatistic，该函数体不访问 this 数据成员、
+// 非虚调用无 vptr 需求）⇒ 原 0x24 与 ORIG 实测矛盾，改 1 字节对齐。
 void* GetInstanceHellPartyItemStatistic()
 {
-    static unsigned char instance[0x24];
+    static unsigned char instance[1];
     return instance;
 }
 

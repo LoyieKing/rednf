@@ -37,9 +37,14 @@ void CUser::SendMail(bool certified)
         }
         else {
             bool fatigueGift = false;                      // local_21
-            int itemId = static_cast<int>(
-                reinterpret_cast<const MSG_MAILBOX_SEND*>(m_pad8e101)->m_itemId39);  // +0x39
-            CItem* item = G_CDataManager()->find_item(itemId);
+            // [R21a08 ④ §27.4 读/求值次数] ORIG 0x0868a012..0x0868a029：find_item 实参处
+            // 直读 +0x39（`mov 0x8e13a(%eax),%eax; mov %eax,%ebx` 跨 G_CDataManager 保活、
+            // 无具名槽）；0x0868a074..0x0868a07f 再**独立重读一次**
+            // （`mov 0x8e13a(%eax),%eax; test %eax,%eax`）⇒ 原码无 itemId 具名局部。
+            // 旧形 `int itemId = ...` 只读 1 次（槽 -0x30）⇒ 两次读之间若字段被改写则分叉。
+            CItem* item = G_CDataManager()->find_item(
+                static_cast<int>(
+                    reinterpret_cast<const MSG_MAILBOX_SEND*>(m_pad8e101)->m_itemId39));  // +0x39
             if (item != 0) {
                 // [H6 2026-09-11 单旋钮·短路条件复原] ORIG 0x08689f7x 段为 `call *%edx
                 // (IsAvatarItem); xor $0x1,%eax; test %al,%al; je <false 岛>` + `call
@@ -49,7 +54,7 @@ void CUser::SendMail(bool certified)
                     fatigueGift = true;
                 }
             }
-            if (itemId == 0) {
+            if (reinterpret_cast<const MSG_MAILBOX_SEND*>(m_pad8e101)->m_itemId39 == 0) {
                 fatigueGift = true;
             }
             IncrementTradeGold(reinterpret_cast<const MSG_MAILBOX_SEND*>(m_pad8e101)->m_gold2e,  // +0x2e

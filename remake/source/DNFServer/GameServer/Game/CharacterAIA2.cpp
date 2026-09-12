@@ -32,14 +32,15 @@ extern char g_aiCharacterScriptBaseDirectory[0x100];
 //   0x0810e4xx（CU=RDARScriptServerParameter.cpp）⇒ 本 TU 首个强符号须为
 //   ACTIVESTATUS_ATTACK_TAG；仅交换两块定义的先后，零语义/零布局改动（P327：
 //   移的是常量静态数组，不做动态初始化，构造序不变）。
-// D 0x093f54e0：19 项 + NULL 终止。
-extern "C" const char* ACTIVESTATUS_ATTACK_TAG[20];
-const char* ACTIVESTATUS_ATTACK_TAG[20] = {
+// [R21scanEC §27.3] ORIG nm -S：D 0x093f54e0 **size 0x4c = 19 指针**；raw 逐项读出
+// 19 个串（"[slow]".."[none]"），**无 NULL 终止项**（旧 [20] + 尾 0 系发明）。
+extern "C" const char* ACTIVESTATUS_ATTACK_TAG[19];
+const char* ACTIVESTATUS_ATTACK_TAG[19] = {
     "[slow]",   "[freeze]", "[poison]", "[stun]",
     "[curse]",  "[blind]",  "[lightning]", "[stone]",
     "[sleep]",  "[burn]",   "[weapon break]", "[bleeding]",
     "[haste]",  "[bless]",  "[element]", "[confuse]",
-    "[hold]",   "[armor break]", "[none]", 0,
+    "[hold]",   "[armor break]", "[none]"
 };
 
 // D 0x093f4d80：15 项 + NULL 终止（objdump -s .data/.rodata 逐指针提取）。

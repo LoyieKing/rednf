@@ -4594,7 +4594,13 @@ struct UpdateDimensionInoutSigView
 #include "GameMasterCmd.h"     // CGameMasterCharacter（InitOnAccept static local）
 #include "CPremiumLetheManager.h" // CPremiumLetheManager 完整类型（increase_status lethe 链）
 
-unsigned int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_datev
+// [R21a14 ④ §27.2 类型轴] 原为 `unsigned int`（TU 局部声明）与权威定义
+// GlobalData/get_seed_from_date.inc `int get_seed_from_date()` 冲突 ⇒ 调用点
+// InitOnAccept 0x08649?? 处 store 被 4.4 判「异型」产 RHS-first+`mov %eax,%edx`
+// 中转；ORIG 0x0864964x 实为 `mov 0x8(%ebp),%edx; mov %eax,0x711e8(%edx)`（LHS-first
+// 直存 ⇒ int 与 int 同型）。改回 int 后与 ORIG 逐条同形（探针
+// /tmp/verify357/R21a14/probe/p.cpp fa(RHS+中转) vs fb(LHS 直存) 复现）。
+int get_seed_from_date();   // ORIG T 0x086b1d25 _Z18get_seed_from_datev
 // cSecuUserAction 类定义 + `Init` 外联定义已**前移至本 TU 文件头**（P327 T1 调序，
 // 使 GI 键名 = `_GLOBAL__I__ZN15cSecuUserAction4InitEv` 与 ORIG 一致，见文件头注释）。
 // ORIG 侧仅 sizeof=4 的状态对象；InitOnAccept 0x086493c8 +0x4a1 处 new。

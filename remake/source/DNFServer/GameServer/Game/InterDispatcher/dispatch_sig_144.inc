@@ -174,11 +174,21 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
             user->SaveInventory();
             user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, 0);
             pck.setCategory(0x12);
-            pck.item_info.m_addInfo = restrictAmount;                  // ORIG local_149 = msg+0x11
+            pck.item_info.m_addInfo = restrictAmount;                  // ORIG 0x084d5e80 `mov -0x145(%ebp),%eax` ← msg+0x11（pck+0x36）
             pck.jewel_info.init();                                    // ORIG stAvatarEmblemInfo_t::init(pck+0x65)
-            pck.item_info.m_seal = false;                               // ORIG local_14f = 0
-            pck.item_info.m_itemId = itemId;                            // ORIG local_14e = msg+0x0d
-            pck.item_info.m_attr = 0;                             // ORIG local_145 = 0
+            pck.item_info.m_seal = false;                              // ORIG 0x084d5e97 `movb $0x0,-0x14b(%ebp)`（pck+0x30）
+            pck.item_info.m_itemId = itemId;                           // ORIG 0x084d5ea4 `mov %eax,-0x14a(%ebp)` ← msg+0x0d（pck+0x31）
+            // [R21a11 2026-09-13 ④ · §27.2/§16.2 字段写点错位] ORIG 该分支写的是
+            //   `movw $0x0,-0x141(%ebp)`（0x084d5eaa ⇒ pck+0x3a = item_info+0x0a = m_endurance）
+            //   `movl $0x0,-0x13f(%ebp)`（0x084d5eb3 ⇒ pck+0x3c = item_info+0x0c = m_extendInfo），
+            //   而**全函数无 m_attr(pck+0x35) 写点**（唯二写点 0x084d6594/0x084d6675 均在主路径）
+            //   ⇒ 旧码 `m_attr = 0;`（movb $0x0,0x35(%…)，pck=-0x17b 实证）是字段错位：
+            //   包内 m_attr 被强行置 0（ORIG 该路径为未初始化栈值）、
+            //   m_endurance/m_extendInfo 反而保留栈垃圾（ORIG 恒 0）⇒ 出包字段内容分叉。
+            //   消费端 = AuctionServer HandlerFor_GA_.cpp:779 `RegistItem(… pPck->item_info …)`
+            //   其中 endurance/extendInfo 直入 PCK_AUCTION_LOG_MESSAGE_AG（同处 792/793 行）。
+            pck.item_info.m_endurance = 0;                             // ORIG 0x084d5eaa（pck+0x3a）
+            pck.item_info.m_extendInfo = 0;                            // ORIG 0x084d5eb3（pck+0x3c）
             // [R8a20 2026-09-12 ④ · §13 #32 守卫体配对] ORIG 0x084d5ebd..0x084d5ec5 在 strncpy
             //   前**另有一道 `pPkt->m_0 == 1` 守卫**：`mov -0x68(%ebp),%eax; mov (%eax),%eax;
             //   cmp $0x1,%eax; jne 0x084d5f02`（+0x5d2 = 0x084d5f02 = SendPacket 序列首条

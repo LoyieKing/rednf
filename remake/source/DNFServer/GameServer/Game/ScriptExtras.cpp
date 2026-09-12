@@ -129,7 +129,10 @@ char g_szScriptFileBaseDirectory[0x104];  // ORIG B 0x949b180
 // `test %al,%al; setne %al`（本体 AE→DIFF）；把**源字段一并 bool 化**（P248 档②/
 // P300）后返回表达式本身已是 bool ⇒ 直返形两全（本体 identical 保持 + 消费点
 // `call; xor $1; test %al; je` 与 ORIG 同形、gap 归零）。
-static bool s_bUseScriptPack = false;     // ORIG d _ZL16s_bUseScriptPack 0x93f4d24
+// [R21scanEC §27.1 静态初值族] ORIG .data/PROGBITS 0x93f4d24 = `01`（段感知 raw 读，
+// 文件偏移 0x13acd24）⇒ 原码初值 **true**；旧 `= false` 使符号落 .bss（初值 0）⇒
+// InitRDARScript 首次写（ORIG 0x88bb6a9）之前的读点（UseScriptPack 0x88bb7d2 等）分叉。
+static bool s_bUseScriptPack = true;      // ORIG d _ZL16s_bUseScriptPack 0x93f4d24 = 0x01
 
 #include "ScriptExtras/UseScriptPack.inc"
 

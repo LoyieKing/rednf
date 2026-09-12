@@ -23,8 +23,8 @@
 #include "CServerEvent.h"
 
 int CServerEvent::m_nExpRate = 0;              // 0x943c138
-int CServerEvent::m_nCurEvent[0x100] = {0};    // 0x943c13c
-int CServerEvent::m_nCurEventInterval[0x100] = {0};  // 0x943c144
+int CServerEvent::m_nCurEvent[2] = {0};        // 0x943c13c（ORIG size 0x8）
+int CServerEvent::m_nCurEventInterval[2] = {0};  // 0x943c144（ORIG size 0x8）
 
 #include "CServerEvent/GetExpRate.inc"
 

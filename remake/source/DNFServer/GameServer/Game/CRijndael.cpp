@@ -132,8 +132,7 @@ inline unsigned int SubWord(unsigned int w)
 // CRijndael
 // ============================================================================
 
-const char CRijndael::sm_chain0[0x10] = {0, 0, 0, 0, 0, 0, 0, 0,
-                                         0, 0, 0, 0, 0, 0, 0, 0};
+const char CRijndael::sm_chain0[0x20] = {0};   // ORIG 0x8b22f20 size 0x20（全零）
 
 #include "CRijndael/CRijndael.inc"
 

@@ -1452,7 +1452,10 @@ public:
     bool check_quest_type_condition(Quest* quest);              // T 0x086ace46（UserQuest.cpp 实现）
     bool check_quest_subtype_condition(Quest* quest);           // T 0x086acb52（UserQuest.cpp 实现）
     int set_trigger(int questIdx, char val, bool flag);         // T 0x086ac6ac
-    int CheckDungeonEventStoryPause(int dungeonNo, int fieldNo, int mapNo) const;  // T 0x086ad054（UserQuest.cpp 定义）
+    // [R21bool/T1] int→bool：ORIG 调用点 0x08216f34 `call; test %al,%al; je`
+    // （P292 无 setne 无 xor）；定义体 0x086ad16c `mov $0,%eax` + 命中
+    // `mov $1,%eax` 双岛 ⇒ 值域 {0,1}；mangled 不变。
+    bool CheckDungeonEventStoryPause(int dungeonNo, int fieldNo, int mapNo) const;  // T 0x086ad054（UserQuest.cpp 定义）
     bool isDoingJobChangeQuest() const;                         // T 0x086ad48a（UserQuest.cpp 定义）
     void ResetUrgentQuestWaitingList();                  // ORIG T 0x086ad178
 

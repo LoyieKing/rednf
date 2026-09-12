@@ -34,8 +34,10 @@ public:
     int DefEncryptBlock(const char* in, char* out);   // 块 16 特例（与 ORIG 同名）
     int DefDecryptBlock(const char* in, char* out);
 
-    // ORIG 全零 16 字节初始链（0x8b22f20）
-    static const char sm_chain0[0x10];
+    // [R21scanEC §27.3] ORIG nm -S：`_ZN9CRijndael9sm_chain0E` 0x8b22f20 **size 0x20**
+    // （R 段全零）⇒ 原声明 char[32]；10 个取址点只传 iv 指针、ivLen=0x10 ⇒ 运行期不可观察，
+    // 按用户裁定（完全复刻）修正尺寸。
+    static const char sm_chain0[0x20];
 
 private:
     void KeyExpansion();

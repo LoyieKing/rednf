@@ -2140,7 +2140,7 @@ public:
 //     int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
 //       // ORIG _ZN23Dispatcher_CollectItems11check_errorEP5CUserR8MSG_BASER9ParamBase T 0x081e329e
 //   class Dispatcher_ComboSkill 公有段：
-//     int checkComboSkillIndex(short idx);
+//     bool checkComboSkillIndex(short idx);   // [R21bool/T1] int→bool（声明在 Dispatchers.h）
 //       // ORIG _ZN21Dispatcher_ComboSkill20checkComboSkillIndexEs T 0x0825f292
 //
 // NEEDS_DECL: 宿主 include 区需追加：

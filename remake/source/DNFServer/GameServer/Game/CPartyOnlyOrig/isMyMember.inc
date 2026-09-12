@@ -1,5 +1,6 @@
 // ORIG T 0x085b66fa（isMyMember.md）：任一有效成员 uid 低 16 位命中即 1。
-int CParty::isMyMember(unsigned int userNo)
+// [R21bool/T1] 返回类型 int→bool（声明侧 CParty.h 同步）。
+bool CParty::isMyMember(unsigned int userNo)
 {
     for (int i = 0; i <= 3; i++)
     {

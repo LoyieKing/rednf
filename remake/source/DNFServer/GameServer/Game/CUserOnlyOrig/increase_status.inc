@@ -82,18 +82,14 @@ void CUser::increase_status(short slotNo)
     // （与 0x1f71/0x204b..0x204f 共享同体）——旧形漏此 case ⇒ 该值落 default（真语义缺口）。
     case 0x1f71: case 0x204b: case 0x204c: case 0x204e: case 0x204f: case 0x28d2bc:
     {
-            bool reject = false;
-            if (!CalLevelUpItemCheck(itemIdx))
-        {
-                reject = false;                              // asm: 不报错，走公共段
-        }
-        else
-        {
-                int valueTmp = (int)value;
-                reject = (CalLevelUpItemState(type, valueTmp, 0x13, 0x3b) != 1);
-                value = (unsigned int)valueTmp;
-        }
-            if (reject)
+        // [R21a08 ④ §27.5 多余物化/具名槽] ORIG 0x08665c97..0x08665cf4：
+        //   `call Check; test %al; je <mov $0,%eax>` +
+        //   `call State; xor $1; test; je <同岛>` + `mov $1,%eax / 岛: mov $0,%eax`
+        //   + `test %al,%al; je <跳过错误包>` = 4.1 对 `Check(...) && State(...) != 1`
+        //   的短路物化（P214① 正极性形）；State 实参为 `lea -0xd8(%ebp),%eax`
+        //   = **直传 &value**（无 valueTmp 临时、无回写、无具名 bool 槽）。
+        if (CalLevelUpItemCheck(itemIdx) &&
+            CalLevelUpItemState(type, reinterpret_cast<int&>(value), 0x13, 0x3b) != 1)
         {
             SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
             return;
@@ -106,11 +102,10 @@ void CUser::increase_status(short slotNo)
     // thunk 搬体后标签丢失 ⇒ DCE。
     case 0x989a13: case 0x292090e1:
     {
-        // [SubB ①-d′ 2026-09-11 二分测试·暂回滚] 直传 &value + 去 ok54 具名槽
-        int valueTmp = (int)value;
-        bool ok54 = (CalLevelUpItemState(type, valueTmp, 1, 0x54) == 1);
-        value = (unsigned int)valueTmp;
-        if (!ok54)
+        // [R21a08 ④ §27.5] ORIG 0x08665d24..0x08665d58：`lea -0xd8(%ebp),%eax` 直传
+        //   &value（无 valueTmp 临时/回写）、`call; xor $1,%eax; test %al,%al;
+        //   je <+0x118a>` = 无 ok54 具名槽的直判形。
+        if (CalLevelUpItemState(type, reinterpret_cast<int&>(value), 1, 0x54) != 1)
         {
             SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0x13, packet);
             return;
@@ -329,7 +324,14 @@ void CUser::increase_status(short slotNo)
             return;
         }
             type = 0x10;
-            value = G_CDataManager()->m_guildParameter.getGuildExpBook(guildDB->m_fundLevel + 1);
+            // [R21a08 ④ #4 实参来源] ORIG 0x0866721..0x0866741：
+            //   `movb $0x10,-0xd1` + `mov -0x14b(%ebp),%eax; mov %eax,%ebx;
+            //    call G_CDataManager; add $0xa50c,%eax; mov %ebx,0x4(%esp);
+            //    call GuildParameterScript::getGuildExpBook(int)` ⇒ 实参是 **switch 变量
+            //   itemIdx（-0x14b）**，不是 `guildDB->m_fundLevel + 1`（后者是上一段
+            //   getGuildLevelUpParam 的实参，0x086667b 处 `movzbl 0x8d03b(%eax); lea 0x1`）。
+            //   旧写传 fundLevel+1 ⇒ case 0x10（itemId==0x10）时取到完全不同的经验书数量。
+            value = G_CDataManager()->m_guildParameter.getGuildExpBook(itemIdx);
         goto L08666990;
     }
     default:

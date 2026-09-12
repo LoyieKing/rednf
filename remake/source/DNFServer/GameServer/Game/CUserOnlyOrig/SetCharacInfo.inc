@@ -63,11 +63,17 @@ void CUser::SetCharacInfo(int count, char* data)
         }
 
         // growType：==1 或 ==0xff 原样，否则 0（→ info+0x14c6）
-        const unsigned char grow =
-            static_cast<unsigned char>(rec[0x22]);
+        // [R21a13 2026-09-13 形态修复·逐槽证据] 旧文用具名 `const unsigned char grow`
+        //   占栈槽（我方 .o `movzbl %al,%eax; mov %al,-0x1e(%ebp)`），ORIG 0x08649cf7/
+        //   0x08649d0d/0x08649d1f 为**三次逐点重读** `imul $0x94; add 基址;
+        //   movzbl 0x22(%eax)`（无 grow 槽）⇒ 按 P0 律去槽：条件与取值处各自内联
+        //   `static_cast<unsigned char>(rec[0x22])`。语义等价（同址同宽只读）。
         info.m_viewState =
-            (grow == 1 || grow == static_cast<unsigned char>(-1))
-                ? static_cast<int>(grow) : 0;
+            (static_cast<unsigned char>(rec[0x22]) == 1 ||
+             static_cast<unsigned char>(rec[0x22]) ==
+                 static_cast<unsigned char>(-1))
+                ? static_cast<int>(static_cast<unsigned char>(rec[0x22]))
+                : 0;
 
         reinterpret_cast<CommonTime*>(info.m_delReqTime)
             ->SetCreateTime(*reinterpret_cast<long*>(rec + 0x88));
@@ -91,16 +97,31 @@ void CUser::SetCharacInfo(int count, char* data)
         info.m_field14b8 =
             *reinterpret_cast<int*>(rec + 0x1e);                      // wpBonus
 
-        {   // local_dd9：&0xfd | 1 | bit*2（rec[0x1c] bit4）
+        {   // local_dd9：先 `|=1`、再 `&0xfd | bit*2`（rec[0x1c] bit4）
             // [Lane6 2026-09-10 真语义 bug 修复] ORIG 0x0864c4xx `movzbl 0x1c(%eax),%eax;
             // shr $0x4,%al; and $0x1,%eax; shl $0x7,%eax; sar $0x7,%al; and $0x1,%eax`
             // = **bit4 单 bit**（末尾 and $1 归一）。旧译文 `((x >> 4) << 7) >> 7` 在 4.4
             // 下恒等 ⇒ 得到完整半字节（0..15），使 `| (bit*2)` 污染 dst 高位 ⇒ 语义不同。
-            const unsigned char bit = static_cast<unsigned char>(
-                (static_cast<unsigned char>(rec[0x1c]) >> 4) & 1);
-            unsigned char& dst =
-                info.m_tagVisibleFlags.m_flag;   // +0xe40 tagCharacVisibleFlag 首字节成员（权威名）
-            dst = static_cast<unsigned char>((dst & 0xfd) | 1 | (bit * 2));
+            // [R21a13 2026-09-13 形态修复·逐槽证据] 旧文把 bit 落具名 uchar 槽
+            //   （我方 .o `movzbl (%eax); movzbl %al,%eax; sar $0x4,%eax; and $0x1,%eax;
+            //   mov %al,-0x11(%ebp)`），ORIG 0x08649f5c..0x08649f6f 全程寄存器
+            //   （`shr $0x4,%al; and $0x1,%eax; shl $0x7,%eax; sar $0x7,%al; and $0x1,%eax;
+            //   lea (%eax,%eax,1),%edx`，无槽）；且 ORIG 0x08649f40..0x08649f4a 为
+            //   **独立第一段写** `movzbl -0xdd5(%ebp); or $0x1; mov %al,-0xdd5(%ebp)`
+            //   （bit0=1），随后 0x08649f5c 段才 `and $0xfffffffd; or %edx` ⇒ 源形是
+            //   两条独立语句，非旧文的单条合并式 ⇒ 本处同时去槽 + 拆两条（等价）。
+            // [R21a13 2026-09-13 形态修复·逐槽证据] 旧文再用一条
+            //   `unsigned char& dst = info.m_tagVisibleFlags.m_flag;` 引用局部，
+            //   4.4 对引用恒落槽并缓存地址（我方 .o `lea -0x1c1d(%ebp),%eax;
+            //   add $0xe40,%eax; mov %eax,-0xc(%ebp)` + 两次 `mov -0xc(%ebp),%eax`
+            //   回读）；ORIG 0x08649f40/0x08649f72 为**单条 disp 直访**
+            //   `movzbl -0xdd5(%ebp),%eax` / `mov %al,-0xdd5(%ebp)`
+            //   （-0xdd5 = 对象基 -0x1c15 + 0xe40）⇒ 去引用、直接成员访问。
+            info.m_tagVisibleFlags.m_flag = static_cast<unsigned char>(
+                info.m_tagVisibleFlags.m_flag | 0x1);
+            info.m_tagVisibleFlags.m_flag = static_cast<unsigned char>(
+                (info.m_tagVisibleFlags.m_flag & 0xfd) |
+                (((static_cast<unsigned char>(rec[0x1c]) >> 4) & 1) * 2));
         }
         // [R20a13 2026-09-13 ④ 修复] 删 `p[0x1c04] = expireFlag;`：ORIG
         //  0x08649c6a..0x0864a185 全函数**无**该写（ci+0xe66 的同值写唯一落在
@@ -120,8 +141,14 @@ void CUser::SetCharacInfo(int count, char* data)
     {
         if (*reinterpret_cast<int*>(scratch) < 0x72)
         {
-            Stream* s = GlobalData::s_stream_pool->Acquire("user.cpp", 0xcb3);
-            CStreamGuard guard(s, true);
+            // [R21a13 2026-09-13 形态修复·逐槽证据] 旧文 `Stream* s = ...Acquire(...);
+            //   CStreamGuard guard(s, true);` 占具名槽（我方 .o `call Acquire;
+            //   mov %eax,-0xc(%ebp); …; mov -0xc(%ebp),%eax`），ORIG 0x0864a15x 为
+            //   内联实参 `call Acquire; movl $0x1,0x8(%esp); mov %eax,0x4(%esp);
+            //   lea -0x38(%ebp),%eax; mov %eax,(%esp); call CStreamGuard::C1`（无 s 槽）
+            //   ⇒ 按 P0/P259 去槽：Acquire 结果作 guard ctor 内联实参。
+            CStreamGuard guard(
+                GlobalData::s_stream_pool->Acquire("user.cpp", 0xcb3), true);
             // ORIG 每条 << 前 call operator*()（0x080c8c46），P167 缺 2 处 operator*
             // （CStreamGuard::operator<< 成员直调不产 operator*，须显式 operator*()-> 代理链形）。
             guard.operator*()->operator<<((int)0x33);

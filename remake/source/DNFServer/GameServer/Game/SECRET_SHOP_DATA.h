@@ -93,7 +93,11 @@ public:
     SECRET_SHOP_DATA();
     ~SECRET_SHOP_DATA();
     void clear();
-    int IsCompleteBuy();
+    // [R21bool/T1] int→bool：ORIG 调用点 0x081ff197 `call; xor $0x1,%eax;
+    // test %al,%al; je`（P354 无 setne 归一化；消费点 `== 0`）；定义体
+    // 0x08ab1578/0x08ab158e 双岛 `mov $0/$1,%eax` ⇒ 值域 {0,1}；mangled 不含
+    // 返回类型 ⇒ 符号名/sizeof/offsetof 不变。
+    bool IsCompleteBuy();
     bool IsOpen();
     void SetBuying(int idx, bool buy);
 

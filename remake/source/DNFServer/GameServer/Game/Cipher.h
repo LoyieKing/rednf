@@ -84,8 +84,12 @@ public:
     void AdjustDataSize(int key, int* size) const;
     int Encrypt(int key, const unsigned char* src, int srcLen,
                 unsigned char* dst, int* dstLen);
-    int Decrypt(int key, const unsigned char* src, int srcLen,
-                unsigned char* dst, int* dstLen);
+    // [R21bool/T1] 返回类型 int→bool：ORIG 调用点 0x08263df1/0x08263e5b/0x0826297c
+    // `call; xor $0x1,%eax; test %al,%al; je/jne`（P292/P354 无 setne 归一化），
+    // 定义体 0x080975c6/0x080975cd 双岛 `mov $1/$0,%eax` ⇒ 值域 {0,1}；mangled 不含
+    // 返回类型 ⇒ 符号名/ABI（sizeof/offsetof/vtable 无关联）不变。
+    bool Decrypt(int key, const unsigned char* src, int srcLen,
+                 unsigned char* dst, int* dstLen);
 
 private:
     int m_totalKeyLength;                 // +0x00

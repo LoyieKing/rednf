@@ -232,7 +232,10 @@ public:
     unsigned int check_error(CUser* user, MSG_BASE& msg, ParamBase& param);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
-    int checkBlueMarble(CParty* party);     // ORIG T 0x081c9172
+    // [R21bool/T1] int→bool：ORIG 调用点 0x081c8d62 `call; xor $0x1,%eax;
+    // test %al,%al; je`（P292 无 setne）；定义体 0x081c91c7/0x081c91de 双岛
+    // `mov $1/$0,%eax` ⇒ 值域 {0,1}；mangled 不变。
+    bool checkBlueMarble(CParty* party);     // ORIG T 0x081c9172
     void send(CUser* user, ParamBase& param);
 };
 

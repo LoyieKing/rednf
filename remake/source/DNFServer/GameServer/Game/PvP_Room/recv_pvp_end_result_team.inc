@@ -2,7 +2,8 @@
 // [b28d-solo-PvP_Room] NEAR(70=70): P210② IsRecv 定义迁入 ⇒ 帧 $0x18/槽 -0x4/-0x8
 // 归位；第一循环合并守卫（je/jne 共落 L4f）、第二循环 continue 双岛（P223）复现
 // ORIG 0x085dc0f0 结构；残余仅重定位/寄存器角色显示差。
-int PvP_Room::recv_pvp_end_result_team(CUser* user) const
+// [R21bool/T1] 返回类型 int→bool（声明侧 PvP_Room.h 同步）。
+bool PvP_Room::recv_pvp_end_result_team(CUser* user) const
 {
     // [b28d-solo-PvP_Room] ORIG 0x085dc0f0：i 双初始化（movl $0,-0x8 两次）、
     // 两段 for(i<=7) setle 尾测、team 存 -0x4；4.4 do-while+goto 形全帧漂移。

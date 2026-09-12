@@ -1,5 +1,7 @@
-int Cipher::Decrypt(int key, const unsigned char* src, int srcLen,
-                    unsigned char* dst, int* dstLen)
+// [R21bool/T1] 返回类型 int→bool（声明侧 Cipher.h 同步；ORIG 定义体尾部为
+// `test %al,%al; je; mov $0x1,%eax; …; mov $0x0,%eax` 双岛 ⇒ 值域 {0,1}）。
+bool Cipher::Decrypt(int key, const unsigned char* src, int srcLen,
+                     unsigned char* dst, int* dstLen)
 {
     // [N7 封顶] 同 Encrypt：m_graphs[type]->Decrypt 虚调用寄存器互换。
     if (srcLen < 1)

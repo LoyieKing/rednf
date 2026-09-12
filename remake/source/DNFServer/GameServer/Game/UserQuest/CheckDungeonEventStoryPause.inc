@@ -1,4 +1,5 @@
-int UserQuest::CheckDungeonEventStoryPause(int dungeonNo, int fieldNo, int mapNo) const
+// [R21bool/T1] 返回类型 int→bool（声明侧 CUser.h UserQuest 类同步）。
+bool UserQuest::CheckDungeonEventStoryPause(int dungeonNo, int fieldNo, int mapNo) const
 {
     // b28d-40: 两个 continue 改嵌套正向 if 包裹（消 4.4 同层多 continue 的 nop+jmp
     // 中继岛，ORIG 0x086ad079/0x086ad0a7 两守卫直接落外层循环尾 0x086ad159）。

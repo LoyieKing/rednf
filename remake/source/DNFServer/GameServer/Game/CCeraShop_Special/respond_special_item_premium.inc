@@ -273,8 +273,14 @@ void SpecialItemHandler::respond_special_item_premium(int type,
         if (user->IsRestrictedGoods(count) != 1)
         {
             user->SetRestrictedGoods(count);
-            int ts = premium_helper_function::get_target_server(ptype);
-            m_owner->SaveFeaturedIdx(user, count, (int)timeVal, ts);
+            // [R21-07 形态修复] ORIG 0x0827dcbf..0x0827dcdc 无 `ts` 具名槽：
+            //   `mov -0x2c,%eax; mov %eax,(%esp); call get_target_server;
+            //    mov %eax,0xc(%esp); ...; call SaveFeaturedIdx`
+            // ⇒ 末实参为内联调用（右→左求值先算 ts）；旧具名局部多发
+            //   `mov %eax,-0xc(%ebp)` + `mov -0xc(%ebp),%eax` 两条。
+            m_owner->SaveFeaturedIdx(
+                user, count, (int)timeVal,
+                premium_helper_function::get_target_server(ptype));
         }
     }
 

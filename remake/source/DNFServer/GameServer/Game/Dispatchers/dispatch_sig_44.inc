@@ -141,16 +141,17 @@ int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet)
     Sanicova::CPad* padCipher = user->getPad();   // P48 双臂各自调用
     Cipher& cipher = *GlobalData::s_secu_cipher_keystring_manager_
         [padCipher->GetSelectedCipherIdx() & 0xffff].cipher;
-    const bool firstOk = cipher.Decrypt(cryptoType, bufView.m_encPwd, encLen,
-                                        decPwd1, &decLen1);
-    Sanicova::CPad* padCipher2 = user->getPad();
-    Cipher& cipher2 = *GlobalData::s_secu_cipher_keystring_manager_
-        [padCipher2->GetSelectedCipherIdx() & 0xffff].cipher;
-    const bool secondOk = cipher2.Decrypt(cryptoTypeCopy, bufView.m_encPwdCopy,
-                                          encLenCopy, decPwd2, &decLen2);
     // ORIG 0x263df1..：两次 Decrypt 返回各 xor$1/test；首次 jne 汇聚「1」、
     // 次次 je 汇聚「0」——单 SendCmdErrorPacket 在汇聚点（test al 后）发一次。
-    if (!firstOk || !secondOk)
+    // [R21bool/T1] P0/P183：ORIG 无 bool 局部槽（`call; xor $1,%eax; test %al,%al;
+    // jne/je` 全程寄存器；我方旧形多 2 组 `mov %al,-N(%ebp)` + `movzbl -N,%eax`）
+    // ⇒ 两 call 内联进同一短路条件；P48 双臂求值序保持（第二臂 receiver 在首
+    // call 返回后才求值，padCipher 局部删除不影响该序）。
+    if (!cipher.Decrypt(cryptoType, bufView.m_encPwd, encLen, decPwd1, &decLen1) ||
+        !(*GlobalData::s_secu_cipher_keystring_manager_[
+              user->getPad()->GetSelectedCipherIdx() & 0xffff].cipher)
+             .Decrypt(cryptoTypeCopy, bufView.m_encPwdCopy, encLenCopy, decPwd2,
+                      &decLen2))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x74, 1);
         return 0;

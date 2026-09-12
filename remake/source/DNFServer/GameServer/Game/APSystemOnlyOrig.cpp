@@ -62,7 +62,12 @@ static const int ConstClientClearAction[5] = {2, 5, 0x29, 0x2b, 0x2c};  // 0x08a
 static const int ConstOCC_DATELength = 11;
 
 // [SplitC batch5] CActionPointManager::_IsGMOn 定义已迁出至 localchina_ActionPointSystem.cpp（类内声明见 CUser.h）
-CActionPointManager::GmWeekdayCtl CActionPointManager::_gmWeekday;  // ORIG D 0x0937008c
+// [R21-07 §27.1 静态初值复刻] ORIG 段感知 raw：0x0937008c (.data) =
+// `00 00 00 00 07 00 00 00` ⇒ {m_gmOn=0, m_pad1={0,0,0}, m_weekday=7}；
+// 我方旧形无初值 ⇒ .bss（nm 段 `B`）且 m_weekday 初值 0 ⇒ 段归属与初值双偏离。
+// 补聚合静态初始化（POD ⇒ 落 .data、无运行期构造），复刻 ORIG 段 `D` 与初值。
+CActionPointManager::GmWeekdayCtl CActionPointManager::_gmWeekday =
+    {0, {0, 0, 0}, 7};  // ORIG D 0x0937008c
 
 }  // namespace APSystem
 

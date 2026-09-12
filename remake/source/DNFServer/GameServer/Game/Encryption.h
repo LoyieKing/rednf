@@ -21,7 +21,9 @@ public:
 
 private:
     static unsigned int crc_table[256];
-    static unsigned int XorSeed;     // 0x0943d560（ORIG BSS）
+    // [R21scanEC §27.3] ORIG nm -S：0x0943d560 **size 1**（+1 后 3B 对齐填充到
+    // ShiftSeed 0x0943d564）⇒ 原声明是 1 字节类型（旧 unsigned int 超配 3 字节）。
+    static unsigned char XorSeed;    // 0x0943d560（ORIG BSS, size 1）
     static unsigned int ShiftSeed;   // 0x0943d564（ORIG BSS）
 };
 

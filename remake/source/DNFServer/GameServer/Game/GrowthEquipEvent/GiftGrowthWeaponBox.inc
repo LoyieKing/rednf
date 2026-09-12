@@ -25,7 +25,10 @@ void GrowthEquipEvent::GiftGrowthWeaponBox(CUser& user) const
     Inven_Item item;                // ORIG Inven_Item::Inven_Item() 0x080cb854
     CItem* itemBase = G_CDataManager()->find_item(giftBoxIdx);
 
-    int serverGroup;
+    // [R21-07 复刻修复] ORIG 0x080f70b0 `movl $0x0,-0xc(%ebp)`：serverGroup 有
+    // 初值 0（位于 find_item 之后、G_GameWorld 之前），旧形 `int serverGroup;`
+    // 缺该清零 ⇒ 补 `= 0`（两分支随后各赋值 ⇒ 清零不可观察，形态复刻）。
+    int serverGroup = 0;
     // [R20a07 §26.3/P354] ORIG 0x080f70c4 `test %al,%al; je 0x080f70d8`（**无** xor；
     // 原值 true ⇒ fall-through 走 GetServerGroup，false ⇒ 跳后置的 env 块）；
     // 我方旧形 `if (!f()) {env} else {GetServerGroup}` 使 4.4 产 `xor $1; test; je`

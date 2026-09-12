@@ -55,6 +55,13 @@ bool DB_ReqQueryCharacInfo::dispatch(int userIdx, int slot, Stream* stream)
     int characNo = 0;
     int job = 0;
     int lev = 0;
+    // [R21-07 复刻修复] ORIG 0x08426b39 列段入口清零 **7** 槽：
+    //   0x08426b39 -0x2c / 0x08426b40 -0x30 / 0x08426b47 -0x34 / 0x08426b4e -0x38 /
+    //   0x08426b55 -0x1c / 0x08426b5c -0x3c / 0x08426b63 -0x40（逐槽地址实测）
+    // 第 5 槽（-0x1c，giftCnt，0x08426b55）在 -0x38 与 -0x3c 之间 ⇒ 原码声明序
+    // 位于 lev 之后（4.4 按声明序发清零）；旧形缺该槽 ⇒ 补 `= 0` 两句式
+    // （ORIG 其后 0x08426c4e `call _getGiftRecvCount; mov %eax,-0x1c` 覆盖）。
+    int giftCnt = 0;
     int growType = 0;
     int sex = 0;
     db->get_int(1, mId);
@@ -71,7 +78,7 @@ bool DB_ReqQueryCharacInfo::dispatch(int userIdx, int slot, Stream* stream)
     memset(memberLogin, 0, 0x14);
     memcpy(memberLogin, "member_login", 0xd);
 
-    int giftCnt = _getGiftRecvCount(mId);
+    giftCnt = _getGiftRecvCount(mId);
     _sendResult(0, slot, (const char*)sig, characNo, job, lev, growType, sex,
                 giftCnt);
     return 1;

@@ -30,9 +30,16 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
     // local_20：归一化 category。ORIG 先按 itemIdx 特例置 1/3，再按区间映射。
     int category = 0;
 
-    // [CeraShop12Run 2026-09-11 负结论] 试把 case 6 窗口比较改用与 case 3
-    // 同一组函数级 static（ORIG 0x083244b5/0x083244bf 直证）+ 删除 case 3 块内
-    // 声明：实测 our 576→580（+4 反劣，四数不变）⇒ 已回滚（声明仍在 case 3 块内）。
+    // [R21-07 复刻修复] 函数级 static（ORIG nm：.bss
+    // _ZZN8WongWork9CCeraShop21_CheckBuyingConditionEP5CUserjmjthtE14eventStartTime
+    // @0x0943bec8 / ...E12eventEndTime @0x0943becc）：case 3 与 case 6 **共用**同一
+    // 组符号且各自「每次到达即无条件重写 + 立即读回比较」（ORIG 4 个写点/4 个读点，
+    // 见 0x0832420f/0x08324219 与 0x083244b5/0x083244bf）⇒ 原码声明在函数级。
+    // [CeraShop12Run 2026-09-11 旧记录] 只改 case 6 为 static 比较（未同步语句表达式
+    // && 链）时 our 576→580；本轮 both 同步 + 基线已降至 570 ⇒ 重试（R21-07）。
+    static int eventStartTime;
+    static int eventEndTime;
+
     // P251/P286：ORIG 0x0832482a `mov 0x10(%ebp),%eax; cmp $0x1adbd,%eax; je;
     // cmp $0x1c13c,%eax; je` 为无槽多路比较链 ⇒ 源形是 switch(a)，非 if-else。
     switch (a)
@@ -205,8 +212,6 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
         //   `mov 0x943bec8,%edx; cmp %edx,%eax; setl` —— 符号性已对齐）。
         //   实测：our 585→583（gap −11→−9，向 ORIG 574 收敛）；TU 四数
         //   176/319/3/11/104（identical/ae/near/diff/missing）逐值不变 ⇒ 不劣 ⇒ 保留。
-        static int eventStartTime;
-        static int eventEndTime;
         eventStartTime = 0x4589a450;
         eventEndTime = 0x45ae8e50;
         // ORIG 调用两次 getCurCharacCreateTime 后比较 [start,end) 窗口。
@@ -318,27 +323,34 @@ bool CCeraShop::_CheckBuyingCondition(CUser* user, unsigned int a, unsigned long
         // ORIG 双 getCurCharacCreateTime（start/end 各自求值）+ 全展开
         // 0x65d6..0x65da × (InvenR+check | CargoR+check)（P48/P183 逐点重发禁缓存；
         // ORIG 静态全展开五组，非循环——调用点差集据此）。
-        // [CeraShop12Run 2026-09-11 负结论] ORIG 0x083244b5/0x083244bf 确有
-        // `movl $0x46a7b9d0,&eventStartTime; movl $0x46d5de50,&eventEndTime`
-        // （与 case 3 同一组符号 0x0943bec8/0x0943becc），但把 case 6 改用该
-        // static 形实测 our 576→580（+4 反劣）⇒ 维持立即数形。
-        if (user->getCurCharacCreateTime() < 0x46a7b9d0)
-            break;
-        if (user->getCurCharacCreateTime() >= 0x46d5de50)
-            break;
-        // 逐 id 短路链：任一 Inven/Cargo 持有 0x65d6..0x65da 中物品即失败。
-        if (user->getCurCharacInvenR()->check_item_exist(0x65d6) == -1 &&
-            user->getCurCharacCargoR()->check_item_exist(0x65d6) == -1 &&
-            user->getCurCharacInvenR()->check_item_exist(0x65d7) == -1 &&
-            user->getCurCharacCargoR()->check_item_exist(0x65d7) == -1 &&
-            user->getCurCharacInvenR()->check_item_exist(0x65d8) == -1 &&
-            user->getCurCharacCargoR()->check_item_exist(0x65d8) == -1 &&
-            user->getCurCharacInvenR()->check_item_exist(0x65d9) == -1 &&
-            user->getCurCharacCargoR()->check_item_exist(0x65d9) == -1 &&
-            user->getCurCharacInvenR()->check_item_exist(0x65da) == -1 &&
-            user->getCurCharacCargoR()->check_item_exist(0x65da) == -1)
+        // [R21-07 复刻修复] ORIG 0x083244b5/0x083244bf 直证（段感知 raw）：
+        //   movl $0x46a7b9d0,0x943bec8; movl $0x46d5de50,0x943becc;
+        //   call getCurCharacCreateTime; mov 0x943bec8,%edx; cmp %edx,%eax; jl L;
+        //   call getCurCharacCreateTime; mov 0x943becc,%edx; cmp %edx,%eax; jge L;
+        //   mov $0x1,%eax; jmp L1; L: mov $0x0,%eax; L1: test %al,%al; je <break 出口>
+        // ⇒ 与 case 3 同一组函数级 static（每次到达即无条件重写 + 立即读回）+ 同一
+        //   语句表达式 && 链（直跳 jl/jge、零槽物化）。旧「立即数比较 + 两个独立
+        //   if/break」是我方发明简化（少 2 条 store、多 setle/setg 物化）⇒ 按用户
+        //   裁定「完全复刻 ORIG（含物化）」恢复。
+        eventStartTime = 0x46a7b9d0;
+        eventEndTime = 0x46d5de50;
+        if (({ user->getCurCharacCreateTime() >= eventStartTime &&
+               user->getCurCharacCreateTime() < eventEndTime; }))
         {
-            return 1;
+            // 逐 id 短路链：任一 Inven/Cargo 持有 0x65d6..0x65da 中物品即失败。
+            if (user->getCurCharacInvenR()->check_item_exist(0x65d6) == -1 &&
+                user->getCurCharacCargoR()->check_item_exist(0x65d6) == -1 &&
+                user->getCurCharacInvenR()->check_item_exist(0x65d7) == -1 &&
+                user->getCurCharacCargoR()->check_item_exist(0x65d7) == -1 &&
+                user->getCurCharacInvenR()->check_item_exist(0x65d8) == -1 &&
+                user->getCurCharacCargoR()->check_item_exist(0x65d8) == -1 &&
+                user->getCurCharacInvenR()->check_item_exist(0x65d9) == -1 &&
+                user->getCurCharacCargoR()->check_item_exist(0x65d9) == -1 &&
+                user->getCurCharacInvenR()->check_item_exist(0x65da) == -1 &&
+                user->getCurCharacCargoR()->check_item_exist(0x65da) == -1)
+            {
+                return 1;
+            }
         }
         break;
     }
