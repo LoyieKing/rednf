@@ -67,9 +67,12 @@ bool CHARAC_LOAD_MERCENARY::Reward(CUser* user,
         return 1;
     }
 
-    const char* msgText = g_scriptStringManager_.findString(
-        4, serverMessage.c_str(), 0);
-    strncpy(strMessage, msgText, 0xff);
+    // [R14a13 2026-09-12] 内联实参（P0/P183/P329）：ORIG 0x081b3f0f 段为
+    //   `call findString; movl $0xff,0x8(%esp); mov %eax,0x4(%esp); movl $strMessage,(%esp);
+    //    call strncpy` —— findString 结果留 %eax、无具名槽往返；我方原写 `msgText` 具名局部
+    //    多一对 `mov %eax,-0x28 / mov -0x28,%eax`（该局部仅此一处使用）。
+    strncpy(strMessage,
+            g_scriptStringManager_.findString(4, serverMessage.c_str(), 0), 0xff);
     // [SemA04 2026-09-12] ORIG 0x081b3f27-0x081b3f40：GetServerGroup 的 call 在 strlen
     // **之前**、strlen 结果落 -0x5c 临时槽（实参跨调用暂存），无 msgLen 具名局部
     // ⇒ 按 P44/P329（变参/多实参日志的具名中间量必须内联回实参位）内联。

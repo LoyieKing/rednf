@@ -47,10 +47,13 @@ bool DB_SaveObjectBringUp::dispatch(int /*userIdx*/, int /*slot*/,
                 (unsigned int)sig->m_rewardFlag);
             if (db->exec(true) != 1)
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0xaebd, 5);
-                trace("upDate DB_SaveObjectBringUp::dispatch failed at charac_no(%u),count(%u),flag(%u)",
-                      sig->m_characNo, (unsigned int)sig->m_usedMaterialCnt,
-                      (unsigned int)sig->m_rewardFlag);
+                // [R14a16 2026-09-12 · P227] ORIG 0x08446baa..0x08446c01 在 cMyTrace ctor
+                // 之前右起求 varargs（%edi/%esi/%ebx 跨 ctor 保活）⇒ 全表达式临时链形
+                // （两语句形会把 ctor 提到求值之前）。
+                cMyTrace(__PRETTY_FUNCTION__, 0xaebd, 5)(
+                    "upDate DB_SaveObjectBringUp::dispatch failed at charac_no(%u),count(%u),flag(%u)",
+                    sig->m_characNo, (unsigned int)sig->m_usedMaterialCnt,
+                    (unsigned int)sig->m_rewardFlag);
                 return 0;
             }
         }
@@ -72,9 +75,10 @@ bool DB_SaveObjectBringUp::dispatch(int /*userIdx*/, int /*slot*/,
                 (unsigned int)sig->m_usedMaterialCnt);
             if (db->exec(true) != 1)
             {
-                cMyTrace trace(__PRETTY_FUNCTION__, 0xaece, 5);
-                trace("upDate DB_SaveObjectBringUp::dispatch failed at charac_no(%u),count(%u)",
-                      sig->m_characNo, (unsigned int)sig->m_usedMaterialCnt);
+                // [R14a16 2026-09-12 · P227] 同上（ORIG 0x08446d2x 段同形）。
+                cMyTrace(__PRETTY_FUNCTION__, 0xaece, 5)(
+                    "upDate DB_SaveObjectBringUp::dispatch failed at charac_no(%u),count(%u)",
+                    sig->m_characNo, (unsigned int)sig->m_usedMaterialCnt);
                 return 0;
             }
         }

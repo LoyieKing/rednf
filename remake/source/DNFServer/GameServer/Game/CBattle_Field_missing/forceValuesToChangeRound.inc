@@ -22,7 +22,7 @@ bool CBattle_Field::forceValuesToChangeRound(short round, short smallRound, int 
     {
         LogManager::logFormat(
             1, "battle_field.cpp",
-            "bool CBattle_Field::forceValuesToChangeRound(short, short, int)", 0xe7e,
+            __PRETTY_FUNCTION__, 0xe7e,
             "ULTIMATE_LOG : blood_round_order (%d) forceValuesToChangeRound ERROR!!\n",
             (int)round);
         return 0;

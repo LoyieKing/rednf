@@ -4,8 +4,10 @@ int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* dat
 {
     // [P340 一试 2026-09-11] 指针局部改整型承载：ORIG pPkt 落 -0x10（整型分区、贴槽基），
     //   4.4 对指针局部另立分区（落 -0x14）⇒ 整帧槽平移 4（全部 34 块差异同根因）。
-    int i;                                    // [P339] 头部声明：先声明深（ORIG i 深于 pPkt）
     unsigned int pPktAddr = reinterpret_cast<unsigned int>(data);
+    // [R14a05 2026-09-12] ORIG 0x84e5c2e/0x84e5d47 实测：pPkt 落 -0x10（深）、i 落 -0xc（浅）
+    //   ⇒ 原码声明序 = pPkt 在前、i 在后（4.4 同向「先声明更深」）；旧形两槽互换 → 交换。
+    int i;
 #define MPKT reinterpret_cast<Inter_Monitor_MegaphoneMsgHyperLinkPktView*>(pPktAddr)
     PacketGuard packet;
     packet.put_header(0, 0x174);
@@ -28,19 +30,25 @@ int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* dat
          i < (int)(unsigned int)MPKT->m_2d;
          ++i)
     {
+        // [R14a05 2026-09-12 负结论] P161 嵌套组件（Rec@+0x20 步长 0x68 + m_data@+0xe）
+        //   已试并回滚：4.4 仍先载基址（多 1 条 mov），差异量与平铺形相同、零收益。
         packet.put_binary(data + i * 0x68 + 0x2e, 0x68);
     }
     packet.finalize(true);
 
-    if (!G_GameWorld()->IsIntegratedPvPBaseChannel())
-    {
-        G_GameWorld()->send_all(packet);
-    }
-    else
+    // [R14a05 2026-09-12] ORIG 0x84e5da9 段四元组（§16.1）：
+    //   O-taken `test %al,%al; je 0x84e5dd6` = send_all 块；O-fall = send_server_group 块。
+    //   旧形负极性（`!f()` + xor $1）致两臂互换 + 多一条 xor ⇒ 改正极性正向 if，
+    //   两臂块内容逐条等同（仅目标块序归位）。
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
         // [R13a10] ORIG 0x84e5db2 段：`movzbl 0xa(%eax),%eax; movsbl %al,%ebx`
         // 无槽往返（我方旧形多 `mov %al,-0x9(%ebp)` + 槽读共 2 条）⇒ 实参内联。
         G_GameWorld()->send_server_group(packet, (char)MPKT->m_a);
+    }
+    else
+    {
+        G_GameWorld()->send_all(packet);
     }
 #undef MPKT
     return 0;

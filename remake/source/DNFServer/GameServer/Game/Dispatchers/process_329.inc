@@ -42,11 +42,20 @@ int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg,
     // err == 0 主流程
     R->m_adType = M.m_field0d;
 
-    if (InGameADManagerInstance()->CheckIngameAdvertisementCondition(
+    // [R14a07] 控制流对齐 ORIG：P59 guard-vs-else 双向布局（ORIG 81e4468
+    // `xor $1;test %al,%al;je 81e4481` = 失败块直落在前、主流程在后）+ P360
+    // 逐条件独立 if（ORIG 81e4481/81e4493 两守卫各自 jne/je 直跳）。
+    if (!InGameADManagerInstance()->CheckIngameAdvertisementCondition(
             user, *reinterpret_cast<stNotifyIngameADInfo*>(&R->m_code),
             (int)M.m_field0d))
     {
-        if (R->m_adShape == 4 && user->get_multiboxLotteryItemFailCnt() > 2)
+        *reinterpret_cast<int*>(reinterpret_cast<char*>(R) + 0x640) = 4;             // 条件不满足固定错误码
+        return 0;
+    }
+
+    if (R->m_adShape == 4)
+    {
+        if (user->get_multiboxLotteryItemFailCnt() > 2)
         {
             if (R->m_prizeShape != 0 && R->m_itemID != 0)
             {
@@ -71,17 +80,13 @@ int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg,
 
             user->set_multiboxLotteryItemFailCnt(0);        // 0x080fdf44
         }
-
-        if (R->m_logFlag != 0)
-        {
-            InGameADManagerInstance()->WriteLog(
-                user, '\0', M.m_field0d,
-                (char)R->m_adShape, R->m_code);
-        }
     }
-    else
+
+    if (R->m_logFlag != 0)
     {
-        *reinterpret_cast<int*>(reinterpret_cast<char*>(R) + 0x640) = 4;             // 条件不满足固定错误码
+        InGameADManagerInstance()->WriteLog(
+            user, '\0', M.m_field0d,
+            (char)R->m_adShape, R->m_code);
     }
 
     return 0;

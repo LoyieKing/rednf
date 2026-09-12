@@ -48,7 +48,7 @@ bool CRandomOptionItemHandle::change_option(itemIndex_t itemIdx, ENUM_RARITY rar
             //   同步（change_option.inc）⇒ 换回宏（展开串 = ORIG prett size 0x78 逐字节同）。
             __PRETTY_FUNCTION__,
             0x356, "_get_option_type (%d,%d,%d,%d,%d) error_line(%d)",
-            (int)itemIdx, (int)(unsigned char)rarity, level, group,
+            (int)itemIdx, (int)rarity, level, group,
             (int)optType, err);
         return false;
     }
@@ -63,7 +63,7 @@ bool CRandomOptionItemHandle::change_option(itemIndex_t itemIdx, ENUM_RARITY rar
             // [P8S1 2026-09-11 P139 落地] 同上（宏展开 = ORIG prett 串）。
             __PRETTY_FUNCTION__,
             0x35d, "_choose_option_group (%d,%d,%d,%d,%d,%d) error_line(%d)",
-            (int)(unsigned char)rarity, group, grade, level,
+            (int)rarity, group, grade, level,
             (int)optType, outGroup, err);
         return false;
     }
@@ -114,7 +114,7 @@ bool CRandomOptionItemHandle::change_option(itemIndex_t itemIdx, ENUM_RARITY rar
             // [P8S1 2026-09-11 P139 落地] 同上（宏展开 = ORIG prett 串）。
             __PRETTY_FUNCTION__,
             0x369, "different_weight_ (%d,%d) ",
-            (int)(unsigned char)rarity, (int)optType);
+            (int)rarity, (int)optType);
         return false;
     }
     dwv = dw->second;

@@ -84,12 +84,15 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         return 0x16;
     }
 
-    Event_Upgrade_Jar* jar = GlobalData::s_pEvent_UpGrade_Jar;
-    if (!jar->CheckMaxLuckyLevel(target, material.m_addInfo))
+    // [R14a19] ORIG 0x08547939/0x0854796b/0x08547de3/0x08548706/0x0854872c 共 5 处
+    // `mov GlobalData::s_pEvent_UpGrade_Jar,%eax`（每次重读全局，无具名缓存）；我方
+    // 旧形 `Event_Upgrade_Jar* jar = ...` 把全局缓存进 -0x60 槽 ⇒ 帧 0x330 vs ORIG
+    // 0x32c（P0/P183：ORIG 无槽往返即无该局部）。改直读全局。
+    if (!GlobalData::s_pEvent_UpGrade_Jar->CheckMaxLuckyLevel(target, material.m_addInfo))
     {
         return 0x3f4;
     }
-    jar->CheckMaterialIndex(material.m_addInfo);
+    GlobalData::s_pEvent_UpGrade_Jar->CheckMaterialIndex(material.m_addInfo);
 
     ENUM_ERROR err = ENUM_ERROR_NONE;              // -0xdc
     msg->m_25 = _getUpgradeCountByUpgradeItem(target, material, err);
@@ -190,8 +193,8 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         payBase = 0;
     }
 
-    jar->SettingRecipeNUpConunt(material.m_addInfo, info,
-                                target.GetUpgrade());
+    GlobalData::s_pEvent_UpGrade_Jar->SettingRecipeNUpConunt(
+        material.m_addInfo, info, target.GetUpgrade());
 
     if (msg->m_upgradeType == 0 && script->IsImpossibleUpgrade())
     {   // CItem vtable+0x30
@@ -416,11 +419,11 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
 
     if (msg->m_25 == 0)
     {
-        if (jar->isNewNPC())
+        if (GlobalData::s_pEvent_UpGrade_Jar->isNewNPC())
         {
             pg->put_byte(2);
         }
-        else if (jar->isFortune())
+        else if (GlobalData::s_pEvent_UpGrade_Jar->isFortune())
         {
             pg->put_byte(3);
         }

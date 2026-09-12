@@ -2611,12 +2611,17 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     {
                         for (;;)
                         {
-                            int first = ScanInt(&boolScratch);
+                            // ORIG 0x08999df2/0x08999dfc：两变量先预清零
+                            //（`movl $0x0,-0x110c/-0x1110`），再逐次赋值
+                            // ⇒ 原码为「int = 0; 后接赋值」两句式（P198①）。
+                            int first = 0;
+                            int second = 0;
+                            first = ScanInt(&boolScratch);
                             if (!boolScratch)
                             {
                                 break;
                             }
-                            int second = ScanInt(&boolScratch);
+                            second = ScanInt(&boolScratch);
                             if (!boolScratch)
                             {
                                 break;
@@ -2630,12 +2635,15 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     {
                         for (;;)
                         {
-                            int first = ScanInt(&boolScratch);
+                            // ORIG 0x08999eb2/0x08999ebc：同上（-0x1114/-0x1118）
+                            int first = 0;
+                            int second = 0;
+                            first = ScanInt(&boolScratch);
                             if (!boolScratch)
                             {
                                 break;
                             }
-                            int second = ScanInt(&boolScratch);
+                            second = ScanInt(&boolScratch);
                             if (!boolScratch)
                             {
                                 break;

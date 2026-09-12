@@ -72,8 +72,13 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
     {
         if (req->m_postalExtra[mi] != 0)
         {
+            // [R14a16 2026-09-12 ④] value 实参 = 字面量 0（ORIG 0x0841dff4
+            // `movl $0x0,-0x74(%ebp)` + `lea -0x74(%ebp),%edx; mov %edx,0x8(%esp)`
+            // 传址给 make_pair 的 `int&&`；原写 `(int)req->m_postalExtra[mi]`
+            // 使 value 初值 = 元素值。value 在第二循环 `it->second += 1` 与
+            // `it->second > 0` 被读 ⇒ 值可观察，须照抄 ORIG。
             extraMap.insert(std::make_pair((unsigned int&)req->m_postalExtra[mi],
-                                           (int)req->m_postalExtra[mi]));
+                                           0));
         }
     }
 
@@ -177,9 +182,12 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
             {
                                             if (u13 != 0)
                                             {
+                                                // [R14a16 2026-09-12 ④] 同第一处：
+                                                // ORIG 0x0841e557 `movl $0x0,-0x50(%ebp)`
+                                                // + `lea -0x50(%ebp),%edx`（value 恒 0）。
                                                 extraMap.insert(
                                                     std::make_pair((unsigned int&)u13,
-                                                                   (int)u13));
+                                                                   0));
                                             }
 
                                             // P183：ORIG 每字段重发完整 imul/lea/add 链

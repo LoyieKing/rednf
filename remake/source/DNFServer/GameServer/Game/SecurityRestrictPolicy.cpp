@@ -47,7 +47,7 @@ static void setPolicyApplyValue(RestrictCategory::Enum code, ServicePolicy& poli
         if (v > 1 || v < 0)
         {
             LogManager::logFormat(1, "localtaiwan/System/ServiceRestrictManager.cpp",
-                                  "void setPolicyApplyValue(RestrictCategory::Enum, ServicePolicy&, std::string const&)",
+                                  __PRETTY_FUNCTION__,
                                   0x22,
                                   "[Taiwan, Restrict] Invalid server value. restrict:%d,%d,%d",
                                   code, idx, v);

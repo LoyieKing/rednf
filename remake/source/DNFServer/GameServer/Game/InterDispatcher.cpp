@@ -5136,7 +5136,10 @@ struct Inter_Antibot_PunishClientPktView
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
 struct Inter_Antibot_ProcessProtectMsgPktView
 {
-    short m_0;                // +0x00
+    // [R14a21] ORIG 0x84e491b 段 `movzwl (%eax),%eax; movzwl %ax,%eax`（**零扩展**，
+    // 无 cwtl/movswl）⇒ 该字段为 unsigned short（§T1/T2 直证；switch 值不参与
+    // protstatLevel/extra 的语义，仅决定扩展指令）。
+    unsigned short m_0;       // +0x00
     unsigned int m_2;         // +0x02
     short m_6;                // +0x06
     unsigned char m_8;        // +0x08

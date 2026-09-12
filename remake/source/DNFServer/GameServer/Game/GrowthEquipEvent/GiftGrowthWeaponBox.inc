@@ -10,10 +10,15 @@ void GrowthEquipEvent::GiftGrowthWeaponBox(CUser& user) const
     // [实测] ORIG 0x080f70xx `mov %eax,-0x18(%ebp)` + `mov -0x18(%ebp),%eax;
     // movzbl (%eax)` ⇒ data **是具名局部并占槽**（ORIG 的 `push %esi` 属 characNo，
     // 见下）；`register` 形（用 %ebx）实测反劣 ⇒ 保持具名。
-    char* data = static_cast<char*>(user.getGrowthWeaponEventdata());
-    if (*data == '\x01')            // 已领取过：直接返回
-        return;
-    *data = '\x01';
+    GrowthWeaponEvent* data =
+        static_cast<GrowthWeaponEvent*>(user.getGrowthWeaponEventdata());
+    // [R14a07] P357 字段轴 + P59 正向包裹：ORIG 0x080f7069 `movzbl (%eax),%eax;
+    // xor $0x1,%eax; test %al,%al; je 0x080f721c`（bool 字段 + `!field`，je 直落
+    // 共享尾、无 nop 中继岛）⇒ 原码为「if (!field) { 发放 }」正向包裹，非早退
+    // guard；字段为 CUser.h:1984 `bool m_eventFlag @+0x00`（同一 xor 判据）。
+    if (!data->m_eventFlag)
+    {
+    data->m_eventFlag = true;
 
     const int giftBoxIdx = G_CDataManager()->m_growthWeapon.m_giftBox;
 
@@ -71,4 +76,5 @@ void GrowthEquipEvent::GiftGrowthWeaponBox(CUser& user) const
     DB_EventSaveGrowthWeapon::makeRequest(user.get_acc_id(),
                                           static_cast<short>(serverGroup));
     user.SendEventMailAlaramTooltip();
+    }
 }

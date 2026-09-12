@@ -30,7 +30,12 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from,
     }
     if (msg.m_typeD != 0)
     {
-        std::string filtered = CSyncSlangFilter::GetInstance()->Filter(std::string(msg.m_text18));
+        // [R14a21] ORIG 0x86cfaa3-0x86cfbac 实证：源串为**具名局部**（C2EPKcRKSaIcE 建于
+        // -0x90，析构在 scope 尾 0x86cfbac；Filter 结果 -0x94 先析构 0x86cfb6e）——
+        // 匿名临时（`Filter(std::string(...))`）只活到整表达式结束，会提前析构并使
+        // 该字符串的 EH landing pad 多一份（p167 EXTRA _ZNSsD2Ev +1）。
+        std::string srcText(msg.m_text18);
+        std::string filtered = CSyncSlangFilter::GetInstance()->Filter(srcText);
         if (filtered.size() != 0)
         {
             strncpy(msg.m_text18, filtered.c_str(), filtered.size());
