@@ -358,12 +358,19 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
     //   m_message 两处 ORIG 仍用 0x10(%ebp)（0x08197d4/0x08197e2/0x0819849-4c）=reqData。
     //   ⇒ 旧码 else 的 m_tranNo 写 reqData 取错对象（与 R20a16「读次数」轴正交），
     //   已按 ORIG 改为 resData（m_arg7D/m_message 维持 reqData 不动）。
+    // [R24a16 ④ priceLabel 实参来源] 两处 BillingRecord 第 7 实参 ORIG 均为
+    //   `movzwl -0x58(%ebp),%eax → 0x1c(%esp)`（buytype==1 分支 0x081796ec-0x08179726；
+    //   else 分支 0x081797ca-0x08179802）。-0x58 = `req->m_stackCount`
+    //   （SigTypes_E.h:698 `unsigned short m_stackCount; // +0x0c`，写点 0x0817878f
+    //   `movzwl 0xc(%eax),%eax; mov %ax,-0x58(%ebp)`）⇒ 16 位无符号、零扩展传参。
+    //   BillingRecord.inc:115 `rec.m_countNo = priceLabel` ⇒ 旧码 `-1` 使计费记录的
+    //   数量字段恒 0xffffffff（真语义错，非形态）。已按 ORIG 改为 `(int)stackCount`。
     cUserHistoryLog* history = &user->m_historyLog;
     if (buytype == 1)
     {
         BillingRecord(user, (int)productNo, -1, (int)ceraPrice,
                       resData->m_cmd.m_output.m_arg7D, resData->m_cmd.m_output.m_message,
-                      -1, resData->m_cmd.m_output.m_tranNo, buyFlag);
+                      (int)stackCount, resData->m_cmd.m_output.m_tranNo, buyFlag);
         history->BuyCashShopItem(productNo, itemIdx, stackCount,
                                  resData->m_cmd.m_output.m_arg7D,
                                  buyFlag, (CeraShopPaymentType::T)1,
@@ -373,7 +380,7 @@ void ItemVendingMachine::ProcessIPG_ResultOutput(CUser* user,
     {
         BillingRecord(user, (int)productNo, -1, (int)ceraPrice,
                       reqData->m_cmd.m_output.m_arg7D, reqData->m_cmd.m_output.m_message,
-                      -1, resData->m_cmd.m_output.m_tranNo, buyFlag);
+                      (int)stackCount, resData->m_cmd.m_output.m_tranNo, buyFlag);
         history->BuyCashShopItem(productNo, itemIdx, stackCount,
                                  reqData->m_cmd.m_output.m_arg7D,
                                  buyFlag, (CeraShopPaymentType::T)0,
