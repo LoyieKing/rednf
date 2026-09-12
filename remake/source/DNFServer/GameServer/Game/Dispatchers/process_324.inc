@@ -67,6 +67,10 @@ int Dispatcher_CeraPackageOpen::process(CUser* user, MSG_BASE& msg,
         STSpecailItem_Param sp(items, ceraParam);           // W 0x08234ec2
         sp.m_user = user;
         sp.m_itemIdx = itemIdx;
+        // [R13a18 形态复刻] ORIG 0x081e7ace `movl $0x0,-0x84(%ebp)` = 结构 +0x8
+        // （m_value）显式清零写点；我方此前缺该写点（ctor 已置 0 ⇒ 语义不可观察，
+        // 但 ORIG 的字段写集合含 +0x8，按「完全复刻」口径补齐，P348）。
+        sp.m_value = 0;
         sp.m_count = 0;
         sp.m_time = 0;
         sp.m_flag = 0;

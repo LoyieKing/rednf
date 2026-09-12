@@ -161,8 +161,7 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
         {
             // 实验：then=trace / else=主流程（诱 4.4 布 trace 直落，见 ORIG
             // 0x0840cd0x `jle <+0x29f>` + trace + `jmp <+0xa9d>`）。
-            cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                     "SIG_LOAD_INVENTORY*)", 0x281d, 5)
+            cMyTrace(__PRETTY_FUNCTION__, 0x281d, 5)
                 ("DB_LoadInventory::GetUserCreature, charac_no=%u, slot=%d"
                  " overflow", sig->m_characNo, checkSlot);
         }
@@ -182,8 +181,7 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
             }
             if (!ok)
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x282c, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x282c, 5)
                     ("DB_LoadInventory::GetUserCreature, get_int(0) ERROR"
                      " charac_no=%u", sig->m_characNo);
                 return 0;
@@ -191,16 +189,14 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
             ok = db->get_ulong(1, rowBuf.itId);
             if (!ok)
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x2833, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x2833, 5)
                     ("DB_LoadInventory::GetUserCreature, get_ushort(1) ERROR"
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_str(2, rowBuf.name, 0xd))
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x2846, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x2846, 5)
                     ("DB_LoadInventory::GetUserCreature, get_int(2) ERROR"
                      " charac_no=%u", sig->m_characNo);
                 return 0;
@@ -208,8 +204,7 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
             ok = db->get_int(3, rowBuf.stomach);
             if (!ok)
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x284e, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x284e, 5)
                     ("DB_LoadInventory::GetUserCreature, get_int(3) ERROR"
                      " charac_no=%u", sig->m_characNo);
                 return 0;
@@ -217,24 +212,21 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
             ok = db->get_int(4, rowBuf.exp);
             if (!ok)
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x2855, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x2855, 5)
                     ("DB_LoadInventory::GetUserCreature, get_int(4) ERROR"
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_ushort(5, rowBuf.endurance))
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x285b, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x285b, 5)
                     ("DB_LoadInventory::GetUserCreature, get_ushort(5) ERROR"
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_int(6, creatureType))
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x2862, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x2862, 5)
                     ("DB_LoadInventory::GetUserCreature, get_int(6) ERROR"
                      " charac_no=%u", sig->m_characNo);
                 return 0;
@@ -244,16 +236,14 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
             detailWord[0] = static_cast<unsigned char>(creatureType);
             if (!db->get_int(7, rowBuf.uiId))
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x2869, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x2869, 5)
                     ("DB_LoadInventory::GetUserCreature, get_int(7) ERROR"
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_int(8, noCharge))
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x2870, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x2870, 5)
                     ("DB_LoadInventory::GetUserCreature, get_int(8) ERROR"
                      " charac_no=%u", sig->m_characNo);
                 return 0;
@@ -262,8 +252,7 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
             detailWord[2] = static_cast<unsigned char>(noCharge);
             if (!db->get_int(9, stat))
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x2878, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x2878, 5)
                     ("DB_LoadInventory::GetUserCreature, get_int(9) ERROR"
                      " charac_no=%u", sig->m_characNo);
                 return 0;
@@ -274,24 +263,21 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
             unsigned char lockKey = 0;
             if (!db->get_ubyte(10, lockKey))
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x2880, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x2880, 5)
                     ("DB_LoadInventory::GetUserCreature, get_ubyte(10) ERROR"
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (!db->get_int(11, rowBuf.expire))
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x28a6, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x28a6, 5)
                     ("DB_LoadInventory::GetUserCreature, get_int(12) ERROR"
                      " charac_no=%u", sig->m_characNo);
                 return 0;
             }
             if (0xf1 < rowBuf.slot)
             {
-                cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                         "SIG_LOAD_INVENTORY*)", 0x28ad, 5)
+                cMyTrace(__PRETTY_FUNCTION__, 0x28ad, 5)
                     ("DB_LoadInventory::GetUserCreature, slot_no overflow ERROR"
                      " charac_no=%u, slot_no=%d", sig->m_characNo, rowBuf.slot);
                 return 0;
@@ -381,8 +367,7 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
         int cur = emptySlot;
         if (cur != 0xee && cur > 0x8b)
         {
-            cMyTrace("bool DB_LoadInventory::GetUserCreature("
-                     "SIG_LOAD_INVENTORY*)", 0x28e9, 5)
+            cMyTrace(__PRETTY_FUNCTION__, 0x28e9, 5)
                 ("DB_LoadInventory::GetUserCreature, charac_no=%u,"
                  " slot overflow", sig->m_characNo);
             break;

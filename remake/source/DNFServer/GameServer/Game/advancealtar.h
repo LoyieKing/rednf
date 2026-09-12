@@ -313,6 +313,12 @@ struct _CharacAdvanceAltarDbData
 };                                   // sizeof 0x51c
 #pragma pack(pop)
 
+// [R13fixE2 E轴 prett 拼写 2026-09-12] ORIG 0x08b6ec20（size 0x4c）raw 直证：
+//   "bool advancealtar::DB_Load::Select(advancealtar::CharacAdvanceAltarDbData&)"
+//   ⇒ ORIG 源码 = 真类名 `_CharacAdvanceAltarDbData` + 同域别名写法；mangled 仍用真名
+//   （`NS_25_CharacAdvanceAltarDbDataE`），typedef 零 sizeof/偏移/mangled 影响（P105/P110）。
+typedef _CharacAdvanceAltarDbData CharacAdvanceAltarDbData;
+
 // AdvanceAltarData：0xd0（ctor 布局：_RidableBase@+0 + 7 maps + update@+0xcc）
 class AdvanceAltarData : public _RidableBase
 {

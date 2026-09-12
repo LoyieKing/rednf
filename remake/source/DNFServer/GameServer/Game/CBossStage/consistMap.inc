@@ -47,7 +47,13 @@ bool CBossStage::consistMap(const CMap* map)
              it != arranges->end(); ++it)
         {
             // P167：ORIG 用 operator*（p167 MISSING de / EXTRA ptEv）⇒ (*it)
-            unsigned int aiType = (unsigned int)(*it).m_type;
+            // [R13a12 2026-09-12 ② 调用点差集] ORIG 0x0814bfd8 `mov %eax,-0x30(%ebp)` =
+            //   `*it` 的**具名解引用局部**（-0x30 存指针，其后 0x0814bfdb/0x0814c132/
+            //   0x0814c170 三处经 -0x30 复用，de 仅 1 次/迭代）；我方原写两处 `(*it)`
+            //   使 `deEv` 静态 2 次（p167 EXTRA ×1）。P0 槽律：ORIG 有 -0x30 槽往返 ⇒
+            //   原码确为具名局部。
+            const STAICharacterMapArrangeData& arr = *it;
+            unsigned int aiType = (unsigned int)arr.m_type;
             CAICharacter* ai =
                 G_CDataManager()->m_aiCharacterList->get(aiType);
             if (ai == 0)
@@ -71,7 +77,7 @@ bool CBossStage::consistMap(const CMap* map)
             m_stageData.m_assignItemIdx += 1;
             mob.m_roleType = 5;                               // APC
             mob.m_level = (char)(unsigned char)ai->getLevel();
-            mob.m_dropCnt = (*it).m_camp;                     // +0x10 dword（STMapScript 批次命名 m_camp；
+            mob.m_dropCnt = arr.m_camp;                       // +0x10 dword（STMapScript 批次命名 m_camp；
                                                               //   本调用面按等级消费，语义双证待裁决）
             m_stageData.Add_Mob(mob);                         // ctor 已清 +0x11/+0x12
             ++counter;
@@ -197,6 +203,14 @@ bool CBossStage::consistMap(const CMap* map)
     }
 
     // ---- 第四段：特殊被动物品生成 ----
+    // [R13a12 2026-09-12 ④ 修复] ORIG 0x0814c8f5 `lea -0xac4(%ebp),%eax; mov %eax,(%esp);
+    //   call 815088e <_ZN8_mapItemC1Ev>` = **循环外具名值对象**默认构造（位于
+    //   getSpecialPassiveObjectItems 之前）；循环内 0x0814c98b..0x0814c9ad 为
+    //   `mi = *it;` 的 4 dword 隐式拷贝赋值（`mov (%eax),%edx; mov %edx,-0xac4(%ebp)` ×4）。
+    //   旧形 `const _mapItem& mi = *it;` 只把指针存槽（-0x24）⇒ p167 O-only
+    //   `_ZN8_mapItemC1Ev`（我方缺 1 call）、槽/帧少 16 字节；引用在循环体内无别名
+    //   破坏（items 为值拷贝、体内不修改）⇒ 语义等价，本改为按 ORIG 复刻具名对象形。
+    _mapItem mi;
     // [b28d-solo] p167：ORIG 用 const 版 vector::at ⇒ specialItems 为 const 指针。
     const std::vector<stDungeonAssignItem_t>* specialItems =
         m_dungeon->getSpecialPassiveObjectItems();
@@ -214,7 +228,7 @@ bool CBossStage::consistMap(const CMap* map)
     std::list<_mapItem>::iterator it = items.begin();
     while (it != items.end())
     {
-        const _mapItem& mi = *it;
+        mi = *it;
         const stDungeonAssignItem_t& assign =
             specialItems->at((unsigned int)mi.m_objectIdx);
 

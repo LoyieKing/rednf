@@ -52,8 +52,8 @@ public:
     virtual void GetMailString(char* mailBuf, char* titleBuf) = 0;
 
     EventRewardItemArad make_data(int eventCode);              // T 0x08194e58
-    bool operator()(int eventCode, unsigned long itemIndex,
-                    short count, unsigned int param);          // T 0x08194ac8
+    bool operator()(int eventCode, itemindex_t itemIndex,        // [R13fixE2] ORIG prett 0x08b9c9e0
+                    short count, arad_uint32 param);           // T 0x08194ac8
 
 protected:
     CUser* m_user;
@@ -145,8 +145,8 @@ public:
     }
 
     EventRewardItemArad make_data(int eventCode);              // T 0x08195340
-    bool operator()(int eventCode, unsigned long itemIndex,
-                    short count, unsigned int param);          // T 0x08194ee2
+    bool operator()(int eventCode, itemindex_t itemIndex,        // [R13fixE2] ORIG prett 0x08b9c980
+                    short count, arad_uint32 param);           // T 0x08194ee2
 
 private:
     CUser* m_user;

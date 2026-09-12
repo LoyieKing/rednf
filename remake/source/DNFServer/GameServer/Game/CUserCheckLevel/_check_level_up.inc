@@ -25,8 +25,10 @@
 //   ⑨ 虚槽核对：ORIG 区间 `call *` = 0 处（全直接调用），无虚槽可错。
 //   ⑩ jcc 逐位交叉验证 32 处：条件码/落点语义全等。
 //   剩余真缺口 = 0。
+// [R13fixE2 E轴 prett] ORIG 0x08cf2f00 = "…(int, int&, int&, eExpAddReason, int)"
+// ⇒ 定义处用全局限定 `::eExpAddReason`（同类型；gain_exp_sp 同法先例）。
 bool CUser::_check_level_up(int expAdd, int& sp, int& sfp,
-                            CUser::eExpAddReason reason, int hadesFlag)
+                            ::eExpAddReason reason, int hadesFlag)
 {
     (void)hadesFlag;   // ORIG 全函数不引用 0x1c(%ebp)（第 5 参）
 

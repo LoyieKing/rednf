@@ -70,10 +70,12 @@ int computeHpDamageSDC(STComputeDamageVariable* v, void* /*unusedArg2*/, void* d
         float drB = 0.0f;                                      // -0x68
         getDefenseRateDamager(drA, drB, v, 0);                 // 0x08095f23
         float m = (1.0f - drA) - v->m_f05F * drB;              // -0x34
-        // 0x08095f3f/0x08095f60: 两处 ORIG 等值自赋（fucomip 形态）【asm 事实】
-        if (m == g_maxTotalDefenseRate)
+        // [R13fixX87] 0x08095f3f/0x08095f60: ORIG 为**严格小于 clamp**（`fucompp; fnstsw %ax;
+        // test $0x45,%ah; sete %al; test; je <skip>` ⇒ 不跳即赋值）：`g_max > m` / `0.0f > m`。
+        // 旧写 `m == C`（等值自赋 = 空操作）⇒ 负值/超界不被夹取，与 ORIG 真语义分叉。
+        if (m < g_maxTotalDefenseRate)
             m = g_maxTotalDefenseRate;
-        if (m == 0.0f)
+        if (m < 0.0f)
             m = 0.0f;
         dmg *= m;                                              // 0x08095f7b
 
@@ -133,7 +135,7 @@ int computeHpDamageSDC(STComputeDamageVariable* v, void* /*unusedArg2*/, void* d
         dmg = dmg - dmg * v->m_magicReduceRate;                // 0x0809632f
     }
 
-    if (dmg == 0.0f)                                           // 0x08096345 等值自赋【asm 事实】
+    if (dmg < 0.0f)                                            // [R13fixX87] 0x08096345：ORIG `0.0f > dmg` clamp
         dmg = 0.0f;
 
     v->m_isCritical = (unsigned char)checkIsCriticalSDC(v, &dmg, &randState);  // 0x08096360
@@ -155,7 +157,7 @@ int computeHpDamageSDC(STComputeDamageVariable* v, void* /*unusedArg2*/, void* d
         dmg *= v->m_f00F[6] * 0.01f;
     dmg *= v->m_f06B;                                          // 0x08096471
 
-    if (dmg == 1.0f)                                           // 0x0809647f 等值自赋【asm 事实】
+    if (dmg < 1.0f)                                            // [R13fixX87] 0x0809647e：ORIG `1.0f > dmg` clamp
         dmg = 1.0f;
 
     if (_SDC::isObjectType(v->m_field1C6, 0x111))              // 0x0809649a 暴击矩阵 26 项

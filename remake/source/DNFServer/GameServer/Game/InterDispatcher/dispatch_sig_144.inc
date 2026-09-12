@@ -150,6 +150,10 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         }
 
         // cera 礼包专区（itemId∈礼包区间 & pay==1）：直接扣登记费 + 转发cera代理
+        // [R13a10] ORIG 0x084d5b9f `movl $0xf4240,-0x58(%ebp)`：写后全函数无读
+        // （死写，P171 原码遗留照抄；O[153] 位于本守卫之前）。
+        int deadCeraFee = 0xf4240;
+        (void)deadCeraFee;
         if ((0x28d287 < itemId && itemId < 0x28d29a))
         {
             if (pPkt->m_0 != 1)

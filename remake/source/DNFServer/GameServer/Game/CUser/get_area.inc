@@ -5,12 +5,15 @@
 //   ⇒ 非可改项；Main 做 link 后重定位解析即应转 AE/IDENTICAL。
 int CUser::get_area(bool param)
 {
-    if (param) {
-        if (G_GameWorld()->IsSchoolPvPChannel() &&
-            getCurCharacVill() == 2 &&
-            m_field8cfc0 == 4) {
-            return m_field8cfc0;
-        }
+    // [R13a01 形态] ORIG 0x086813ce 首条 `je` 落点是**条件物化的 false 汇合块**
+    //   `mov $0x0,%eax`（0x08681405），而非本段之后的第二段 —— 说明原码首段是
+    //   `param` 也在同一 `&&` 短路链内的**单一条件**（4.1 短路链共同落 false 块），
+    //   不是「外层 if(param) 包内层 if(&&)」。写成单链即复现（我方旧形 je 落
+    //   0x084715b5 = 第二段的 cmpb）。
+    if (param && G_GameWorld()->IsSchoolPvPChannel() &&
+        getCurCharacVill() == 2 &&
+        m_field8cfc0 == 4) {
+        return m_field8cfc0;
     }
     if (param && getCurCharacVill() == 8) {
         if (m_field8cfc0 == 0 || m_field8cfc0 == 1 ||

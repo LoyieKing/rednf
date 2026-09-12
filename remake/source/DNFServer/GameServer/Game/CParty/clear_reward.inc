@@ -300,8 +300,11 @@ void CParty::clear_reward(int param)
         {
             int addInfo = rewardItems[0].get_add_info();
             rewardItems[0].set_add_info(static_cast<int>(
-                static_cast<double>(static_cast<float>(minStdDropRate) / 100.0f) *
-                    static_cast<double>(addInfo)));
+                // [R13a07 ④-G] ORIG 0x085aeee1 段：fildl(addInfo) 先压栈 →
+                // fildl(minStdDropRate)/fldl(double 100.0)/fdivrp/fstps+flds(float 往返)
+                // → fmulp ⇒ 原码 = `addInfo * (float)(minStdDropRate / 100.0)`
+                // （double 除法后一次舍入到 float；原写 float 除法 + double 提升为形态/精度双差）。
+                addInfo * static_cast<float>(minStdDropRate / 100.0)));
         }
 
         ref.m_field3c =                                          // +0x3c 整字视图
@@ -535,8 +538,11 @@ void CParty::clear_reward(int param)
             float scaled = static_cast<float>(
                 static_cast<float>(totalMobExp) *
                 G_CDataManager()->BaseExpPenalty(userLevel, stdLevel));
+            // [R13a07 ④-G] ORIG 0x085afcef/0x085afcf5：`flds -0x31c; fmulp`（float 直接读回，
+            // 无 `fstpl -0x3c8; fldl` 中转）⇒ 原码无 `(double)scaled` 提升（float→double 无损，
+            // 数值等价，但本轮要求逐条复刻 ORIG 形态）。
             personalExp = static_cast<unsigned int>(static_cast<long long>(
-                static_cast<double>(scaled) * MemberPenaltyRate() / memberCount));
+                scaled * MemberPenaltyRate() / memberCount));
         }
 
         QuickParty::RewardData_Param rewardParam(this);

@@ -19,7 +19,9 @@ bool Arad_DB_kAradEventItemLog::dispatch(int code, int uid, Stream* stream)
         if (db == 0)
             throw "handle null";
         if (!db->set_query(
-                " inSert into log_arad_event_stat ( occ_time, m_id, charac_no, item_id, item_cnt )  values "
+                // ORIG raw @0x08b8f804 逐字节：`... item_cnt )  values ( now(), %u, %u, %u, %d ) `
+                //   ⇒ `values` 与 `(` 之间仅 1 空格（相邻字面量拼接不得多空格）。
+                " inSert into log_arad_event_stat ( occ_time, m_id, charac_no, item_id, item_cnt )  values"
                 " ( now(), %u, %u, %u, %d ) ",
                 sig->m_id, sig->m_characNo, sig->m_itemId, sig->m_itemCount))
             throw "set_query";

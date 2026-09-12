@@ -114,7 +114,10 @@ bool CDataManager::Verify() const
              it != ml->m_mainMap.end(); it++)
         {
             // ORIG 形态：VerifyMap 返回值 xor 1 存入标志位，逐张覆盖不提前 break
-            mapFail = ((VerifyMap(*it->second, -1) ^ 1) & 0xff) != 0;
+            // [R13a15 §15-C 修复] ORIG 0x08360xxx = `call VerifyMap; xor $0x1,%eax;
+            // mov %al,-0x69(%ebp)`（两条，字节直存）；旧写法 `((x ^ 1) & 0xff) != 0`
+            // 被 4.4 展开为 movzbl/and $0xff/test/setne 四条多余归一化 ⇒ 改 `!` 形直存。
+            mapFail = !VerifyMap(*it->second, -1);
         }
     }
     if (mapFail)

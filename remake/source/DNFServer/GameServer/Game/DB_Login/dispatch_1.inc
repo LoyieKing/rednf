@@ -51,46 +51,72 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
 
     // [P183] ORIG 0840fb7d 每轮重读 `mov 0x3a50(%eax),%eax`（不缓存上界），
     // 旧 `int punishCount` 具名缓存被删。
-    for (int i = 0; i < sig->m_punishInfoCount; ++i)
+    // [P191+轴A] ORIG 0x0840f6fc/0x0840f704 循环入口另有**冗余**计数守卫
+    // `mov 0x3a50(%eax),%eax; test %eax,%eax; je <循环后>`（count==0 时底部同条件亦退出，
+    // 行为等价、退出块相同），且 i 为「`int i = 0;` + `for(i=0;…)`」双初始化形。
+    if (sig->m_punishInfoCount != 0)
     {
-        // [P183 正形] ORIG 每点重算 sig->m_punishInfos[i] 的地址（0840f865 起
-        // `mov -0xc(%ebp),%edx; mov -0x1c(%ebp),%ecx; mov %edx,%eax; add %eax,%eax;
-        // add %edx,%eax; shl $0x3,%eax; lea (%ecx,%eax,1),%eax; add $0x3a54,%eax`），
-        // 旧 `const SIG_LOGIN_PUNISH_INFO& e` 引用缓存让 4.4 只算一次 ⇒ 删缓存、
-        // 全部直写完整成员访问；endSec/curSec 亦非具名局部（ORIG 无对应栈槽，
-        // m_endTime 载入 %ebx 跨 getCurSec 调用比较）⇒ 一并内联。
-        // punish_type == 1：封禁中（含到期时间窗判断）
-        if (sig->m_punishInfos[i].m_type == 1)
+        int i = 0;
+        for (i = 0; i < sig->m_punishInfoCount; ++i)
         {
-            // ORIG 0840f791 处 && 结果直接 `test %al,%al`（bool 在 %al，无栈槽）；
-            // 旧具名 active 被 4.4 物化到栈槽再 cmpb ⇒ 内联进 if。
-            if (!(sig->m_punishInfos[i].m_endTime <
-                      GlobalData::s_systemTime_.getCurSec() &&
-                  sig->m_punishInfos[i].m_endTime != 0))
+            // [P183 正形] ORIG 每点重算 sig->m_punishInfos[i] 的地址（0840f865 起
+            // `mov -0xc(%ebp),%edx; mov -0x1c(%ebp),%ecx; mov %edx,%eax; add %eax,%eax;
+            // add %edx,%eax; shl $0x3,%eax; lea (%ecx,%eax,1),%eax; add $0x3a54,%eax`），
+            // 旧 `const SIG_LOGIN_PUNISH_INFO& e` 引用缓存让 4.4 只算一次 ⇒ 删缓存、
+            // 全部直写完整成员访问；endSec/curSec 亦非具名局部（ORIG 无对应栈槽，
+            // m_endTime 载入 %ebx 跨 getCurSec 调用比较）⇒ 一并内联。
+            // punish_type == 1：封禁中（含到期时间窗判断）
+            if (sig->m_punishInfos[i].m_type == 1)
             {
-                if (sig->m_punishInfos[i].m_endTime == 0)
+                // ORIG 0840f791 处 && 结果直接 `test %al,%al`（bool 在 %al，无栈槽）；
+                // 旧具名 active 被 4.4 物化到栈槽再 cmpb ⇒ 内联进 if。
+                if (!(sig->m_punishInfos[i].m_endTime <
+                          GlobalData::s_systemTime_.getCurSec() &&
+                      sig->m_punishInfos[i].m_endTime != 0))
                 {
-                    if (sig->m_punishInfos[i].m_field0c == 1)   // apply_flag
-                        sig->m_errCode = 10;
-                    else if (sig->m_punishInfos[i].m_field0c == 2)
-                        sig->m_errCode = 11;
+                    if (sig->m_punishInfos[i].m_endTime == 0)
+                    {
+                        if (sig->m_punishInfos[i].m_field0c == 1)   // apply_flag
+                            sig->m_errCode = 10;
+                        else if (sig->m_punishInfos[i].m_field0c == 2)
+                            sig->m_errCode = 11;
+                    }
+                    else
+                    {
+                        int val = sig->m_punishInfos[i].m_stdDropRate;  // punish_value
+                        if (val > 25) val = 25;
+                        sig->m_loginErrDetail = val;                    // ban_msg 序号
+                    }
+                    return SendResult(userDbIdx, slot, sig);
                 }
-                else
-                {
-                    int val = sig->m_punishInfos[i].m_stdDropRate;  // punish_value
-                    if (val > 25) val = 25;
-                    sig->m_loginErrDetail = val;                    // ban_msg 序号
-                }
-                return SendResult(userDbIdx, slot, sig);
             }
-        }
-        // punish_type 2 / 0x3ea
-        if (sig->m_punishInfos[i].m_type == 2 ||
-            sig->m_punishInfos[i].m_type == 0x3ea)
-        {
-            if (!(sig->m_punishInfos[i].m_endTime <
-                      GlobalData::s_systemTime_.getCurSec() &&
-                  sig->m_punishInfos[i].m_endTime != 0))
+            // punish_type 2 / 0x3ea
+            if (sig->m_punishInfos[i].m_type == 2 ||
+                sig->m_punishInfos[i].m_type == 0x3ea)
+            {
+                if (!(sig->m_punishInfos[i].m_endTime <
+                          GlobalData::s_systemTime_.getCurSec() &&
+                      sig->m_punishInfos[i].m_endTime != 0))
+                {
+                    if (sig->m_punishInfos[i].m_endTime == 0)
+                    {
+                        if (sig->m_punishInfos[i].m_field0c == 1)
+                            sig->m_errCode = 10;
+                        else if (sig->m_punishInfos[i].m_field0c == 2)
+                            sig->m_errCode = 11;
+                    }
+                    else
+                    {
+                        int val = sig->m_punishInfos[i].m_stdDropRate;
+                        if (val > 25) val = 25;
+                        sig->m_errCode = val + 12;
+                    }
+                    return SendResult(userDbIdx, slot, sig);
+                }
+            }
+            // punish_type 3 / 0x3eb（无时间窗直接拦截）
+            if (sig->m_punishInfos[i].m_type == 3 ||
+                sig->m_punishInfos[i].m_type == 0x3eb)
             {
                 if (sig->m_punishInfos[i].m_endTime == 0)
                 {
@@ -107,38 +133,19 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
                 }
                 return SendResult(userDbIdx, slot, sig);
             }
-        }
-        // punish_type 3 / 0x3eb（无时间窗直接拦截）
-        if (sig->m_punishInfos[i].m_type == 3 ||
-            sig->m_punishInfos[i].m_type == 0x3eb)
-        {
-            if (sig->m_punishInfos[i].m_endTime == 0)
+            // punish_type 4：写通知码 0xd/0xe 到 +0x38de（short）
+            if (sig->m_punishInfos[i].m_type == 4)
             {
                 if (sig->m_punishInfos[i].m_field0c == 1)
-                    sig->m_errCode = 10;
+                    sig->m_punishTradeAlertType = 0xd;
                 else if (sig->m_punishInfos[i].m_field0c == 2)
-                    sig->m_errCode = 11;
+                    sig->m_punishTradeAlertType = 0xe;
             }
-            else
+            // punish_type 10：置 +0x3f0c 标志
+            if (sig->m_punishInfos[i].m_type == 10)
             {
-                int val = sig->m_punishInfos[i].m_stdDropRate;
-                if (val > 25) val = 25;
-                sig->m_errCode = val + 12;
+                sig->m_restingUserRestrict = 1;
             }
-            return SendResult(userDbIdx, slot, sig);
-        }
-        // punish_type 4：写通知码 0xd/0xe 到 +0x38de（short）
-        if (sig->m_punishInfos[i].m_type == 4)
-        {
-            if (sig->m_punishInfos[i].m_field0c == 1)
-                sig->m_punishTradeAlertType = 0xd;
-            else if (sig->m_punishInfos[i].m_field0c == 2)
-                sig->m_punishTradeAlertType = 0xe;
-        }
-        // punish_type 10：置 +0x3f0c 标志
-        if (sig->m_punishInfos[i].m_type == 10)
-        {
-            sig->m_restingUserRestrict = 1;
         }
     }
 

@@ -29,9 +29,11 @@ bool Arad_DB_kLoadRewardEventItem::dispatch(int code, int uid, Stream* stream)
         int curSec = GlobalData::s_systemTime_.getCurSec();
 
         if (!db->set_query(
+                // ORIG raw @0x08b8f98c 逐字节：`... from_unixtime(%u))  order by occ_date desc limit 10 `
+                //   ⇒ `))` 与 `order` 之间恰 2 空格（相邻字面量拼接不得多空格）。
                 " seLect event_id, charac_no from event_reward_item_arad "
                 " where (m_id = %u and end_date > from_unixtime(%u))  "
-                " order by occ_date desc limit 10 ",
+                "order by occ_date desc limit 10 ",
                 sig->m_field0, curSec))
             throw "set_query";
         if (!db->exec(true))

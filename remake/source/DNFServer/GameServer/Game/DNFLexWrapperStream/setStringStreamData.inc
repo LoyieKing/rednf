@@ -4,7 +4,7 @@
 bool DNFLexWrapper::setStringStreamData(DNFLex::stream_data_t* s, char* buffer,
                                         unsigned int bufferSize)
 {
-    static const char* kEmptyBuf = "";
+    static const char* kEmptyBuf = " ";
     if (bufferSize)
     {
         std::istrstream* is = new std::istrstream(buffer, (int)bufferSize);

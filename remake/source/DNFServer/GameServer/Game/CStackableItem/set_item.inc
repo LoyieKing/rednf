@@ -64,7 +64,10 @@ void CStackableItem::set_item(STStackableScript& script)
         cMyTrace(__PRETTY_FUNCTION__, 0x80, 5)(
             "Error!!! %s->%s [%s][%s][%d]", CodePage::script(),
             CodePage::database(), script.m_strac.c_str(),
-            "void CStackableItem::set_item(STStackableScript&)", 0x80);
+            // [R13a09 2026-09-12] ORIG 直证（0x0850d99c ctor 首参 / 0x0850d9b7 第 4 实参
+            //   同为 0x8c96d60 = 本函数 __PRETTY_FUNCTION__ 静态，且 ORIG 全二进制该串
+            //   仅 1 份）⇒ 第 4 实参即 __PRETTY_FUNCTION__，手写串属发明（P139）。
+            __PRETTY_FUNCTION__, 0x80);
     }
     m_str2c = buf;
     m_usablePeriod = script.m_fieldf4;

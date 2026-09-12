@@ -66,11 +66,11 @@ void getDefenseRateDamager(float& outDefenseRate, float& outReduceS1,
     // [g09] ORIG（0x080959c7/0x080959ce）：arg1=&one(-0x1c)、arg0=&denom(-0x18) ⇒ max(denom, 1.0f)。
     outDefenseRate = dr / std::max(static_cast<float>(basisLevel) * redConst + dr, 1.0f);
 
-    // 0x080959e3：if (dr == 0.0f && lvl <= 9) out0 = dr / 400.0f
-    //   （fnstsw+test 0x45+sete：非无序且相等，即 C++ dr == 0.0f）
-    // [g09 试形·已回退] `0.0f == dr` 无改善（4.4 仍产 fxch %st(1) + sahf/jne/jp）
-    //   ⇒ 残余 = 4.4 x87 比较 lowering 固有形（N85 族，G07 已证 -march=i486 无改善）。
-    if (dr == 0.0f && basisLevel <= 9)
+    // [R13fixX87] 0x080959e3：ORIG `flds dr; fldz; fucompp; fnstsw %ax; test $0x45,%ah;
+    //   sete %al; test; je`（**无 fxch**）= 有序且 `0.0 > dr` ⇒ 源码是 **dr < 0.0f**（旧注释
+    //   把它读成 `==` 是错的：`==` 在 4.4 产 `fldz; fxch; sahf; jne; jp` 相等判定）。
+    //   语义：dr 已被上行 max(0.0f,dr) 夹到 >=0 ⇒ 条件不可观察（照抄 ORIG 形，P171）。
+    if (dr < 0.0f && basisLevel <= 9)
         outDefenseRate = dr / 400.0f;
 
     // 0x08095a0c：out1 = s1

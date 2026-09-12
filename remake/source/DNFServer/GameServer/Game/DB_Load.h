@@ -20,7 +20,7 @@ public:
     DB_Load();
     ~DB_Load();
     virtual bool dispatch(int uid, int uniqueId, Stream* stream);
-    bool Select(_CharacAdvanceAltarDbData& data);
+    bool Select(CharacAdvanceAltarDbData& data);   // [R13fixE2] prett 拼写（ORIG 0x08b6ec20）
     bool SendResult(int uid, int uniqueId, _CharacAdvanceAltarDbData& data, bool ok);
     bool parseStage(char* str, _Stage* out, int count);
     bool parseSlot(char* str, _Slot* out, int count);

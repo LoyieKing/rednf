@@ -3,8 +3,10 @@
 // 另把 title/mail 两支的 strncpy 内联进各分支（删 const char* 具名局部，P0 槽-局部律，
 // 帧 -8 后 mailBuf/titleBuf 槽位与 ORIG 全等）。
 // ORIG T 0x08194ee2（报告 ARAD__FnRewardLethe/operator__.md 全文转写）。
-bool FnRewardLethe::operator()(int eventCode, unsigned long itemIndex,
-                               short count, unsigned int param)
+// [R13fixE2 E轴 prett] ORIG 0x08b9c980 = "…(int, itemindex_t, short int, arad_uint32)"
+// ⇒ 形参拼写用 GameTypes.h 既有 typedef（同底层类型，mangled `clEimsjE` 不变）。
+bool FnRewardLethe::operator()(int eventCode, itemindex_t itemIndex,
+                               short count, arad_uint32 param)
 {
     if (m_user == 0 || m_user->get_charac_no(-1) == 0)
         return false;

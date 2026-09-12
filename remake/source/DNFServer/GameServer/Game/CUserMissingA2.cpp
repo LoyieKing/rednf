@@ -82,12 +82,14 @@ T Find_max_value_lower_N(int level,
 }
 
 // ----------------------------------------------------------------------------
-// ORIG b 0x09407e80（.bss 全局 string，internal linkage；初值推断为空串，
-// 运行期默认构造。GetRewardItem/Reward 用作兜底邮政消息）。
+// ORIG b 0x09407e80（.bss 全局 string，internal linkage）。ORIG 有动态初始化：
+//   static_init 0x081b472c `movl $0x8bb7d09,0x4(%esp); movl $0x9407e80,(%esp);
+//   call _ZNSsC1EPKcRKSaIcE` ⇒ 初值 "game_server_msg_222"（串 raw @0x08bb7d09
+//   逐字节实证）。GetRewardItem/Reward 用作兜底邮政消息。
 // ----------------------------------------------------------------------------
 namespace MercenaryHardCodingSettingValue
 {
-    static std::string MERCENARY_BASE_POSTAL_MESSAGE;
+    static std::string MERCENARY_BASE_POSTAL_MESSAGE("game_server_msg_222");
     // ORIG r 0x08bb8754 = 0x2710 (10000)，_ZN31MercenaryHardCodingSettingValueL19ITEM_DROP_MAX_VALUEE
     static const int ITEM_DROP_MAX_VALUE = 10000;
 }

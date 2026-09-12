@@ -139,14 +139,21 @@ std::string MODULE_NAME_TAG[17][2] = {
 //   ACTIVE_STATUS_NO_BOX_BRACKET_TAG @0x093f5540 (D, 0x4c，无括号标签)
 // 原函数内 static kTag/kNoBox（我方发明名 `_ZZ19getActiveStatusTypeRKsSE4kTag`/`6kNoBox`）
 // ⇒ 删除：ATTACK_TAG 引用 CharacterAIA2.cpp 的唯一定义（STMonsterScript 同法），
-// NO_BOX 表本 TU 定义（19 项含 NULL，与 ORIG 大小一致）；比较序按 ORIG（ATTACK 先、NO_BOX 后）。
+// NO_BOX 表本 TU 定义（19 项，与 ORIG 大小一致）；比较序按 ORIG（ATTACK 先、NO_BOX 后）。
+// [R13 G 轴数据内容 2026-09-12] ORIG 表体 raw（fastd.py orig --raw 0x093f5540 76，
+// 19×4B 指针 0x08e2836d/72/79/80/85/8b/91/9b/a1/a7/ac/ba/c4/ca/d0/d8/e0/e5/f1）
+// 逐项读串（raw 0x08e2836d 205B）后逐字节对齐：
+//   #10 = "weapon break]"（我方旧 "weapon break" 缺尾 ]）
+//   #11 = "bleeding]"（我方旧 "bleeding" 缺尾 ]）
+//   #18 = "none"（索引 18 因消费点循环 i<=0x11 不可达，ORIG 侧亦为 "none" 非 NULL；照抄）
+// 其余 16 项与 ORIG 逐字节一致。
 extern "C" const char* ACTIVESTATUS_ATTACK_TAG[20];   // D 0x093f54e0（CharacterAIA2.cpp）
 extern "C" const char* ACTIVE_STATUS_NO_BOX_BRACKET_TAG[19];
 const char* ACTIVE_STATUS_NO_BOX_BRACKET_TAG[19] = {
     "slow", "freeze", "poison", "stun", "curse", "blind", "lightning",
-    "stone", "sleep", "burn", "weapon break", "bleeding", "haste",
+    "stone", "sleep", "burn", "weapon break]", "bleeding]", "haste",
     "bless", "element", "confuse", "hold", "armor break",
-    0
+    "none"
 };
 
 #include "CreatureScript/getActiveStatusType.inc"

@@ -121,8 +121,11 @@ int CMap::set_map(STMapScript script)
     m_assignedNpcCount = static_cast<int>(script.m_vecNpc.size());
     if (!script.m_listPassiveObject.empty())
     {
-        for (std::list<STAssignPassiveObject>::iterator obj = script.m_listPassiveObject.begin();
-             obj != script.m_listPassiveObject.end(); ++obj)
+        // ORIG 0834e86d/0834e872：end() 在循环**外**只调一次（落具名迭代器 -0x24c）；
+        // 循环条件 0834e8bb 只发 operator!=，体内不重算 end()。
+        std::list<STAssignPassiveObject>::iterator obj = script.m_listPassiveObject.begin();
+        std::list<STAssignPassiveObject>::iterator objEnd = script.m_listPassiveObject.end();
+        for (; obj != objEnd; ++obj)
         {
             // ORIG 0834e880 用 _List_iterator::operator*（0838b542），非 operator->。
             m_passiveObjectList.push_back((*obj).m_0);

@@ -7,7 +7,7 @@ CNCryptoTea::CNCryptoTea()
     {
         char key[0x80];
         GenerateRandomString(key, 0x80);
-        if (((CTEA*)m_pCrypto)->Initialize(key, 0x80, "", 0, 0) != 0x6fffffff)
+        if (((CTEA*)m_pCrypto)->Initialize(key, 0x80, CTEA::sm_chain0, 0, 0) != 0x6fffffff)
         {
             delete (CTEA*)m_pCrypto;
             m_pCrypto = 0;

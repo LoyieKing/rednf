@@ -306,15 +306,29 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
                     // [SemA04 2026-09-12] ORIG 0x0866fd13 段为 getCurCharacInvenR（非 RefR）；
                     // 与上方 setCopy 处的 RefR 构成配对——重建此两处写反，此处改回 R。
                     getCurCharacInvenR()->GetInvenSlot(ampFlag, slotE0);
-                stAmplifyOption_t& amp = *&chkItem.m_amp;
+                // [R13a13 2026-09-12 · P183/P157] ORIG 0x0866fd88 / 0x0866fdae 为**两次独立**
+                // `lea -0x23e(%ebp),%eax; add $0x11,%eax; mov %eax,(%esp); call <getter>`
+                // ⇒ 原码无 `stAmplifyOption_t& amp` 具名引用（我方旧形落槽 -0x70 后两站点
+                //   改为 `mov -0x70(%ebp),%eax` 复用 ⇒ 多 1 store + 1 load，帧/槽随动）。
                 // [SubD C2 2026-09-11] ORIG 0x0866f989 无 `and $0xff,%eax`；
                 // `put_byte(int)` 内部按 (unsigned char) 截断 ⇒ 语义等价。
-                ack.put_byte(amp.getAbilityType());
-                ack.put_short(amp.getAbilityValue() & 0xffff);
+                ack.put_byte(chkItem.m_amp.getAbilityType());
+                // [R13a13 2026-09-12 · P162] ORIG 0x0866fdb4/0x0866fdb9 仅
+                // `call getAbilityValue; movzwl %ax,%eax; mov %eax,0x4(%esp)` + put_short
+                // ⇒ 原码实参无 `& 0xffff`（返回值提升已含零扩展；put_short 内部按 16 位截断）。
+                ack.put_short(chkItem.m_amp.getAbilityValue());
                 if (addedDef == 0 || !addedDef->is_stackable())
                     ack.put_short(0);
                 else
-                    ack.put_short(chkItem.m_addInfo2 & 0xffff);
+                    // [R13a13 2026-09-12 · P10/高危#11 位宽] ORIG 0x0866fdf3/0x0866fdfa：
+                    // `movzwl -0x233(%ebp),%eax; movzwl %ax,%eax`（**16 位零扩展装载** +
+                    // 提升两段）；我方旧形 `mov -0x24b(%ebp),%eax; and $0xffff,%eax`
+                    // （32 位读 + 掩码，多 1 条 and）。显式 `(unsigned short)` 令 4.4 发
+                    // `mov; movzwl %ax` 两段（与 ORIG 同条数、同提升段）；值语义不变
+                    // （小端低半字；put_short 内部亦按 16 位截断）。
+                    // 试形记录：`reinterpret_cast<unsigned short*>(&field)` 视图形劣化
+                    // （多 lea+add $0x7，4 条）⇒ 不采用。
+                    ack.put_short((unsigned short)chkItem.m_addInfo2);
             }
         }
     }

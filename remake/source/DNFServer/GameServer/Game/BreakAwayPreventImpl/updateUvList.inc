@@ -54,8 +54,14 @@ bool CBreakAwayPreventSystem::updateUvList(SIG_LOGIN_DATA const* login)
     }
     else
     {
-        std::string uvInfo(reinterpret_cast<const char*>(login->m_breakAwayPlayInfo));
-        std::string uvMarked(uvInfo, days, 0x1e);
+        // [R13a17 修复] ORIG 0x0831cc59..0x0831cca4 实证：uvInfo 是**临时对象** ——
+        //   构造（0x0831cc81）后随即在正常路径 0x0831ccbb..0x0831ccc1 与其异常
+        //   pad 0x0831cca6..0x0831ccb9 处析构，而 allocator 临时迟至 uvMarked
+        //   构造完成后才析构（0x0831ccf8/0x0831ce08）⇒ 原码是**单条完整表达式**
+        //   的嵌套临时形（旧形具名局部使析构被推到块尾，p167 少 1 次 SsD1Ev）。
+        std::string uvMarked(
+            std::string(reinterpret_cast<const char*>(login->m_breakAwayPlayInfo)),
+            days, 0x1e);
         for (int i = 0; i < days - 1; ++i)
             uvMarked.push_back('0');
         uvMarked.push_back('1');

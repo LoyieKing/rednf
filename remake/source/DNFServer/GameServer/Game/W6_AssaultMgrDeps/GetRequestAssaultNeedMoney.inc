@@ -63,16 +63,23 @@ int CAssaultMgr::GetRequestAssaultNeedMoney(CUser* attacker, CUser* target)
             factor = (static_cast<float>(DM_FIELD(600))
                       - decaySec / upperBound) * one;
         }
-        if (factor >= 1.0f)
+        // [R13a06 · ④ x87 flags 物化形] 极性必须写成 `factor < 1.0f`：
+        //   ORIG 0x82ede68 `fucompp`（**无 fxch**）/ 0x82ede6c `test $0x45,%ah` /
+        //   0x82ede6f `sete %al` / 0x82ede74 `je <clamp 段>`；
+        //   4.4 对该极性才产 ORIG 同形，写成 `factor >= 1.0f` 会产
+        //   `fxch %st(1); fucompp; fnstsw; sahf; setae` ⇒ **NaN 无序路径分叉**
+        //   （ORIG 走 clamp 段，我方走 factor=1.0f）。两臂语义与实参求值序不变。
+        //   探针：/tmp/verify357/R13a06/probe/cmp.cpp（GCC 4.4.7 + -march=i486）。
+        if (factor < 1.0f)
+        {
+            factor = 1.0f;
+        }
+        else
         {
             if (factor > static_cast<float>(DM_FIELD(600)))
             {
                 factor = static_cast<float>(DM_FIELD(600));
             }
-        }
-        else
-        {
-            factor = 1.0f;
         }
 
         // 等级差惩罚（CDataManager+0x608 系数）。

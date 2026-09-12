@@ -38,9 +38,9 @@ int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* dat
     }
     else
     {
-        const char group =
-            MPKT->m_a;
-        G_GameWorld()->send_server_group(packet, group);
+        // [R13a10] ORIG 0x84e5db2 段：`movzbl 0xa(%eax),%eax; movsbl %al,%ebx`
+        // 无槽往返（我方旧形多 `mov %al,-0x9(%ebp)` + 槽读共 2 条）⇒ 实参内联。
+        G_GameWorld()->send_server_group(packet, (char)MPKT->m_a);
     }
 #undef MPKT
     return 0;

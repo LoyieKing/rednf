@@ -5,7 +5,9 @@
 //   我方 "…(advancealtar::_CharacAdvanceAltarDbData&)" —— 修法需在 advancealtar.h
 //   加 `typedef _CharacAdvanceAltarDbData CharacAdvanceAltarDbData;`（头改动 = 越界）
 //   ⇒ 只报告 Main/P7HeaderAxis，本片未改。
-bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
+// [R13fixE2] ORIG prett 0x08b6ec20 = "…DB_Load::Select(advancealtar::CharacAdvanceAltarDbData&)"
+// ⇒ 定义处参数拼写改用同域别名（advancealtar.h 新增 typedef；mangled 不变）。
+bool DB_Load::Select(CharacAdvanceAltarDbData& data)
 {
     MySQL* mysql = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3, (ENUM_SERVER_GROUP)0);
     mysql->set_query(

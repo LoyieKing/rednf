@@ -59,7 +59,13 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         minLevel > m_manager->get_charac_level())
         return 0xe;
 
-    if (!checkDungeonDifficulty(type, dungeon))
+    // [R13a14 2026-09-12 ④ 修复] 原写 `if (!checkDungeonDifficulty(...))` 与 ORIG 相反：
+    //   ORIG 0x085a0bb8 `call checkDungeonDifficulty` → 0x085a0bbd `test %al,%al` →
+    //   0x085a0bbf `je 0x85a0c1c`（f()==0 跳过本块）⇒ 原码是 **正条件**（ORIG 真时进入
+    //   clearedDiff 检查、可能 return 0x13）。我方旧形 `xor $1; test; je`（f()==1 跳过）
+    //   使两侧可观察行为相反（0x084a9aba `xor $0x1,%eax` 我方站点）。
+    //   两侧 checkDungeonDifficulty 实现已逐条比对一致（ORIG 0x085be932 49 条 vs 我方 .inc）。
+    if (checkDungeonDifficulty(type, dungeon))
     {
         char clearedDiff =
             m_manager->getDungeonClearRefR()->getClearedDungeonDiff(

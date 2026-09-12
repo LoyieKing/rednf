@@ -66,6 +66,11 @@ void CParty::ClearDungeon()
     int memberCount = get_member_count();
     if (m_battleField.m_pDungeon != 0)
     {
+        // [R13a18 形态复刻] ORIG 0x085a9545 `movl $0x64,-0x3c(%ebp)`：该具名局部
+        // （初值 100）在全函数内**从不被读**（ORIG 反汇编 -0x3c 唯一引用点即该写），
+        // 属原码遗留死写；按 P171/P348「死写入/未初始化读照抄」口径复刻（ORIG 该
+        // 指令位于本 if 体内、for 之前，故声明位置同）。
+        int deadLocal100 = 100;
         for (int slot = 0; slot < 4; ++slot)
         {
             if (!_checkValidUser(slot))

@@ -35,10 +35,14 @@ void exportEquipmentParameterScript(FILE* file, EquipmentParameterInfo* info)
         // `flds 0x390(%eax); fld1; fsubrp; fabs; fstpl -0x160` + `flds 0x390;
         // fabs; fmulp`（字段内存直取、无槽中转、fabs 为 x87 指令）；三元
         // `(x<0?-x:x)` 在 4.4 恒生 fchs+fucomip+条件分支（N85 伪形）。
-        if ((fabs(info->m_separateRate[0] - 1.0f) >
-             std::numeric_limits<float>::epsilon() * fabs(info->m_separateRate[0])) ||
-            (fabs(info->m_separateRate[1] - 1.0f) >
-             std::numeric_limits<float>::epsilon() * fabs(info->m_separateRate[1])))
+        // [R13fixX87] x87 flags 物化极性：ORIG 0x89ad2fd/0x89ad33d 为
+        // `fldl; fxch %st(1); fucompp; fnstsw %ax; test $0x5,%ah; sete; xor $1`
+        // （NaN 无序 ⇒ 判真）；写成 `A > B` 时 4.4+i486 产 `fucompp; fnstsw; sahf;
+        // seta`（NaN ⇒ 判假，分叉）。改为 `!(A <= B)`（等价且 NaN 归位）。
+        if ((!(fabs(info->m_separateRate[0] - 1.0f) <=
+               std::numeric_limits<float>::epsilon() * fabs(info->m_separateRate[0]))) ||
+            (!(fabs(info->m_separateRate[1] - 1.0f) <=
+               std::numeric_limits<float>::epsilon() * fabs(info->m_separateRate[1]))))
             // [R4a18 ④ 复刻 ORIG] ORIG 0x89ad385/0x89ad3a6 对两实参做 `fnstcw+fldcw $0xc,%ah
             // +fistpl`（float→int 截断）后按 **4 字节 int** 传 varargs，格式串仍 "%+f"
             // （本函数 fistp 共 4 点：0x89ad385/0x89ad3a6 = 本处两实参、0x89ad456、0x89ad514）

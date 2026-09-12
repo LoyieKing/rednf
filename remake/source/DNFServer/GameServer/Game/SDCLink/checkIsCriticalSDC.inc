@@ -65,8 +65,12 @@ bool checkIsCriticalSDC(STComputeDamageVariable* v, float* dmg, unsigned int* ra
     // 帧 0x34→0x24（反劣）⇒ 已回滚；本件保留 const（4.4 未对其做立即数折叠）。
     const int roll = static_cast<int>(SDC_Rand(randState)) % 10000;
 
-    // 0x08095b9d..0x08095bb7：if (crit * 100.0f > (float)roll)
-    if (crit * 100.0f > static_cast<float>(roll))
+    // 0x08095b9d..0x08095bb7：ORIG 形为 `fildl roll; flds crit; flds 100.0f; fmulp;
+    // fucompp; fnstsw %ax; test $0x45,%ah; sete`（**无 fxch**）；写成 `crit*100 > roll`
+    // 时 4.4 先算左操作数 ⇒ `flds; flds; fmulp; fildl; fxch; sahf; seta`（多 fxch 且
+    // flags 通道不同）。[R13fixX87] 操作数互换 + 极性反转（`roll < crit*100`）即产 ORIG 形；
+    // 有序域等价，NaN 域两侧同为 `sete` 判定（无序 ⇒ 假 ⇒ 非暴击）⇒ 可观察行为一致。
+    if (static_cast<float>(roll) < crit * 100.0f)
     {
         float critMul = g_criticalDamageDefaultRate_;     // mov 0x936e4ac（=1.5f 初值）
         if (_SDC::isObjectType(v->m_attackerObjType, 0x11))
