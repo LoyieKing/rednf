@@ -20,7 +20,8 @@
 #include "CMap.h"  // CMap::get_index/get_monster_list、_mapMonster（sendMapInfo）
 #include "GameWorld.h"
 #include <cstring>        // std::memset / std::memcpy
-#include <new>            // placement new（StageControl 子对象构造）
+// [BigP3D 成员化 2026-09-12] 原 `#include <new>`（placement new 子对象构造）已删：
+//   StageControl 子对象改真实成员后 ctor/dtor 由编译器生成，全 TU 不再需要 <new>。
 #include "advancealtar_ProcStage.h"  // ProcStage/CharacData 完整类型（getProcStage/selectStage）
 
 namespace advancealtar

@@ -151,9 +151,8 @@ typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
         for (;;)
         {
             // ORIG 重派发落点 = +0x8e（__lookup 的 __cxa_guard 检查起点）：
-            // [SemB03 2026-09-12] retry 标签必须在 static 三件套**之前**，
-            // 使 `goto retry` 跳回后重做一次 guard 检查（ORIG 每轮穿过 guard 测试）。
-        retry:
+            // [SemB03 2026-09-12] static 三件套移入内层循环体开头 ⇒ 循环头即
+            // guard 检查，`continue`（重派发）落回此处重做 guard 测试（ORIG 形态）。
             static LookupMap __lookup;
             static SpinLock __init_lock;
             static bool __inited = false;
@@ -169,7 +168,7 @@ typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
                 if (__inited)
                 {
                     __init_lock.leave();
-                    goto retry;
+                    continue;
                 }
                 id = 0;
             }

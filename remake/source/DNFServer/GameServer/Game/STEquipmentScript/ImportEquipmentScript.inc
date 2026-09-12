@@ -1278,16 +1278,21 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else if (levelAniIdx != -1)
                 {
-                    int layerVariation = 0;
-                    if (ScanInt(&layerVariation))
+                    // [ImpBig1 2026-09-12 真语义修复] ORIG 08995c07..08995c5a 实证：
+                    // `call ScanInt(int*); xor $1; test; je 08995c28` ⇒ 返回 1（成功）
+                    // 才 ScanStr 解析并赋 levelLayerId/levelPath；返回 0 才置 stopFlag
+                    // （08995c1c movb $1,-0x96(%ebp)）。原译文 if/else 体反转 ⇒ 成功
+                    // 反而置 stopFlag 中止导入（真语义 bug）。
+                    // 变量用函数级 intScratch（ORIG -0x107c），非新建局部。
+                    if (ScanInt(&intScratch))
                     {
-                        stopFlag = true;
+                        ScanStr(&scanBuf);
+                        levelLayerId = intScratch;
+                        levelPath = scanBuf;
                     }
                     else
                     {
-                        ScanStr(&scanBuf);
-                        levelLayerId = layerVariation;
-                        levelPath = scanBuf;
+                        stopFlag = true;
                     }
                 }
                 else
@@ -1372,17 +1377,18 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                         }
                     }
                     levelLayer.clear();
-                    // ORIG 08995fb2：层号走 ScanInt(int*) 形式。
-                    int scanned = 0;
-                    ScanInt(&scanned);
-                    if (levelLayerId == 0)
+                    // ORIG 08995fb2/08995fc0 实证：ScanInt(&intScratch)（忽略返回值），
+                    // 随后 `cmpl $0,-0xa0(%ebp); je` ⇒ 非 0 分支在前（用 levelLayerId），
+                    // 为 0 才取 intScratch。
+                    ScanInt(&intScratch);
+                    if (levelLayerId != 0)
                     {
-                        levelLayer.m_field0 = scanned;
+                        levelLayer.m_field0 = levelLayerId;
                         levelLayer.m_str60 = levelPath;
                     }
                     else
                     {
-                        levelLayer.m_field0 = levelLayerId;
+                        levelLayer.m_field0 = intScratch;
                         levelLayer.m_str60 = levelPath;
                     }
                 }
@@ -2400,10 +2406,13 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                // ORIG LAB_0899962b 系：先读暂存再赋 string（operator=(const string&)）。
+                // ORIG 08999691/0899969f/089996ba/089996c8 实证：ScanStr 后立刻
+                // ScanInt(&intScratch)（两条 case 体同一序），再依次赋 m_strc0
+                // （operator=(const string&)）与 m_fieldc4。
                 ScanStr(&scanBuf);
+                ScanInt(&intScratch);
                 script->m_strc0 = scanBuf;
-                ScanInt(&script->m_fieldc4);
+                script->m_fieldc4 = intScratch;
                     goto stage2_switch_end;
                 }
                     /*FALLTHRU*/
@@ -2882,7 +2891,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                ScanInt(&script->m_730);
+                // ORIG 0899aa72..0899aa89：ScanInt(&intScratch) 后 m_730 = intScratch。
+                ScanInt(&intScratch);
+                script->m_730 = intScratch;
                     goto stage2_switch_end;
                 }
                     /*FALLTHRU*/
@@ -2893,7 +2904,9 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                ScanInt(&script->m_734);
+                // ORIG 0899aaf1..0899ab08：ScanInt(&intScratch) 后 m_734 = intScratch。
+                ScanInt(&intScratch);
+                script->m_734 = intScratch;
                     goto stage2_switch_end;
                 }
                     /*FALLTHRU*/
@@ -3211,15 +3224,15 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                int sectionMarker = 0;
-                // ORIG 0899b9c0 传 int*：合法值 0 也必须创建新段；
+                // ORIG 0899ba20 传 int*：合法值 0 也必须创建新段；
                 // 不能用 ScanInt(bool*) 的“数值非零”结果代替成功标志。
-                if (ScanInt(&sectionMarker))
+                if (ScanInt(&intScratch))
                 {
                     EquipmentParameterInfo section;
+                    section.m_410 = intScratch;          // ORIG 0899ba4f..0899ba55 直证
                     script->m_paramVec690.push_back(section);
-                    curParam = &script->m_paramVec690[
-                        script->m_paramVec690.size() - 1];
+                    int sectionIdx = script->m_paramVec690.size() - 1;
+                    curParam = &script->m_paramVec690[sectionIdx];
                 }
                 else
                 {

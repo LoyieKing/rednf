@@ -7,7 +7,7 @@
 bool StageControl::leaveUser()
 {
     CUser* user =
-        reinterpret_cast<CharacData*>(m_characData)->getUser();
+        m_characData.getUser();   // [BigP3D 成员化] 真实成员直调（等价 this+0x98）
     if (user == 0)
     {
         return 0;

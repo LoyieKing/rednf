@@ -32,7 +32,8 @@ void StageControl::onClearReward(StageEndType::T endType)
         goto island3;
     // ORIG 0x0813060e：this+4 直访问 m_procStage 槽（无 getProcStage call）、
     // mov (%eax) 直读 m_index（无 getIndex call）、第二参透传 endType（0x81330629）。
-    reinterpret_cast<ProcStage*>(m_procStage)->setState(ProcStage::State::S_N6);
+    // [BigP3D 成员化 2026-09-12] 真实成员直调（等价 this+4 直访问，无 getProcStage call）。
+    m_procStage.setState(ProcStage::State::S_N6);
     Timer_StageControl::RegistTimerEPLP(m_index, endType);
 island1:
     ;

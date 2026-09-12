@@ -33,12 +33,12 @@ int StageControl::getCenterCount() const
     // [b28d-solo-StageControl] P183：ORIG 直接 `this+4` 调 getMap、`this+0x98` 调
     //   getUser（无具名 procStage/characData 指针槽）；P28：ORIG 增量段调 ppEi（后置
     //   迭代器带独立 sret 临时槽）⇒ 源形必写 `it++`。
-    CMap* map = reinterpret_cast<const ProcStage*>(m_procStage)->getMap();
+    CMap* map = m_procStage.getMap();   // [BigP3D 成员化] 真实成员直调（等价 this+0x04）
     if (map == 0)
     {
         return 0;
     }
-    CUser* user = reinterpret_cast<const CharacData*>(m_characData)->getUser();
+    CUser* user = m_characData.getUser();   // [BigP3D 成员化] 真实成员直调（等价 this+0x98）
     if (user == 0)
     {
         return 0;

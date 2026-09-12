@@ -51,4 +51,33 @@
 //     `lea`（probe5.cpp p2/p3）。
 // p167：CALLSITE CLEAR（仅 C1/C2·D1/D2 同址别名，ORIG nm 实测如 0x0861c8d2）。
 // 结论：语义完成，byte 层余 2 条 4.4 固有差 ⇒ 封顶。
+// [BigP3B 2026-09-12 帧差根因定案 + 修复] 本轮实测 **orig=1575 / our=1578（gap +3）**、
+// 帧 **0x21c == ORIG**（原 0x20c，少 0x10 已消）。四修（均在 GlobalData.cpp 函数体）：
+//   ① 帧差 0x10 根因 = **我方具名局部比 ORIG 少 4 槽**（0x10 = 4×4B）：
+//      a) ORIG 四处 getsockopt 各有**块内**返回值局部（-0x34/-0x2c/-0x24/-0x1c，
+//         每处 3 条引用：`movl $0` + `mov %eax,-N` + `cmpl $0,-N`），我方用**单个
+//         函数级 `ret`** 承担 4 处（少 3 槽）；
+//      b) ORIG 头部第 5 条清零 `movl $0,-0x6c` 落在**只清不读**的未使用局部上
+//         （槽直方图 6c:1），我方无该局部（少 1 槽）。
+//      ⇒ 3+1 = 4 槽 = 0x10，精确解释帧差（P343 线性律）。
+//   ② ORIG **无独立 select-ret 变量**：0x0857e069 `mov %eax,-0xcc(%ebp)` 与 4 处
+//      getsockopt 的 arg4 `lea -0xcc(%ebp),%edx`（&SO_ERROR 输出）**同槽** ⇒ 原码
+//      `soError = select(...)` + `} while (soError < 0);`。已照抄（删 `int ret;`）。
+//   ③ `int soError;` 裸声明（ORIG 头部 5 条清零里无 -0xcc）——原 `= 0` 多 1 条清零。
+//   ④ 未使用局部声明 **排在最前**：4.4 函数头声明恒「先声明→更深」(P339)，ORIG 槽序
+//      深→浅 = dead(-0x6c) → lrPcroom(-0x68) → lrCommunity(-0x64) → lrAuction(-0x60)
+//      → lrCera(-0x5c) ⇒ 声明序照此排后 **0x1c..0x6c 全部槽与 ORIG 逐值相同**。
+// 修复后槽直方图（我方）：`1c:3 20:3 24:3 28:3 2c:3 30:3 34:3 38:3 3c:3 40:3 44:3
+// 48:2 4c:4 50:2 54:4 58:35 5c:5 60:5 64:4 68:7 6c:1` = ORIG 全等（另 fd_set
+// 0x188/0x208 亦全等）⇒ 剩余槽差只在中深区**对象分配序**（4.1 块内对象放浅
+// trace@-0x7c..，4.4 放深 trace@-0xd8..）⇒ N82 结构性，非源码可择。
+// 残留 hunk（归一化口径 221 = 210 槽相位 + 11 结构性）：结构性 11 项逐条为
+// ① `while (x<0)` lowering：ORIG `test %eax,%eax; js` vs 4.4 `shr $0x1f; test %al,%al;
+//    jne`（1 处，probe5.cpp p1 先例）；② `&soLen[i]`：ORIG 单条 `lea -0xNN(%ebp),%edx`
+//    vs 4.4 `lea -0x84; add $0x4/$0x8/$0xc`（4 处，probe5 p2/p3 先例）；③ `call X@plt`
+//    vs 我方 .o `call X`（4 处，工具口径伪差）；④ ORIG 尾 `jmp +0x1a32; nop` 岛我方无
+//    （N121 epilogue-threading）；⑤ 我方尾对齐 nop（strip 口径豁免）。
+// gap +3 亦可精确分解：+4（②的 4 条 add）−2（④的 jmp+nop）+1（⑤的 nop）= +3。
+// p167：CALLSITE CLEAR（239/239，仅 C1/C2、D1/D2 同址别名）。结论：语义完成；
+// 帧/浅区槽图与 ORIG 全等；余项全为 4.4 固有 lowering + 深区对象分配序（N82）。
 void MonitorTcpThread::dispatch(void* arg)

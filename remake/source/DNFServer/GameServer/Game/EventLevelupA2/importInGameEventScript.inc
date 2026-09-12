@@ -73,18 +73,19 @@ InGameEventScript* InGameEventScriptLoader::importInGameEventScript(
         loaded = importUsedFatigueGiveItemEventScript(
             static_cast<UsedFatigueGiveItemScript*>(script), path.c_str());
         break;
-    default:     // 未建模类型：ORIG 保持 ptr=0、ok=1，直接返回 0
-        return 0;
+    default:     // 未建模类型：ORIG 0x8982ed6 与各 case 汇合于 switch 出口
+        //（ptr=0、ok=1 ⇒ 出口处 return script 亦得 0；旧码 return 0 会多出
+        // `mov $0x0,%eax; jmp 尾部` 两条 ORIG 不存在的指令）
+        break;
     }
 
     if (!loaded)
     {
-        // ORIG 失败路径：显式基类析构（D1 非虚直调）后 operator delete，两次判空。
+        // ORIG 失败路径 0x8982ee1-0x8982ef9：`if (script != 0)` 判空 +
+        // delete 表达式自带判空 = 两条 test/je（Ghidra C: `(local_24 != 0) && (local_24 != 0)`），
+        // 之后才是 InGameEventScript::D1 直调 + operator delete。
         if (script != 0)
-        {
-            script->~InGameEventScript();
-            ::operator delete(script);
-        }
+            delete script;
         script = 0;
     }
     return script;

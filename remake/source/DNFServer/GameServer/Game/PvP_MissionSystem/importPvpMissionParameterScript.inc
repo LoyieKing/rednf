@@ -45,11 +45,18 @@ bool importPvpMissionParameterScript(MissionParameterScript& param)
                 return false;
             for (;;)
         {
-                int weight = ScanInt(&ok);
+                // [ImpSmall 2026-09-12 真语义修复] ORIG 0x8a5b92b-0x8a5b968 实证：
+                //   第一次 ScanInt（失败→0x8a5b945 jmp 0x8a5b836 循环头，即 break）存 -0x38；
+                //   第二次 ScanInt（失败→0x8a5b968 jmp 0x8a5ba75 return false）存 -0x34。
+                //   0x8a5b970/0x8a5b977 压参 0x8(%esp)=-0x38、0x4(%esp)=-0x34 ⇒
+                //   make_pair(第一实参=-0x34, 第二实参=-0x38)，即 pair.first 取**第二次**读数；
+                //   0x8a5b9b6 `mov -0x34(%ebp),%eax; add %eax,%edx` ⇒ +0x18 累加的也是**第二次**读数。
+                //   旧码把 weight 绑在第一次、missionIdx 绑在第二次 ⇒ pair 分量互换、累加取错读数。
+                int missionIdx = ScanInt(&ok);
                 if (!ok)
                 break;                                 // ORIG 0x8a5b944 nop / 945 jmp 836
                                                        //（4.4 goto 形会复制一份条件头，实测 +6，故留 break）
-                int missionIdx = ScanInt(&ok);
+                int weight = ScanInt(&ok);
                 if (!ok)
                     return false;
                 param.m_dailyList.push_back(

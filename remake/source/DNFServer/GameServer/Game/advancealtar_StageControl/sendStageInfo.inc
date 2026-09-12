@@ -9,7 +9,7 @@
 //   AE 占位差异。
 void StageControl::sendStageInfo()
 {
-    CUser* user = reinterpret_cast<CharacData*>(m_characData)->getUser();
+    CUser* user = m_characData.getUser();   // [BigP3D 成员化] 真实成员直调（等价 this+0x98）
     if (user == 0)
     {
         return;
@@ -19,9 +19,9 @@ void StageControl::sendStageInfo()
     // 栈上两 int 连续成 8B payload；P48 去 body[]+memcpy 的二次拷贝形。
     NOTIPacketStruct::_NotiAdvanceAltarStageInfo body;
     body.m_stageIndex =
-        reinterpret_cast<ProcStage*>(m_procStage)->getStageIndex();
+        m_procStage.getStageIndex();        // [BigP3D 成员化] 真实成员直调（等价 this+0x04）
     body.m_stageDifficulty =
-        reinterpret_cast<ProcStage*>(m_procStage)->getStageDifficulty();
+        m_procStage.getStageDifficulty();
 
     PacketGuard guard;
     guard.put_header(0, 0x209);

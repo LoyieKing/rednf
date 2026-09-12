@@ -434,7 +434,10 @@ L08666990:
         }
     }
 
-    switch ((unsigned char)type)
+    // [AuditFix 2026-09-12] ORIG 0x08666bc1..0x08666bc8：`movzbl -0xd1(%ebp); movsbl %al,%eax`
+    // ⇒ 原码是 `switch (type)`（char 为 signed，T1 直证）；旧 `(unsigned char)` cast 使
+    // 我方发 `movzbl %al`（unsigned）⇒ 符号性不符。type 值域 {0..0x19, -1}，两形语义等价。
+    switch (type)
     {
     case 0:                                                  // SP（asm +0x1435）
     {

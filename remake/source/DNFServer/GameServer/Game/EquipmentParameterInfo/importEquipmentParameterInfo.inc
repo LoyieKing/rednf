@@ -32,24 +32,63 @@
 //  ⑨ 真语义修复（0x89ace7e 共享块）：default 与 [variable stat] insert 后统一
 //     `goto L_unknown` ⇒ `if (__inited) return false;`——原实现 break 直达
 //     chain_end，已初始化 + 未知 token 会错误返回 true。
-// 剩余 43 块判词（ORIG 地址区间 → 类型 → 封 N 依据）：
-//  · 帧 0xadc vs 0xa9c（+0x40）+ 槽号整体平移 + 缺 `movl $0,-0xa10`：ORIG 多一个
-//    跨 case 复用的 int 临时（[active status] 循环），补它需重构跨 case 共享临时 ⇒
-//    N82/N126 版本帧基址族封顶（帧数达标≠槽号归位，P332）。
-//  · 0x89a842a..0x89a866（[multiple then]）：ORIG 两个 string 局部（-0xa18/-0xa1c）+
-//    完整 EH landing/回滚段，我方 4.4 单 string + 不同 EH 布局 ⇒ N91/N104 封顶。
+// [ImpBig2 2026-09-12] 续修（BigP3A 之后）：助记符级结构块 38→26，gap +50 → **+23**
+//   （指令 4873→4846，size 0x5a23→0x59ec）；逐行相似度 83.5% → **84.3%**
+//   （difflib ndiff 1143 → 1056，差异块 495 → 471）。
+//  ⑩ 真语义修复（8 处）：745/755/805/851/868/1200/1234/1270 各删去多余的
+//     `if (ScanStr(&s))` 检查 —— ORIG 对应调用点（0x89a9e6b/0x89a9efd/0x89aa50f/
+//     0x89aaab7/0x89aaba4/0x89aba2f/0x89abb65/0x89abc9b）的 `call _Z7ScanStrPSs`
+//     之后**无** test/je，直接续 c_str/getActiveStatusToEnumValue/operator==
+//     （P140/P349：ORIG 无防御时不得添加）。删后 15 个 ScanStr 调用点与 ORIG 一一
+//     配对（verify_final.py）：**4 点后续 10 条逐条全等**、10 点助记符序列全等
+//     （仅槽号/立即数值差）、1 点（0x89ac9e3=[decrease critical damage]）为已知
+//     N85 族。−16 条（+连锁 −29）。
+//  ⑪ `aura.m_field4 = (s == "%") ? 1 : 0;` → 直接赋值 `= (s == "%");`
+//     （ORIG 0x89aacdc `call operator==; mov %al,-0xa30(%ebp)` 单条直存，
+//     无 `mov $1/mov $0` 物化）。−3 条。
+//  ⑫ 函数级共享标量临时还原（[推断]·P328④）：`int v = 0;`（ORIG 0x89a7604
+//     `movl $0x0,-0xa10(%ebp)`，紧随 s 构造）⇒ [separate attack]（0x89ac3a5）与
+//     [repair price]（0x89ac44f）两循环改「局部槽 + 两步寻址写成员」= ORIG 同形；
+//     并修正块级槽相位 −4（`-0xd4` → **`-0xd8`** = ORIG）。
+//     反例（勿重试）：[separate rate]（ORIG 0x89ac400 用 -0xa60）若改用函数级
+//     `float fv` 承接 ⇒ 4.4 因该**使用点**重排函数级槽区，s 由 -0xa0c → -0xa08
+//     （65 处引用全体漂移）⇒ 逐行相似度 84.3%→67.9%、ndiff 1056→2152 **反劣**，
+//     已回退；该段形态差归 N82 槽相位族。
+// 剩余 26 块判词（ORIG 地址区间 → 类型 → 依据）：
+//  · 0x89a8421..0x89a85c1（[level linear ability] 入口）：ORIG 两个 string 局部
+//    （-0xa18 构造 0x89a842a/析构 0x89a85b8 = **构造析构但从未使用**的遗留局部，
+//    P328④；-0xa1c = 循环变量 t）+ 完整 EH landing/回滚段；我方 4.4 单 string(-0xa14)
+//    + 不同 EH 布局 ⇒ N91/N104 封顶（补第二个未使用 string 需重排整段 EH，风险 > 收益）。
 //  · 0x89abfe7..0x89ac04a 注册链插入段与下个 case 标签的相对位置：指令集合一致，
 //    仅 EH 段长度造成位置错位（difflib 伪差）⇒ N104。
+//  · 0x89ab66a/0x89ac72b/0x89ac808（3 处 push_back 后）：我方多
+//    `~STAvatarAbilityVariation` ×2 + `~EquipmentAuraAppendageData` ×4 调用（+正常
+//    路径与 EH landing 各一）—— ORIG 两个 D1 符号 size=0x5（空体 push/mov/pop/ret，
+//    nm 实证）且本函数区间内调用数 0；4.1 判 trivial、4.4 判 non-trivial（P71）。
+//    空体 + 成员全 POD ⇒ 调用与否不可观察等价；删用户空析构会丢 D1/D2 与
+//    new_allocator::destroy 发射链（A/B 实测 CEquipItem identical 191→190）⇒ 维持。
+//  · 0x89ac9e8..0x89aca18：ORIG 先算 `float flag=(s=="%")?1.0f:0.0f`(-0x20) 再
+//    ScanInt，比较用 x87 `fucompp/fnstsw/sahf`；我方求值序相反且用整数比较 ⇒
+//    N85 封顶（4.4 对 float!=0 发 fucomip/fstp，源码层不可择）。
+//  · 0x89acab6/0x89acbca/0x89acbde：float 比较物化 + EH 段布局 ⇒ N85/N104。
+//  · 0x89acbe6..0x89acd1e（[rebirth] 子标签循环）：ORIG `ScanType` 条件在环头
+//    （`xor$1;test;je;` + 失败 jmp）+ 尾 nop 岛；4.4 恒「体在前、尾测 jne」⇒
+//    跨版本循环 lowering（P25/N104）。
+//  · 0x89ace9c/0x89aceb8：L_chain_end 的 jmp/nop 中继条数（我方多 3 组 = 6 条）
+//    ⇒ N112 对齐填充 + 尾岛（N121）。
+//  · 0x89a77fb/0x89acbde 等 nop：对齐填充（§6.1 豁免）。
+//  · 0x89ac400..0x89ac433（[separate rate]）：ORIG 局部槽 -0xa60 + 两步寻址，
+//    我方直传成员地址 ⇒ N82 槽相位族（⑫ 反例：改写反劣，已回退）。
 //  · 0x89ac11c/0x89ac16b/0x89ac25d/0x89ac2af：两循环写 +0x10/+0xc 的语句顺序相反
 //    （ORIG 先 +0x10）⇒ P324 叶块序族，改动连锁槽位，封 N。
 //  · 0x89ac33e..0x89ac456：ORIG 用 for 循环写数组（回边 + setle 尾测），我方 4.4
 //    展开为直写 ⇒ P165「循环抽象 vs 物理展开」封 N。
-//  · 0x89ac9e8..0x89aca18：x87 比较 `fucompp/fnstsw/sahf` vs 4.4 `fucomip/fstp`
-//    ⇒ N85 封顶。
-//  · 0x89acab6/0x89acbca/0x89acbde：float 比较物化 + EH 段布局 ⇒ N85/N104。
-//  · 0x89ace9c：L_chain_end 的 jmp 中继条数（我方多 2 条）⇒ N112 对齐填充。
-// 验收（check_tu_routed fresh）：identical=446 / ae=1011 / near=3 / diff=14 /
-//   missing_in_game=313——与本轮前完全一致（零回退）；p167 调用点差集保持 CLEAR。
+//  —— 已闭合（本轮）：缺 `movl $0,-0xa10`（⑫ 修）+ 块级槽相位 −4（⑫ 修）+
+//     8 处 ScanStr 冗余检查（⑩ **真语义差异**）+ [separate attack] 形态（⑫）。
+// 验收（check_tu_routed fresh，ImpBig2 后）：identical=446 / ae=1011 / near=3 /
+//   diff=13 / missing_in_game=312——与本轮改动前**逐值相同**（零回退）；
+//   p167 调用点：ORIG 609 vs 我方 615（差 6 = 2×STAvatar D1 + 4×Appendage D1 = P71
+//   豁免帧）；MISSING 侧全部为 C2/D2 别名对（P93 同址，非缺口）。
 // ============================================================================
 bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
                                   std::string& path, const char* dir,
@@ -59,6 +98,10 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
     // 查表 + Duff 式惰性注册链（106 项），每 case 头一个 guard+insert+goto 链，
     // 链尾（ORIG 0x58d1）leave+置位跳回重查；建表后 body 走共享尾。
     std::string s;
+    // [推断·P328④] ORIG 0x89a7604 `movl $0x0,-0xa10(%ebp)`（紧随 s 构造之后）
+    // 实证函数级共享标量临时：被 [separate attack]（0x89ac3a5 `lea -0xa10` →
+    // `_Z7ScanIntPi`）与 [repair price]（0x89ac44f 同槽）复用。
+    int v = 0;
     int iv = 0;
     float fv;
     static std::map<const char*, int, less_TCHAR> __lookup;
@@ -742,7 +785,9 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
             goto L_1862;
         }
     {
-        if (ScanStr(&s)) info->m_elementalProperty = getElement(s.c_str()); goto L_chain_end;
+        // ORIG 0x89a9e6b：`call ScanStr` 后直接 `lea;call c_str;call getElement`（无 test/je）
+        // ⇒ 原码无成功检查（P140/P349）。本轮删除我方多加的返回值检查。
+        ScanStr(&s); info->m_elementalProperty = getElement(s.c_str()); goto L_chain_end;
     }
     case 0x1862:
     L_1862:
@@ -752,7 +797,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
             goto L_189e;
         }
     {
-        if (ScanStr(&s)) info->m_activeStatusType = getActiveStatusType(s);
+        ScanStr(&s); info->m_activeStatusType = getActiveStatusType(s);
         info->m_activeStatusValue= ScanFloat((bool*)0);
         info->m_activeStatusLevel= ScanInt((bool*)0);
         info->m_activeStatusFlag = (ScanInt((bool*)0) != 0);
@@ -802,7 +847,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         // 写入固定个数 int：blind/slow/haste→2，stone/confuse/armor break/
         // weapon break/poison/lightning/bleeding→1，burn/bless/curse→4，
         // 其它状态名不写。此处仅消费对应数量 ScanInt（ORIG 无成功检查）。
-        if (ScanStr(&s)) info->m_attackedActiveStatusType = getActiveStatusType(s);
+        ScanStr(&s); info->m_attackedActiveStatusType = getActiveStatusType(s);
         info->m_attackedActiveStatusValue= ScanFloat((bool*)0);
         info->m_attackedActiveStatusLevel= ScanInt((bool*)0);
         info->m_attackedActiveStatusFlag = (ScanInt((bool*)0) != 0);
@@ -848,7 +893,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         }
     {
         // ORIG 0x89aaacd/0x89aaae5：两段独立比较+直写成员（P47）。
-        if (ScanStr(&s))
+        ScanStr(&s);
         {
         if (s == "[physical]") info->m_addAbsoluteDamageType = 0;
         else if (s == "[magical]") info->m_addAbsoluteDamageType = 1;
@@ -865,7 +910,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
             goto L_18e9;
         }
     {
-        if (ScanStr(&s))
+        ScanStr(&s);
         {
         if (s == "[physical]") info->m_addAbsoluteDefenseType = 2;
         else if (s == "[magical]") info->m_addAbsoluteDefenseType = 3;
@@ -889,7 +934,9 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         ScanStr(&s);
         aura.m_field0 = getChangeStatusType(s);
         ScanStr(&s);
-        aura.m_field4 = (s == "%") ? 1 : 0;
+        // ORIG 0x89aacdc：`call operator==; mov %al,-0xa30(%ebp)` —— 直接字节存、
+        // 无 `mov $1/mov $0` 物化 ⇒ 原码为直接赋值（非三目）。
+        aura.m_field4 = (s == "%");
         aura.m_float8 = ScanFloat((bool*)0);
         aura.m_fieldc = ScanInt((bool*)0);
         info->m_aura188.push_back(aura);
@@ -1197,7 +1244,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         // 独立分支（probability RA28_ @0x89aba26、level RA22_ @0x89abb5c），各有一次
         // ScanStr+getActiveStatusToEnumValue；合并写 `if (id==0x19d6) … else …` 使该调用
         // 只剩 2 处（p167 MISSING getActiveStatusToEnumValue ×1）。
-        if (ScanStr(&s))
+        ScanStr(&s);
         {
         int st = getActiveStatusToEnumValue(s);
         int val = ScanInt((bool*)0);
@@ -1231,7 +1278,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         }
     {
         // ORIG 0x89abb5c：level 分支，与 probability 同形但写 m_activeStatusLevelTable。
-        if (ScanStr(&s))
+        ScanStr(&s);
         {
         int st = getActiveStatusToEnumValue(s);
         int val = ScanInt((bool*)0);
@@ -1267,7 +1314,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         // ORIG 0x89abc32：ScanStr 状态名→枚举，随后 3 个 ScanInt（无检查）分别写
         // 概率槽/等级槽/控制槽；枚举 0x13 写满 18 槽，0..0x11 写对应槽并按其类型
         // 追加特判：0/4/5/0xa/0x11 读入的数值仅消费不入表（部分仍写 control 区）。
-        if (ScanStr(&s))
+        ScanStr(&s);
         {
         int st = getActiveStatusToEnumValue(s);
         int a = ScanInt((bool*)0);
@@ -1400,18 +1447,32 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         }
         else if (t == "[grade]")
         {
-        info->m_growthGradeBegin = ScanInt((bool*)0);
-        info->m_growthGradeEnd = ScanInt((bool*)0);
+        // ORIG 0x89ac34a..0x89ac37d：`for (i=0; i<=1; ++i)`，循环体
+        // `mov i,%esi; movl $0,(%esp); call ScanIntPb; add $0xf8,%ecx;
+        //  mov %eax,(%edx,%ecx,4)`（两步寻址写 this+0x3e0+4i）。
+        // 原写成两条 ScanInt 直写 +0x3e0/+0x40c ⇒ p167 静态调用点 +1（重载相同，
+        // 仅循环 vs 展开），本轮按 ORIG 恢复循环形。
+        for (int i = 0; i <= 1; ++i)
+        info->m_growthGrade[i] = ScanInt((bool*)0);
         }
         else if (t == "[separate attack]")
         {
+        // ORIG 0x89ac3a5..0x89ac3d6：`lea -0xa10(%ebp); call _Z7ScanIntPi`（函数级共享
+        // 临时 v），随后两步寻址 `add $0xf8,%ecx; mov %edx,0x8(%eax,%ecx,4)`
+        // 写 this+0x3e8+4i。原写成直传成员地址（无局部槽）⇒ 形态差。
         for (int i = 0; i < 4; ++i)
         {
-        ScanInt(&info->m_linSepAtk[i]);
+        ScanInt(&v);
+        info->m_linSepAtk[i] = v;
         }
         }
         else if (t == "[separate rate]")
         {
+        // ORIG 0x89ac400..0x89ac433：`lea -0xa60(%ebp); call _Z9ScanFloatPf` + 两步寻址。
+        // [ImpBig2] 曾按此改写为「使用函数级 `float fv`（-0xa60）」——A/B 实测**反劣**：
+        // 4.4 因该使用点重排函数级槽区，把 s 由 -0xa0c → -0xa08（65 处引用全体漂移，
+        // 逐行相似度 84.3% → 67.9%、ndiff 1056 → 2152）⇒ 回退为直传成员地址，
+        // 该段形态差归 N82 槽相位族（不可翻，勿再试）。
         for (int i = 0; i < 4; ++i)
         {
         ScanFloat(&info->m_linSepRate[i]);
@@ -1419,8 +1480,16 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         }
         else if (t == "[repair price]")
         {
-        info->m_growthRepairBegin = ScanInt((bool*)0);
-        info->m_growthRepairEnd = ScanInt((bool*)0);
+        // ORIG 0x89ac44f..0x89ac48b：循环 2 次 `bool ScanInt(int*)`（`_Z7ScanIntPi`），
+        // 经具名局部槽 -0x40(i) / -0xa10(v) 取值后写 m_growthRepair[i]
+        // （`add $0x100,%ecx; mov %edx,0x8(%eax,%ecx,4)` = this+0x408+4i，两步寻址）。
+        // 原写成 `int ScanInt(bool*)` 两条直写 +0x408/+0x40c ⇒ p167 EXTRA `_Z7ScanIntPb`×2
+        // （重载选错），本轮修正为 int* 重载 + 局部槽形。
+        for (int i = 0; i <= 1; ++i)
+        {
+        ScanInt(&v);
+        info->m_growthRepair[i] = v;
+        }
         }
         else if (t == "[/level linear ability]")
         {
@@ -1563,7 +1632,10 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         ScanStr(&s);
         float f = (float)ScanInt((bool*)0);
         if (s == "%")
-        info->m_decreaseCriticalDamage = f / 10.0f;
+        // ORIG 0x89aca3f `flds 0x8e1a56c` = **100.0f**（.rodata 字节 00 00 c8 42）；
+        // 序列 `flds f(-0x1c); flds 100.0f; fdivrp %st,%st(1)` ⇒ 结果 f/100.0f。
+        // 原写成 f/10.0f（我方 .rodata 0x1fdc = 00 00 20 41 = 10.0f）⇒ **真数值 bug**，本轮修正。
+        info->m_decreaseCriticalDamage = f / 100.0f;
         else
         info->m_210 = f;
         goto L_chain_end;
@@ -1576,10 +1648,23 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
             goto L_1b90;
         }
     {
+        // ORIG 0x89acac3..0x89acb0d：`bool ok`(-0xa8d) 与 `int v`(-0xa8c) 两个独立槽；
+        // 形为 `ok = false; for(;;){ v = ScanInt(&ok); if (ok) { push_back(v); continue; } break; }`
+        // （`*ok=true` 表示解析成功 ⇒ 继续；失败即落到出口 `jmp <L_chain_end>`）。
+        // 原写成 `while (ScanInt(&v))`（`_Z7ScanIntPi`）⇒ p167 EXTRA `_Z7ScanIntPi`×1
+        // （重载选型错），本轮按 ORIG 恢复 `int ScanInt(bool*)` + ok 出参槽形。
         bool ok = false;
         int v;
-        while (ScanInt(&v)) { info->m_vec214.push_back(v); ok = true; }
-        (void)ok;
+        for (;;)
+        {
+        v = ScanInt(&ok);
+        if (ok)
+        {
+        info->m_vec214.push_back(v);
+        continue;
+        }
+        break;
+        }
         goto L_chain_end;
     }
     case 0x1b90:

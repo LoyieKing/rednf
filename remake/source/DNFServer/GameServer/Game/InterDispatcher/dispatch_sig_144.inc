@@ -7,12 +7,20 @@
 //      ⇒ 改 `pck.item_info.m_opt = item.m_random.m_random;`（源 item+0x25 ✓ 逐条同构）。
 //   ② 核 ORIG 该段（0x084d66d9..0x084d6730）直证：连续 24B 目标 item_info+0x13..+0x2b 分
 //      两段写入 —— 前 0xa = item.m_amp.m_guid（源 item+0x15/0x19/0x1d = amp+0x04/08/0c，
-//      4+4+2），后 0xe = RandomOption。旧实现只拷后者 ⇒ item_info+0x13..0x1c（m_pad）恒 0，
-//      与 ORIG 发出的包内容不一致（**真缺口**）⇒ 补 `*(stAmplifyGuidView*)m_pad = item.m_amp.m_guid;`。
+//      4+4+2），后 0xe = RandomOption。旧实现只拷后者 ⇒ item_info+0x13..0x1c 恒 0，
+//      与 ORIG 发出的包内容不一致（**真缺口**）。
+//   ②b [PadFix 2026-09-12 §4.3/§8.3] 同一 ORIG 证据下把 DnfItemInfo +0x13..0x1c 由
+//      `char m_pad[0xa]` 拆为具名字段 `stAmplifyGuidView m_guid`（DnfItemInfo.h，sizeof/
+//      偏移不变 + static_assert 锁定）⇒ 原 `*(stAmplifyGuidView*)pck.item_info.m_pad`
+//      视图强转删除，改具名赋值 `pck.item_info.m_guid = item.m_amp.m_guid;`。
 //   ③ 余 0x3（switch 决策树节点）为 lowering 差异（ORIG 用 case 0..5 跳表 0x8c8922c，
 //      我方树；case 集合 1/2/5→err0x91、3→flag、0/4→default 逐点核对一致）⇒ 记 N。
 //   读数：our 1074→1071（ORIG 1073，gap -1→+2，语义轴不受闸门）；TU 四数
 //   135/1370/1/115/703 改前改后逐值不变。
+//   [PadFix 2026-09-12 A/B，TU=InterDispatcher.cpp 实测] our 1069→1067（删掉 `pck+0x43`
+//   取址的 `lea -0x19f; add $0x43` 两件**我方独有伪影**；guid+opt 24B 段 3+4 组 store 与
+//   ORIG 0x084d66d9..0x084d672a 逐条同构）；ndiff 1102→1100、gap +4→+6（同因，ORIG 无该 lea/add）；
+//   TU 四数 135/1400/4/82/703 改前改后逐值不变；符号集 3842=3842 逐名零差；p167 111=111 CLEAR。
 int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_AuctionResultAskRegistedItemNumPktView* pPkt = reinterpret_cast<Inter_AuctionResultAskRegistedItemNumPktView*>(data);
@@ -227,9 +235,25 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
                     return 0;
                 }
                 const long endTime =
-                    static_cast<long>(item.m_fieldd & 0xff) * 0x15180 +
-                    0x44a54a80;
-                if (endTime <= GlobalData::s_systemTime_.getCurSec())
+                    // [AuctionField 2026-09-12] ORIG 084d6229 `movzwl -0xab(%ebp),%eax;
+                    //   movzwl %ax,%eax; imul $0x15180,%eax,%eax; add $0x44a54a80,%eax`
+                    //   —— item 基址 = ebp-0xb6（AuctionCase3 由 084d60be
+                    //   `lea -0xb6; call isEquipableItemType` 实证）⇒ -0xab = item+0x0b
+                    //   = `unsigned short m_fieldb`（endurance；Inven_Item.h:281），
+                    //   零扩展（无 movsx）= 无符号语义。旧码读 item+0x0d 低字节
+                    //   （`m_fieldd & 0xff`）= 字段错。同族先例 dispatch_sig_207.inc:71
+                    //   `(int)item.m_fieldb * 0x15180 + 0x44a54a80`；探针
+                    //   /tmp/lane_diff/AuctionField/probe.cpp 全变体实证 ushort 直用
+                    //   即产 `movzwl mem; movzwl %ax; imul` 三连（4.4.6 后端）。
+                    static_cast<long>(item.m_fieldb) * 0x15180 + 0x44a54a80;
+                // [AuctionField 2026-09-12] ORIG 084d6241..084d6256：
+                //   `call getCurSec; mov %eax,-0x20(%ebp)`（具名槽）→ `mov -0x24(%ebp),%eax;
+                //   cmp -0x20(%ebp),%eax; jg 084d6307`（直跳，无 setcc 物化）⇒ 原码为
+                //   具名局部 `int curSec = ...getCurSec();` + `if (endTime <= curSec)`
+                //   （报告反编译 C 同形：`local_24 = getCurSec(...); if (local_28 <= local_24)`）。
+                //   探针 probe2.cpp g1（无局部）产 setge/test/je、g2（具名局部）产 jg —— 复现 ORIG。
+                const int curSec = GlobalData::s_systemTime_.getCurSec();
+                if (endTime <= curSec)
                 {
                     user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x91, (PAY_TYPE)payType);
                     return 0;
@@ -258,7 +282,13 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x91, (PAY_TYPE)payType);
             return 0;
         case 3:                                                        // 绑定型须非空
-            if (item.m_addInfo == 0)
+            // [AuctionCase3 2026-09-12] ORIG 084d6426 `movzbl -0xb6(%ebp)`（item 基址
+            //   -0xb6 由 084d60be `lea -0xb6; call isEquipableItemType` 实证 ⇒ 读 item+0x00
+            //   = bool m_field0）`xor $1; test %al,%al; je 084d6462`（default/继续块）
+            //   ⇒ m_field0==0 时报 err 0x91；同构先例 CTradeSpace::_IsTradable case 3
+            //   （`!item.m_field0` 发 ORIG `movzbl;xor $1;test;je`，P292）。
+            //   旧码读 item.m_addInfo（+0x02 item idx，且此处 itemId!=0 恒真）= 字段错。
+            if (!item.m_field0)
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x91, (PAY_TYPE)payType);
                 return 0;
@@ -313,14 +343,15 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
                 pck.item_info.m_attr =
                     (unsigned char)((pck.item_info.m_attr & 0xe0) | 0x1);
         }
-        {   // ORIG 逐字段（CONCAT13/CONCAT33）写 random_option，非 memcpy；随后 SetUpgradeSeparate
+        {   // ORIG 逐字段写 random_option，非 memcpy；随后 SetUpgradeSeparate
             // [IG2PartyCera] ORIG 0x084d66d9..0x084d6730 直证：连续 24 字节目标
             // item_info+0x13..+0x2b 分两段结构赋值 —— 前 10B(0x84d66d9/d66e5/d66f1)
             // = item.m_amp.m_guid（源 item+0x15/+0x19/+0x1d = amp+0x04/08/0c，4+4+2），
-            // 后 14B = RandomOption（源 item+0x25）。旧实现只拷后者 ⇒ DnfItemInfo
-            // +0x13..0x1c（m_pad）恒 0，与 ORIG 发出的包内容不一致（真缺口）。
-            *reinterpret_cast<stAmplifyGuidView*>(pck.item_info.m_pad) =
-                item.m_amp.m_guid;
+            // 后 14B = RandomOption（源 item+0x25）。
+            // [PadFix 2026-09-12 §4.3] DnfItemInfo +0x13..+0x1c 已建具名字段 m_guid
+            // （stAmplifyGuidView 0xa；DnfItemInfo.h 处载同一 ORIG 地址证据 + sizeof/
+            // offset 断言）⇒ 视图强转删，具名赋值（源 item+0x15/0x19/0x1d 逐成员同构）。
+            pck.item_info.m_guid = item.m_amp.m_guid;
             pck.item_info.m_opt = item.m_random.m_random;
             pck.item_info.m_up.SetUpgradeSeparate(
                 item.m_upgradeSep.GetUpgradeSeparate());

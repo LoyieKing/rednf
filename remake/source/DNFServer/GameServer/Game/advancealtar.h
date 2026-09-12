@@ -11,6 +11,8 @@
 #include "advancealtar_StageDifficulty.h"  // StageDifficulty::T（Manager::selectStage 参数，ORIG mangled NS_15StageDifficulty1TE）
 
 #include "AdvanceAltarField.h"  // _RewardItem/AchievementRewardData（sendAchievementReward 签名需要；幂等守卫叶子头）
+#include "advancealtar_SummonObject.h"  // _SummonObject 叶子头（_SummonObjectMs::m_summon 真实子对象；
+                               //  StageControl 成员化：_SummonObjectMs 定义自 advancealtar_ProcStage.h 上移本头）
 #include "DBDispatcher.h"  // 全局 ::DBDispatcher（DB_Update/DB_Load 等基类；dispatch bool @0x83fbf7c）
 class CAdvanceAltarLog;  // 全局类前向声明（HistoryLog::advanceAltarstatistics_ 静态成员；
                         // 完整定义在 CAdvanceAltarLog.h，避免重入环不在此 include）
@@ -43,6 +45,8 @@ class PacketGuard;   // 全局作用域权威 PacketGuard.h（putRidableInfoToPa
 // 前置声明全局 CUser（实现 TU include CUser.h 获得完整类型）
 class CUser;
 struct MSG_MONSTER_DIE;    // 完整定义 Secu_HackLogCheckByParty.h（advancealtar::Manager::dieMob 引用；全局作用域权威）
+class CDungeon;   // ProcStage::m_dungeon 指针成员（完整定义 CDungeon.h；本头不可反向 include）
+class CMap;       // ProcStage::m_map 指针成员（完整定义 CMap.h；CMap.h include 本头，故仅前置）
 
 // CMDPacketStruct altar 请求域类型前置声明（注意：必须在 advancealtar
 // namespace 外部，否则会成为 advancealtar::CMDPacketStruct 遮蔽全局权威名，
@@ -158,7 +162,9 @@ struct _RidableBase
 // ridableId == RidableId::RIDEABLE。定义在 LinkGlobalsB2.cpp（唯一定义点）。
 bool isValidRidableId(RidableId::T ridableId);
 struct _RewardItem;   // 完整定义 AdvanceAltarField.h（sendAchievementReward 仅指针形参引用）
-struct _SlotItem;      // 完整定义 advancealtar_ProcStage.h（getSlotItem 形参 map 值类型；前置免循环 include）
+struct _SlotItem;      // 完整定义见本头 StageControl 段（成员化后自 advancealtar_ProcStage.h
+                       // 上移）；此处前置因 CharacAdvanceAltarManager::getSlotItem 签名
+                       // （std::map<unsigned char,_SlotItem>&）使用序早于定义。
 // ORIG 枚举 advancealtar::AdvanceAltarSlotType::T（mangled
 // NS_20AdvanceAltarSlotType1TE）。getSlotMap 仅认 1/2（0 与其它→0）；
 // 枚举器名【推断】，与 AdvanceAltarField.h 同守卫幂等副本。
@@ -596,12 +602,271 @@ struct StageEndType
 };
 #endif
 
+// ============================================================================
+// [BigP3D 成员化 2026-09-12] 以下 5 个类型自 advancealtar_ProcStage.h **原样上移**
+//   （_MapMonsterSummary/_SlotItem/_SummonObjectMs/CharacData/ProcStage）：
+//   StageControl 的子对象必须是**真实成员**，编译器才会按 [except.ctor] 生成
+//   成员构造/销毁序列与 EH landing pad（= ORIG C1/D1 形态；4.4.7 真实成员 +
+//   初始化列表探针与 ORIG D1 逐条同形实证）。advancealtar_ProcStage.h 反向
+//   include 本头取得这些类型（单向，无环）；定义正文与注释逐字节保留。
+// ============================================================================
+
+// ---- ORIG _MapMonsterSummary（sendMapInfo.md/addCreatedMapMonster.md 栈布局实证，
+// pack(1) 共 0xd 字节；ctor 0x0813442e memset(this,0,0xd)）----
+#pragma pack(push, 1)
+struct _MapMonsterSummary
+{
+    int m_orderIdx;            // +0x00（_mapMonster::m_orderIdx @+0x2c）
+    short m_seq;               // +0x04（addCreatedMapMonster 写递增序号；map key 同值）
+    short m_towerRefA;         // +0x06（getTowerInfo 第 1 引用出参截断）
+    unsigned char m_towerRefB; // +0x08（getTowerInfo 第 2 引用出参截断）
+    unsigned char m_roleType;  // +0x09（_mapMonster+0x18 低字节）
+    unsigned char m_posX;      // +0x0a（_mapMonster+0x20 低字节；dieMob/isEndStage
+                               //   ORIG 兼作已创建怪死亡标记读写同一偏移）
+    unsigned char m_champion;  // +0x0b（_mapMonster+0x1c）
+    // b28d-52：ORIG dieMob 0x0812e283 `movzbl 0xe(%eax); xor $1,%eax; test; je`
+    // ⇒ P248 档② 字段 bool 化（原 unsigned char 恒 cmp $1/jne）。宽度 1、
+    // 偏移 +0x0c、sizeof 0xd、memset 范围均不变。
+    bool m_padC;               // +0x0c（memset 尾字节；发送前无显式写入）
+
+    _MapMonsterSummary() { std::memset(this, 0, 0xd); }
+};                             // sizeof 0xd
+#pragma pack(pop)
+
+typedef char _assert_map_monster_summary_size[(sizeof(_MapMonsterSummary) == 0xd) ? 1 : -1];
+
+// ---- ORIG _SlotItem（ctor W 0x081347e2 objdump：memset(this,0,0xc)；写入点
+// 见 CharacAdvanceAltarManager::getSlotItem 0x08132638 报告：+0x00 itemId
+// （FieldData::m_value）、+0x04 needGage（CItem::getAdvanceAltarNeedGage））----
+struct _SlotItem
+{
+    // ORIG W C1/C2 @0x081347e2：memset(this,0,0xc)——inline 定义随使用点发射弱符号。
+    _SlotItem() { std::memset(this, 0, sizeof(*this)); }
+
+    // [b28d-solo-advancealtar_Manager] ORIG getSlotItem 0x08132638 写入点实证：
+    //   +0x00 byte：`movzbl 0x6(%eax),%eax; mov %al,-0x74(%ebp)`（= sit->second.m_byte5
+    //          槽号；make_pair 首参取 &slotItem 即此字节）
+    //   +0x04 int ：point->m_value（`mov 0x4(%eax),%eax; mov %eax,-0x70`）
+    //   +0x08 int ：CItem::getAdvanceAltarNeedGage（`mov %eax,-0x6c`；
+    //          Dispatchers::characDataSummonSlotUnit 读作 cost 乘数 m_field8）
+    // 原建模（itemId@+0/needGage@+4/field8@+8）错位 4 字节，本次按 ORIG 写点修正；
+    // sizeof 0xc 不变（byte+pad3+int+int）。
+    unsigned char m_byte0;       // +0x00 槽号（= _Slot.m_byte5）
+    int m_itemId;                // +0x04
+    union { int m_field8; int m_needGage; };   // +0x08（P235 双视角：消费端两名并存）
+};                               // sizeof 0xc
+typedef char _assert_slot_item_size[(sizeof(_SlotItem) == 0xc) ? 1 : -1];
+
+// ---- ORIG _SummonObjectMs（makeCurrentPhaseSummonObject 0x812eba8 new 0x38 +
+// ctor 0x08134674（_SummonObject ctor 后 memset 0x38）+ dieMob/summonObjectAndSendPacket/
+// debugLog 字段访问实证；m_summon 区为 CDataManager.h 权威 _SummonObject 的字节槽
+// ——本头被 CDataManager.h include，反向不可达）----
+struct _SummonObjectMs
+{
+    _SummonObjectMs();               // ORIG W 0x08134674：memset(this,0,0x38)
+
+    int m_ms;                        // +0x00（相对 m_field8 基线的 spawn 时刻）
+    short m_seq;                     // +0x04（ProcStage::m_field14 递增序号；map key）
+    short m_pad6;                    // +0x06
+    int m_actionDefineId;            // +0x08（来源 ActionDefine::m_id）
+    bool m_deadFlag;                 // +0x0c（dieMob 击杀置 1；P248 档②：
+                                     //   ORIG 0x812dba0 `movzbl 0xc; xor $1; test %al; je`
+                                     //   ⇒ 字段 bool + 裸 `!field`；sizeof/偏移不变）
+    unsigned char m_padD[3];         // +0x0d
+    int m_sentFlag;                  // +0x10（summonObjectAndSendPacket 发包后置 1）
+    _SummonObject m_summon;          // +0x14（真实子对象 ⇒ 编译器发 C1 call）
+};                                   // sizeof 0x38
+
+typedef char _assert_summon_object_ms_size[(sizeof(_SummonObjectMs) == 0x38) ? 1 : -1];
+
+// ---- CharacData（ctor 0x0812d024：4 个标量 +0x10 处 map<unsigned char,_SlotItem>；
+// 总尺寸 0x28 = StageControl 的 m_characData 槽）----
+class CharacData
+{
+public:
+    CharacData();                    // T 0x0812d024：4 标量清零 + map 构造
+    ~CharacData();                   // T 0x0812d062：map 析构
+
+    void setUser(CUser* user);       // W 0x08134806：m_user = user
+    CUser* getUser() const;          // W 0x08134814：return m_user
+    void setSlotItem();              // T 0x0812d246：user 非空时同步槽位物品
+    void reset();                    // T 0x0812d078：4 标量清零 + 槽位 map clear
+    void upGage();                   // T 0x0812d0b6：CDataManager 配置驱动 gage 推进
+    void sendTestCheckGage();        // T 0x0812d372（ORIG 空函数）
+    // b28c-L5 SIGFIX（P174 串定 + ORIG 体实证）：ORIG 0x0812d176 三个出口均写 %eax
+    //   （满级 `mov $0x2,%eax` / gage 不足 `mov $0x3,%eax` / 成功 `mov $0x0,%eax`），
+    //   且 ORIG 唯一消费点 Dispatcher_UpgradeGage::process_packet @0x081403xx
+    //   `call upgreadGage` 的结果直接写入 res+0x04（错误码）⇒ 返回类型必为 int。
+    //   返回类型不入 mangled ⇒ 符号/布局零变。
+    //   b28c-L5 追加：形/体改 **unsigned int** —— 唯一消费点 Dispatcher_UpgradeGage::
+    //   process_packet 对该字段（unsigned int m_nErrorCode，CMDPacketStruct.h）两处
+    //   store 装载形不同：check_error(int) 处 ORIG 为 `mov %eax,%edx`+中转（异型），
+    //   upgreadGage 处 ORIG 为 `mov %eax,0x4(%edx)` 直存（同型，@0x081403xx）⇒ 本
+    //   callee 必返回 unsigned int（P211 双向开关的调用点反证；ORIG rodata 无该函数
+    //   的 __PRETTY_FUNCTION__ 串可查，故以两条 store 形联立定案）。
+    unsigned int upgreadGage();                // T 0x0812d176：等级商城配表扣 gage 升级
+    // [b28d-solo-Dispatchers 代落 P211 同型] int→unsigned int：ORIG store LHS-first
+    // （0x081405b8）⇒ 与 _Res*.m_nErrorCode 同型。返回值恒非负（0/2/4）。返回类型不入 mangled。
+    unsigned int summonSlotUnit(unsigned char slot, int needGage);  // T 0x0812d278
+    int getGage() const;                       // W 0x08142088：return m_gage
+    int getGageLevel() const;                  // W 0x08142094：return m_gageLevel
+
+    // +0x00（selectStage 写 getCurrentRidableId()）
+    int m_field0;
+    CUser* m_user;                   // +0x04（setUser/getUser thunk 实证）
+    int m_gageLevel;                 // +0x08（upGage 读取）
+    int m_gage;                      // +0x0c（upGage 写入）
+    std::map<unsigned char, _SlotItem> m_slotItems;  // +0x10（sizeof 0x18@32位）
+};                                   // sizeof 0x28（= StageControl::m_characData 槽）
+
+typedef char _assert_characdata_size[(sizeof(CharacData) == 0x28) ? 1 : -1];
+
+
+// ---- ProcStage（ctor 0x0812dc18 逐字段布局；总尺寸 0x94，StageControl+0x04 槽）----
+class ProcStage
+{
+public:
+    struct State
+    {
+        enum T
+        {
+            S_N1 = 1,      // startStage 进入战斗
+            S_N2 = 2,      // pause(true) 暂停（0x0812eaa6 实证值）
+            S_N3 = 3,      // isRewardState
+            S_N4 = 4,      // isRewardState
+            S_N5 = 5,      // dieCharac（clearStageAndReward 后）
+            S_N6 = 6,      // dieCharac/giveUpGame（EPLP 结束）
+            S_N7 = 7       // ctor 初值 / 空闲
+        };
+    };
+
+    // ---- 本批落地（定义 advancealtar_ProcStage.cpp）----
+    void setState(State::T state);                       // W 0x08134844
+    bool isRewardState() const;                          // T 0x0812f770
+    int getStageType() const;                            // T 0x0812eb04
+    void reset(StageType::T type);                       // T 0x0812dde0
+    void resetAll();                                     // T 0x0812dd9a
+    int startStage(int stageId, StageDifficulty::T diff);// T 0x0812de70
+    void setNotSurvivalModeFirstRound();                 // T 0x0812f74c
+    bool isSurvivalModeFirstRound() const;               // T 0x0812f70c
+    int getStageIndex() const;                           // T 0x0812eb26
+    int getStageDifficulty() const;                      // W 0x0813486c
+    CMap* getMap() const;                                // W 0x08134860：return m_map
+    // b28d-solo-ProcStage：返回类型 const TimeLine*（ORIG 0x0812eba8 对 m_phases 发
+    //   `_ZNKSt6vectorIN12advancealtar5PhaseESaIS1_EEixEj`（const operator[]）⇒ 原成员
+    //   为 const TimeLine*；返回类型不入 mangled，唯一消费点 advancealtar_StageControl.cpp:516
+    //   丢弃返回值）。
+    const TimeLine* getTimeLine() const;                 // W 0x08134852：return m_timeLine
+    int getCurrentSurvivalRoundNo() const;               // W 0x08134878：return m_survivalRound+1
+    int getMapBasisLevel() const;                        // W 0x08134894：return m_mapBasisLevel
+    int getStartStageTime() const;                       // W 0x08134886
+    void addCreatedMapMonster(_MapMonsterSummary& summary);  // T 0x0812e16e
+    ProcStage(CharacData& characData);                   // T 0x0812dc18
+    ~ProcStage();                                        // T 0x0812dd26
+    bool isEndAllPhase() const;                          // T 0x0812eb5a
+    void incCurrentMs();                                 // T 0x0812e146：m_field8 += gmTimeSpeed_*1000
+    bool makeCurrentPhaseSummonObject();                 // T 0x0812eba8
+    void procTimeLine();                                 // T 0x0812e0d6
+    // ---- ORIG _RewardItem（AdvanceAltarField.h）/ map<int,_Reward> 奖励链 ----
+    bool dieMob(unsigned short mobSeq, unsigned short param,
+                const MSG_MONSTER_DIE& msg);                     // T 0x0812e1de
+    bool isEndStage(StageEndType::T& endType) const;             // T 0x0812e2c6
+    void clearStageAndReward();                                  // T 0x0812e3f6
+    bool endProcAllKillMonster();                                // T 0x0812ea00
+    int pause(bool pauseOn);                                     // T 0x0812eaa6
+    int getClearSurvivalRoundNo() const;                         // W 0x0812eb4e：return m_survivalRound
+    void rewardClearStage(std::vector<_RewardItem>& out);        // T 0x0812f0fa
+    void addAchievementReward(std::map<int, _Reward>& out);      // T 0x0812f3ae
+    // ORIG 无 this 静态调用（AltarMgr sendAchievementReward asm +0x225 实证）
+    static void sendMailRewardItem(CUser* user,
+                                   const std::vector<_RewardItem>& items,
+                                   const char* senderKey,
+                                   const char* titleKey);        // T 0x0812f47a
+    void sendClearStage(const std::vector<_RewardItem>& rewards,
+                        const std::vector<_BuyItem>& buyItems,
+                        const std::map<int, _Reward>& rewardMap,
+                        int starCount, bool clearFlag) const;    // T 0x0812e6de
+    int getState() const;                                        // W 0x08134838：return m_state
+
+
+    // ---- ProcStage::ProcSummonObjectMs（+0x18 子对象，sizeof 0x38；ctor
+    // 0x0812d378 / dtor 0x0812d3f0，方法报告 advancealtar__ProcStage__ProcSummonObjectMs/）----
+    struct ProcSummonObjectMs
+{
+    ProcSummonObjectMs(CharacData& characData, int const& currentMs);   // T 0x0812d378
+    ~ProcSummonObjectMs();                                        // T 0x0812d3f0
+    void reset();                                                 // T 0x0812d43c
+    bool isEndSummon() const;                                     // T 0x0812d50a
+    int getAliveMonsterCount() const;                             // W 0x08134820：m_aliveDelta-m_deadCount
+    void insertSummonObject(_SummonObjectMs& so);                 // T 0x0812d540
+    int getLastInsertDataIndex();                                 // T 0x0812d5ba
+    void completePushSummonObject(int firstIndex);                // T 0x0812d5d0
+    static bool compare(const _SummonObjectMs* lhs, const _SummonObjectMs* rhs);  // T 0x0812daec
+    void summonObjectAndSendPacket();                             // T 0x0812d658
+    bool dieMob(unsigned short mobSeq, unsigned short param,
+               const MSG_MONSTER_DIE& msg);                       // T 0x0812db00
+    void debugLog() const;                                        // T 0x0812d804
+    // b28c-L5：int→unsigned。ORIG isEndSummon @0x0812d50a 该字段装载为
+    //   `mov (%eax),%ebx` **一步直落 callee-saved**，与 vector::size()(size_t) 做
+    //   `cmp %eax,%ebx / setae` 无符号比较；int 字段使 4.4 在拓宽处插
+    //   `mov %eax,%ebx` 中转（P211 同型化旋钮，sizeof/偏移/初值语义零变：
+    //   ctor/reset 写 0、++ 自增、与 size() 比较全部非负）。
+    unsigned int m_currentMs;                          // +0x00（ctor/reset 清零）
+    std::vector<_SummonObjectMs*> m_summons;           // +0x04
+    std::map<short, _SummonObjectMs*> m_summonMap;     // +0x10（key=_SummonObjectMs::m_seq）
+    int m_deadCount;                                   // +0x28（dieMob 计数）
+    int m_aliveDelta;                                  // +0x2c（makeCurrentPhase 累计）
+    CharacData* m_characData;                          // +0x30（ctor 存参）
+    int* m_pCurrentMs;                                 // +0x34（= &ProcStage::m_field8）
+    };                                                     // sizeof 0x38
+
+    typedef char _assert_proc_summon_ms_size[(sizeof(ProcSummonObjectMs) == 0x38) ? 1 : -1];
+
+
+    CharacData* m_characData;        // +0x00（ctor 存参）
+    int m_state;                     // +0x04（State，ctor=7）
+    int m_field8;                    // +0x08（reset 清零；ProcSummonObjectMs 引用）
+    // b28c-L5：int→unsigned，同 m_currentMs 判据 —— ORIG isEndAllPhase @0x0812eb5a
+    //   `mov 0xc(%eax),%ebx` 一步直落 + `cmp %eax,%ebx / setae`（size_t 比较）。
+    //   其余消费点（makeCurrentPhaseSummonObject 的 m_summons[m_fieldc] 下标、
+    //   incCurrentPhase 自增、debugLog 打印）值域为 phase 下标 ≥0，语义不变。
+    unsigned int m_fieldc;             // +0x0c（reset 清零）
+    int m_field10;                   // +0x10（reset 清零）
+    short m_field14;                 // +0x14（ctor/reset 置 0；addCreatedMapMonster 序号源）
+    ProcSummonObjectMs m_summonObjectMs;  // +0x18（sizeof 0x38，ctor 注入 m_characData/&m_field8）
+    std::map<short, _MapMonsterSummary> m_createdMapMonsters;  // +0x50（sizeof 0x18@32位）
+    StageDifficulty::T m_difficulty; // +0x68（ctor=-1；startStage 写 diff；b28d-solo-ProcStage：
+                                     //   P211 档③——字段与 RHS(diff) 同型 enum 才复现 ORIG
+                                     //   0x0812df9f LHS-first `mov 0x8(%ebp),%eax;
+                                     //   mov 0x10(%ebp),%edx; mov %edx,0x68(%eax)`）
+    int m_mapBasisLevel;             // +0x6c（getMapBasisLevel）
+    CDungeon* m_dungeon;             // +0x70（startStage find_dungeon）
+    CMap* m_map;                     // +0x74（getMap/startStage find_map）
+    unsigned char m_survivalFirst;   // +0x78（ctor/reset=1；首轮标记）
+    unsigned int m_survivalRound;    // +0x7c（当前生存轮次下标；b28d-solo-ProcStage：
+                                     //   P211 档③——ORIG startStage 0x0812dfcc
+                                     //   `mov 0x7c(%eax),%ebx`（比较侧单段）+ 0x0812e07a
+                                     //   `mov 0x7c(%eax),%eax; mov %eax,%edx`（赋 int
+                                     //   字段侧两段）⇒ 字段为 unsigned 才同时成立）
+    std::vector<int> m_roundMaps;    // +0x80（ctor 构造 vector<int>；startStage 由 CDungeon+0x814 拷贝）
+    int m_startStageTime;            // +0x8c（getCurSec 起点；getStartStageTime）
+    const TimeLine* m_timeLine;      // +0x90（startStage 写 m_map+0xf4；b28d-solo-ProcStage：
+                                     //   const 化以复现 makeCurrentPhaseSummonObject 的
+                                     //   const 版 vector operator[]/迭代器族）
+};                                       // sizeof 0x94
+
+typedef char _assert_procstage_size[(sizeof(ProcStage) == 0x94) ? 1 : -1];
+
 // ---- StageControl（docs/class_func_reports/advancealtar__StageControl/ 全 16 函数）----
 // ORIG 布局：index@+0x00（getIndex/setIndex thunk 实证）、ProcStage@+0x04
 // （getProcStage W 0x081348ae）、CharacData@+0x98（getCharacData W 0x081348a0），
 // 总尺寸 0xc0（原 CGameManager.h m_pad[0xc0] 占位实测；本头为唯一声明归口）。
-// 子对象以字节槽占位：ProcStage sizeof==0x94 断言在 advancealtar_ProcStage.h；
-// CharacData 含未建模 map<unsigned char,_SlotItem> 区，无完整尺寸可按值嵌入。
+// [BigP3D 成员化 2026-09-12] 子对象为**真实成员**（ProcStage sizeof==0x94 /
+//   CharacData sizeof==0x28，断言与定义见上方同头段）：ORIG C1/D1 为编译器生成的
+//   成员构造/销毁序列（C1 抛时析构已构成员、D1 析构 CharacData 期间抛时继续析构
+//   ProcStage ⇒ landing pad `mov %edx,%ebx; mov %eax,%esi; call ProcStageD1;
+//   call _Unwind_Resume`）。旧字节槽 + placement new/显式 `->~T()` 写法在 4.4 下
+//   恒无 pad（N83/P67），4.4.7 真实成员 + 初始化列表探针与 ORIG D1 逐条同形。
 class StageControl
 {
 public:
@@ -630,8 +895,8 @@ public:
 
 private:
     int m_index;                         // +0x00
-    unsigned char m_procStage[0x94];     // +0x04 ProcStage 槽（sizeof(ProcStage)==0x94）
-    unsigned char m_characData[0x28];    // +0x98 CharacData 槽（0xc0-0x98）
+    ProcStage m_procStage;               // +0x04（真实子对象；sizeof(ProcStage)==0x94）
+    CharacData m_characData;             // +0x98（真实子对象；sizeof(CharacData)==0x28）
 };                                       // sizeof 0xc0
 
 // ORIG 12 符号独占头 Game/NOTIPacketStruct.h（OrigNOTIPkt 批自本头死草稿

@@ -46,12 +46,12 @@ void StageControl::sendMapInfo()
     // [b28d-sweep] 原 P190 两个取址 double 撑帧（0x80→0x90）；补 hit/phaseIndex/
     //   monsterList 具名局部后 4.4 帧已自涨到 0xa0（ORIG 0x90）⇒ 撑帧局部转为冗余，
     //   删除后帧回落 0x90（实测 sub 立即数逐字对齐）。
-    CUser* user = reinterpret_cast<CharacData*>(m_characData)->getUser();
+    CUser* user = m_characData.getUser();   // [BigP3D 成员化] 真实成员直调（等价 this+0x98）
     if (user == 0)
     {
         return;
     }
-    CMap* map = reinterpret_cast<ProcStage*>(m_procStage)->getMap();
+    CMap* map = m_procStage.getMap();       // [BigP3D 成员化] 真实成员直调（等价 this+0x04）
     if (map == 0)
     {
         return;
@@ -59,21 +59,21 @@ void StageControl::sendMapInfo()
     // ORIG 0x0813026e：body ctor 在 map 判空之后、getTimeLine 之前（Ghidra local_5c）。
     NOTIPacketStruct::_NotiAdvanceAltarMapInfo body;
     const TimeLine* timeLine =   // [b28d-Main 代落·S374] getTimeLine 返回 const TimeLine*（ORIG 调用点 0x8130237 为 `_ZNK...getTimeLineEv`，消费端仅读）
-        reinterpret_cast<ProcStage*>(m_procStage)->getTimeLine();
+        m_procStage.getTimeLine();
     if (timeLine == 0)
     {
         return;
     }
 
     body.m_stageType =
-        reinterpret_cast<ProcStage*>(m_procStage)->getStageType();
+        m_procStage.getStageType();
     body.m_currentSurvivalRoundNo =
-        reinterpret_cast<ProcStage*>(m_procStage)->getCurrentSurvivalRoundNo();
+        m_procStage.getCurrentSurvivalRoundNo();
     body.m_mapIndex = map->get_index();
     // TimeLine+0x0c = m_summary（TimeLineSummary）+0x00 = m_field0（int，`mov 0xc(%eax)`）。
     body.m_currentPhaseIndex = timeLine->m_summary.m_field0;
     body.m_mapBasisLevel =
-        reinterpret_cast<ProcStage*>(m_procStage)->getMapBasisLevel();
+        m_procStage.getMapBasisLevel();
 
     PacketGuard guard;
     guard.put_header(0, 0x20a);
@@ -100,8 +100,8 @@ void StageControl::sendMapInfo()
     // jmp; L_false: mov $0; test %al,%al; je L_else` —— 无具名 bool 槽（P214①）。
     // 极性：jne/je 均落 L_true ⇒ monsters 分支 = `stageType != 1 || isSurvivalModeFirstRound()`
     // （P224：je 落点定极性；此前误写 `!isSurvivalModeFirstRound()` = 真语义 bug）。
-    if (reinterpret_cast<ProcStage*>(m_procStage)->getStageType() != 1 ||
-        reinterpret_cast<ProcStage*>(m_procStage)->isSurvivalModeFirstRound())
+    if (m_procStage.getStageType() != 1 ||
+        m_procStage.isSurvivalModeFirstRound())
     {
         // [b28d-sweep] 试过 const 化 monsters（ORIG 0x081303ce 段确调 `_ZNKSt4list...5beginEv`
         //   const 版）：p167 调用差集 48→46=ORIG，但本 TU 少发射
@@ -143,8 +143,7 @@ void StageControl::sendMapInfo()
                 summary.m_posX = static_cast<unsigned char>(
                     it->m_posX);                          // +0x20 低字节
                 summary.m_champion = it->m_champion;      // +0x1c
-                reinterpret_cast<ProcStage*>(m_procStage)->
-                    addCreatedMapMonster(summary);
+                m_procStage.addCreatedMapMonster(summary);
                 guard.put_binary(reinterpret_cast<char*>(&summary), 0xd);
             }
         }
@@ -158,5 +157,5 @@ void StageControl::sendMapInfo()
     }
     guard.finalize(true);
     // ORIG 0x0813059c：Send 前重新 `this+0x98` 调 getUser（不复用开头 user 槽）。
-    reinterpret_cast<CharacData*>(m_characData)->getUser()->Send(guard);
+    m_characData.getUser()->Send(guard);
 }

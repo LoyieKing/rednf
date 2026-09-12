@@ -11,7 +11,7 @@
 //   之前 ⇒ 调用序在 body ctor 之前；旧 `? 1 : 0` 三目被物化成 test/je/mov$1/jmp/mov$0。
 void StageControl::sendEplp(StageEndType::T endType)
 {
-    CUser* user = reinterpret_cast<CharacData*>(m_characData)->getUser();
+    CUser* user = m_characData.getUser();   // [BigP3D 成员化] 真实成员直调（等价 this+0x98）
     if (user == 0)
     {
         return;

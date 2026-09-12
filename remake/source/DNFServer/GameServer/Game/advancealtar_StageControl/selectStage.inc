@@ -38,15 +38,17 @@ int StageControl::selectStage(CUser* user, int stageId,
 
     // [b28d-solo-StageControl] P183/P0：ORIG 每个访问点重算 this+0x98 / this+0x4
     // （无 getCharacData/getProcStage call、无具名指针槽）；逐点表达式直用。
-    reinterpret_cast<CharacData*>(m_characData)->m_field0 =
+    // [BigP3D 成员化 2026-09-12] m_characData/m_procStage 为真实成员 ⇒ 直访问
+    // （每点重算 this+0x98 / this+0x04 的 P183 形态不变）。
+    m_characData.m_field0 =
         user->m_advanceAltar.getCurrentRidableId();
-    reinterpret_cast<CharacData*>(m_characData)->setUser(user);
-    reinterpret_cast<CharacData*>(m_characData)->setSlotItem();
+    m_characData.setUser(user);
+    m_characData.setSlotItem();
 
-    reinterpret_cast<ProcStage*>(m_procStage)->resetAll();
+    m_procStage.resetAll();
     // P198①：ORIG 在 startStage 前有 `movl $0x0,-0xc(%ebp)` 预清 ⇒ 两句式。
     int err = 0;
-    err = reinterpret_cast<ProcStage*>(m_procStage)->startStage(stageId, diff);
+    err = m_procStage.startStage(stageId, diff);
     if (err != 0)
     {
         return err;
@@ -54,7 +56,7 @@ int StageControl::selectStage(CUser* user, int stageId,
 
     sendStageInfo();
     sendMapInfo();
-    reinterpret_cast<ProcStage*>(m_procStage)->setNotSurvivalModeFirstRound();
+    m_procStage.setNotSurvivalModeFirstRound();
     user->set_state((ch_state)0xd);
     return 0;
 }

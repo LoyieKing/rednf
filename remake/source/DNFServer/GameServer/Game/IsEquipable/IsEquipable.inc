@@ -36,7 +36,10 @@ int IsEquipable(CUser* user, const CItem* item, int slot)
     if (!item->check_job_type((char)user->get_charac_job())) return 0x11;
     int level = user->get_charac_level() + over;
     if (!item->check_low_level(level)) {
-        if (item->GetAttachType() == 5 && user->get_charac_level() > ((const CEquipItem*)item)->GetUsableMaxLevel())
+        // [AuditFix 2026-09-12] ORIG 0x8500531..0x8500545：先求 GetUsableMaxLevel()
+        // 后求 get_charac_level()（`cmp %eax,%ebx; jge`）⇒ 原码是
+        // `GetUsableMaxLevel() < get_charac_level()`；镜像写法使两侧求值序互换（+1 insn）。
+        if (item->GetAttachType() == 5 && ((const CEquipItem*)item)->GetUsableMaxLevel() < user->get_charac_level())
             return G_GameWorld()->IsCharacterLevelRevisionChannel() ? 7 : 0xe;
     }
     // ORIG 8500582/850059b/85005f7：get_need_skill 三处各自调用（P48 去缓存）

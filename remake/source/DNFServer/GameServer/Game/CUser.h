@@ -1300,7 +1300,9 @@ struct PostChecksumUserInfoBlock
     bool m_field44;                  // +0x1c
     char m_pad45;                    // +0x1d
     short m_totalFatigueUsed;        // +0x1e
-    int m_field48;                   // +0x20
+    unsigned int m_field48;          // +0x20（CSystemTime::getCurTickCount 返回 unsigned int，
+                                     //       同型直存：quest_action ORIG 0x0866e06x `mov %eax,0x79644(%edx)`
+                                     //       无 edx 中转；P217 同型化，宽度/偏移不变）
     int m_field4c;                   // +0x24
     CGameMasterCharacter* m_gameMasterCharac;  // +0x28（0x7964c）
     unsigned int m_field54;          // +0x2c
