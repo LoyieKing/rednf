@@ -113,7 +113,11 @@ int DisPatcher_DeleteItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                 (unsigned int)req.m_countArr[i]);
         }
 
-        if (user->get_state() == 3 && delKind == 5 && req.m_countArr[i] == 0)
+        // [V331b10 核验修复 2026-09-12] ORIG 0x081c217d `add $0x64,%edx` 直证：本条件
+        // 读的是 m_itemIdx[i]（(i+100)*4+0xf = +0x19f），非 m_countArr[i]（(i+200)*4+0xf
+        // = +0x32f）。同函数 addInfo 段与 delete_item arg4 用 +0xc8（=countArr）双方一致；
+        // ORIG 本处用 +0x64 而我方曾写 +0xc8 ⇒ 保护分支进入条件错。
+        if (user->get_state() == 3 && delKind == 5 && req.m_itemIdx[i] == 0)
         {
             const int secu = GlobalData::s_pSecuProtectionField->Check(
                 user, (SECURITY_PROTCTION)0x46);

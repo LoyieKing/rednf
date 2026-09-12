@@ -1653,7 +1653,6 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
     // jmp+nop 中继岛）。
     while (!GlobalData::s_server_stop)
     {
-        do
         {
             OS_API::Sleep(1);
             pcroomSocket =
@@ -1779,7 +1778,14 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
             // [BigP3B] ORIG 0x0857e069 把 select 返回写 soError 槽（-0xcc），
             // 尾条件 `mov -0xcc,%eax; test; js`（while (soError < 0)）。
             soError = select(maxfd, &readfds, &writefds, 0, &timeout);
-        } while (soError < 0);
+        }
+        // [V331b15 2026-09-12] ORIG 0x0857e077 `js 0x857f38c`（= 尾条件块
+        // `movzbl 0x940bd64(s_server_stop); xor $1; test %al; jne 0x857d98e(循环体)`）
+        // ⇒ select 失败必须**重查外层循环条件**（continue），不可回 do 体首。
+        // 旧形 `do{…}while(soError<0)` 的失败边直接回体首（0x2ec6），
+        // s_server_stop 置位 + select 持续失败时我方无限重试、ORIG 退出（SEMANTIC-DIFF）。
+        if (soError < 0)
+            continue;
 
         // [G7-sub] 与第一循环同一个具名 `i`（ORIG 全函数 -0x58 单槽 28 次引用），
         // 条件内重调 size（ORIG 0x0857e7d3 = 第二处也是唯一另一处调用）。

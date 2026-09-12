@@ -23,15 +23,19 @@ int Dispatcher_AuctionMyBiddingInfo::dispatch_sig(CUser* user, PacketBuf& packet
                         0, 0);
     }
 
-    // PCK_AUCTION_MY_BIDDING_INFO_GA local_3a（ORIG 栈对象，字段 +0x0e/+0x12 为裸偏移）
-    // ORIG 0x08216b9a 段 [41]/[48]：`mov %eax,-0x24(%ebp)` / `mov %eax,-0x20(%ebp)`
-    //   —— 两个具名 int 暂存槽（原码先落槽再写包体）；直接用 lea 链写会令 4.4
-    //   产 `lea 0xe(%eax),%ebx; mov %eax,(%ebx)` 且帧多 8 字节。
+    // PCK_AUCTION_MY_BIDDING_INFO_GA 栈对象（packet 槽基 -0x36，sizeof 0x1a：
+    //   C1Ev `memset(this,0,0x1a)` = setSize(0x1a)，两侧 C1Ev 逐条全等）。
+    // ORIG 0x08216b9a `08216c48 mov %eax,-0x24(%ebp)` / `08216c56 mov %eax,-0x20(%ebp)`
+    //   —— 按槽基换算 = packet+0x12（uid，GetUID）/ packet+0x16（characNo，
+    //   getCurCharacNo），即 body 两个 int；与服务器权威布局一致
+    //   （AuctionPacket.h: int char_idx @18 / int buyer_id @22）。
+    // [V331b02 2026-09-12 修复] 原写 +0x0e/+0x12 少 4 字节 ⇒ +0x0e 落进 PACKET_HEADER
+    //   内部、尾部 +0x16 从未写（协议字段错位，服务器买入竞价信息查询键为 0）。
     unsigned int uid = user->GetUID();                                   // local_28
     unsigned int characNo = (unsigned int)user->getCurCharacNo();         // local_24
     PCK_AUCTION_MY_BIDDING_INFO_GA req;
-    *(unsigned int*)((char*)&req + 0x0e) = uid;
-    *(unsigned int*)((char*)&req + 0x12) = characNo;
+    *(unsigned int*)((char*)&req + 0x12) = uid;
+    *(unsigned int*)((char*)&req + 0x16) = characNo;
     GlobalData::s_auction_proxy->SendPacket((nsl::PACKET_HEADER*)&req);
 
     // ORIG cmpl $0x4,-0xc; setle → i <= 4（含 4，共 5 轮）

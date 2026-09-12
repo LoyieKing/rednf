@@ -8,10 +8,14 @@ int IsEquipable(CUser* user, const CItem* item, int slot)
     // 限制）⇒ **反劣**：our 232→**233**、ndiff 17→**24** 块（4.4 的跳转线程化
     // 与 4.1 共享块布局不可同时满足）⇒ 已回滚，维持逐处 `return 0x11;`。
     // ORIG 0x85003be：虚表槽5 IsCreatureItem()（无参）判定，非 getUsableItemType(slot)。
-    // ORIG 两个独立 if 各自提前返回 0x11。
-    if (!item->IsCreatureItem())
-        return 0x11;
-    if (item->GetItemType() != slot)
+    // [V331b14 2026-09-12 · SEMANTIC-DIFF 修复] ORIG 实为**短路与**单 return：
+    //   Ghidra C `if ((A!=1) && (B!=slot)) return 0x11;`（A=vtable+0x14、B=vtable+0xc）；
+    //   汇编 0x085003d9 `xor $1,%eax;test %al,%al;je +0x48` 与 0x085003f2
+    //   `cmp 0x10(%ebp),%eax;setne %al;test %al,%al;je +0x48` 两 je **同落 +0x48（主流程）**
+    //   ⇒ A 为真时不评 B；A 为假且 B==slot 时也不返回。
+    //   旧写两个独立 if（`if(!A()) return 0x11; if(B()!=slot) return 0x11;`）在两处多返回：
+    //   ①A 真 & B!=slot ②A 假 & B==slot ⇒ 已按 ORIG 合并为短路与。
+    if (!item->IsCreatureItem() && item->GetItemType() != slot)
         return 0x11;
     // ORIG 8500406/8500438：getFootControlRateLimit 两处各自调用（P48 去缓存）
     if (item->getFootControlRateLimit() >= 0) {

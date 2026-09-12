@@ -32,8 +32,12 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
     std::vector<std::pair<int,int> > delCond;                  // -0x100
     std::pair<int,int> pairTmp;
 
-    if (!(q->m_triggerType == 0 || q->m_triggerType == 0x19))
-        return 0x11;
+    // [V331b13 核验修复 2026-09-12] ORIG 0x0866ec09 `je +0x177` / 0x0866ecf9 `jne +0x267`：
+    // 条件为真→执行本块（CheckNeedItemList 成功时跳公共续行 +0x267），为假→**直接落到**
+    // 下方 (t==0||b8==0||t==0x19)&&(b8!=0x19) 守卫块（Ghidra C 亦为 if/else + goto LAB_0866ecf9）。
+    // 旧形 `if(!(t==0||t==0x19)) return 0x11;` 系多余早退 ⇒ t∉{0,0x19}&&b8==0 时 ORIG 仍执行
+    // CInventory 预演块而我方直接返回 0x11（真语义差异）。
+    if (q->m_triggerType == 0 || q->m_triggerType == 0x19)
     {
         // ORIG 无 __normal_iterator<pair<int,int>const*> 实例，也无迭代器默认构造
         // 调用点：迭代器在 for-init 内由 begin() 直接构造（非 const 重载）。

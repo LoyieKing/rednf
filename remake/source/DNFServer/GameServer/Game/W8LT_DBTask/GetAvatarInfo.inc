@@ -34,7 +34,10 @@ bool DB_LoadPowerWarStatueInfo::GetAvatarInfo(
     }
     try
     {
-        if (dbSize > (int)originalSize)
+        // ORIG 0x08434f45 `cmp %eax,-0x34(%ebp); jbe` = 无符号比较（int vs unsigned 混合：
+        // dbSize 为 int、originalSize 为 unsigned ⇒ 二者都转 unsigned）。
+        // 禁止加 (int) cast：会把比较降为有符号，dbSize<0 时改走 0x7f1c 而非 ORIG 的 uncompress 失败路径(0x7f1e)。
+        if (dbSize > originalSize)
             throw (unsigned int)0x7f1c;
         if (!uncompress_zip((char*)&items[10], originalSize, buf, dbSize))
             throw (unsigned int)0x7f1e;

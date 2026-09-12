@@ -110,7 +110,11 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
                     __PRETTY_FUNCTION__,
                     0x165c, 4);
                 trace("Dungeon(%d) drop money(%d) on %d' party member with difficulty %d",
-                      m_battleField.m_pDungeon->m_index, money, get_member_count(),
+                      // [V331b10 核验修复 2026-09-12] ORIG 0x085a4058 `mov 0xcb8(%eax),%edi`
+                      // 为**单层**读 this+0xcb8 = CBattle_Field::m_dungeonIndex（battleField
+                      // @0xb24 + 0x194，CBattle_Field.h:485-488 布局直证），非
+                      // `m_pDungeon->m_index`（两层解引用，ORIG 无 0xcac/0x8 组合）。
+                      m_battleField.m_dungeonIndex, money, get_member_count(),
                       m_battleField.get_dungeon_diff());
             }
             int share = mi.m_item.get_add_info() / liveCount;   // -0xc0
@@ -124,7 +128,11 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
 
             for (int i = 0; i <= 3; ++i)
             {
-                int gain;
+                // [V331b10 核验 2026-09-12] ORIG 0x085a4c62 `movl $0x0,-0x74(%ebp)`（循环体首，
+                // 槽 -0x74 ↔ 我方 -0x88）⇒ 原码该局部为**带初始化声明**（P348：ORIG 有
+                // `movl $0x0` 必须保留）。查 ORIG 全引用表：首清与紧随的写（0x085a4d38）之间
+                // 无读 ⇒ 该 store 语义为 dead，但按 P348 照抄形态。
+                int gain = 0;
                 if (!_checkValidUser(i))
                 {
                     packet.put_byte(0);
@@ -306,7 +314,9 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
 
             for (int i = 0; i <= 3; ++i)
             {
-                int gain;
+                // [V331b10 核验 2026-09-12] 同前（第二个分支循环）：ORIG 0x085a4e27
+                // `movl $0x0,-0x74(%ebp)` ⇒ 原码带初始化声明（P348）。
+                int gain = 0;
                 if (!_checkValidUser(i))
                 {
                     packet.put_byte(0);

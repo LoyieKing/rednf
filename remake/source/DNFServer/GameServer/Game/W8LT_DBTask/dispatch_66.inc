@@ -8,11 +8,14 @@ bool DB_ReqBlackCount::dispatch(int userIdx, int slot, Stream* stream)
     // blackPoint(-0x68) trace 三实例(-0x64/-0x54/-0x44) sig(-0x34) db(-0x30)
     // result(-0x2c) nRows(-0x28) passCntLimit(-0x24) passCnt(-0x20)
     // computed(-0x1c)。guard 于组包处构造。
-    // P171/P328⑤：ORIG 0x084... 头部无 `movl $0x0,-0x70/-0x6c/-0x68` 预清
-    // （裸声明只占槽、不发指令）⇒ 不写初始化。
-    unsigned int problemChildTime;
-    int offsetPoint;
-    int blackPoint;
+    // 修正（V331b16 核验）：ORIG **确有**三条预清 —— 0x08424dd6 `movl $0x0,-0x68`、
+    // 0x08424ddd `movl $0x0,-0x6c`、0x08424e34 `movl $0x0,-0x70`（分别紧邻
+    // get_int(0)/get_int(1)/get_uint(2)）⇒ 原码三变量带 `= 0`；裸声明会让
+    // get_int/get_uint 失败路径读到未初始化栈值（`if (problemChildTime != 0)` 仍会执行）。
+    // 旧注 "P171/P328⑤：ORIG 头部无预清" 已被 ORIG 汇编证伪。
+    unsigned int problemChildTime = 0;
+    int offsetPoint = 0;
+    int blackPoint = 0;
     SIG_REQ_BLACK_COUNT* sig;
     MySQL* db;
     int result;

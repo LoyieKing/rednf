@@ -91,8 +91,11 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from,
             {
                 memcpy(pkt.m_items[i], msg.m_links13c[i], 0x68);
             }
+            // ORIG 0x86d02e0 `add $0x174,%ax` + `movzwl %ax,%eax`：长度经 unsigned short
+            // 具名局部**截断**（P171 原码行为照抄，非 32 位加）。
+            unsigned short packetSize = (unsigned short)(msg.m_textLen14 + 0x174);
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
-                ->SendPacket((char*)&pkt, msg.m_textLen14 + 0x174);
+                ->SendPacket((char*)&pkt, packetSize);
             break;
         }
         PacketGuard pm;
@@ -254,8 +257,10 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from,
             }
             pkt.m_msgLen = (unsigned char)msg.m_textLen14;
             memcpy(pkt.m_msg, msg.m_text18, msg.m_textLen14);
+            // ORIG 0x86d08c5 `add $0x14c,%ax`：unsigned short 具名局部截断（同 0x174 处）。
+            unsigned short packetSize = (unsigned short)(msg.m_textLen14 + 0x14c);
             GlobalData::s_guild_proxy_mgr->GetServerProxy(from->GetServerGroup())
-                ->SendPacket((char*)&pkt, msg.m_textLen14 + 0x14c);
+                ->SendPacket((char*)&pkt, packetSize);
         }
         else
         {
@@ -277,8 +282,10 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from,
             }
             pkt.m_msgLen = (unsigned char)msg.m_textLen14;
             memcpy(pkt.m_msg, msg.m_text18, msg.m_textLen14);
+            // ORIG 0x86d0a5e `add $0x148,%ax`：unsigned short 具名局部截断（同 0x174 处）。
+            unsigned short packetSize = (unsigned short)(msg.m_textLen14 + 0x148);
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
-                ->SendPacket((char*)&pkt, msg.m_textLen14 + 0x148);
+                ->SendPacket((char*)&pkt, packetSize);
         }
         else
         {

@@ -44,11 +44,17 @@
 //      条件内**逐次重调** `CServerProxyMgr<CMonitorServerProxy>::GetServerProxyArraySize()`
 //      （该 getter 全函数仅 2 处调用，都在条件里）⇒ 删 `proxyCount` 具名缓存
 //      （旧形多 1 前置 call + -0x50 槽，并把两循环索引拆成 -0x3c/-0x38 两槽）。
-// 残留 2 条（均为 4.4 固有，探针实证不可翻）：
-//   · 0x0857e3xx `while (ret < 0)`：4.4 发 `mov; shr $0x1f; test %al; jne` vs ORIG
-//     `mov; test %eax,%eax; js`（probe5.cpp p1）。
+// 残留 1 条（4.4 固有，探针实证不可翻）：
 //   · 0x0857e2xx `getsockopt(...,&soLen[3])`：4.4 发 `lea; add $0xc` vs ORIG 折单条
 //     `lea`（probe5.cpp p2/p3）。
+// [V331b15 2026-09-12 **判词作废+已修**] 原列「0x0857e3xx `while (ret < 0)`：
+//   4.4 发 `mov; shr $0x1f; test %al; jne` vs ORIG `mov; test %eax,%eax; js`
+//   （probe5.cpp p1，判为 4.4 固有 lowering）」**错误**：真因是**重试边沿靶点错**
+//   —— ORIG 0x0857e077 `js 0x857f38c`（尾条件块），我方 do{}while(soError<0) 的失败边
+//   `jne` 回 do 体首 ⇒ 跳过 s_server_stop 检查（s_server_stop 置位 + select 持续失败时
+//   我方无限重试、ORIG 退出）= **SEMANTIC-DIFF**。改 `if (soError < 0) continue;` 后
+//   4.4 直发 `mov -0x90(%ebp),%eax; test %eax,%eax; js <尾条件块>`，**与 ORIG 逐条同形**
+//   ⇒ 该条既是真语义差异、也是 lowering 差异的双重误判（见下「V331b15 修复」段）。
 // p167：CALLSITE CLEAR（仅 C1/C2·D1/D2 同址别名，ORIG nm 实测如 0x0861c8d2）。
 // 结论：语义完成，byte 层余 2 条 4.4 固有差 ⇒ 封顶。
 // [BigP3B 2026-09-12 帧差根因定案 + 修复] 本轮实测 **orig=1575 / our=1578（gap +3）**、
@@ -62,7 +68,12 @@
 //      ⇒ 3+1 = 4 槽 = 0x10，精确解释帧差（P343 线性律）。
 //   ② ORIG **无独立 select-ret 变量**：0x0857e069 `mov %eax,-0xcc(%ebp)` 与 4 处
 //      getsockopt 的 arg4 `lea -0xcc(%ebp),%edx`（&SO_ERROR 输出）**同槽** ⇒ 原码
-//      `soError = select(...)` + `} while (soError < 0);`。已照抄（删 `int ret;`）。
+//      `soError = select(...)` 后判负（删 `int ret;` 正确）。
+//      **[V331b15 2026-09-12 更正]** 但「`} while (soError < 0);`（do-while）」**误**：
+//      ORIG 0x0857e077 `js 0x857f38c` 落在**尾条件块**（`movzbl s_server_stop; xor $1;
+//      test %al; jne 0x857d98e`），即 select 失败重**查外层循环条件** ⇒ 原码是
+//      `while (!s_server_stop) { …; soError = select(…); if (soError < 0) continue; … }`。
+//      do-while 形的失败边回体首（跳过 stop 检查）⇒ 语义错。
 //   ③ `int soError;` 裸声明（ORIG 头部 5 条清零里无 -0xcc）——原 `= 0` 多 1 条清零。
 //   ④ 未使用局部声明 **排在最前**：4.4 函数头声明恒「先声明→更深」(P339)，ORIG 槽序
 //      深→浅 = dead(-0x6c) → lrPcroom(-0x68) → lrCommunity(-0x64) → lrAuction(-0x60)
@@ -71,13 +82,19 @@
 // 48:2 4c:4 50:2 54:4 58:35 5c:5 60:5 64:4 68:7 6c:1` = ORIG 全等（另 fd_set
 // 0x188/0x208 亦全等）⇒ 剩余槽差只在中深区**对象分配序**（4.1 块内对象放浅
 // trace@-0x7c..，4.4 放深 trace@-0xd8..）⇒ N82 结构性，非源码可择。
-// 残留 hunk（归一化口径 221 = 210 槽相位 + 11 结构性）：结构性 11 项逐条为
-// ① `while (x<0)` lowering：ORIG `test %eax,%eax; js` vs 4.4 `shr $0x1f; test %al,%al;
-//    jne`（1 处，probe5.cpp p1 先例）；② `&soLen[i]`：ORIG 单条 `lea -0xNN(%ebp),%edx`
+// 残留 hunk（归一化口径）：② `&soLen[i]`：ORIG 单条 `lea -0xNN(%ebp),%edx`
 //    vs 4.4 `lea -0x84; add $0x4/$0x8/$0xc`（4 处，probe5 p2/p3 先例）；③ `call X@plt`
-//    vs 我方 .o `call X`（4 处，工具口径伪差）；④ ORIG 尾 `jmp +0x1a32; nop` 岛我方无
-//    （N121 epilogue-threading）；⑤ 我方尾对齐 nop（strip 口径豁免）。
-// gap +3 亦可精确分解：+4（②的 4 条 add）−2（④的 jmp+nop）+1（⑤的 nop）= +3。
+//    vs 我方 .o `call X`（4 处，工具口径伪差）；⑤ 我方尾对齐 nop（strip 口径豁免）。
+//    ~~① `while (x<0)` lowering~~（**V331b15 2026-09-12 已修：真因=重试边靶点错**）、
+//    ~~④ ORIG 尾 `jmp +0x1a32; nop` 岛我方无~~（**已修：改 continue 后 4.4 同发
+//    `jmp <尾条件块>; nop` 岛，与 ORIG 0x857f389/0x857f38b 同形**）。
+// [V331b15 2026-09-12 修复记录（SEMANTIC-DIFF → 已修）]
+//   GlobalData.cpp:1781-1789：原 `do { … } while (soError < 0);` 改
+//   `{ … } if (soError < 0) continue;`（保留原块作用域）。复核（fresh .o）：
+//   0x3590 call select；0x35a1 test %eax,%eax；0x35a3 `js 48bd`；0x48bd `nop`；
+//   0x48be `movzbl s_server_stop; xor $1; test %al; jne 2ec6(循环体)` —— 与 ORIG
+//   0x857e077 `js 0x857f38c` / 0x857f38b `nop` / 0x857f38c 条件块逐形一致。
+//   TU 四数零劣化：identical=877 ae=1718 (2595) near=10 diff=35 missing=767（改前后同值）。
 // p167：CALLSITE CLEAR（239/239，仅 C1/C2、D1/D2 同址别名）。结论：语义完成；
 // 帧/浅区槽图与 ORIG 全等；余项全为 4.4 固有 lowering + 深区对象分配序（N82）。
 void MonitorTcpThread::dispatch(void* arg)

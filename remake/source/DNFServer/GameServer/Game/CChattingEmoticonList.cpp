@@ -137,7 +137,13 @@ extern char g_ChattingEmoticonScriptBaseDirectory[0x100];   // [SplitC batch5] �
             __inited = true;                       // +0x44e   后为 je;jmp 形）
             goto redo_lookup;                      // +0x451 → guard 重派发
         }
-        goto scan_exit;                // [P164] 公共尾正常回边（ORIG +0x456）
+        // [V331n00 SEMANTIC-DIFF 修复] 公共尾回边 = **回循环头**（ORIG 0x88e360b
+        // `jmp 0x88e3216 <+0x62>`，即 `movl $0x1,0x4(%esp); call ScanType` 处）：
+        // 原写 `goto scan_exit;` 会被折进 if 体内的 `goto scan_done` ⇒ 变 return true
+        // （我方入口集合 #28=∅/#283=[282]，ORIG #28=[282]/#283=[34]），使循环只跑一轮、
+        // 后续 [ani]/[macro] 段不再解析。
+        // 控制流自然到达循环体末尾 ⇒ 回边到循环头（ScanType 检查）。**勿**写
+        // `goto scan_exit;`（会被折进 if 体内的 goto scan_done ⇒ 变 return true）。
     }
 scan_done:
     return true;                                   // +0x4ac ebx=1

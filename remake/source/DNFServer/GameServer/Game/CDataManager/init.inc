@@ -1618,9 +1618,15 @@ bool CDataManager::init()
                 // `ptEv; add $4` 结果直接落 operator= 实参槽（无具名引用中转，
                 // 旧 rParam 引用多发 `mov %eax,-S; mov -S,%eax` 保存/取回 ×2）。
                 es.m_param1c0 = eit->second;
+                // [V331b02 2026-09-12 修复·实参来源互换] ORIG 0x0835e613..0x0835e646：
+                //   `lea -0xf60(=%eit); ptEv<EquipmentParameterInfo>; mov (%eax),%esi`
+                //   与 `lea -0xf58(=%it); ptEv<STEquipmentPartSetData>; mov (%eax),%eax;
+                //   mov %eax,%ebx`，随后 `mov %esi,0x10(%esp)`(=arg3=key) /
+                //   `mov %ebx,0x8(%esp)`(=arg1=idx) ⇒ ORIG 的 idx 取 STEPSD key、
+                //   key 取 EPI key（与旧形恰好相反，两实参数据串位）。
                 sync_script::GetInstanceSyncScript()
                     ->insert_equiptment_item_to_db(
-                        &es, (unsigned int)eit->first, 2, it->first);
+                        &es, (unsigned int)it->first, 2, eit->first);
             }
         }
     }

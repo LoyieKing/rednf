@@ -43,9 +43,18 @@ bool Init(int argc, char** argv)
     setrlimit(RLIMIT_CORE, &rl);
 
     std::cerr << "[!] Check Args ..." << std::endl;
-    if (!check_argv(argc, argv))
+    // [V331b15 2026-09-12] ORIG 0x82a09b1 = `eb 2e`（**无条件** jmp 0x82a09e1）；
+    // 正常编译产物该处应为 `74 2e`（je）⇒ **单字节 opcode 二进制热补**（禁用参数检查）。
+    // 直证：其后 FAIL 块 0x82a09b3..0x82a09dc 在 Init 全函数**零入口**
+    // （扫全区间所有 jcc/jmp 目标：82a09b3/82a09ac/82a09b1 均无命中）⇒ 运行期不可达。
+    // 按 Main 2026-09-12 统一口径「ORIG 热补/死块 ⇒ 按补丁后运行时可观察行为重建」
+    // （同 GlobalData::Init AntiBot / AradAppInit / logFormat）：用 P337 恒 0 volatile
+    // 守卫使 FAIL 块运行期不可达，同时保留 check_argvi 调用点与块内
+    // cerr/return 赋值（维持 p167 调用点齐）。
+    volatile bool argsFailGuard = false;
+    if (!check_argv(argc, argv) && argsFailGuard)
     {
-        // ORIG 82a09b3..82a09dc：cout "[!] Check Args Fail" → return 0。
+        // ORIG 82a09b3..82a09dc：cerr "[!] Check Args Fail" → return 0（补丁后不可达）。
         std::cerr << "[!] Check Args Fail" << std::endl;
         return false;
     }
@@ -177,8 +186,11 @@ bool Init(int argc, char** argv)
     { cMyTrace t(__PRETTY_FUNCTION__, 0x2a33, 9, false, true); t("Success"); }
 
     // DB 查询计数器挂接（DBMgr@全局 s_db_mgr）
+    // [V331b15 2026-09-12 **SEMANTIC-DIFF 修复**] ORIG 0x82a1375..0x82a1392 直证
+    // `movl $0x0,0x8(%esp); movl $0x2,0x4(%esp); call DBMgr::GetDBHandle` ⇒ 句柄 idx = **2**
+    // （旧写 DB_HANDLE_0=0 ⇒ 计数器挂到错误的 DB 句柄）。组仍为 0（E_SERVER_GROUP_NONE）。
     GlobalData::s_db_mgr->SetQueryCounterPointer(
-        GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_0, E_SERVER_GROUP_NONE /*推断*/)
+        GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE)
             ->GetQueryCounter());
 
     // ---- 三类 ServerProxy 创建（ORIG 82a13ac..1855 结构）----

@@ -643,8 +643,19 @@ bool GlobalData::Init()
         typedef int (*AntibotInitFn)(void*, int, char*);
         // ORIG 0x0829cd6f-0x0829cdd8：调用结果 test/setne 物化（P15），表达式直放条件位，
         // 勿先存具名局部（具名 int + `!= 0` 生成 cmpl/je 无 setne）。
-        if ((*(AntibotInitFn**)s_antibotChecker_)[0](
-                s_antibotChecker_, (int)s_antibotBusinessImpl_, seq))
+        (void)(*(AntibotInitFn**)s_antibotChecker_)[0](
+            s_antibotChecker_, (int)s_antibotBusinessImpl_, seq);
+        // [V331b06 2026-09-12 ④ 修复] ORIG 该失败块**无任何跳转入口**：0x829cd78 `eb 46`
+        //   是**无条件** jmp，跳过 0x829cd7a 的 trace/return 块（全函数无 j* 指向该址；
+        //   Ghidra C 亦显示虚调用返回值被丢弃）⇒ 运行期不可达。原实现写成可达条件早退
+        //   （我方 0x1101b `74 46 je`）⇒ 虚调用返回非 0 时会多打 trace 并 `return false`
+        //   （ORIG 忽略返回值继续初始化）。以恒 0 `volatile` 守卫保留块体与 cMyTrace
+        //   调用点（维持 p167 566/566），运行期不可达（P184/P337 族）。
+        //   守卫不会被优化掉：volatile 限定的自动变量读写是可观察副作用，4.4 -O0 必须
+        //   逐条发射（movb $0x0,-N; movzbl -N,%eax; test %al,%al; je），条件恒假 ⇒
+        //   与 ORIG 的「块在但无入口」运行期等价。
+        volatile bool deadAntiBotInitFail = false;
+        if (deadAntiBotInitFail)
         {
             cMyTrace t(__PRETTY_FUNCTION__, 0x1eb7, 5);
             t("AntiBot init fail");

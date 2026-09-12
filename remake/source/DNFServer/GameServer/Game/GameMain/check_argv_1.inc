@@ -58,15 +58,19 @@ bool check_argv(int argc, char** argv)
     // Check FAIL"); return 0`）在整函数 263 条指令中**无任何入边**（无指令引用
     // 0x829eb71）⇒ 4.1 -O0 保留的静态死块（P184 族）⇒ **ORIG 运行时可观察行为 =
     // 打印 "[!] Server key Check OK" 并继续运行（永不 return 0）**。
-    // 故此处不检查 keyOk（依项目「运行时可观察行为」政策跟随 ORIG）；死块原样保留在
-    // `#if 0` 中以备对照，不做删除。keyOk 仍保留（发射 ncl_check_key 调用与槽写入）。
-#if 0   // ORIG 0x829eb71 死块（无入边，运行时不可达）
-    if (!keyOk)
+    // 故此处不检查 keyOk（依项目「运行时可观察行为」政策跟随 ORIG）。
+    // [2026-09-12 Main 口径：二进制热补件] ORIG 0x829eb6f 的 `jmp` 系热补（原 `je`），
+    // 按「补丁后运行时可观察行为」重建 = 用 **P337 恒 0 `volatile` 守卫**保留死块与
+    // 调用点（块运行期不可达），不做删除。keyOk 仍保留（发射 ncl_check_key 调用与槽写入）。
+    volatile bool deadKeyOkFail = false;   // P337 恒 0 守卫（保形不可达）
+    if (deadKeyOkFail)
     {
-        std::puts("[!] Server key Check FAIL");
-        return 0;
+        if (!keyOk)
+        {
+            std::puts("[!] Server key Check FAIL");
+            return 0;
+        }
     }
-#endif
     (void)keyOk;
     std::puts("[!] Server key Check OK");
 

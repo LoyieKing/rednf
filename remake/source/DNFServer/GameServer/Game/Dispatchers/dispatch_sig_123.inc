@@ -19,8 +19,14 @@ int Dispatcher_AuctionBuyItemApiece::dispatch_sig(CUser* user, PacketBuf& packet
     pck.m_body.m_characNo = user->getCurCharacNo();
 
 
-    int price = 0;
-    if (!packet.get_int(price))
+    // [V331b06 2026-09-12 ④ 修复] ORIG 把客户端包首个 int 直读进 pck+0x1a（= 权威
+    //   AuctionPacket.h:222 `int price; // @26`），该字段随 SendPacket(&pck) 转发给
+    //   AuctionServer（接收侧 HandlerFor_GA_.cpp:642 读 pPck->price）。原实现读进独立
+    //   局部 `price` ⇒ 转发包 +0x1a 从未写入（恒 0），协议字段丢失。
+    //   ORIG 0x8214e9f/0x8214ea2 `lea -0x56(%ebp); add $0x1a,%eax` → get_int(int&)。
+    //   packed 成员不可直接绑定 int&（gcc 报「不能将紧实的字段绑定到 int&」）⇒ 与 m_count
+    //   同法用具名 4 字节视图解引用（仍是具名成员访问，非裸偏移）。
+    if (!packet.get_int(*reinterpret_cast<int*>(pck.m_body.m_price)))
     {
         return LineFunc(0xc501, __PRETTY_FUNCTION__, 0, 0);
     }
@@ -48,7 +54,7 @@ int Dispatcher_AuctionBuyItemApiece::dispatch_sig(CUser* user, PacketBuf& packet
     }
 
     // +0x1a0: 余额不足 → error 0xbc,0x90
-    if (user->getCurCharacMoney() < price)
+    if (user->getCurCharacMoney() < *reinterpret_cast<int*>(pck.m_body.m_price))
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xbc), 0x90);
         return 0;
@@ -56,7 +62,8 @@ int Dispatcher_AuctionBuyItemApiece::dispatch_sig(CUser* user, PacketBuf& packet
 
     // +0x1fc: use_money(price, 0x1a, true)
     if (!(user->getCurCharacInvenW()->use_money(
-              price, static_cast<eMoneySubReason>(0x1a), true)))
+              *reinterpret_cast<int*>(pck.m_body.m_price),
+              static_cast<eMoneySubReason>(0x1a), true)))
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0xbc), 0x93);
         return 0;
@@ -67,7 +74,7 @@ int Dispatcher_AuctionBuyItemApiece::dispatch_sig(CUser* user, PacketBuf& packet
     GlobalData::s_auction_proxy->SendPacket(reinterpret_cast<nsl::PACKET_HEADER*>(&pck));
 
     // +0x24f: price > 4999 → 统计流 SIG_AUCTION_MONEY_SUB
-    if (price > 4999)
+    if (*reinterpret_cast<int*>(pck.m_body.m_price) > 4999)
     {
         Stream* stream = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0xc529);
         CStreamGuard guard(stream, true);
@@ -75,7 +82,7 @@ int Dispatcher_AuctionBuyItemApiece::dispatch_sig(CUser* user, PacketBuf& packet
         **guard << static_cast<int>(user->GetUID());
         SIG_AUCTION_MONEY_SUB* sig = guard->GetInBuffer<SIG_AUCTION_MONEY_SUB>();
         memset(sig, 0, 0x28);
-        sig->m_arg04 = price;
+        sig->m_arg04 = *reinterpret_cast<int*>(pck.m_body.m_price);
 
         strncpy(reinterpret_cast<char*>(sig) + 8, itemKey, 13);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(2), guard);

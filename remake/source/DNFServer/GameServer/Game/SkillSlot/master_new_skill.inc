@@ -63,9 +63,19 @@ int SkillSlot::master_new_skill(int skillIdx, int level, int job,
     if (skill->IsStealable(firstGrow, secondGrow) != 0)
     {
         m_parent->getCurCharacQuestR()->isClearQuest(0x163);
-        if (m_parent->is_clear_stealingSkillMission() == 0)
+        // [V331b02 2026-09-12 修复·死块族] ORIG 0x08603bbb `jmp 0x08603bd8`（无条件）：
+        //   紧随的 is_clear_stealingSkillMission 判空早退块（ORIG 0x08603bbd..0x08603bd6）
+        //   **无任何跳转入口**（deadblk：9 条不可达）⇒ 运行期不可达；ORIG 活路径
+        //   0x08603bd8 `mov $0x0,%eax`（恒 0 ⇒ 永不 return -1）。与
+        //   try_master_new_skills（0x0860757e 同形）为同族第 4 实例。
+        //   P337 形：恒 false volatile 守卫保留调用点（p167 不变）且运行期不可达。
+        volatile bool deadStealCheck = false;
+        if (deadStealCheck)
         {
-            return -1;
+            if (m_parent->is_clear_stealingSkillMission() == 0)
+            {
+                return -1;
+            }
         }
         isSteal = 1;
         level = level - skill->GetStealLevelPenalty();

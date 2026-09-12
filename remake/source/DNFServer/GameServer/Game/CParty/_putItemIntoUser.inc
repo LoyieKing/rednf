@@ -215,14 +215,16 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
             GetInstanceValueStatistic()->AddValueStatistic(
                 (VALUE_STATISTIC_FIELD)4, user, (unsigned int)sellPrice);
         }
-        // ORIG 越界读 items[1]+0x3e（Inven_Item 0x3d 后 1 字节；线格式遗留，保留）
-        if ((unsigned char) *reinterpret_cast<unsigned char*>(
-                reinterpret_cast<char*>(&items[1]) + 0x3e) ==
-                1 &&
-            card != 0)
+        // [V331b15 2026-09-12 **SEMANTIC-DIFF 修复**] ORIG 读的是
+        // `items[1]` 的 **+0x01 字节**（= Inven_Item.h 布局 `m_field1`(ITEM_TYPE)，
+        // 见 0x85ab3b5/0x85ab3ee `add $0x3d,%eax; movzbl 0x1(%eax)`；sizeof(Inven_Item)
+        // = 0x3d 由 0x85ab362 `lea 0x3d(%eax),%esi` 传 `GetSellItemPrice(Inven_Item&)`
+        // 直证）。旧写 `(char*)&items[1] + 0x3e` 实编译为 item+0x7b（越过 0x3d）
+        // ⇒ 守卫与 UseLuckPoint 第 2 实参都用错字节；改为 `+ 1`（与 ORIG 同形：
+        // `lea/add $0x3d` + `movzbl 0x1(%eax)`）。
+        if ((unsigned int)items[1].m_field1 == 1 && card != 0)
         {
-            CLuckPoint::UseLuckPoint(user, (int)(unsigned char) * reinterpret_cast<unsigned char*>(
-                                         reinterpret_cast<char*>(&items[1]) + 0x3e),
+            CLuckPoint::UseLuckPoint(user, (int)items[1].m_field1,
                                      card->get_rarity(), card->get_grade());
         }
     }

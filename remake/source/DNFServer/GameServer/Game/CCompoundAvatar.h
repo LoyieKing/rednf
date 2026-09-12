@@ -164,9 +164,14 @@ public:
             ENUM_CHARACTERJOB m_field00Job;
         };
         int m_field04;                            // +0x04
-        unsigned short m_field08;                 // +0x08
+        // [V331b08 2026-09-12] 符号性直证：ORIG `_ProcCompoundCore` 段
+        //   `movzwl 0x8(%eax),%eax; cwtl`（dual #298-300）与
+        //   `movzwl 0x48(%eax),%eax; cwtl`（#314-316）= 读后**符号扩展**（原码按 short 读）；
+        //   我方原 unsigned short ⇒ 零扩展 ⇒ 字段 ≥0x8000 时 delete_item 实参值不同。
+        // sizeof(0xec)/全部成员偏移/mangled 零变化（同宽 2B，pack 布局不变）。
+        short m_field08;                          // +0x08
         Inven_Item m_materialA;                   // +0x0a 合成材料①
-        unsigned short m_field48;                 // +0x48
+        short m_field48;                          // +0x48（同上：ORIG `movzwl+cwtl` 直证）
         Inven_Item m_materialB;                   // +0x4a 合成材料②
         CItem* m_scriptA;                         // +0x88 材料①脚本
         CItem* m_scriptB;                         // +0x8c 材料②脚本

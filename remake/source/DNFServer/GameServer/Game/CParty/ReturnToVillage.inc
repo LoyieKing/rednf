@@ -80,12 +80,14 @@ void CParty::ReturnToVillage()
             {
                 if (m_battleField.m_pDungeon != 0)
                 {
-                    // [2026-09-10 真 bug 修正] ORIG 0x085acb5x 的 receiver 是
-                    // `mov 0x8(%ebp),%edx; mov 0x74(%edx),%edx; add $0x79700,%edx`
-                    // = **this+0x74 = m_manager**（CParty.h:732），不是
-                    // m_member[i].m_pUser（0x78+i*0x18）。且三实参按 cdecl 右→左
-                    // 求值并用 %edi/%esi/%ebx 跨调用保活（P329/P52 单语句形）。
-                    m_manager->m_historyLog.LeaveDungeon(
+                    // [V331b10 核验修复 2026-09-12] 本处（else 分支循环内）ORIG 0x085ace0e..25
+                    // 直证 receiver = `mov -0x1c(%ebp),%edx; mov 0x8(%ebp),%edi; …24*i…;
+                    // lea (%edi,%eax,1); add $0x78; mov (%eax),%eax; lea 0x79700(%eax),%edx`
+                    // = **m_member[i].m_pUser**（0x78+i*0x18），非 m_manager（this+0x74）。
+                    // 旧注释/旧码把它与 m_autoCreated 分支（ORIG 0x085acb2b 确为 this+0x74）
+                    // 混为一处，导致历史日志写到 manager。
+                    // 三实参按 cdecl 右→左求值并用 %edi/%esi/%ebx 跨调用保活（P329/P52）。
+                    m_member[i].m_pUser->m_historyLog.LeaveDungeon(
                         m_battleField.m_pDungeon->GetDungeonName(),
                         reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff(),
                         _getMemberNames(names),
