@@ -162,7 +162,12 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         cMyTrace(__PRETTY_FUNCTION__, 0x1bf6, 0)("[USER LOGIN] DB ID : %s (UID: %d)(SlotIDX: %d)(IncreID: %d)"
                    "(SocketID: %d)\n",
                    NumberToString(pInfo->m_accId, 0),
-                   user->GetUID(), user->GetSlotIDX(), user->GetIncreID(),
+                   user->GetUID(),
+                   // ORIG 0x84c5b0e `movswl %ax,%edi`（P321-T1 直证 signed short）：
+                   // 裸 GetSlotIDX()（返回 unsigned short）生 movzwl ⇒ 与 ORIG 分叉，
+                   // 改双 cast 复现单条符号扩展（同 RegistTimer.inc 先例）。
+                   static_cast<int>(static_cast<short>(user->GetSlotIDX())),
+                   user->GetIncreID(),
                    user->get_unique_id() & 0xffff);
 
         // 同账号重复登录拒绝

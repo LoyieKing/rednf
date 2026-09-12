@@ -10,11 +10,14 @@ int Inter_NpcLimitBuyItemInfo::dispatch_sig(CUser* user, char* data, int /*len*/
         reinterpret_cast<Inter_NpcLimitBuyItemInfoPktView*>(data);
     LimitNpcBuyItemUpdate update;                      // -0x2e（0x1a 包）
 
-    CUser* target =                                    // +0xc
-        G_CGameManager()->getUser(
-            msg->m_itemIdReq, 10);
+    // [R5a18 ④ 形参槽复用（高危 #26）] ORIG 0x084e65e8 `mov %eax,0xc(%ebp)`：getUser
+    // 结果**写回 user 形参槽**（报告 dispatch_sig.md +0x046 实证）⇒ 其后全部 CUser 调用
+    // （GetServerGroup/get_charac_no/SendCmdErrorPacket/getCurCharacInvenW/sendPacket）
+    // 的接收者 = 查找出的目标用户；user==0 分支因此把 **NULL** 传给 GetServerGroup。
+    user = G_CGameManager()->getUser(                  // +0xc（形参本身被复用）
+        msg->m_itemIdReq, 10);
 
-    if (target == 0)
+    if (user == 0)
     {   // 用户不在线：按本类缓存字段回 monitor（ORIG GetServerGroup(NULL) 原样保留）
         update.m_errorNo     = 3;             // +0x16（084e65f1 movl $0x3,-0x18）
         update.m_itemId      = msg->m_itemId; // +0x0a（084e6604）

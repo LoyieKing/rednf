@@ -135,7 +135,11 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         void* checker = GlobalData::s_antibotChecker_;          // antibiotic 类未建模——asm 桥残留（vtable+0x04 AddClient，按 §8 协议保留）
         typedef int (*AddClientFn)(void*, int, int, unsigned int,
                                    unsigned int, void*);
-        AddClientFn addClient = *(AddClientFn*)((*(void***)checker)[0x04 / 4]);
+        // [R5a01 2026-09-12 · ④ 真语义 bug] 旧码 `*(AddClientFn*)((*(void***)checker)[0x04/4])`
+        //   多一层解引用：ORIG 0x84c855f `mov (%eax),%eax` / 0x84c8564 `mov (%eax),%edi`（vtable[1]
+        //   本体即函数指针，**2 层**）/ 0x84c85c0 `call *%edi`；旧码 3 层 ⇒ 调用目标错。
+        AddClientFn addClient =
+            *reinterpret_cast<AddClientFn*>(*reinterpret_cast<char**>(checker) + 0x04);
         const int antibotRet =
             addClient(checker, G_CEnvironment()->getProcessSequence(), 0,   // P48 独立求值
                       (unsigned int)user->get_acc_id(),
@@ -153,8 +157,10 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->m_field4 = 0;
         user->m_field5 = 0;
         typedef int (*P2PAddClientFn)(void*, unsigned int, int, unsigned int);  // 同上残留：vtable+0x20 P2PAddClient
+        // [R5a01 2026-09-12 · ④ 同型] ORIG 0x84c8677 `mov (%eax),%eax` / 0x84c867c
+        //   `mov (%eax),%esi`（vtable[8] 本体即函数指针，**2 层**）/ 0x84c86af `call *%esi`。
         P2PAddClientFn p2pAdd =
-            *(P2PAddClientFn*)((*(void***)checker)[0x20 / 4]);
+            *reinterpret_cast<P2PAddClientFn*>(*reinterpret_cast<char**>(checker) + 0x20);
         const int p2pRet =
             p2pAdd(checker, (unsigned int)user->get_acc_id(), -1,
                    user->getClientVersion());
@@ -189,7 +195,10 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
     {   // ORIG vtable+0x2c 两参槽（IPGHelper IPGQuery）：类未建模——asm 桥残留保留，按 §8 协议待建模清理
         typedef void (*QueryFn)(void*, CUser*);
         void* helper = GlobalData::s_pIPGHelper;
-        QueryFn query = *(QueryFn*)((*(void***)helper)[0x2c / 4]);
+        // [R5a01 2026-09-12 · ④ 同型] ORIG 0x84c88be `mov (%eax),%eax` / 0x84c88c0
+        //   `add $0x2c,%eax` / 0x84c88c3 `mov (%eax),%ecx`（**2 层**）/ 0x84c88d4 `call *%ecx`。
+        QueryFn query =
+            *reinterpret_cast<QueryFn*>(*reinterpret_cast<char**>(helper) + 0x2c);
         query(helper, user);
     }
     const unsigned short uniqueId = (unsigned short)user->get_unique_id();

@@ -74,9 +74,13 @@ void CUser::giveLotteryCountItem(int itemNo, bool match)
         if (slot < 0)
         {
             char msg[256];
-            const char* str = g_scriptStringManager_.findString(
-                4, "game_server_msg_104", (bool*)0);
-            strncpy(msg, str ? str : "", 0xff);
+            // [R5a16 ⑤ 高危#17 多守卫] ORIG 0x08691883..0x0869189c 实证：
+            //   `findString(4,"game_server_msg_104",0)` 结果**直接**作为 strncpy 第 2 实参
+            //   （`call findString; mov %eax,0x4(%esp)`），无判空、无默认串；我方旧形
+            //   `str ? str : ""` 多 4 条 + 多一个空串引用（字符串多重集 OURS-only={""}×1）。
+            //   照抄 ORIG（其 findString 返回 0 时 strncpy(NULL) 为 ORIG 自身缺陷）。
+            strncpy(msg, g_scriptStringManager_.findString(
+                       4, "game_server_msg_104", (bool*)0), 0xff);
             msg[0xff] = '\0';
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 getCurCharacName(), it, 0, (unsigned int)getCurCharacNo(),

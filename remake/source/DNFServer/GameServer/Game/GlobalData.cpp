@@ -2244,7 +2244,13 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
 #include "GlobalData/dispatch_5.inc"
 {
     (void)arg;
-    int listenSocket = -1;
+    // [R5a19 ④] ORIG 0x857cc65 只对 -0x60/-0x64 两条初始化（`user=0` / `sockOpt=60000`），
+    //   listenSocket(-0x2c) 全程无初始化写入（首写 0x857cca0 = socket() 结果）⇒ 原码
+    //   `int listenSocket;`（P348：ORIG 未初始化禁写 = 0/-1）。
+    int listenSocket;
+    // [R5a19 ④] ORIG 0x857cc65 `movl $0x0,-0x60(%ebp)`（CUser* user 预清，P198① 两句式）；
+    //   createUser 结果 0x857d3a1 存同一槽 -0x60、读点 0x857d3a4/0x857d4cc/0x857d4e6。
+    CUser* user = 0;
     int sockOpt = 60000;
     unsigned short port = (unsigned short)G_CEnvironment()->get_tcp_port();
     listenSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -2411,7 +2417,7 @@ void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
                                     }
                                     else
                                     {
-                                        CUser* user = G_CGameManager()->createUser();
+                                        user = G_CGameManager()->createUser();
                                         if (user == 0)
                                         {
                                             PacketGuard guard;

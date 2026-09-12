@@ -80,7 +80,13 @@ void CParty::ClearDungeon()
                         (ENUM_PACKETCLASS)0);
                 else if (m_battleField.m_pDungeon->m_89c == 0)
                 {
-                    if (m_battleField.m_pDungeon->get_dimension_possible() > 0)
+                    // [R5a18 ④ #27 有符号比较] ORIG 0x085a9675/0x085a967c 段 `call
+                    // CDungeon::get_dimension_possible; test %al,%al; setg %al` ⇒
+                    // 比较是**有符号**视角（头声明 unsigned char，与 0 的无符号比较
+                    // 在 4.4 恒折 setne ⇒ 值 ≥0x80 时分叉）。同 TU 既有正确形见
+                    // CPartyDepsD2/CheckEnterDimensionDungeon.inc:15 与
+                    // CPartyDepsB2/checkInoutConditionDungeon.inc:76。
+                    if ((signed char)m_battleField.m_pDungeon->get_dimension_possible() > 0)
                         APSystem::CUserProc::ClearActionAndSendtoUser(
                         m_member[slot].m_pUser, (APSystem::_ActionGroupIndex)0x1c, 0,
                         (ENUM_PACKETCLASS)0);

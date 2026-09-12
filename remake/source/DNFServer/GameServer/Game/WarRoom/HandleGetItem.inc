@@ -82,6 +82,11 @@ bool WarRoom::HandleGetItem(CUser* user, int idx)
             packet.put_byte(0);
             packet.put_byte(check);
             packet.finalize(true);
+            // [R5a13 2026-09-12·④] ORIG 0x086bec8a..0x086beca9：本分支（第一处
+            //   CheckPickupItem 的 check>=1，即 m_addInfo==0 money 分支的 else）
+            //   在同一分支内 **先 SendToRoom(packet) 再 user->Send(packet)**；
+            //   旧实现把 SendToRoom 误写进第二处（cMyTrace）分支 ⇒ 广播错发/漏发。
+            SendToRoom(packet);
             user->Send(packet);
             return 0;
         }
@@ -185,9 +190,10 @@ bool WarRoom::HandleGetItem(CUser* user, int idx)
                     packet.put_byte(0);
                     packet.put_byte(check);
                     packet.finalize(true);
-                    // b28d-lane25：P167 差集实证 ORIG 0x086bec97 先 SendToRoom(packet)
-                    // 再 user->Send(packet)（原实现漏 SendToRoom，语义缺口）。
-                    SendToRoom(packet);
+                    // [R5a13 2026-09-12·④] 修正 b28d-lane25 的错位：ORIG 0x086bf076..
+                    //   0x086bf083 本分支（第二处 CheckPickupItem 的 cMyTrace else）
+                    //   **只有** user->Send(packet)，**无** SendToRoom（0x086bec97 的
+                    //   SendToRoom 属另一分支，见上）。
                     user->Send(packet);
                     return 0;
                 }

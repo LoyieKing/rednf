@@ -172,7 +172,12 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
         //   `mov &s_pIPGHelper,%eax`（取 vptr 一次、压 this 一次）；我方旧稿具名 `void* helper`
         //   只加载 1 次（槽 -0x10）⇒ 全函数引用数 3 vs ORIG 4。按 P0/P183 去具名局部内联
         //   （与同 TU 第 3627 行先例同形）。
-        QueryFn query = *(QueryFn*)((*(void***)GlobalData::s_pIPGHelper)[0x2c / 4]);
+        // [R5a01 2026-09-12 · ④ 真语义 bug] 旧码 `*(QueryFn*)((*(void***)g)[0x2c/4])` 多一层
+        //   解引用：ORIG 0x84d73cd `mov (%eax),%eax` / 0x84d73cf `add $0x2c,%eax` /
+        //   0x84d73d2 `mov (%eax),%ecx`（vtable[11] 本体即函数指针，**2 层**）/
+        //   0x84d73e3 `call *%ecx`；旧码 3 层 ⇒ 调用目标错。
+        QueryFn query = *reinterpret_cast<QueryFn*>(
+            *reinterpret_cast<char**>(GlobalData::s_pIPGHelper) + 0x2c);
         query(GlobalData::s_pIPGHelper, user);
     }
     return 0;

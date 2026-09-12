@@ -24,8 +24,15 @@ int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
             typedef void (*QueryFn)(void*, CUser*, int);
             // [K3 2026-09-11] P0：ORIG 084ceb87 段把 s_pIPGHelper 全局地址读两次、query 只在
             //   %ecx 中转，无 helper 槽（旧稿 `void* helper` 多 2 条槽往返）。
-            QueryFn query = *(QueryFn*)((*(void***)GlobalData::s_pIPGHelper)[0x2c / 4]);
-            query(GlobalData::s_pIPGHelper, user, 10);
+            // [R5a01 2026-09-12 · ④ 真语义 bug] 旧码 `*(QueryFn*)((*(void***)g)[0x2c/4])` **多一层
+            //   解引用**：ORIG 0x084ceb8c `mov (%eax),%eax` / 0x084ceb8e `add $0x2c,%eax` /
+            //   0x084ceb91 `mov (%eax),%ecx`（vtable[11] 本体即函数指针，**2 层**）/
+            //   0x084ceba2 `call *%ecx`。旧码 3 层 ⇒ 把函数指针的值当地址再取一次首 4 字节 ⇒
+            //   间接调用目标错。改单层 + 内联进调用表达式（同
+            //   TimerDispatcher/dispatch_sig_92.inc 已修先例）。
+            (*reinterpret_cast<QueryFn*>(
+                *reinterpret_cast<char**>(GlobalData::s_pIPGHelper) + 0x2c))(
+                    GlobalData::s_pIPGHelper, user, 10);
             // P328⑩/P227：ORIG 0x84ceba4..0x84cebea 先求 msg+0xb3→槽、m_b2→%edi、
             // msg+0x64→%esi、msg+0x3c→%ebx 再 ctor ⇒ 全表达式临时链。
             cMyTrace(__PRETTY_FUNCTION__, 0x2b65, 0)(

@@ -76,7 +76,11 @@ void CParty::dungeon_clear()
     if (m_secretShop.IsOpen())
         // ORIG dungeon_clear.md 085abb54 `mov 0xa784(%eax)` =
         // SecretShopScript::m_int84（同 TournamentDungeonClear 站点）
-        sec = G_CDataManager()->m_secretShop.m_int84 * 12;
+        // [R5a15 ④ 真语义修复] ORIG 0x085abb5a-0x085abb68 直证 ×60：
+        //   `shl $0x2,%eax; mov %eax,%edx; shl $0x4,%edx; mov %edx,%ecx;
+        //    sub %eax,%ecx; mov %ecx,%eax`（x*4 → x*64 → x*60）
+        //   旧值 12（我方 0xf895-0xf89b `3x`+`shl $2`）为误抄，改回 0x3c。
+        sec = G_CDataManager()->m_secretShop.m_int84 * 0x3c;
     int key = gen_timer_key((TIMER_MESSAGE)0x15);
     G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1,
                                 GetPartyIndex(), (TIMER_MESSAGE)0x15,

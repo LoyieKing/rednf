@@ -70,8 +70,19 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
         std::vector<int> swapList;                             // -0x158
         bool okAll = false;
 
-        if (!shadow.tryDeleteEventItems(delCond))              // 扣料预演失败
-            return 0x11;                                       // -0x158 两出口同码
+        // [R5a13 2026-09-12·④] ORIG 0x0866eda3..0x0866edbc 两跳前置门（#25）：
+        //   `mov 0x7c(%eax),%eax; test %eax,%eax; je 0x0866edbe` +
+        //   `cmp $0x19,%eax; jne 0x0866edec` ⇒ 原码为
+        //   `if (m_triggerType == 0 || m_triggerType == 0x19)` 包裹本段
+        //   （tryDeleteEventItems + 失败处理 `mov $0x11,%ebx`，跳出点 0x0866edec）。
+        //   旧重建漏该门：t∉{0,0x19} 时 delCond 为空 ⇒ tryDelete 返 false
+        //   （CInventory::tryDeleteEventItems `items.size()==0 ⇒ return false`）
+        //   ⇒ 我方误返回 0x11（ORIG 继续走 +0xb8 奖励段）。
+        if (q->m_triggerType == 0 || q->m_triggerType == 0x19)
+        {
+            if (!shadow.tryDeleteEventItems(delCond))          // 扣料预演失败
+                return 0x11;                                   // -0x158 两出口同码
+        }
 
         // [CUserOnlyOrig 2026-09-09 真 bug：条件反向] ORIG 0x0866edfa `jne 866f133`
         // （b8 != 0 直接跳到 okAll=true，跳过本块）⇒ 原码是 `if (b8 == 0)`；旧重建写成

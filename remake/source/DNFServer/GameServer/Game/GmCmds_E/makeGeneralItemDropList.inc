@@ -4,8 +4,17 @@
 // insert 处重新读成员 + P222 正向包裹 + **find 实参内联**
 // （`out.find(it->m_item.m_addInfo)`，P236：ORIG find 实参临时槽 -0x50 比
 //  it(-0x58) 浅；具名 `int key` 被 4.4 排到 -0x54 且 end 临时 -0x50 与 ORIG
-//  互换）。make_pair 值类别仍保留左值形（ORIG `IiRi` vs 4.4 `Iii`，指令序列
-//  identical）。
+//  互换）。
+// [R5a03 2026-09-12 核验记录·make_pair 值类别 = ③ 跨版本 lowering]
+//  ORIG 0x084ae8ca 调 `_ZSt9make_pairIiiE...OS2_OS5_`（实参形
+//  `lea 0x17(%eax),%ebx` = 成员地址直传 int&&），我方第二参为左值 ⇒ 实例化
+//  `_ZSt9make_pairIiRiE...OS3_OS6_`（p167 EXTRA +1 / MISSING −1）。两实例返回
+//  同一类型 `pair<int const,int>`、行为相同（构造 pair，int 无 move 语义）⇒ 等价。
+//  两试形均**劣化已回滚**（实测 157=157 AE 基线）：
+//   ① `static_cast<int>`（prvalue）：157→159、全帧槽 +4、AE→DIFF；
+//   ② `static_cast<int&&>`（xvalue，与 ORIG 源形一致）：同样 157→159 + 槽 +4
+//      （4.4 对 xvalue 实参恒物化具名槽，4.1 直取成员址 ⇒ N/P0 跨版本不可复现）
+//  ⇒ 保持左值形：指令逐条全等（157=157、ndiff 0），仅模板实例名不同。
 void CMonsterDropTest::makeGeneralItemDropList(std::list<map_item>& items,
                                                DropStat& out)
 {

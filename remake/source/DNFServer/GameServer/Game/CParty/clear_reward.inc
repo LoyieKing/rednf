@@ -61,7 +61,10 @@ void CParty::clear_reward(int param)
         &dm->m_serverParameter;                              // dm+0x68 子对象
 
     int stdLevel = 0;
-    if (dungeon->get_dimension_possible() > 0)
+    // [R5b-Main · #27] ORIG 0x085ae24a `call get_dimension_possible; test %al,%al;
+    //   setg %al`（0x085ae251）= **有符号** >0；头声明 unsigned char ⇒ 无 cast 时 4.4 产
+    //   `setne`，值 ≥0x80 分叉（R5a18 全仓扫描：ORIG 31 站点 setg=17/setne=0）。
+    if ((signed char)dungeon->get_dimension_possible() > 0)
         stdLevel = getStandardDimensionLevel();
     else
         stdLevel = dungeon->get_standard_level();
@@ -89,8 +92,14 @@ void CParty::clear_reward(int param)
             ->getRewardItemRatePerMapMaxCount(gridCount);
     if (ratePerMapMax != 0)
     {
+        // [R5a07 ④] ORIG 0x085ae3cb..0x085ae3f6：`mov -0xc0(%ebp),%eax; mov $0x0,%edx;
+        //   mov %eax,-0x310(%ebp); mov %edx,-0x30c(%ebp); fildll -0x310(%ebp)` ⇒ 高 32 位清零
+        //   = **无符号 32 位**语义（(unsigned long long)(unsigned int)n）。
+        //   原写 static_cast<unsigned long long> 使 4.4 发 `sar $0x1f,%edx`（符号扩展）+ 负值
+        //   加 2^64 修正（fldt 2^64 + faddp，NEW 0x084b5355..0x084b5376）⇒ ratePerMapMax<0 时
+        //   结果分叉（ORIG≈(unsigned)n=4.29e9 vs 我方≈1.8e19）。改无符号 32 位以复刻 ORIG。
         mapRatio = static_cast<float>(
-                       static_cast<unsigned long long>(ratePerMapMax)) *
+                       static_cast<unsigned int>(ratePerMapMax)) *
                    mapRatio / 10000.0f;
     }
 
@@ -510,22 +519,24 @@ void CParty::clear_reward(int param)
         // ORIG:条件为 isRisk(MPR-only 分支先发射)。
         else if (dungeon->isRiskDungeon())
         {
-            double scaled = static_cast<double>(
-                static_cast<float>(static_cast<double>(
-                    static_cast<unsigned long long>(totalMobExp)) *
-                    static_cast<float>(MemberPenaltyRate())));
+            // [R5a07 ④] ORIG 0x085afcb8..0x085afd21：`mov $0x0,%edx; fildll -0x310;
+            //   fstps -0x324` ⇒ **先把 (unsigned)totalMobExp 截断为 float**，随后
+            //   `fildl MPR; flds -0x324; fmulp; fildl -0xe0; fdivrp; fistpll`（乘除均在扩展
+            //   精度、**无外层 float 截断**）。原写 `(float)((double)(unsigned long long)x * m)`
+            //   ⇒ x 未先舍入（x>2^24 时 fstps 舍入点不同，fistpll 可差 1）。
             personalExp = static_cast<unsigned int>(static_cast<long long>(
-                scaled / memberCount));
+                static_cast<float>(totalMobExp) * MemberPenaltyRate() / memberCount));
         }
         else
         {
-            double penalty = G_CDataManager()->BaseExpPenalty(userLevel, stdLevel);
-            double scaled = static_cast<double>(
-                static_cast<float>(static_cast<double>(
-                    static_cast<unsigned long long>(totalMobExp)) * penalty) *
-                static_cast<float>(MemberPenaltyRate()));
+            // [R5a07 ④] ORIG 0x085afcca..0x085afd33：`flds -0x320; fmulp; fstps -0x31c`
+            //   ⇒ penalty × (float)(unsigned)totalMobExp 后**截断为 float**（具名 float 槽），
+            //   再 `fildl MPR; flds -0x31c; fmulp; fildl -0xe0; fdivrp; fistpll`。
+            float scaled = static_cast<float>(
+                static_cast<float>(totalMobExp) *
+                G_CDataManager()->BaseExpPenalty(userLevel, stdLevel));
             personalExp = static_cast<unsigned int>(static_cast<long long>(
-                scaled / memberCount));
+                static_cast<double>(scaled) * MemberPenaltyRate() / memberCount));
         }
 
         QuickParty::RewardData_Param rewardParam(this);

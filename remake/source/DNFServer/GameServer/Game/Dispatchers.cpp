@@ -2535,10 +2535,18 @@ public:
     const int index = packet.get_index();
     char* bufPtr = packet.get_buf_ptr(index);                                  // -0xc
     char outBuf[2800];                                                         // -0xb06（ORIG 栈缓冲）
-    void* checker = GlobalData::s_antibotChecker_;
-    CheckFn fn = *(CheckFn*)((*(void***)checker)[0x2c / 4]);
+    // [R5a12 ④] 去多一层解引用：ORIG 0x0820b2ba..0x0820b2c4 =
+    //   `mov s_antibotChecker_,%eax; mov (%eax),%eax; add $0x2c,%eax; mov (%eax),%esi`
+    //   （2 层：vptr → vtable[0x2c/4] 槽值即函数指针）；旧码 `*(CheckFn*)(…)`
+    //   把槽值当地址再读一次 ⇒ 3 层（我方旧 .o 0x1f419 后多 `mov (%eax),%eax`）。
+    //   形与 PacketDispatcher/TimerDispatcher 同族：单层解引用 + char* 偏移 + 纯
+    //   `register` 存储类提示（P231/P307，非 asm 绑定 ⇒ P0 合规）⇒ fn 直落 %esi；
+    //   调用 this 实参按 ORIG `0x0820b2d9 mov 0x941f7e4,%eax` 重载全局（P183 去缓存）。
+    register CheckFn fn = *reinterpret_cast<CheckFn*>(
+        reinterpret_cast<char*>(
+            *reinterpret_cast<void**>(GlobalData::s_antibotChecker_)) + 0x2c);
     const int checkRet =
-        fn(checker, user->getAntibotKey(), bufPtr,
+        fn(GlobalData::s_antibotChecker_, user->getAntibotKey(), bufPtr,
            static_cast<unsigned short>(value), outBuf, &hashLen);
     if (checkRet != 0)
     {

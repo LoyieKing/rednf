@@ -360,7 +360,9 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
             bd.m_flag28[3] = 0;
         }
 
-        if (m_battleField.m_pDungeon->get_dimension_possible() > 0)
+        // [R5b-Main · #27] ORIG 0x085a1d9a `call get_dimension_possible; test %al,%al;
+        //   setg %al`（0x085a1da1）= **有符号** >0（同 clear_reward.inc:64 族）。
+        if ((signed char)m_battleField.m_pDungeon->get_dimension_possible() > 0)
         {
             bd.m_flag28[0] = 1;
             bd.m_flag28[1] = 1;

@@ -36,12 +36,19 @@ int CDisjointer::OnCreateDisjointStore(CUser* user, char const* name, int level,
     // 局部构造后赋给 m_machine（ORIG 经栈上临时 + operator= + 临时析构）。
     // ORIG 0x085d2e77 `call get_disjoint_machine_grade; movsbl %al,%eax` 无
     // machineGrade 具名槽（内联进 ctor 第4实参）。
-    CDisjointMachine local(
-        user, name, level,
-        (char)((expert_job::CCharacExpertJob*)user->GetCharacExpandData(
-            (ENUM_CHARAC_EXPAND_TYPE)0))->get_disjoint_machine_grade(),
-        x, y);
-    m_machine = local;
+    // [R5a16 ⑤] ORIG 0x085d2ec1..0x085d2ee4 实证：`jmp +0x1d6` 跳过清理 pad 后，
+    //   0x085d2ede 即发 `lea -0x3c(%ebp); call CDisjointMachineD1Ev`（**紧跟赋值、
+    //   早于 set_position**）⇒ 原码 local 位于内层块尾析构（块作用域），
+    //   其 cleanup pad（0x085d2ec3..0x085d2ed9）与 PacketGuard pad 各自独立
+    //   `call _Unwind_Resume`（ORIG 共 2 处，我方旧形因生命周期延到函数末而只剩 1 处）。
+    {
+        CDisjointMachine local(
+            user, name, level,
+            (char)((expert_job::CCharacExpertJob*)user->GetCharacExpandData(
+                (ENUM_CHARAC_EXPAND_TYPE)0))->get_disjoint_machine_grade(),
+            x, y);
+        m_machine = local;
+    }
 
     user->set_position((unsigned short)x, (unsigned short)y, '\0');
 

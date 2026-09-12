@@ -129,7 +129,15 @@ ENUM_ERROR CCompoundAvatar::_ProcCompoundCore(CUser* user, stCompoundAvatarInfo&
     {
         // ---- 成功路径：删两件材料 ----
         CItem* item = G_CDataManager()->find_item(resultIdx);
-        if (!item->IsCreatureItem())          // ORIG vtable+0x10（IsCreatureItem）
+        // [R5a09 2026-09-12 · ⑤④] ORIG 0x083330c0 `add $0x10,%eax` + 0x083330cb
+        // `call *%edx`（对象 = find_item(resultIdx) 结果；Ghidra C 段
+        // `(**(code **)(*(int *)local_34 + 0x10))(local_34)`）⇒ 槽 vptr+0x10 =
+        // CEquipItem::IsAvatarItem（_ZTV10CEquipItem @0x08c96e20，vtable+0x18 =
+        // 0x08514d46 nm 实证）；旧稿误按 +0x14 调 IsCreatureItem（0x08514d72）
+        // ⇒ 与 ORIG 调用了不同虚函数，已改回。已核两侧 _ZTV10CEquipItem 逐槽一致
+        // （+0x10=IsAvatarItem / +0x14=IsCreatureItem）⇒ 非头布局差。
+        // 本 TU 风格：槽偏移显式（见 CompoundDeathLCB.cpp 的 CI_VCALL 说明）。
+        if (!CI_IsAvatarItem(item))
             return static_cast<ENUM_ERROR>(1);
         // ORIG 0x083330ec：槽位由目标 item 的 avatar option size 随机重选，
         // 且 >0x63(99) 时清零（覆盖客户端传入 slot）。

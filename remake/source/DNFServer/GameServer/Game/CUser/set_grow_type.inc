@@ -109,8 +109,11 @@ void CUser::set_grow_type(unsigned char firstGrow, unsigned char secondGrow,
                 changer.SkillInitialize(this, 0, false);
             }
             send_skill_info();
+            // [R5a12 ②形态] ORIG 该站点装 2 号 uchar 形参（0x0867 段
+            //   `movzbl -0x110(%ebp),%esi; …; mov %esi,0x8(%esp)`，-0x110 = 第 2 个
+            //   uchar 形参）而非字面 0；本分支条件 secondGrow==0 ⇒ 值恒 0，语义等价。
             giveOk = G_CDataManager()->m_characList->m_characs[get_charac_job()].get_give_skill(
-                firstGrow, 0, giveVec, 1);
+                firstGrow, secondGrow, giveVec, 1);
         }
         else
         {
@@ -123,8 +126,9 @@ void CUser::set_grow_type(unsigned char firstGrow, unsigned char secondGrow,
         // ORIG:secondGrow==0 与否则两站点各自调用。
         if (secondGrow == 0)
         {
+            // [R5a12 ②形态] 同上一站点：ORIG 装 -0x110（2 号 uchar 形参）而非字面 0。
             giveOk = G_CDataManager()->m_characList->m_characs[get_charac_job()].get_give_skill(
-                firstGrow, 0, giveVec, 1);
+                firstGrow, secondGrow, giveVec, 1);
         }
         else
         {

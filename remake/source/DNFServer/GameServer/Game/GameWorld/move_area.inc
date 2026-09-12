@@ -204,8 +204,11 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
                     {
                         sprintf(buf, "%d%d", prevVill, prevArea);
                         hackA = atoi(buf);
-                        memset(buf, 0, 5);
                     }
+                    // ORIG 0x86c63ea：prev 组四处 `js/jg` 与 sprintf/atoi 路径
+                    // 同落此 memset（公共尾）⇒ memset 在 if 之外无条件执行
+                    // （旧形写在 if 内 ⇒ 越界路径跳过，与 ORIG 分叉）。
+                    memset(buf, 0, 5);
                     if (vill >= 0 && vill <= 10 && area >= 0 && area <= 10)
                     {
                         sprintf(buf, "%d%d", vill, area);

@@ -32,7 +32,10 @@ void CFieldLengthChecker::AddField(char const* query)
         b = s.substr(pos + 1, std::string::npos);
         pos = b.find(")");
         c = b.substr(0, pos);
-        while ((pos = c.find(";")) != std::string::npos) {
+        // [R5a16 ⑤] ORIG 0x086275a3/0x08627a65 `movl $0x8ce2dec,0x4(%esp)`
+        //   ⇒ 该 VA 的 raw 字节 = `2c 00`（","），非 `;`（0x8ce2df7 = `3b 00` 未被引用）。
+        //   两侧字符串多重集：ORIG{","×2} vs 我方{";"×2} ⇒ 分隔符真错，改为 ","。
+        while ((pos = c.find(",")) != std::string::npos) {
             fieldNames_.push_back(c.substr(0, pos));
             c = c.substr(pos + 1, std::string::npos);
             fieldLength_.push_back(0);
@@ -50,7 +53,7 @@ void CFieldLengthChecker::AddField(char const* query)
         b = s.substr(pos + 7, std::string::npos);
         pos = b.find(")");
         c = b.substr(0, pos);
-        for (int i = 0; i < fieldLength_.size() && (pos = c.find(";")) != std::string::npos; ++i) {
+        for (int i = 0; i < fieldLength_.size() && (pos = c.find(",")) != std::string::npos; ++i) {
             std::string val;
             if (c[0] == '\'') {
                 pos = 0;

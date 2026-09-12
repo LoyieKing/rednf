@@ -169,7 +169,12 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         strncpy(reinterpret_cast<char*>(&payload[8]), userInfo, 0x40);
         typedef void (*ReportFn)(void*, int, int, int, void*, int);
         void* checker = GlobalData::s_antibotChecker_;
-        ReportFn report = *(ReportFn*)((*(void***)checker)[0x38 / 4]);
+        // [R5a01 2026-09-12 · ④ 真语义 bug] 旧码 `*(ReportFn*)((*(void***)checker)[0x38/4])`
+        //   多一层解引用：ORIG 0x84c3b5a `mov (%eax),%eax` / 0x84c3b5c `add $0x38,%eax` /
+        //   0x84c3b5f `mov (%eax),%esi`（vtable[14] 本体即函数指针，**2 层**）/
+        //   0x84c3b9d `call *%esi`；旧码 3 层 ⇒ 调用目标错。
+        ReportFn report =
+            *reinterpret_cast<ReportFn*>(*reinterpret_cast<char**>(checker) + 0x38);
         // [G00 2026-09-12 · 值级信号轴真缺口修复] ORIG 0x84c3b86
         //   `movl $0x186a1,0xc(%esp)` ⇒ 第 4 实参 = **100001**（我方旧值 100000，差 1；
         //   由 G19 在值级信号扫描中逐条对齐两侧 objdump 同上下文确证）。

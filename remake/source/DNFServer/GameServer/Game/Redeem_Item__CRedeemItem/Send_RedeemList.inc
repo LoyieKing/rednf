@@ -29,7 +29,11 @@ int CRedeemItem::Send_RedeemList(CUser* user)
         // 都从该槽重载（禁缓存到 callee-saved）。
         Inven_Item_Expand_RedeemInfo* entry = it.operator->();
 
-        packet.put_int(entry->m_count40);                    // +0x40 兑换计数
+        // [R5a16 ⑤] ORIG 0x085f746b..0x085f7476：+0x40 处**第二次独立 ptEv**
+        //   （`lea -0x24(%ebp); call ptEv; mov 0x40(%eax),%eax`）⇒ 原码该实参
+        //   写的是 `it.operator->()->m_count40`（不复用 entry 指针）；
+        //   首处 ptEv 结果存 -0xc 只服务 +0x02/+0x07 等后续字段（Ghidra C 双 op-> 同证）。
+        packet.put_int(it.operator->()->m_count40);          // +0x40 兑换计数
         packet.put_int(entry->m_item.m_addInfo);             // +0x02 物品 idx
         packet.put_int(entry->m_item.m_addInfo2);            // +0x07 数量/强化值
         packet.put_byte((int)entry->m_item.GetItemAttr());   // 属性字节
