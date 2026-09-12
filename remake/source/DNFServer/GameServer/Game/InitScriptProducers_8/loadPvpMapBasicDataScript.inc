@@ -14,9 +14,8 @@ bool loadPvpMapBasicDataScript(const char* path, std::vector<PVPMAP_DATA>* out)
         LogManager::logFormat(
             0, "../RDARScriptEtcParameter.cpp", __FUNCTION__,
             0x1c00,
-            "error : %s \xed\x8c\x8c\xec\x9d\xbc\xec\x9d\x84 \xec\xb0\xbe"
-            "\xec\x9d\x84 \xec\x88\x98 \xec\x97\x86\xec\x8a\xb5\xeb\x8b\x88"
-            "\xeb\x8b\xa4.",
+            "error : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb \xbc\xf6 "
+            "\xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.",
             path);
         return false;
     }
@@ -54,10 +53,9 @@ bool loadPvpMapBasicDataScript(const char* path, std::vector<PVPMAP_DATA>* out)
                 LogManager::logFormat(
                     0, "../RDARScriptEtcParameter.cpp",
                     __FUNCTION__, 0x1c2c,
-                    "ERROR : %d \xea\xb0\x9c \xec\x9d\xb4\xec\x83\x81\xec\x9d"
-                    "\x98 pvp map \xec\x9d\x84 \xec\xb6\x94\xea\xb0\x80\xed"
-                    "\x95\xa0\xec\x88\x98\xec\x97\x86\xec\x8a\xb5\xeb\x8b\x88"
-                    "\xeb\x8b\xa4!!!",
+                    "ERROR : %d \xb0\xb3 \xc0\xcc\xbb\xf3\xc0\xc7 pvp map "
+                    "\xc0\xbb \xc3\xdf\xb0\xa1\xc7\xd2\xbc\xf6\xbe\xf8\xbd"
+                    "\xc0\xb4\xcf\xb4\xd9!!!",
                     0x14);
                 break;
             }

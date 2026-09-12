@@ -9,7 +9,9 @@ void CEventCreateDnf::SetEventInfo(int hour, int rate, int reloadInterval)
     {
         // b28d-D42 P227：ORIG 0x081640d4 的 cMyTrace 为全表达式临时链
         // （varargs 在 ctor 前右起求值并保活 callee-saved）。
-        cMyTrace("CEventCreateDnf::SetEventInfo(int, int, int)", 0x8e, 0)(
+        // [R11fixE7 2026-09-12] 手写串 → __PRETTY_FUNCTION__（ORIG prett
+        // `void CEventCreateDnf::SetEventInfo(int, int, int)` raw @0x8b7c9e0）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x8e, 0)(
             "[Taiwan, CreateDnfEvent] State:kReward rate:%d", (int)m_rate);
         return;
     }
@@ -18,13 +20,13 @@ void CEventCreateDnf::SetEventInfo(int hour, int rate, int reloadInterval)
     if (hour >= m_startHour && hour < m_endHour)
     {
         setState(State::kIng);
-        cMyTrace("CEventCreateDnf::SetEventInfo(int, int, int)", 0x95, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x95, 0)(
             "[Taiwan, CreateDnfEvent] State:kIng rate:%d", rate);
     }
     else
     {
         setState(State::kReward);
-        cMyTrace("CEventCreateDnf::SetEventInfo(int, int, int)", 0x9a, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x9a, 0)(
             "[Taiwan, CreateDnfEvent] State:kReward rate:%d", rate);
     }
 

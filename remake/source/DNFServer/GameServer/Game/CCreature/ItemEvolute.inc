@@ -1,8 +1,10 @@
 // ORIG _ZN13user_creature9CCreature11ItemEvoluteEP5CUseri T 0x8338ca0
 //（ItemEvolute.md 全转写）：目标取 GetItemEvolutionCreatureId(itemIdx)（0x833cad8）。
-// 返回 int：ORIG 尾 `mov %ebx,%eax` 直通 + caller CCreatureMgr::ItemEvolute
-// 0x833d6c2 call 后无 movzbl 归一（P159/P9 bool→int 判据）。
-int CCreature::ItemEvolute(CUser* user, int itemIdx)
+// [R11fixE7 2026-09-12] 返回类型 int→bool：ORIG prett 串 `bool user_creature::
+// CCreature::ItemEvolute(CUser*, int)`（raw @0x8c2f320）为直证（P174）；体内
+// `return true/false`。caller CCreatureMgr::ItemEvolute 0x833d6c2 的 ORIG 形
+// `call; jmp leave;ret`（4.1 bool→int 不归一）保持。
+bool CCreature::ItemEvolute(CUser* user, int itemIdx)
 {
     // [b28d-37 复核 2026-09-09] DIFF→AE：补 nextItemId(-0x10) 具名局部 + P197③
     // slotItem 预清零 + P227 trace；173/174（+1 尾部对齐 nop）。

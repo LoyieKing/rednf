@@ -354,11 +354,12 @@ public:
     //   +0x00 item_id；+0x04/+0x08 两个 std::string（脚本 +0x184/+0x188）。
     struct Data
     {
-        // ORIG C1 0x081a40e8：两个 string 均以 "material_exception_item" 构造
-        // （rodata 0x8bac660），非空串。
+        // ORIG C1 0x081a40e8：两个 string 均以空串构造 —— 站点 0x081a412d/0x081a417d
+        // 均 `movl $0x8bac660,0x4(%esp)`，raw@0x8bac660 = `00`（0x8bac661 才是
+        // "material_exception_item"，历史误判已更正）。
         Data() : m_item(0),
-                 m_str4("material_exception_item"),
-                 m_str8("material_exception_item") {}
+                 m_str4(""),
+                 m_str8("") {}
         int m_item;          // +0x00
         std::string m_str4;  // +0x04
         std::string m_str8;  // +0x08

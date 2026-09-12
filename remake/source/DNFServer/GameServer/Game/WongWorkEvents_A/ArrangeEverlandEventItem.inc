@@ -5,4 +5,4 @@
 // __PRETTY_FUNCTION__；P140 删 outCount<MAX 多余守卫；P311 反向 struct 行
 // 数组复现两步寻址；P225 尾测 while/break。
 // ----------------------------------------------------------------------------
-void EventEverland::ArrangeEverlandEventItem(unsigned int mid, unsigned int serverId)
+void EventEverland::ArrangeEverlandEventItem(memberIdentificationNumber_t mid, unsigned int serverId)

@@ -5,7 +5,9 @@
 // [b28d-solo-CPartyDepsD2] AE（91=91）：P221 全表达式临时链翻 sibling 块 trace 槽
 // （ORIG -0x30/-0x20 vs 具名形 -0x24/-0x34）+ P24 gen_timer_key 内联实参（消 -0xc
 // 槽，key 升格 %ebx 跨 G_TimerQueue call）。语义/调用集齐。
-int CParty::VoteLackUser(CUser* user, int victimIdx)
+// [R11fixE7 2026-09-12] int→bool：ORIG prett 串 `bool CParty::VoteLackUser(CUser*,
+// int)`（raw @0x8cbb440，P174 直证）；体内 `return 0/1`。
+bool CParty::VoteLackUser(CUser* user, int victimIdx)
 {
     if (victimIdx < 0 || victimIdx > 3)
     {

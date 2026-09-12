@@ -3,5 +3,7 @@
 void CDeathTowerWinPointEvent::StartEvent()
 {
     SetEventFlag(true);
-    cMyTrace(__PRETTY_FUNCTION__, 16, 0)("EVENT_FORM : Death Tower Win Point Event Start! (%x%%)", m_ratio);
+    // [R11fixE5] ORIG 0x08117055 串=0x8b4dd38（raw 逐字节
+    // 'EVENT_REFORM : Death Tower Win Point Event Start! (%x%%)'；旧文 'EVENT_FORM'）。
+    cMyTrace(__PRETTY_FUNCTION__, 16, 0)("EVENT_REFORM : Death Tower Win Point Event Start! (%x%%)", m_ratio);
 }

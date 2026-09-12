@@ -11,21 +11,21 @@ void CShutdowManager::SendShutdownSignal()
     f = fopen(buf, "r");
     if (f == 0)
     {
-        printf("%s process id file open ½ÇÆÐ\n", buf);
+        printf("%s process id file open \xbd\xc7\xc6\xd0\n", buf);
         return;
     }
     fscanf(f, "%d", &pid);
     if (pid <= 0)
     {
         fclose(f);
-        printf("%d¹øÀÇ Àß¸øµÈ process id\n", pid);
+        printf("%d\xb9\xf8\xc0\xc7 \xc0\xdf\xb8\xf8\xb5\xc8 process id\n", pid);
         return;
     }
     r = kill(pid, 12);
     if (r < 0)
     {
         fclose(f);
-        printf("%d¹ø process·Î Á¾·á signal ¼Û½Å ½ÇÆÐ", pid);
+        printf("%d\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc5 \xbd\xc7\xc6\xd0", pid);
         return;
     }
     printf("SEND SHUTDOWN SIGNAL TO %d\n", pid);

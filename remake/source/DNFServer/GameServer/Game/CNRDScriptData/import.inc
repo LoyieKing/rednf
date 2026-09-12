@@ -3,8 +3,12 @@ int CNRDScriptData::import(const char* path)
     if (!loadRDARScriptFile("Data/", path))
     {
         // ORIG import 失败分支（0x807fb4e 起）：logFormat 记录后返回 0。
+        // [R11fixE5] ORIG 0x0807fb55 串=0x8ae5e08，raw 逐字节（CP949）
+        // 'error : %s script Data 파일을 찾을 수 없습니다.'
+        // (= 61 72 72 6f 72 20 3a 20 25 73 20 73 63 72 69 70 74 20 44 61 74 61 20
+        //    c6 c4 c0 cf c0 bb 20 c3 a3 c0 bb 20 bc f6 20 be f8 bd c0 b4 cf b4 d9 2e)。
         LogManager::logFormat(0, "../../DNFShared/CNRDScriptData.cpp", __FUNCTION__, 0x33,
-                                 "CNRDScriptData::import: fail to load file - %s", path);
+                                 "error : %s script Data \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb \xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.", path);
         return 0;
     }
 

@@ -7,4 +7,4 @@
 // __PRETTY_FUNCTION__；P140 删多余守卫；P225 尾测 while/break；P311 反向
 // 「每栏独立 2 元素数组 + 独立 id」复现 disp 折叠（局部 struct 视图无效）。
 // ----------------------------------------------------------------------------
-void EventSigong::ArrangeSigongEventItem(unsigned int mid, unsigned int serverId)
+void EventSigong::ArrangeSigongEventItem(memberIdentificationNumber_t mid, unsigned int serverId)

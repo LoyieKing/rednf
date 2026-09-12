@@ -42,7 +42,7 @@ PvP_Room* COnlinePreliminary::_MakeRoom(CUser* user)
         LogManager::logFormat(1, "MatchingSystem.cpp",
                               __PRETTY_FUNCTION__,
                               0x73c,
-                              "create_room fail: PVP슬롯반환 ID[%d]\n",
+                              "create_room fail: PVP\xbd\xbd\xb7\xd4\xb9\xdd\xc8\xaf ID[%d]\n",
                               pvp->get_index());
         G_CGameManager()->PutPvp(pvp);
         return (PvP_Room*)0;

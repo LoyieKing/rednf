@@ -49,23 +49,26 @@ bool Arad_DataManager::initAradData()
     cMyTrace(__FUNCTION__, 0x94, 9, true, false)("\t- Loading NexonFolder Script - ");
     openResult = m_exceptionItem.open("Nexon/AradSpecialUseItems.txt");
     while (openResult != 0) { cMyTrace(__FUNCTION__, 0x97, 9, true, true)(
-        "AradSpecialUseItems script load fail. (line:%d)", openResult);
+        // [R11fixE5] ORIG 0x0818873c 串=0x8b91114，raw 逐字节带 '\t- ' 前缀。
+        "\t- AradSpecialUseItems script load fail. (line:%d)", openResult);
     return false; }
     openResult = m_purchaseLimitItem.open("Nexon/AradSpecialUseItems.txt");
     while (openResult != 0) { cMyTrace(__FUNCTION__, 0x9d, 9, true, true)(
-        "AradSpecialUseItems script load fail. (line:%d)", openResult);
+        "\t- AradSpecialUseItems script load fail. (line:%d)", openResult);
     return false; }
     openResult = m_bonusItem.open("Nexon/AradSpecialUseItems.txt");
     while (openResult != 0) { cMyTrace(__FUNCTION__, 0xa3, 9, true, true)(
-        "AradSpecialUseItems script load fail. (line:%d)", openResult);
+        "\t- AradSpecialUseItems script load fail. (line:%d)", openResult);
     return false; }
     openResult = m_mileageData.open("Nexon/CeraShopMileage.txt");
     while (openResult != 0) { cMyTrace(__FUNCTION__, 0xb2, 9, true, true)(
-        "CeraShopMileage script load fail. (line:%d)", openResult);
+        // [R11fixE5] ORIG 0x081888ad 串=0x8b91164，raw 逐字节带 '\t- ' 前缀。
+        "\t- CeraShopMileage script load fail. (line:%d)", openResult);
     return false; }
     openResult = m_villageAttackReward.open("Nexon/VillageAttackRewardItem.txt");
     while (openResult != 0) { cMyTrace(__FUNCTION__, 0xbb, 9, true, true)(
-        "VillageAttackRewardItem script load fail. (line:%d)", openResult);
+        // [R11fixE5] ORIG 0x08188927 串=0x8b911b8，raw 逐字节带 '\t- ' 前缀。
+        "\t- VillageAttackRewardItem script load fail. (line:%d)", openResult);
     return false; }
     return true;
 }

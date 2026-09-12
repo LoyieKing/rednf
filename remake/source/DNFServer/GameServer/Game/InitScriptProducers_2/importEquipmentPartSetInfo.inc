@@ -27,9 +27,9 @@ bool importEquipmentPartSetInfo(const char* path, ENUM_MODULE_TYPE moduleType)
     {
         LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
                               __FUNCTION__, 0x168b,
-                              "ERROR : %s \xed\x8c\x8c\xec\x9d\xbc\xec\x9d\x84 "
-                              "\xec\xb0\xbe\xec\x9d\x84\xec\x88\x98 "
-                              "\xec\x97\x86\xec\x8a\xb5\xeb\x8b\x88\xeb\x8b\xa4.",
+                              "ERROR : %s \xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3"
+                              "\xc0\xbb\xbc\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4"
+                              "\xd9.",
                               path);
         return false;
     }
@@ -118,12 +118,10 @@ scan_done:
         {
             LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
                                   __FUNCTION__, 0x16c2,
-                                  "ERROR : \xec\x9e\xa5\xeb\xb9\x84\xeb\xb6\x80"
-                                  "\xec\x9c\x84\xec\x85\x8b\xed\x8a\xb8 \xea\xb5"
-                                  "\xac\xec\x84\xb1\xed\x92\x88 %s \xed\x8c\x8c"
-                                  "\xec\x9d\xbc\xec\x9d\x84 \xec\xb0\xbe\xec\x9d"
-                                  "\xec\x88\x98 \xec\x97\x86\xec\x8a\xb5\xeb"
-                                  "\x8b\x88\xeb\x8b\xa4.",
+                                  "ERROR : \xc0\xe5\xba\xf1\xba\xce\xc0\xa7\xbc"
+                                  "\xc2\xc6\xae \xb1\xb8\xbc\xba\xc7\xb0 %s "
+                                  "\xc6\xc4\xc0\xcf\xc0\xbb \xc3\xa3\xc0\xbb\xbc"
+                                  "\xf6 \xbe\xf8\xbd\xc0\xb4\xcf\xb4\xd9.",
                                   it->second.m_name4.c_str());
             delete it->second.m_script;
             return false;

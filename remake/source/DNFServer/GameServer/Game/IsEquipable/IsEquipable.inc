@@ -45,13 +45,18 @@ int IsEquipable(CUser* user, const CItem* item, int slot)
     over = std::max(over, diff);        // ORIG 808e218 std::max<int>(const&, const&)
     if (!item->check_job_type((char)user->get_charac_job())) return 0x11;
     int level = user->get_charac_level() + over;
-    if (!item->check_low_level(level)) {
-        // [AuditFix 2026-09-12] ORIG 0x8500531..0x8500545：先求 GetUsableMaxLevel()
-        // 后求 get_charac_level()（`cmp %eax,%ebx; jge`）⇒ 原码是
-        // `GetUsableMaxLevel() < get_charac_level()`；镜像写法使两侧求值序互换（+1 insn）。
-        if (item->GetAttachType() == 5 && ((const CEquipItem*)item)->GetUsableMaxLevel() < user->get_charac_level())
-            return G_GameWorld()->IsCharacterLevelRevisionChannel() ? 7 : 0xe;
-    }
+    // [R11a20 2026-09-12 · SEMANTIC-DIFF 修复] ORIG 0x0850050f..0x08500555 是**单条 `||` 短路**：
+    //   0x08500514 `xor $1,%eax` / 0x08500519 `test %al,%al; jne 0x8500547`（L_true = `mov $1,%eax`）
+    //   ⇒ `!check_low_level(level)` 为真**直接**进错误出口；否则再评内层 `&&`
+    //   （0x08500529 `jne 0x850054e`(L_false=0)、0x08500545 `jge 0x850054e`）落 L_true；
+    //   两路共享 0x08500553 `test %al,%al; je 0x850057c`(正常段)。
+    //   旧写「嵌套 if」= `&&`：!f() 为真时仍要求内层为真才返回 ⇒ 漏早退（真语义差异）。
+    // [AuditFix 2026-09-12] ORIG 0x8500531..0x8500545：先求 GetUsableMaxLevel()
+    // 后求 get_charac_level()（`cmp %eax,%ebx; jge`）⇒ 原码是
+    // `GetUsableMaxLevel() < get_charac_level()`；镜像写法使两侧求值序互换（+1 insn）。
+    if (!item->check_low_level(level) ||
+        (item->GetAttachType() == 5 && ((const CEquipItem*)item)->GetUsableMaxLevel() < user->get_charac_level()))
+        return G_GameWorld()->IsCharacterLevelRevisionChannel() ? 7 : 0xe;
     // ORIG 8500582/850059b/85005f7：get_need_skill 三处各自调用（P48 去缓存）
     if (item->get_need_skill() != -1) {
         CSkill* s = G_CDataManager()->find_skill(user->get_charac_job(), item->get_need_skill());

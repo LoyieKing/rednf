@@ -14,7 +14,11 @@ class CDeathTowerPlayDataStatistic
 public:
     // ORIG 0x0860f45c T：构造并发送 Job 包（0xc3d, 0x16，level==0 时仅 log 错误
     // 不发送）与 Party 包（0xc3f, 0x10），恒返回 1。
-    int SendDeathTowerPlayInfo(int, char, stDeathTowerRecordMemberInfo_t const*, unsigned int, unsigned int);
+    // [R11fixE7 2026-09-12] int→bool：ORIG prett 串 `bool CDeathTowerPlayDataStatistic::
+    // SendDeathTowerPlayInfo(int, char, const stDeathTowerRecordMemberInfo_t*, unsigned int,
+    // unsigned int)`（raw @0x8ce1040，P174）⇒ 返回 bool；mangled 不变、调用点
+    // _beginTowerClearProcess 忽略返回值（ORIG 0x8467684 亦不消费）。
+    bool SendDeathTowerPlayInfo(int, char, stDeathTowerRecordMemberInfo_t const*, unsigned int, unsigned int);
 };
 
 #endif  // DNF_GAME_CDEATHTOWERPLAYDATASTATISTIC_H_

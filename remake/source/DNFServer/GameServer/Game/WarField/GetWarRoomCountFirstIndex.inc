@@ -6,9 +6,12 @@ int WarAreaCounter::GetWarRoomCountFirstIndex(int idx)
     {
         // [Fn28Gap 2026-09-11] ORIG 0x082a3e1e: movl $0x8c19e82,0x8(%esp) =
         // _ZZN14WarAreaCounter25GetWarRoomCountFirstIndexEiE12__FUNCTION__（26B）。
-        LogManager::logFormat(1, "WarField.cpp",
+        // [R11fixE5] ORIG 0x082a3e26 file=0x8c1611c、0x082a3e0e fmt=0x8c16150
+        // ——ORIG 此处**照抄了 LastIndex 的文案**（复制粘贴缺陷，raw 逐字节证实），
+        // 按 ORIG 原样复刻：'GetWarRoomCountLastIndex Invalid Parameter levelGrid<%d>'。
+        LogManager::logFormat(1, "../../DNFShared/GameScript/RDARScriptEtcParameter.h",
             __FUNCTION__, 0x320,
-            "WarAreaCounter GetWarRoomCountFirstIndex error idx(%d)", idx);
+            "GetWarRoomCountLastIndex Invalid Parameter levelGrid<%d>", idx);
         return 0;
     }
     int sum = 0;

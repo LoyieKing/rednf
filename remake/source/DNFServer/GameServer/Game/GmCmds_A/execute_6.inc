@@ -20,28 +20,29 @@ void CBoosterTest::execute()
     char fileName[0xff] = {0};
     char fileBuf[95000] = {0};
 
-    static char sMsgStart[] = "LOTTERY \xbe\xc6\xc0\xcc\xc5\xdb \xb0\xe1\xb0\xfa\xc3\xbc\xc5\xa9\xb8\xa6 \xbd\xc3\xc0\xdb\xc7\xd5\xb4\xcf\xb4\xd9";
-    CBoosterTest::SendChatMsg(user, sMsgStart);
+    // [R11fixE5] ORIG 0x084aed98 `movl $0x8c7fffc,0x4(%esp)` ⇒ 字面量直传（.rodata 匿名串）；
+    // 旧 `static char sMsgStart[]` 落 .data 且多发 local 符号（strdiff 报 7 处 ORIG-only）。
+    CBoosterTest::SendChatMsg(user, "LOTTERY \xbe\xc6\xc0\xcc\xc5\xdb \xb0\xe1\xb0\xfa\xc3\xbc\xc5\xa9\xb8\xa6 \xbd\xc3\xc0\xdb\xc7\xd5\xb4\xcf\xb4\xd9");
 
     if (m_mode == -1)
     {
-        static char sNeedIdx[] = "\xbe\xc6\xc0\xcc\xc5\xdb \xc0\xce\xb5\xa6\xbd\xba\xb8\xa6 \xc0\xd4\xb7\xc2\xc7\xcf\xbc\xbc\xbf\xe4";
-        CBoosterTest::SendChatMsg(user, sNeedIdx);
+        // [R11fixE5] ORIG 0x084aedb6 串=0x8c80021（raw 逐字节同下）。
+        CBoosterTest::SendChatMsg(user, "\xbe\xc6\xc0\xcc\xc5\xdb \xc0\xce\xb5\xa6\xbd\xba\xb8\xa6 \xc0\xd4\xb7\xc2\xc7\xcf\xbc\xbc\xbf\xe4");
         return;
     }
 
     CItem* item = G_CDataManager()->find_item(m_mode);
     if (item == 0)
     {
-        static char sNoItem[] = "\xc1\xb8\xc0\xe7\xc7\xcf\xc1\xf6 \xbe\xca\xb4\xc2 \xbe\xc6\xc0\xcc\xc5\xdb\xc0\xd4\xb4\xcf\xb4\xd9";
-        CBoosterTest::SendChatMsg(user, sNoItem);
+        // [R11fixE5] ORIG 0x084aedee 串=0x8c8003c（raw 逐字节同下）。
+        CBoosterTest::SendChatMsg(user, "\xc1\xb8\xc0\xe7\xc7\xcf\xc1\xf6 \xbe\xca\xb4\xc2 \xbe\xc6\xc0\xcc\xc5\xdb\xc0\xd4\xb4\xcf\xb4\xd9");
         return;
     }
 
     if (m_count > 1000000 || m_count < 0)
     {
-        static char sRange[] = "0 ~ 1000000\xb9\xf8 \xc5\xeb\xb0\xe8\xb1\xee\xc1\xf6\xb8\xb8 \xc1\xf6\xbf\xf8\xb5\xcb\xb4\xcf\xb4\xd9";
-        CBoosterTest::SendChatMsg(user, sRange);
+        // [R11fixE5] ORIG 0x084aee1d 串=0x8c80058（raw 逐字节同下）。
+        CBoosterTest::SendChatMsg(user, "0 ~ 1000000\xb9\xf8 \xc5\xeb\xb0\xe8\xb1\xee\xc1\xf6\xb8\xb8 \xc1\xf6\xbf\xf8\xb5\xcb\xb4\xcf\xb4\xd9");
         return;
     }
     if (m_count == 0)
@@ -87,14 +88,14 @@ void CBoosterTest::execute()
     case 0x14:
         if (!this->getCompoundEmblemResult(item, result))
         {
-            static char sNotEmblem[] = "\xbf\xa5\xba\xed\xb7\xbd \xc7\xd5\xbc\xba \xb4\xeb\xbb\xf3\xc0\xcc \xbe\xc6\xb4\xd5\xb4\xcf\xb4\xd9.";
-            CBoosterTest::SendChatMsg(GetUser(), sNotEmblem);
+            // [R11fixE5] ORIG 0x084aef6a 串=0x8c8007c（raw 逐字节同下）。
+            CBoosterTest::SendChatMsg(GetUser(), "\xbf\xa5\xba\xed\xb7\xbd \xc7\xd5\xbc\xba \xb4\xeb\xbb\xf3\xc0\xcc \xbe\xc6\xb4\xd5\xb4\xcf\xb4\xd9.");
         }
         break;
     default:
     {
-        static char sNotLottery[] = "LOTTERY \xbe\xc6\xc0\xcc\xc5\xdb\xc0\xcc \xbe\xc6\xb4\xd5\xb4\xcf\xb4\xd9";
-        CBoosterTest::SendChatMsg(GetUser(), sNotLottery);
+        // [R11fixE5] ORIG 0x084aef87 串=0x8c80099（raw 逐字节同下）。
+        CBoosterTest::SendChatMsg(GetUser(), "LOTTERY \xbe\xc6\xc0\xcc\xc5\xdb\xc0\xcc \xbe\xc6\xb4\xd5\xb4\xcf\xb4\xd9");
         return;
     }
     }
@@ -123,6 +124,6 @@ void CBoosterTest::execute()
         memset(fileBuf, 0, sizeof(fileBuf));
     }
 
-    static char sDone[] = "LOTTERY \xbe\xc6\xc0\xcc\xc5\xdb \xb0\xe1\xb0\xfa\xc3\xbc\xc5\xa9\xb0\xa1 \xbf\xcf\xb7\xe1\xb5\xc7\xbe\xfa\xbd\xc0\xb4\xcf\xb4\xd9";
-    CBoosterTest::SendChatMsg(user, sDone);
+    // [R11fixE5] ORIG 0x084af090 串=0x8c80104（raw 逐字节同下）。
+    CBoosterTest::SendChatMsg(user, "LOTTERY \xbe\xc6\xc0\xcc\xc5\xdb \xb0\xe1\xb0\xfa\xc3\xbc\xc5\xa9\xb0\xa1 \xbf\xcf\xb7\xe1\xb5\xc7\xbe\xfa\xbd\xc0\xb4\xcf\xb4\xd9");
 }

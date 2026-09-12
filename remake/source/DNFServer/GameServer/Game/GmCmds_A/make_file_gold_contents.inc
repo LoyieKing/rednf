@@ -29,8 +29,9 @@ void CBoosterTest::make_file_gold_contents(CUser* user, char* fileBuf,
 
         if (strlen(fileBuf) + strlen(line) > 89999)
         {
-            static char sAppend[] = "\xb0\xe1\xb0\xfa \xc6\xc4\xc0\xcf \xc0\xcc\xbe\xee\xba\xd9\xc8\xfb";
-            SendChatMsg(user, sAppend);
+            // [R11fixE5] ORIG 0x084af8cc `movl $0x8c7ff03,0x4(%esp)`（与 makeFileContents
+            // 同一 .rodata 串）⇒ 字面量直传，raw 逐字节同下。
+            SendChatMsg(user, "\xb0\xe1\xb0\xfa \xc6\xc4\xc0\xcf \xc0\xcc\xbe\xee\xba\xd9\xc8\xfb");
             break;
         }
         strcat(fileBuf, line);

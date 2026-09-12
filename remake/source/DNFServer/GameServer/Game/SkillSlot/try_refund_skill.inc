@@ -62,7 +62,11 @@ int SkillSlot::try_refund_skill(int skillIdx, int level, int job,
         {
             return -1;
         }
-        void* expertScript = 0;
+        // [R11-02 2026-09-12] 删多余零初始化：ORIG 该槽（-0x34）在
+        // `getCurCharacExpertJobType/GetExpertJobScript` 写前无读、无预清
+        // （ORIG 0x08607b.. 段仅 `mov %eax,-0x34(%ebp)`）⇒ `= 0` 多一条
+        // `movl $0x0`（P348/§16.3）。值随后被赋值覆盖，语义不变。
+        void* expertScript;
         // [b28d-solo-SkillSlot] 真语义 bug 修正：ORIG 0x08607a5e 段
         // `call GetCurCharacExpertJobType; mov %eax,%ebx; call G_CDataManager;
         //  mov %ebx,0x4(%esp); call GetExpertJobScript` ⇒ 原码把职业类型

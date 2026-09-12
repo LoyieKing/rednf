@@ -13,7 +13,7 @@ bool CSyncScript::insertCeraShopItemIntoDB(unsigned int itemIdx,
         switch (c)
         {
         case 1:
-            memcpy(query, "tem_", 4);
+            memcpy(query, "7\xc0\xcf", 4);
             break;
         case 2:
             memcpy(query, "30\xc0\xcf", 5);

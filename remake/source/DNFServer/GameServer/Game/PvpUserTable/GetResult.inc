@@ -20,8 +20,7 @@ int PvpUserTable::GetResult(int team, bool isWinTeam, int mode)
         if (team != 2 && team != 1)
         {
             cMyTrace tr(__PRETTY_FUNCTION__, 0x1a0, 5);
-            tr("\xea\xb2\xb0\xed\x88\xac\xeb\xa1\x9c\xec\xa7\x81"
-               " \xec\x98\xa4\xeb\xa5\x98"
+            tr("\xb0\xe1\xc5\xf5\xb7\xce\xc1\xf7 \xbf\xc0\xb7\xf9"
                " PvpUserTable::GetResult Invalid Team<%d>", team);
             return 0;
         }

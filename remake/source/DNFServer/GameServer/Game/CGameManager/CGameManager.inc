@@ -12,7 +12,7 @@ CGameManager::CGameManager()
 	// std::string 临时），最后 8 个管理器指针（+0x2fc..+0x318）清零。
 	m_uid = 0;
 	m_noGameGuard.insert(std::string("testman820"));
-	m_noGameGuard.insert(std::string("tilil"));
+	m_noGameGuard.insert(std::string("htilil"));
 	m_noGameGuard.insert(std::string("azzuman"));
 	m_noGameGuard.insert(std::string("cuwaki"));
 	m_noGameGuard.insert(std::string("slainer"));

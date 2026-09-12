@@ -6,10 +6,12 @@
 const char* CDataManager::get_server_name(int idx) const
 {
     // ORIG 0x08365f03/07：`cmpl $0,idx; js`（idx<0）+ `cmpl $0x12,idx; jle`
-    // 显式越界守卫 → ERROR_SERVER。跳表按 idx 直索引（0x8c332f8 表），
-    // case 值 1..0x12（Ghidra C + 表[0]=default 双实证：idx=0 → ERROR_SERVER）；
-    // case 0x64 落 default（ORIG 表 0..0x64 共 101 项、cmpl $0x64 上界，
-    // 项 19..99 与 0、100 均填 default 块 0x8365fb9）。
+    // 显式越界守卫 → ERROR_SERVER。跳表 0x8c332f8 覆盖 idx 0..0x64（101 项，
+    // `cmpl $0x64; ja` 上界）——逐项 raw 复核实测：表项 0/18..98 → default 块
+    // 0x8365fb9，表项 1..17 → 各 case 串块，表项 99(0x63)/100(0x64) → 两块
+    // 「运行时不可达」的 퍼섭1/퍼섭2 块（0x8365fab/0x8365fb2，被上面的守卫
+    // `idx > 0x12` 静态拦截）。故 case 18 与 default 共享同一 return 语句，
+    // case 0x63/0x64 保留两个不可达块。
     if (idx < 0 || idx > 0x12)
         return "ERROR_SERVER";
     switch (idx)
@@ -31,7 +33,14 @@ const char* CDataManager::get_server_name(int idx) const
     case 15: return "\xc0\xcc\xba\xa5\xc6\xae""2";           // 이벤트2   8c332d4
     case 16: return "\xc0\xcc\xba\xa5\xc6\xae""3";           // 이벤트3   8c332dc
     case 17: return "\xbd\xba\xc5\xb8\xc6\xae";              // 스타트    8c332e4
-    case 18: return "\xc6\xdb\xbc\xb7""2";                   // 퍼섭2     8c332f1
+    // ORIG 死块复刻（ORIG 块 0x08365fab / 0x08365fb2）：前置守卫 `idx > 0x12`
+    // 已把 idx 0x63/0x64 拦在 switch 之外 ⇒ 两块运行时不可达；但 ORIG 跳表第
+    // 99/100 项（idx 0x63/0x64）仍指向它们 ⇒ 块必须发射。属 ORIG 自身缺陷
+    // （遗留/热补痕迹），按用户裁定「完全复刻 ORIG 逻辑」照抄。
+    case 0x63: return "\xc6\xdb\xbc\xb7""1";                 // 퍼섭1     8c332eb（死块）
+    case 0x64: return "\xc6\xdb\xbc\xb7""2";                 // 퍼섭2     8c332f1（死块）
+    case 18:              // 与 default 共享 ERROR_SERVER 块（ORIG 表项 18..0x62
+                          // 全指 default 块 0x8365fb9；此前误列为独立 return 块）
     case 19:
     case 20:
     case 21:
@@ -112,13 +121,7 @@ const char* CDataManager::get_server_name(int idx) const
     case 96:
     case 97:
     case 98:
-    case 99:
-    case 0x64:            // ORIG 跳表覆盖 0..0x64（cmpl $0x64 上界 + 101 项表，
-                          // 项 19..0x64 全填 default 块 0x8365fb9；独立 return 块
-                          // 防 4.4 将空 case 折叠回 default 致跳表收缩）
-        return "ERROR_SERVER";
     default:
-        break;
+        return "ERROR_SERVER";
     }
-    return "ERROR_SERVER";
 }

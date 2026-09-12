@@ -336,8 +336,10 @@ public:
     bool RenameCreature(const char* name);              // ORIG T 0x83373aa
     bool EvoluteMulty(CUser* user, int creatureId);     // ORIG T 0x8338950
     bool EventEvolute(CUser* user, int creatureId, int slot);  // ORIG T 0x833db2e
-    int ItemEvolute(CUser* user, int itemIdx);          // ORIG T 0x8338ca0（尾 mov %ebx,%eax
-                                                        // 直通+caller 无归一 ⇒ int，P159）
+    // [R11fixE7 2026-09-12] ORIG prett 串 `bool user_creature::CCreature::ItemEvolute(
+    // CUser*, int)`（raw @0x8c2f320，我方原串为 `int ...`）⇒ 返回类型 bool
+    //（mangled 不含返回类型；体内 `return true/false`）；ORIG T 0x8338ca0。
+    bool ItemEvolute(CUser* user, int itemIdx);         // ORIG T 0x8338ca0
     bool IsEvolutionCreature(int creatureId);           // ORIG T 0x83388ec
     bool IsEvolutionCreatureMulty(int creatureId);      // ORIG T 0x8338922
     bool IsEventEvolutionCreature(int creatureId);      // ORIG T 0x8338bfa

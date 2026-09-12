@@ -16,6 +16,15 @@
 // std::ios_base::Init 静态初始化（ORIG _GLOBAL__I_ keyed to C2）。
 // 实例化 CNetwork<6144,100000>（显式实例化在 CNetwork.cpp），TU 内还含
 // <iostream> 的 std::ios_base::Init 静态初始化（ORIG _GLOBAL__I_ keyed to C2）。
+// [R11fixE4 2026-09-12] ORIG 本 TU 的 CNetwork<6144,100000> 日志文件名实参为
+// 'localjapan/../Network.h'（站点 0x818e6a2/0x818e744/0x818e365/0x818e40a 加载
+// VA 0x8b95b10，raw 逐字节 = 6c 6f 63 61 6c 6a 61 70 61 6e 2f 2e 2e 2f 4e 65 74
+// 77 6f 72 6b 2e 68）——ORIG 该 TU 以相对拼写打开网络头 ⇒ __FILE__ 展开与他 TU
+// 不同。本仓头名统一为 CNetwork.h，故用宏覆盖还原字面量（仅影响本 TU 的
+// CNetwork 实例化；6144 的 send_packet()/Parsing_ServerPacket(int) 在 CNetwork.cpp
+// 有非 inline 显式特化（强符号），本 TU 的隐式 weak 副本会被链接器丢弃）。
+// ⚠ 宏必须在任何 include CNetwork.h 的语句之前定义。
+#define CNETWORK_LOG_FILE_NAME "localjapan/../Network.h"
 #include <iostream>
 
 // [b28d-28] DIFF | ORIG 0x0818e2c8 | CNetwork<6144,100000>::Parsing_ServerPacket(int)

@@ -63,14 +63,16 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
     // ORIG OnFinishVillageMonsterFighting.md 085b9b12 `movw $0x0,0xc4c(%eax)` =
     // CBattle_Field(this+0xb24)+0x128 → m_villageMonsterId（short）
     reinterpret_cast<CBattle_Field*>(&m_battleField)->m_villageMonsterId = 0;
-    {
-        PacketGuard ack;                                // -0x60
-        ack.clear();
-        ack.put_header(1, 0x10c);
-        ack.put_byte(1);
-        ack.finalize(true);
-        user->Send(ack);
-    }
+    // [R11a14 ④] ORIG 的 ack(-0x5c) 是**函数级作用域**：其析构点在函数出口
+    // 0x085b9de7（`mov $0x0,%ebx; lea -0x5c(%ebp),%eax; call ~PacketGuardD1Ev`），
+    // 位于 OnEvent 段与 -0x24 循环**之后**；旧码内层 `{}` 使析构提前到 user->Send
+    // 之后（我方 84b0a27 段）⇒ 析构/EH 时机与 ORIG 不符。按 ORIG 去掉该 `{}`。
+    PacketGuard ack;
+    ack.clear();
+    ack.put_header(1, 0x10c);
+    ack.put_byte(1);
+    ack.finalize(true);
+    user->Send(ack);
     // [R9a16 §14 #33] ORIG 两条独立前向 jcc 各自直跳 body 之后（0x085b9b96 /
     // 0x085b9bb1 同目标 0x085b9de7）：0x085b9b91 `xor $0x1; test; je` 与
     // 0x085b9bac `sete %al; test; je`。旧码 `if (!A && B)` 合并短路 ⇒ 4.4 产

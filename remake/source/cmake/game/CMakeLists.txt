@@ -1122,6 +1122,11 @@ dnf_service(game
         "-I${THIRD}/Boost/Include"
     DEFINES
         -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS
+        # game 是唯一没有 DNF_SVC_* 宏的服务器；ORIG 实测 script 编码 = GBK
+        # （df_game_r 0x8b446d1 raw=47 42 4b，对照 auction/point/guild=GBK、
+        #  community/dbmw×3/manager/monitor/statics=BIG5）⇒ 补 DNF_SVC_GAME
+        # 供 DNFFunctionLib/initCodePage.inc 选分支（全仓无其它使用者）。
+        -DDNF_SVC_GAME
     SRC_OPTS
         "${COMMON}/CFileLogWriterBase.cpp|-fno-exceptions"
         "${SVC_DIR}/PacketBuf.cpp|-fno-exceptions"

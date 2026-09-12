@@ -5,4 +5,4 @@
 // __PRETTY_FUNCTION__；P140 删多余守卫；P311 反向 struct 行数组；P225 尾测
 // while/break。
 // ----------------------------------------------------------------------------
-void EventFCCombo::ArrangeFCComboEventItem(unsigned int mid, unsigned int serverId)
+void EventFCCombo::ArrangeFCComboEventItem(memberIdentificationNumber_t mid, unsigned int serverId)

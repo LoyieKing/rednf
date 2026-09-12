@@ -271,11 +271,17 @@ bool Init(int argc, char** argv)
         {
             // 固定 getter 单组（ORIG 82a16aa 非 Integrated 分支）
             // ORIG 每 createServerProxy 检查返回值，失败 cerr + abort。
+            // [R11a18 ④ 2026-09-12] 第 5/6 实参序修正：ORIG 为 **(ip, udp_port, tcp_port)**，
+            //   直证 monitor：0x082a16db `mov %esi,0x18(%esp)`（esi=0x082a16b2 get_tcp_port_monitor）
+            //   / 0x082a16df `mov %ebx,0x14(%esp)`（ebx=0x082a16c1 get_udp_port_monitor）；
+            //   guild：0x082a176d/0x082a1771；statistic：0x082a17f0 `movl $0x0,0x18(%esp)` +
+            //   0x082a17f8 `mov %ebx,0x14(%esp)`（ebx=get_udp_port_statistic）。
+            //   Integrated 遍历分支两侧本就一致（键串 raw 字节已核）⇒ 不动。
             if (!GlobalData::s_monitor_proxy_mgr->createServerProxy(
                     1, 0, E_SERVER_GROUP_NONE,
                     G_CEnvironment()->get_udp_ip_monitor(),
-                    G_CEnvironment()->get_tcp_port_monitor(),
-                    G_CEnvironment()->get_udp_port_monitor()))
+                    G_CEnvironment()->get_udp_port_monitor(),
+                    G_CEnvironment()->get_tcp_port_monitor()))
             {
                 std::cerr << "[s_monitor_proxy_mgr::Init] Fail Init (monitor server proxy)"
                           << std::endl;
@@ -284,8 +290,8 @@ bool Init(int argc, char** argv)
             if (!GlobalData::s_guild_proxy_mgr->createServerProxy(
                     1, 0, E_SERVER_GROUP_NONE,
                     G_CEnvironment()->get_udp_ip_guild(),
-                    G_CEnvironment()->get_tcp_port_guild(),
-                    G_CEnvironment()->get_udp_port_guild()))
+                    G_CEnvironment()->get_udp_port_guild(),
+                    G_CEnvironment()->get_tcp_port_guild()))
             {
                 std::cerr << "[s_guild_proxy_mgr::Init] Fail Init (guild server proxy)"
                           << std::endl;
@@ -293,8 +299,8 @@ bool Init(int argc, char** argv)
             }
             if (!GlobalData::s_statistic_proxy_mgr->createServerProxy(
                     1, 0, E_SERVER_GROUP_NONE,
-                    G_CEnvironment()->get_udp_ip_statistic(), 0,
-                    G_CEnvironment()->get_udp_port_statistic()))
+                    G_CEnvironment()->get_udp_ip_statistic(),
+                    G_CEnvironment()->get_udp_port_statistic(), 0))
             {
                 std::cerr << "[s_statistic_proxy_mgr::Init] Fail Init (statistic server proxy)"
                           << std::endl;

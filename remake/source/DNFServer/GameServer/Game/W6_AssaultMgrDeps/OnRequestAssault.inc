@@ -340,13 +340,17 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
             const CItem* discountItem = G_CDataManager()->find_item(itemIdx);
             if (discountItem != 0)
             {
-                const float discount =
+                // ORIG 082eed87..082eedb1：两次 `fildl -0xbc; fstps` 写两个具名
+                // float 槽（-0xc8/-0xc4）⇒ 原码两个具名 float 局部（P252/P0）；
+                // ORIG 082eedbd 折扣返回值直留 st(0)（无 fstps 槽）⇒ 无 discount
+                // 具名局部；末段无 pricedF 槽（结果直入 fstcw/fistpl 截断）⇒ 无
+                // pricedF 具名局部（旧版多出该槽与其 fstps/flds 往返）。
+                const float baseA = static_cast<float>(chargeMoney);
+                const float baseB = static_cast<float>(chargeMoney);
+                chargeMoney = static_cast<int>(
                     static_cast<const CEquipItem*>(discountItem)
-                        ->getUpgradeCostDiscount();
-                const float pricedF =
-                    ((discount * static_cast<float>(chargeMoney)) / (-100.0f)
-                     + static_cast<float>(chargeMoney));
-                chargeMoney = static_cast<int>(pricedF);    // ORIG fstcw/fistpl 截断
+                            ->getUpgradeCostDiscount() * baseB / (-100.0f)
+                    + baseA);
             }
             // ORIG 082eeec2：getCurCharacInvenW 结果直留 %eax 当 this（无具名槽）。
             attacker->getCurCharacInvenW()->use_money(

@@ -61,13 +61,18 @@ void CParty::check_allmember_loading(bool flag)
 
     bf(this).ResetFirstEnterDungeon();                   // T 0x08307662
 
-    {   // 广播 0x1e 包：put_int(BF+0x134)
-        PacketGuard packet;
-        packet.put_header(0, 0x1e);
-        packet.put_int(bf(this).m_field134);
-        packet.finalize(true);
-        send_to_party(packet);
-    }
+    // 广播 0x1e 包：put_int(BF+0x134)
+    // [R11a08 ④ 独立核验] ORIG 0x085b1dcb `lea -0x5c; call PacketGuardC1Ev` 与
+    // 该对象 D1Ev 0x085b1e55 **同位于函数尾**（0x085b1e27→0x085b1e2d 析构内层 0xfe
+    // 包对象 -0x68、0x085b1e4f→0x085b1e55 析构本对象 -0x5c；EH 链 0x085b1e4a
+    // _Unwind_Resume 亦排在 -0x5c 析构之后）⇒ 原码两 PacketGuard 同属**函数作用域**，
+    // 我方旧码用 `{ }` 把首个对象限制在内层块（D1Ev 提前到 0x84be643）⇒ 析构时机与
+    // EH landing 分布与 ORIG 不同（我方多 1 处 _Unwind_Resume）。去包裹复刻。
+    PacketGuard packet;
+    packet.put_header(0, 0x1e);
+    packet.put_int(bf(this).m_field134);
+    packet.finalize(true);
+    send_to_party(packet);
 
     // 副本游玩时间累计：acc(+0x358/0x35c) += now - moveTick(+0x360/0x364)。
     // [b28d-solo-CPartyDepsD2] ORIG 0x085b195a..0x085b1ee 为 64 位

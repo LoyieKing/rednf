@@ -80,6 +80,28 @@ case "$src" in
         done
         # shellcheck disable=SC2086
         set -- $_newargs ;;
+    # [R11a18 2026-09-12 · i486 轴 · P0.1 必守程序进行中]
+    #   EquipmentParameterInfo：ORIG 的 x87 比较 lowering 为 `fxch;fucompp;fnstsw %ax;
+    #   test $0x5,%ah;sete;xor $1`（`exportEquipmentParameterScript` 0x089ad2fd/0x089ad33d/
+    #   0x089ad4dc/0x089ad503 等 12 处），默认 446h46 档产 `fucomip %st(1),%st;fstp;seta`（N85 族）。
+    #   本分支 = 原大队列 446h46 档（4.4.6 cc1plus + 4.4.6 头集原位替换）**再叠**
+    #   `-march=i486 -mtune=generic`（两者正交；`-mtune=generic` 必须同带）。
+    *Game/EquipmentParameterInfo.cpp)
+        _newargs="-B${ROOT}/cc1plus446bin/ -march=i486 -mtune=generic"
+        _swapped=""
+        for _a in "$@"; do
+            case "$_a" in
+                *c++/4.4.7*)
+                    if [ -z "$_swapped" ]; then
+                        _swapped=1
+                        _newargs="$_newargs -isystem${H46} -isystem${H46}/x86_64-redhat-linux -isystem${H46}/backward"
+                    fi
+                    continue ;;
+            esac
+            _newargs="$_newargs $_a"
+        done
+        # shellcheck disable=SC2086
+        set -- $_newargs ;;
     *Game/ARAD.cpp | \
             *Game/Action.cpp | \
             *Game/AdditionalEffectData.cpp | \

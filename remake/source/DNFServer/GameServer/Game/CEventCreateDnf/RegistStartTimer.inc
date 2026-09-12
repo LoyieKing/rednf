@@ -24,7 +24,9 @@ void CEventCreateDnf::RegistStartTimer(bool immediate)
         setState(State::kWaiting);
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0xae,
                                     static_cast<int>(startSec - now), 0, 0);
-        cMyTrace("CEventCreateDnf::RegistStartTimer(bool)", 0x6e, 0)(
+        // [R11fixE7 2026-09-12] 手写串 → __PRETTY_FUNCTION__（ORIG prett
+        // `void CEventCreateDnf::RegistStartTimer(bool)` raw @0x8b7ca20）。
+        cMyTrace(__PRETTY_FUNCTION__, 0x6e, 0)(
             "[Taiwan, CreateDnfEvent] next db load time:%d",
             static_cast<int>(startSec));
     }
@@ -39,7 +41,7 @@ void CEventCreateDnf::RegistStartTimer(bool immediate)
             next += static_cast<int>(m_reloadInterval);
         G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_2, 0, (TIMER_MESSAGE)0xae,
                                     next - static_cast<int>(now), 0, 0);
-        cMyTrace("CEventCreateDnf::RegistStartTimer(bool)", 0x7e, 0)(
+        cMyTrace(__PRETTY_FUNCTION__, 0x7e, 0)(
             "[Taiwan, CreateDnfEvent] next db load time:%d", next);
     }
 }

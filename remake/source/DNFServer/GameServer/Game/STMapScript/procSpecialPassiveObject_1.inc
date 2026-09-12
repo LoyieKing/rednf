@@ -57,7 +57,9 @@ bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,
         std::map<unsigned short, STHellPartyGroupOrder> localOrders;   // -0xf0
         for (;;)
         {
-            bool ok = false;                              // -0xd5
+            // [R11a07 P348] ORIG 0x089e7af1 段 ScanInt 前**无**预清（-0xd5 首写即 ScanInt），
+            // 故不得写 `= false`（我方原多 3 条 movb $0x0）。
+            bool ok;                                      // -0xd5
             int tvIdx = ScanInt(&ok);                     // -0xf4
             if (!ok)
                 break;
@@ -84,11 +86,11 @@ bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,
             //   m_field54 ≥ 0x80 时索引分叉（ORIG 负索引 vs 我方正索引）。
             const char diffSlot = git->second.m_field54;
 
-            bool ok2 = false;
+            bool ok2;                                     // ORIG 0x089e7bdb 段同样无预清
             int rate = ScanInt(&ok2);                     // -0x10 组序号
             if (!ok2)
                 return false;
-            bool ok3 = false;
+            bool ok3;                                     // ORIG 0x089e7bfe 段同样无预清
             int cnt = ScanInt(&ok3);                      // -0xfc 数量
             if (!ok3)
                 return false;

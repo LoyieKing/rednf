@@ -24,7 +24,13 @@ charac_expand::CDataMgr::CDataMgr()
         new online_preliminary::COnlinePreliminaryMember();                                          // new(0x14)
     m_pad[5] =
         new online_preliminary::COnlinePreliminaryMemberMatchList();                                 // new(0x20)
-    m_pad[6] = new Redeem_Item::CRedeemItem();    // new(0x10)
+    // [R11a04 2026-09-12 ④§16.3 多余物化移除] ORIG 0x0832a8e1 段
+    //   `movl $0x10,(%esp); call _Znwj; mov %eax,%ebx; mov %ebx,%eax; mov %eax,(%esp);
+    //    call _ZN11Redeem_Item11CRedeemItemC1Ev`（**无任何前置清零**；同函数其余
+    //   17 处 `new T` 亦无清零，仅 slot0/slot1/slot8 的 `new (memset(...))` 有）
+    //   ⇒ 原码为 default-init（**去括号**）：我方原写 `new ...()` 触发 CWG434 value-init
+    //   前置零初始化（4 条 `movl/movb $0x0` @我方 .o 0x1f4/0x1fa/0x1fe/0x205）⇒ 删。
+    m_pad[6] = new Redeem_Item::CRedeemItem;    // new(0x10)
     m_pad[7] = new fair_pvp::CFairPvPScore();      // new(0x5c)
 
     // slot8 +0x20：operator new(0x158) → memset 全块 → CMissionList_Charac

@@ -160,21 +160,25 @@ bool notifyOpenMessageDialog(CUser* user, int a, int b,
 void notifySystemMessage(CUser* user, char* msg);
 
 // ============================================================================
-// PRINT_ERROR —— ARAD 错误上报辅助（全静态成员）。
-// ORIG W：isEmpty 0x08197ba4 / CheckItemLock 0x08197bfd / delete_item 0x08197c56。
+// PRINT_ERROR —— ARAD 错误上报自由函数族（**namespace**，非 class）。
+// [R11fixE7 2026-09-12] ORIG prett 串 `void ARAD::PRINT_ERROR::delete_item(char*,
+// CUser*, short unsigned int)`（raw @0x8b9d8e0 等 4 条）**无 static 前缀** +
+// ORIG nm 全 T（0x08197ba4/0x08197bfd/0x08197c56/0x08197caf）+ 调用点三参直压
+// 无 this（0x8190b98 段 `movl $tag,(%esp); mov user,0x4(%esp); mov slot,0x8(%esp);
+// call`）⇒ 原码是 namespace 成员自由函数；我方 class+static 会多发 prett 的
+// `static ` 前缀。mangled 与调用约定均不变（T/cdecl）。
 // 定义归 Arad 域 TU，此处仅声明（AvatarRechargeServer 等调用方使用）。
 // ============================================================================
-class PRINT_ERROR
+namespace PRINT_ERROR
 {
-public:
-    static void isEmpty(char* tag, CUser* user, unsigned short slot);
-    static void CheckItemLock(char* tag, CUser* user, unsigned short slot);
-    static void delete_item(char* tag, CUser* user, unsigned short slot);
-    // ORIG W _ZN4ARAD11PRINT_ERROR9find_itemEPcP5CUseri 0x08197caf：
-    // "%s : find_item() fail [item_id:%d] [charac_no:%d]"（定义归
-    // Game/AradPeriodB.cpp，LinkClosureB.AradServers）。
-    static void find_item(char* tag, CUser* user, int itemId);
-};
+void isEmpty(char* tag, CUser* user, unsigned short slot);
+void CheckItemLock(char* tag, CUser* user, unsigned short slot);
+void delete_item(char* tag, CUser* user, unsigned short slot);
+// ORIG T _ZN4ARAD11PRINT_ERROR9find_itemEPcP5CUseri 0x08197caf：
+// "%s : find_item() fail [item_id:%d] [charac_no:%d]"（定义归
+// Game/AradPeriodB.cpp，LinkClosureB.AradServers）。
+void find_item(char* tag, CUser* user, int itemId);
+}
 
 
 }  // namespace ARAD

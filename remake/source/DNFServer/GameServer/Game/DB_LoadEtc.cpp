@@ -247,7 +247,7 @@ struct SigLoadEtcBestClearTimeView
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__,
-                              0xbab4, "DB_LOADETC ERROR : LoadComboSkill Fail");
+                              0xbab4, "DB_LoadETC ERROR : LoadComboSkill Fail");
         sig->m_field8 = 1;
     }
     // [b28c-lane17] 判词：残余 1 条尾 `jmp+nop` 中继岛差（4.4 jump-threading，
@@ -258,7 +258,7 @@ struct SigLoadEtcBestClearTimeView
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__,
-                              0xbaba, "DB_LOADETC ERROR : LoadComboSkill Second Fail");
+                              0xbaba, "DB_LoadETC ERROR : LoadComboSkill Second Fail");
         sig->m_field8 = 1;
     }
     }
@@ -372,13 +372,14 @@ struct SigLoadEtcBestClearTimeView
 
 // ============================================================================
 // get_skill_table_name @0x083fbdc6：PvP 技能树频道或显式第二表 →
-// "skill_fair_pvp.skill"，否则 "skill.skill"。
+// "skill_fair_pvp"（ORIG 0x8c36689 raw，无 .skill 后缀），否则 "skill"
+// （ORIG 0x8c36698 raw）。
 // ============================================================================
 char const* get_skill_table_name(bool use2nd)
 {
     if (G_GameWorld()->IsPvPSkilTreeChannel() || use2nd)
-        return "skill_fair_pvp.skill";
-    return "skill.skill";
+        return "skill_fair_pvp";
+    return "skill";
 }
 
 // ============================================================================

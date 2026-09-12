@@ -26,7 +26,7 @@ bool RestrictInputtingNameData::importUnicodeRangeData(
             for (;;)
             {
                 if (!ScanType(token, true))
-                    throw "[allow unicode range] 태그가 아님\n";
+                    throw "[allow unicode range] \xc5\xc2\xb1\xd7\xb0\xa1 \xbe\xc6\xb4\xd4\n";
                 if (token == "[allow unicode range]")
                     break;
             }
@@ -34,7 +34,7 @@ bool RestrictInputtingNameData::importUnicodeRangeData(
             for (;;)
             {
                 if (!ScanType(token, true))
-                    throw "태그가 와야 할 자리에 다른 값이 파싱 됨\n";
+                    throw "\xc5\xc2\xb1\xd7\xb0\xa1 \xbf\xcd\xbe\xdf \xc7\xd2 \xc0\xda\xb8\xae\xbf\xa1 \xb4\xd9\xb8\xa5 \xb0\xaa\xc0\xcc \xc6\xc4\xbd\xcc \xb5\xca\n";
                 if (token == "[/allow unicode range]")
                 {
                     *out = ranges;                  // ORIG vector::operator= 复制
@@ -47,9 +47,9 @@ bool RestrictInputtingNameData::importUnicodeRangeData(
                     int left = 0;
                     int right = 0;
                     if (!ScanInt(&left))
-                        throw "range의 left값을 읽어 오다 실패\n";
+                        throw "range\xc0\xc7 left\xb0\xaa\xc0\xbb \xc0\xd0\xbe\xee \xbf\xc0\xb4\xd9 \xbd\xc7\xc6\xd0\n";
                     if (!ScanInt(&right))
-                        throw "range의 right값을 읽어 오다 실패\n";
+                        throw "range\xc0\xc7 right\xb0\xaa\xc0\xbb \xc0\xd0\xbe\xee \xbf\xc0\xb4\xd9 \xbd\xc7\xc6\xd0\n";
                     ranges.push_back(std::make_pair(left, right));
                 }
             }

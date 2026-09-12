@@ -27,6 +27,16 @@
 #include "PacketHeader.h"
 #include "PacketDesign.h"
 
+// [R11fixE4 2026-09-12] ORIG 各实例化 TU 的 include 拼写不同 ⇒ 同一模板体的
+// logFormat 文件名实参在不同实例中展开为不同字面量：100000/4096/95000 为
+// 'Network.h'（ORIG VA 0x8c20bc7 / 0x8cf1627 / 0x8c78a68），6144 为
+// 'localjapan/../Network.h'（ORIG VA 0x8b95b10）。本仓头名统一为 CNetwork.h，
+// 无法由 __FILE__ 复现，故以可覆盖宏还原字面量：默认 = 三实例值；6144 实例在
+// CNetwork.cpp 专用显式特化与 Arad_DevMgr_Server_Proxy.cpp 顶部各自给出覆盖值。
+#ifndef CNETWORK_LOG_FILE_NAME
+#define CNETWORK_LOG_FILE_NAME "Network.h"
+#endif
+
 class CDispatchServerPacket
 {
 public:
@@ -159,8 +169,12 @@ int CNetwork<N1, N2>::send_packet(char* data, int len)
         // [Fn28Gap 2026-09-11] ORIG 0x082fdfcc+0xf..0x27 段：0x8(%esp) 装载
         // _ZZN8CNetworkILi100000ELi100000EE11send_packetEPciE12__FUNCTION__
         // @0x08c21a10（r,12B="send_packet\0"）⇒ 原码为宏 __FUNCTION__（非手写）。
-        LogManager::logFormat(1, "CNetwork.h", __FUNCTION__, 0x25b,
-            "send_packet(char*, int) error, len <= 0 : %d %d %d",
+        // [R11fixE4 2026-09-12] 文案/文件名参数按 ORIG raw 逐字节对齐：
+        //   0x25b fmt = 0x8c20ba0 '!!!Send Packet[(%d,%d) Size(%d) Error\n'；
+        //   0x4(%esp) = 0x8c20bc7 'Network.h'。实参序 (signed char)data[0],
+        //   (signed char)data[1], len（ORIG 0x82fdfeb..0x82fe00b 逐槽核对）。
+        LogManager::logFormat(1, CNETWORK_LOG_FILE_NAME, __FUNCTION__, 0x25b,
+            "!!!Send Packet[(%d,%d) Size(%d) Error\n",
             data[0], data[1], len);
         return -1;
     }
@@ -172,8 +186,10 @@ int CNetwork<N1, N2>::send_packet(char* data, int len)
     if ((unsigned int)m_sendSize > (unsigned int)sizeof(m_send))
     {
         m_sendSize -= len;
-        LogManager::logFormat(1, "CNetwork.h", __FUNCTION__, 0x26e,
-            "send_packet(char*, int) error, Send buffer over flow : %d %d %d",
+        // [R11fixE4 2026-09-12] 0x26e fmt = 0x8c20bd4 '!!!Send Packet Overflow
+        //   P_TYPE[%d] Size:Remain[%d] Last[%d]'（ORIG 0x82fe0c4）。
+        LogManager::logFormat(1, CNETWORK_LOG_FILE_NAME, __FUNCTION__, 0x26e,
+            "!!!Send Packet Overflow P_TYPE[%d] Size:Remain[%d] Last[%d]",
             data[1], m_sendSize, len);
         send_unlock();
         return -1;
@@ -181,8 +197,10 @@ int CNetwork<N1, N2>::send_packet(char* data, int len)
     if (!(m_sendBuf >= m_send && m_sendBuf < m_send + sizeof(m_send)))
     {
         m_sendSize -= len;
-        LogManager::logFormat(1, "CNetwork.h", __FUNCTION__, 0x277,
-            "send_packet(char*, int) error, Send buffer over flow : %d %d %d",
+        // [R11fixE4 2026-09-12] 0x277 fmt = 0x8c20c10 '!!!Send Packet Buffer error
+        //   P_TYPE[%d] Size:Remain[%d] Last[%d]'（ORIG 0x82fe172）。
+        LogManager::logFormat(1, CNETWORK_LOG_FILE_NAME, __FUNCTION__, 0x277,
+            "!!!Send Packet Buffer error P_TYPE[%d] Size:Remain[%d] Last[%d]",
             data[1], m_sendSize, len);
         send_unlock();
         return -1;
@@ -224,7 +242,10 @@ int CNetwork<N1, N2>::recv_packet()
         // [Fn28Gap 2026-09-11] ORIG 0x0818e277: movl $0x8b96721,0x4(%esp) =
         // _ZZN8CNetworkILi6144ELi100000EE11recv_packetEvE12__FUNCTION__
         // （r,12B="recv_packet\0"）⇒ cMyTrace 首参为宏 __FUNCTION__。
-        cMyTrace(__FUNCTION__, 0x210, 0)("recv_packet() error(%d:%s)",
+        // [R11fixE4 2026-09-12] fmt 按 ORIG raw：0x8c20c50 'RECV ERROR
+        //   DISCONNNECT NOW FD[%d] : %d(%s)'（ORIG 0x82fe320 装载
+        //   m_sock/errno/strerror(errno) 三 slot 与我方一致）。
+        cMyTrace(__FUNCTION__, 0x210, 0)("RECV ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
             m_sock, errno, strerror(errno));
         return -1;
     }
@@ -257,7 +278,9 @@ int CNetwork<N1, N2>::send_packet()
         // _ZZN8CNetworkILi6144ELi100000EE11send_packetEvE12__FUNCTION__
         // （r,12B="send_packet\0"）⇒ 原码 __FUNCTION__（旧手写 "send_packet()"
         // 串内容亦与 ORIG 不同）。
-        cMyTrace(__FUNCTION__, 0x2af, 0)("send_packet() error(%d:%s)",
+        // [R11fixE4 2026-09-12] fmt 按 ORIG raw：0x8c20c7c 'SEND ERROR
+        //   DISCONNNECT NOW FD[%d] : %d(%s)'（ORIG 0x82fe459 装载 三 slot 一致）。
+        cMyTrace(__FUNCTION__, 0x2af, 0)("SEND ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
             m_sock, errno, strerror(errno));
         send_unlock();
         return -1;
@@ -271,8 +294,11 @@ int CNetwork<N1, N2>::send_packet()
             if ((unsigned int)m_sendSize > (unsigned int)sizeof(m_send))
             {
                 // [Fn28Gap 2026-09-11] ORIG 0x0818e69a: 0x8(%esp)=__FUNCTION__。
-                LogManager::logFormat(1, "CNetwork.h", __FUNCTION__, 0x2d1,
-                    "send_packet() error, Send buffer over flow : %d", m_sendSize);
+                // [R11fixE4 2026-09-12] 0x2d1 fmt = 0x8c20ca8 'm_remain_sendlen <
+                //   MAX_SEND_BUF :  m_remain_sendlen:%d]'（" : " 后**两个空格**，
+                //   raw 逐字节核；单 vararg = m_sendSize，ORIG 0x82fe4e8）。
+                LogManager::logFormat(1, CNETWORK_LOG_FILE_NAME, __FUNCTION__, 0x2d1,
+                    "m_remain_sendlen < MAX_SEND_BUF :  m_remain_sendlen:%d]", m_sendSize);
                 return -1;
             }
             memmove(m_send, m_sendBuf, m_sendSize);
@@ -281,8 +307,10 @@ int CNetwork<N1, N2>::send_packet()
         else if ((int)m_sendSize < ret)
         {
             // [Fn28Gap 2026-09-11] ORIG 0x0818e73c: 0x8(%esp)=__FUNCTION__。
-            LogManager::logFormat(1, "CNetwork.h", __FUNCTION__, 0x2db,
-                "send_packet() error : %d %d", m_sendSize, ret);
+            // [R11fixE4 2026-09-12] 0x2db fmt = 0x8c20ce0 'offset error[Remain_Data:
+            //   %d Send:%d]'；实参 (m_sendSize, ret)（ORIG 0x82fe58a 两 slot 一致）。
+            LogManager::logFormat(1, CNETWORK_LOG_FILE_NAME, __FUNCTION__, 0x2db,
+                "offset error[Remain_Data: %d Send:%d]", m_sendSize, ret);
             send_unlock();
             return -1;
         }
@@ -448,9 +476,13 @@ bool CNetwork<N1, N2>::Parsing_ServerPacket(int recvLen)
         // [Fn28Gap 2026-09-11] ORIG 0x0818e35d: 0x8(%esp) =
         // _ZZN8CNetworkILi6144ELi100000EE20Parsing_ServerPacketEiE12__FUNCTION__
         // （r,21B="Parsing_ServerPacket\0"）⇒ 原码 __FUNCTION__。
-        LogManager::logFormat(1, "CNetwork.h", __FUNCTION__, 0x31d,
-            "Packet size(%d:%d:%d) < HEADER_SIZE", m_recvBuf, m_recv,
-            m_recvOffset, recvLen);
+        // [R11fixE4 2026-09-12] 0x31d fmt = 0x8c65524 '(offset:%x - buf:%x) =
+        //   remainlen:%d, Recv Size[%d] '（尾随一个空格，raw 逐字节核）；四 vararg
+        //   序 (m_recvBuf, m_recv, m_recvOffset, recvLen)（ORIG 0x846d0c2..0x846d0d1
+        //   逐槽核对：0x14/0x18/0x1c/0x20）。
+        LogManager::logFormat(1, CNETWORK_LOG_FILE_NAME, __FUNCTION__, 0x31d,
+            "(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d] ", m_recvBuf,
+            m_recv, m_recvOffset, recvLen);
         return 1;
     }
 
@@ -471,9 +503,12 @@ bool CNetwork<N1, N2>::Parsing_ServerPacket(int recvLen)
         if (packetSize <= 9 || packetSize > 0x1800)
         {
             // [Fn28Gap 2026-09-11] ORIG 0x0818e402: 0x8(%esp)=__FUNCTION__。
-            LogManager::logFormat(1, "CNetwork.h", __FUNCTION__,
-                0x32d, "Packet size(%d:%d:%d) ERROR", recvLen, packetSize,
-                m_recvBuf);
+            // [R11fixE4 2026-09-12] 0x32d fmt = 0x8c65558 'Recv Size[%d], Parsing
+            //   Packet Size[%d], recvbuf_offset[%d] is Too Large'；三 vararg 序
+            //   (recvLen, packetSize, m_recvBuf)（ORIG 0x846d162..0x846d176 一致）。
+            LogManager::logFormat(1, CNETWORK_LOG_FILE_NAME, __FUNCTION__,
+                0x32d, "Recv Size[%d], Parsing Packet Size[%d], recvbuf_offset[%d] is Too Large",
+                recvLen, packetSize, m_recvBuf);
             m_recvBuf = m_recv;
             m_recvOffset = 0;
             return 0;
@@ -563,9 +598,15 @@ bool CNetwork<N1, N2>::Parsing_AuctionServerPacket(int recvLen)
             // [Fn28Gap 2026-09-11] ORIG 0x082f7fca: 0x8(%esp) =
             // _ZZN8CNetworkILi100000ELi100000EE27Parsing_AuctionServerPacketEiE12__FUNCTION__
             // @0x08c1ebd4（r,28B="Parsing_AuctionServerPacket\0"）。
-            LogManager::logFormat(1, "CNetwork.h",
+            // [R11fixE4 2026-09-12] 0x402 fmt = 0x8c1df24 'Recv Size[%d], Parsing
+            //   Packet Size[%d] PacketHeader[%x] PacketType[%d] is Too Large At
+            //   Auction Packet'；四 vararg 序 (recvLen, packetSize, getCategory(),
+            //   getPacketID())（ORIG 0x82f7f8c..0x82f7fb6 逐槽核对：getPacketID 先
+            //   求值落 %ebx 跨 getCategory 调用，0x14/0x18/0x1c/0x20）。
+            LogManager::logFormat(1, CNETWORK_LOG_FILE_NAME,
                 __FUNCTION__, 0x402,
-                "Packet size(%d:%d:%d:%d) ERROR", recvLen, packetSize,
+                "Recv Size[%d], Parsing Packet Size[%d] PacketHeader[%x] PacketType[%d] is Too Large At Auction Packet",
+                recvLen, packetSize,
                 reinterpret_cast<nsl::PACKET_HEADER*>(headerBuf)->getCategory(),
                 reinterpret_cast<nsl::PACKET_HEADER*>(headerBuf)->getPacketID());
             m_recvBuf = m_recv;
@@ -592,8 +633,11 @@ bool CNetwork<N1, N2>::Parsing_AuctionServerPacket(int recvLen)
                 continue;
             }
             // [Fn28Gap 2026-09-11] ORIG 0x082f8069 段：0x8(%esp)=__FUNCTION__。
-            LogManager::logFormat(1, "CNetwork.h", __FUNCTION__,
-                0x41c, "Packet size(%d) < HEADER_SIZE", remain);
+            // [R11fixE4 2026-09-12] 0x41c fmt = 0x8c1df94 'need more data
+            //   (parsinglength < HEADER_SIZE): body=%d !!'；单 vararg = remain
+            //   （ORIG 0x82f8062/0x82f8065 一致）。
+            LogManager::logFormat(1, CNETWORK_LOG_FILE_NAME, __FUNCTION__,
+                0x41c, "need more data (parsinglength < HEADER_SIZE): body=%d !!", remain);
             break;
         }
         break;

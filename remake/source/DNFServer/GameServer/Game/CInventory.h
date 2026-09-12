@@ -363,7 +363,11 @@ public:
     int SetStomach(int stomachValue);                                  // ORIG T 0x08339ee0（尾 `mov $1,%eax` 恒返 1）
     bool ChangeOwner(Inven_Item* item, int slotFrom, int mapSizeHint,  // ORIG T 0x0833ad34
                      int param_4, int param_5);
-    int ItemEvolute(int itemIdx);                                      // ORIG T 0x0833d6c2
+    // [R11fixE7 2026-09-12] int→bool 全链同型化（P315）：ORIG 调用点
+    // Dispatcher_UseCreatureEvolutionItem::process 0x8228def `call; test %al,%al;
+    // je`（P292 单字节直测、无 setcc）⇒ 返回 bool；与 CCreature::ItemEvolute
+    // 的 ORIG prett `bool ...`（0x8c2f320）整链一致。mangled 不变。
+    bool ItemEvolute(int itemIdx);                                     // ORIG T 0x0833d6c2
     bool ChangeSlotNo(Inven_Item* item, int newSlot, int param_3);     // ORIG T 0x0833aedc
     bool LoadArtifact(int slot, Inven_Item* item);                     // ORIG T 0x0833be7c
     bool AuctionRegist(Inven_Item* item, int param_2, int param_3);    // ORIG T 0x0833b09c

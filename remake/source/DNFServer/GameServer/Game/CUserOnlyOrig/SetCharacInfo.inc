@@ -29,10 +29,23 @@ void CUser::SetCharacInfo(int count, char* data)
         char* p = reinterpret_cast<char*>(&info);
         info.m_characNo = *reinterpret_cast<int*>(rec);                  // characNo
         strncpy(info.m_name, rec + 4, 0x1e);                             // m_name
-        p[0x18] = rec[0x18];
-        p[0x19] = rec[0x19];
-        *reinterpret_cast<short*>(p + 0x1a) =
-            *reinterpret_cast<short*>(rec + 0x1a);
+        // [R11a06 2026-09-12 ④ 修复] 旧译文 `p[0x18]=rec[0x18]; p[0x19]=rec[0x19];
+        //   *(short*)(p+0x1a)=*(short*)(rec+0x1a)` 的目标偏移**错**：+0x18..+0x1b 落在
+        //   m_name[0x14..0x17]（角色名被覆写），而 m_field26(+0x26 job)/m_level(+0x27)/
+        //   m_field29(+0x29 STGrowthType) 从未被写（恒 Reset 值）。ORIG 反汇编实证
+        //   （raw 字节，VA 0x08649d10..0x08649d4e）：
+        //     0x08649d20 `88 85 11 e4 ff ff` = mov %al,-0x1bef(%ebp)  → base(-0x1c15)+0x26 ← rec[0x18]
+        //     0x08649d36 `88 85 14 e4 ff ff` = mov %al,-0x1bec(%ebp)  → base+0x29 ← rec[0x19]
+        //     0x08649d4c `66 89 85 12 e4 ff ff` = mov %ax,-0x1bee(%ebp) → base+0x27(short) ← rec[0x1a]
+        // [R11a06 2026-09-12 ④ 修复·形选] 三写按 ORIG 的「逐点重算 imul $0x94 + 加基址」
+        // 形书写（ORIG 0x08649d10/0x08649d26/0x08649d3c 各 5 条：mov i; imul $0x94; add base;
+        // movzbl/movzwl disp(%eax); mov 槽）。已实测三形：缓存 rec（4 条/处，len 310）/
+        // 本形（6 条/处，len 317，ndiff 389 ratio 0.3855）/ 数组视图形（len 318，ndiff 402）
+        // ⇒ 取本形（长度与 ORIG 316 最近、ndiff 最优）。
+        info.m_field26 = *(data + i * 0x94 + 0x18);                      // +0x26 job
+        info.m_field29.m_growthType =
+            static_cast<unsigned char>(*(data + i * 0x94 + 0x19));       // +0x29
+        info.m_level = *reinterpret_cast<short*>(data + i * 0x94 + 0x1a);  // +0x27 short
 
         for (int k = 0; k < 0xc; ++k)                  // 背包槽镜像表（0x3d stride）
         {

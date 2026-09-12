@@ -35,7 +35,9 @@ void CEventCreateDnf::RegistNextTimer()
     // b28d-D42 + round1 R19：ORIG 0x08163e20 无 next 具名槽——`movzwl 0x12(%eax);
     // movzwl %ax,%ebx` 先物化 reloadInterval，ctor 前 `call getCurSec; add %eax,%ebx`
     // 跨 ctor 保活（N80/P0）⇒ 删具名 next、内联回 vararg 位（P227 全表达式临时链）。
-    cMyTrace("CEventCreateDnf::RegistNextTimer()", 0x55, 0)(
+    // [R11fixE7 2026-09-12] 手写串 → __PRETTY_FUNCTION__（ORIG prett
+    // `void CEventCreateDnf::RegistNextTimer()` raw @0x8b7ca60）。
+    cMyTrace(__PRETTY_FUNCTION__, 0x55, 0)(
         "[Taiwan, CreateDnfEvent] next db load time:%d",
         static_cast<int>(m_reloadInterval) + GlobalData::s_systemTime_.getCurSec());
 }

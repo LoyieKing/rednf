@@ -33,7 +33,7 @@ const char* CMonsterDropTest::checkCommandExecuteError(CParty* party)
         party->m_battleField.get_dungeon_index());
     if (dungeon == 0)
     {
-        return "Dungeon에서 사용가능하지 않습니다";
+        return "Dungeon\xbf\xa1\xbc\xad \xbb\xe7\xbf\xeb\xb0\xa1\xb4\xc9";
     }
     if (party->m_battleField.m_bloodState == 1)
     {

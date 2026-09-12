@@ -270,7 +270,12 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
     // [R8a13 ④] ORIG 0x866fba1：`mov 0xb8(%eax),%eax; mov %eax,0x4(%esp); call put_byte`
     //   —— 同样无 `and $0xff`（P162）。
     ack.put_byte(q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/);
-    if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 0 && delAddObjCnt >= 0) {
+    // [R11a13 ④] ORIG 0x866fbc5：`test %eax,%eax; jne <skip>` 之后**无条件**
+    //   `mov -0x98(%ebp),%eax; mov %eax,0x4(%esp); call put_byte`（delAddObjCnt 直发），
+    //   仅其后的 `cmpl $0x0,-0x98(%ebp); jle <skip>` 守卫循环段 ⇒ 原码无
+    //   `delAddObjCnt >= 0` 合取项（旧版多出 `cmpl $0x0,-..; js <skip>` 两条；
+    //   rewardType==0 且 delAddObjCnt<0 时我方不发该字节 = 与 ORIG 分叉）。
+    if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 0) {
         ack.put_byte(delAddObjCnt);
         // ORIG 0x866fbf2-0x866fda3:updAddQuad 实为 [INVEN_TYPE, slot, addInfo2]
         // 三元组(delete_event_items.md:814-871 push [X, slot, item+0x07])。

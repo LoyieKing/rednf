@@ -1,4 +1,6 @@
-int CDeathTowerPlayDataStatistic::SendDeathTowerPlayInfo(
+// [R11fixE7 2026-09-12] int→bool：ORIG prett 串 `bool CDeathTowerPlayDataStatistic::
+// SendDeathTowerPlayInfo(...)`（raw @0x8ce1040，P174 直证）；原注释「恒返回 1」保留。
+bool CDeathTowerPlayDataStatistic::SendDeathTowerPlayInfo(
     int idx, char deathTowerType,
     const stDeathTowerRecordMemberInfo_t* members,
     unsigned int clearStage, unsigned int partyCount)

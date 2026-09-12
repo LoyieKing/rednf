@@ -6,9 +6,12 @@ int WarAreaCounter::GetWarRoomCountLastIndex(int idx)
     {
         // [Fn28Gap 2026-09-11] ORIG 0x082a3eba: movl $0x8c19e69,0x8(%esp) =
         // _ZZN14WarAreaCounter24GetWarRoomCountLastIndexEiE12__FUNCTION__（25B）。
-        LogManager::logFormat(1, "WarField.cpp",
+        // [R11fixE5] ORIG 0x082a3ec2 file=0x8c1611c、0x082a3eaa fmt=0x8c16150
+        // （raw：'../../DNFShared/GameScript/RDARScriptEtcParameter.h' /
+        //  'GetWarRoomCountLastIndex Invalid Parameter levelGrid<%d>'）。
+        LogManager::logFormat(1, "../../DNFShared/GameScript/RDARScriptEtcParameter.h",
             __FUNCTION__, 0x32f,
-            "WarAreaCounter GetWarRoomCountLastIndex error idx(%d)", idx);
+            "GetWarRoomCountLastIndex Invalid Parameter levelGrid<%d>", idx);
         return 0;
     }
     int sum = 0;

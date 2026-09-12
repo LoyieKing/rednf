@@ -65,7 +65,7 @@ int CExchangeServer::OnRecvPacketCharacInfo(CSession* session,
     cMyTrace(__PRETTY_FUNCTION__, 0x253, 0)
         ("OnRecvPacketCharacInfo() type(%d), idx(%d), msg len(%d), "
          "member_size(%d), channel_no(%d), charac_no(%d), "
-         "from_channel_no",
+         "from_channel_no(%d)",
          errBook, idx, mi2, mi1, chNoArg, characNo,
          session->GetChannelNo());
 

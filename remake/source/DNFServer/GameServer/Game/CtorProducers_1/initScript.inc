@@ -67,7 +67,7 @@ int CNPCScriptList::initScript(NCHAR* dir, NCHAR* list, NCHAR* common)
     if (m_npcCommon.m_favorableNpcList.size() > 0x32)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x1c3, 5);
-        trace("%s Favorable npc count over\n", common);
+        trace("%s Favorable npc count over", common);
         return 0x1c4;
     }
     TimerNPCMoodChange::registNextTimer(0);

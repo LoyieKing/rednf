@@ -10,4 +10,4 @@
 // 取 occ_check!=0 行（limit 10），对 item_check==0 且 server_id 匹配的行收集，
 // 之后逐条 Update + InsertEventItem2EventTable(event_code=6)。
 // ----------------------------------------------------------------------------
-void EventAlttle::ArrangeAlttleEventItem(unsigned int mid, unsigned int serverId)
+void EventAlttle::ArrangeAlttleEventItem(memberIdentificationNumber_t mid, unsigned int serverId)

@@ -15,6 +15,7 @@
 #include <vector>
 
 #include "CHackAnalyzer.h"   // WongWork::ENUM_HACKTYPE（NS_13ENUM_HACKTYPEE 锁定）
+#include "GameTypes.h"       // memberIdentificationNumber_t（ORIG prett 拼写，= unsigned int）
 #include "MySQL.h"           // MySQL（GetDBHandle 返回类型）
 
 namespace WongWork
@@ -98,58 +99,60 @@ WONGWORK_EVENT_STATIC_ASSERT_SIZEOF(HackTypeInfo_t, 0x10);
 #endif
 
 // ----------------------------------------------------------------------------
-// WebEvent 类事件落库/派发静态接口族。SQL 与控制流依据各 class_func_reports。
-// 全部为 static（调用点无 this，mangled 无 const/参数对象）。
+// WebEvent 事件落库/派发接口族。SQL 与控制流依据各 class_func_reports。
+// [R11fixE7 2026-09-12] 四族均为 **namespace**（非 class）：ORIG prett 串
+// `void WongWork::EventAlttle::ArrangeAlttleEventItem(memberIdentificationNumber_t,
+// unsigned int)`（raw @0x8c5dbc0；Sigong @0x8c5dd00 / FCCombo @0x8c5db40 /
+// Everland @0x8c5dc80 同形）**无 static 前缀** + ORIG nm 全 T（0x083fb595 等）
+// + 调用点两参直压无 this（0x8411ea9 段 `mov 0xc0(%eax),%eax; mov %edx,0x4(%esp);
+// mov %eax,(%esp); call`）⇒ 原码为 namespace 成员自由函数；我方 class+static 会
+// 多发 prett `static ` 前缀。mangled 与调用约定（T/cdecl）均不变。
 // ----------------------------------------------------------------------------
 
 // WongWork::EventAlttle（event_alttle_info 表）
-class EventAlttle
+namespace EventAlttle
 {
-public:
-    static void UpdateEventAlttleInfo(unsigned int uid, int itemNo);
+void UpdateEventAlttleInfo(unsigned int uid, int itemNo);
                                            // ORIG T 0x083fb530
-    static void ArrangeAlttleEventItem(unsigned int mid, unsigned int serverId);
+void ArrangeAlttleEventItem(memberIdentificationNumber_t mid, unsigned int serverId);
                                            // ORIG T 0x083fb595
-    static int CheckAlreadyGetAlttleItem(unsigned int uid, int itemNo);
+int CheckAlreadyGetAlttleItem(unsigned int uid, int itemNo);
                                            // ORIG T 0x083fb472
-};
+}
 
 // WongWork::EventSigong（event_sigong_info 表，item1/item2 双栏）
-class EventSigong
+namespace EventSigong
 {
-public:
-    static void UpdateEventSigongInfo(unsigned int id, int itemNo);
+void UpdateEventSigongInfo(unsigned int id, int itemNo);
                                            // ORIG T 0x083fa7a5
-    static void ArrangeSigongEventItem(unsigned int mid, unsigned int serverId);
+void ArrangeSigongEventItem(memberIdentificationNumber_t mid, unsigned int serverId);
                                            // ORIG T 0x083fa855
-    static int CheckAlreadyGetSigongItem(unsigned int id, int itemNo);
+int CheckAlreadyGetSigongItem(unsigned int id, int itemNo);
                                            // ORIG T 0x083fa69c
-};
+}
 
 // WongWork::EventEverland（event_everland_info 表，coin 栏）
-class EventEverland
+namespace EventEverland
 {
-public:
-    static void UpdateEventEverlandInfo(unsigned int id, int itemNo);
+void UpdateEventEverlandInfo(unsigned int id, int itemNo);
                                            // ORIG T 0x083face3
-    static void ArrangeEverlandEventItem(unsigned int mid, unsigned int serverId);
+void ArrangeEverlandEventItem(memberIdentificationNumber_t mid, unsigned int serverId);
                                            // ORIG T 0x083fad60
-    static int CheckAlreadyGetEverlandItem(unsigned int id, int itemNo);
+int CheckAlreadyGetEverlandItem(unsigned int id, int itemNo);
                                            // ORIG T 0x083fac0d
-};
+}
 
 // WongWork::EventFCCombo（event_combo_entry 表）
-class EventFCCombo
+namespace EventFCCombo
 {
-public:
-    static MySQL* GetDBHandle();          // ORIG W 0x0844dc7c
-    static void UpdateFCComboEventInfo(unsigned int id, int itemNo);
+MySQL* GetDBHandle();          // ORIG W 0x0844dc7c
+void UpdateFCComboEventInfo(unsigned int id, int itemNo);
                                            // ORIG T 0x083fb929
-    static void ArrangeFCComboEventItem(unsigned int mid, unsigned int serverId);
+void ArrangeFCComboEventItem(memberIdentificationNumber_t mid, unsigned int serverId);
                                            // ORIG T 0x083fb976
-    static int CheckAlreadyFCComboEventItem(unsigned int id, int itemNo);
+int CheckAlreadyFCComboEventItem(unsigned int id, int itemNo);
                                            // ORIG T 0x083fb883
-};
+}
 
 // WongWork::EventCommon（charac_event_items 表公共读写）
 class EventCommon

@@ -693,7 +693,10 @@ public:
 
     // ---- 其它 ----
     int ReviveUser(CUser* user, unsigned short a);   // ORIG 返回错误码（0x85b27c8）
-    int VoteLackUser(CUser* user, int param);   // ORIG 0x85b3c90 返回 0/1
+    // [R11fixE7 2026-09-12] int→bool：ORIG prett 串 `bool CParty::VoteLackUser(
+    // CUser*, int)`（raw @0x8cbb440，我方原为 `int ...`；P174）⇒ 返回 bool；
+    // mangled 不变、全部调用点均为语句调用（0x81fd24b、dispatch_sig_80）忽略返回值。
+    bool VoteLackUser(CUser* user, int param);  // ORIG 0x85b3c90 返回 0/1
     bool OnTimerWalkOutLackUser();   // ORIG 0x85b3e12；调用点 xor $0x1,%eax 实证 bool（GData 同步定义体）
     void SaveCoin(eCoinSubReason reason);
     int GetCoinCount(CUser* user);
