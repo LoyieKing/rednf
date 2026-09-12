@@ -1,9 +1,18 @@
 // ---- CDisjointer::get_disjoint_result_（报告 get_disjoint_result_.md，
 //      ORIG T 0x085d234a sz 0x6cc）。 ----
-// [L2Free4to15.S3 复核] p167 CLEAR（仅 C1/C2 别名）。残差 = x87 往返
-// （ORIG 4×`fstps X; flds X` 具名 float 局部，我方 0；P252 试形旧记录）
-// + 我方 5 处多余槽往返（-0x28/-0x20/-0x18/-0x14/-0x1c）
-// + add-vs-disp 2 处（N107）⇒ N85②/N107 封顶。
+// [L2Free4to15.S3 复核] p167 CLEAR（仅 C1/C2 别名）。
+// [R28a18 · 2026-09-13 · §34.2.3 精度语义轴 · 已修 ④] ORIG 4 处
+//   `fstps X; flds X` 具名 float 局部舍入往返（0x85d264c / 0x85d2791 /
+//   0x85d2878 / 0x85d2fa0 段）vs 我方 0 处 ⇒ 中间精度（x87 80 位 vs 落盘 float）
+//   不同、后续 fistpl 结果可差 1（分叉实证见 /tmp/verify357/R28a18/probe_fp2.c：
+//   PATH2 im=14 grade=644 ORIG=4600/NEW=4599、PATH4 ia=1178 ib=2822 mult=2300
+//   ORIG=91/NEW=92）。修法 = 具名 float 局部 + 复合赋值（**同一**局部两次写）：
+//   `float bonus = f(...); bonus *= 100.0f;` /
+//   `float ratio = (float)grade / select.m_float8;`（两分支各一）/
+//   `float variation = f(...); variation /= 100.0f;`。
+//   新 .o 4 处往返逐条同形（槽 -0x2c/-0x28/-0x24/-0x10，各为单槽两次写）；
+//   TU 四数零劣化（identical 96 / ae 189 / near 1 / diff 4 / missing 33 逐值不变）。
+//   残余 = add-vs-disp 组（N107/P30）+ 帧 0xd4→0xe4（新增 2 个 ratio 局部，N82 族）。
 int CDisjointer::get_disjoint_result_(CItem* item, Inven_Item* invenItem,
                                       int level, DisJointResult& result,
                                       bool selfService, CUser* user)
@@ -65,8 +74,14 @@ int CDisjointer::get_disjoint_result_(CItem* item, Inven_Item* invenItem,
             const CInventory* inv = user->getCurCharacInvenR();
             int jobLevel =
                 user->GetCurExpertJobLevel(user->GetCurCharacExpertJobExp());
-            float bonus = 100.0f * inv->GetExpertJobSelfDisjointBigWinRate(
-                                     (ENUM_EXPERT_JOB_TYPE)3, jobLevel);
+            // [R28a18 · §34.2.3 精度语义轴] ORIG 0x085d264c 段实测
+            //   `call; fstps -0x28; flds -0x28; flds 100.0f; fmulp; fstps -0x28`
+            //   （**同一**具名 float 局部被写两次）⇒ 源码形 = 分两步赋值。
+            //   直写 `100.0f * f(...)` 丢首段 fstps 舍入往返（我方 0 处 vs ORIG 4 处）
+            //   ⇒ 中间精度不同（80 位 vs 舍入后 float），fadds+fistpl 结果可差 1。
+            float bonus = inv->GetExpertJobSelfDisjointBigWinRate(
+                              (ENUM_EXPERT_JOB_TYPE)3, jobLevel);
+            bonus *= 100.0f;
             bigwinRate = round_nearest(bigwinRate + bonus);
         }
     }
@@ -79,7 +94,11 @@ int CDisjointer::get_disjoint_result_(CItem* item, Inven_Item* invenItem,
         if (select.m_itemIndex != -1)
         {
             result.m_f[6] = select.m_itemIndex;
-            result.m_f[1] = round_nearest((float)grade / select.m_float8);
+            // [R28a18 · §34.2.3] ORIG 0x085d2791
+            //   `fildl -0x48; flds -0x78; fdivrp; fstps -0x24; flds -0x24; …fistpl`
+            //   ⇒ 除法结果先落**具名 float 局部**再取 (int)。
+            float ratio = (float)grade / select.m_float8;
+            result.m_f[1] = round_nearest(ratio);
             if (result.m_f[1] < 1)
                 result.m_f[1] = 1;
         }
@@ -93,7 +112,9 @@ int CDisjointer::get_disjoint_result_(CItem* item, Inven_Item* invenItem,
         if (select.m_itemIndex != -1)
         {
             result.m_f[6] = select.m_itemIndex;
-            result.m_f[1] = round_nearest((float)grade / select.m_float8);
+            // [R28a18 · §34.2.3] 同上报（ORIG 0x085d2878 段，第二次出现）。
+            float ratio = (float)grade / select.m_float8;
+            result.m_f[1] = round_nearest(ratio);
             if (result.m_f[1] < 1)
                 result.m_f[1] = 1;
         }
@@ -121,12 +142,14 @@ int CDisjointer::get_disjoint_result_(CItem* item, Inven_Item* invenItem,
             const CInventory* inv = user->getCurCharacInvenR();
             int jobLevel =
                 user->GetCurExpertJobLevel(user->GetCurCharacExpertJobExp());
-            // [C07 · P252 试形已回退] 加具名 float 中间量（`float rawRate = f(...);
-            //   float variation = rawRate / 100.0f;`）实测 gap 14→12 但 ndiff
-            //   106→344（槽整体平移 4、difflib 对齐坍缩）⇒ 净负，恢复直写形。
-            float variation =
-                inv->GetExpertJobSelfDisjointResultVariation(
-                    (ENUM_EXPERT_JOB_TYPE)3, jobLevel) / 100.0f;   // _DAT_08cc0814
+            // [C07 · P252 试形已回退] 旧试形是**两个**局部（`float rawRate = f(...);
+            //   float variation = rawRate / 100.0f;`）⇒ 双槽使整体平移 4、净负。
+            // [R28a18 · §34.2.3] ORIG 0x085d2fa0 段
+            //   `call; fstps -0x10; flds -0x10; flds 100.0f; fdivrp; fstps -0x10`
+            //   = **同一**局部两次写 ⇒ 正确形是单局部 + 复合赋值（零额外槽）。
+            float variation = inv->GetExpertJobSelfDisjointResultVariation(
+                (ENUM_EXPERT_JOB_TYPE)3, jobLevel);
+            variation /= 100.0f;                                  // _DAT_08cc0814
 
             // [C07 · P214③] ORIG 在循环前发 5 条 `movl $0x0,-0xa8..-0x98(%ebp)`
             //   （连续寻址）⇒ 原码是**显式零初始化数组**（我方裸 `int tmp[5];` 无

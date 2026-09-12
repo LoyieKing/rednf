@@ -120,11 +120,18 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
 
     Inven_Item copyItem;
     copyItem.setCopy(storeItem.m_item);
-    int useCount = count;                       // ORIG local_8e
+    // [R28wrt §34.2.2 字段写修复] ORIG 0x085c81d5/0x085c81d8 `mov 0x10(%ebp),%eax;
+    //   mov %eax,-0x8a(%ebp)` = copyItem(@-0x91)+0x07 = Inven_Item::m_addInfo2
+    //   （Inven_Item.h:280，int）← 第 3 形参 count（0x10(%ebp)）；紧随的
+    //   0x085c81f7/0x085c81fd 为条件覆盖（copyItem+0x01==8 ⇒ storeItem.m_item.m_addInfo2），
+    //   两者均在 BuyItem 调用之前。旧 `int useCount`（独立槽 -0x30）为**误建模**
+    //   ——消费实证 CPrivateStore::BuyItem ORIG 0x085c9280/0x085c9286
+    //   `mov 0x10(%ebp),%eax; mov 0x7(%eax),%eax` 直读 &copyItem+0x07（第 2 形参）。
+    copyItem.m_addInfo2 = count;                // ORIG local_8e = copyItem+0x07（非独立槽）
     int buyResult = -1;                          // ORIG local_2c
     int outSlot = 0;                             // ORIG local_4c
     if ((int)copyItem.m_field1 == 8)             // avatar：数量实参替换为 avatar uid
-        useCount = (int)storeItem.m_item.m_addInfo2;
+        copyItem.m_addInfo2 = (int)storeItem.m_item.m_addInfo2;
 
     if (IsTradeLimitAttachTypeItem(copyItem))
     {
@@ -147,7 +154,7 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
         return false;
     }
     int commission = GetCommissionPercent() * price / 100;
-    SellItem(slot, copyItem, price, commission, useCount,
+    SellItem(slot, copyItem, price, commission, copyItem.m_addInfo2,
              (int)storeItem.m_item.m_addInfo2);
     SubtractItemCount(itemInfo, storeItem, count);
     SavePrivateStore();
@@ -159,13 +166,13 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
     SendUsers(&packet, 0, 0);
 
     packet.MakeNotipacketBuyPrivateStoreItem(
-        m_pSeller, (int)copyItem.m_addInfo, slot, useCount,
+        m_pSeller, (int)copyItem.m_addInfo, slot, copyItem.m_addInfo2,
         m_pBuyer->getCurCharacName(), price, commission);
     m_pSeller->Send(packet);
 
     packet.MakeCmdpacketBuyPrivateStoreItem(m_pBuyer, copyItem,
                                             (int)dealGoldB, (int)dealGoldA,
-                                            buyResult, useCount);
+                                            buyResult, copyItem.m_addInfo2);
     m_pBuyer->Send(packet);
 
     unsigned char flagByte = 0;              // ORIG local_27

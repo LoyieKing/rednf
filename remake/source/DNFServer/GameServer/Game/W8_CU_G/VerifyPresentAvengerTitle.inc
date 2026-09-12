@@ -73,30 +73,22 @@ bool CUser::VerifyPresentAvengerTitle()
     }
 
     Inven_Item item;
-    int itemIdx = 0x28d3af;         // [b28d-C08 · C05② 旋钮**两态已试毕**，勿再烧] ORIG
-                                    // 0x868b7b0/7ba
-                                    // 为 `mov -0x8c(%ebp),%eax; test %eax,%eax; je` +
-                                    // `cmp $0xffffffff,%eax`（寄存器比较），曾按 P209/
-                                    // P218 档② 改 unsigned 期望翻正；fresh 实测 int/
-                                    // unsigned **两态同形**（widthscan cmp_l 恒 our=2）
-                                    // —— 本件是「test 零比较 + cmp $imm 常量比较」双比较点，
-                                    // itemIdx 在零比较点后仍被复用（日志 `itemidx(%u)`，
-                                    // ORIG 0x868b9ae `mov -0x8c(%ebp),%edi`）⇒ 按 A12 口径
-                                    // 属「⚠ 可试一次」，但**已试尽**：4.4 恒折
-                                    // `cmpl $0x0/-0x1c(%ebp)` 内存直比（同 A01 check_error、
-                                    // D01 loadFromString 负例）⇒ **N18b 常量比较子型**
-                                    // 封顶，回退 int 保持最小改动。
-                                    // ORIG 0x868b77c 独立栈槽 -0x8c（非 Inven_Item
-                                    // 成员——0x868b77c 与 item@-0x8e 尺寸不重叠实证；
-                                    // ChronicleRandomOptionInfo 亦无 +1 偏移 int 成员）
-                                    // b28d-W8: 去 const —— ORIG 0x868b9ae 从槽
-                                    // `mov -0x8c(%ebp),%edi` 读回，4.4 对 const 常量
-                                    // 传播成 `movl $0x28d3af,0x10(%esp)`（少 1 条 + 无槽）。
+    // [R28wrt §34.2.2 字段写修复] ORIG 0x0868b77c `movl $0x28d3af,-0x8c(%ebp)` 是
+    //   **item(@-0x8e)+0x02 = Inven_Item::m_addInfo** 的写入（判据 Inven_Item.h:269
+    //   `unsigned int m_addInfo; // +0x02`），**不是**独立栈槽 —— 旧注释「ORIG 0x868b77c
+    //   独立栈槽 / 非 Inven_Item 成员」为**误判（已删除）**：0x0868b76e
+    //   `lea -0x8e(%ebp),%eax` 即 item 基址（同址实参 Inven_Item::C1Ev @0x0868b777 与
+    //   create_item @0x0868b796），-0x8e + 0x02 ≡ -0x8c 精确重合。
+    //   消费链（缺写 ⇒ 读未初始化值）：CItemList::create_item ORIG 0x08511fd2/0x08511ff3
+    //   `mov 0x10(%ebp),%eax; mov 0x2(%eax),%eax` 直读 item+0x02 作 find_item(int)
+    //   实参（0x08511fe2 call）；返回 0 时落失败/错误日志块（0x08511ff0 起）⇒ 本字段
+    //   必须在 create_item 之前写入。
+    item.m_addInfo = 0x28d3af;
     // ORIG 0x868b78b `mov 0xc(%eax),%eax` 直读 m_itemList 成员（getItemList
     // 转发 call orig=0，具名字段直访）。
     G_CDataManager()->m_itemList->create_item(
         static_cast<ENUM_ITEM_CREATE_TYPE>(0), item, 1);
-    if (itemIdx != 0 && itemIdx != -1)
+    if (item.m_addInfo != 0 && item.m_addInfo != 0xffffffffu)
     {
         setFlagPresentAvengerTitle(true);
 
@@ -127,11 +119,11 @@ bool CUser::VerifyPresentAvengerTitle()
             (int)GetUID(), get_acc_id(), getCurCharacNo());
 
         // b28d-W8: P227 全表达式临时链 —— ORIG 0x868b9ae..0x868ba1b 在 cMyTrace
-        // ctor 前右起求值 itemIdx(%edi)→characNo(%esi)→NumberToString(%ebx)，
+        // ctor 前右起求值 item+0x02(%edi)→characNo(%esi)→NumberToString(%ebx)，
         // 三值全程寄存器无槽 ⇒ 原码无具名局部（P0）。
         cMyTrace(__PRETTY_FUNCTION__, 0xa6eb, 0)(
             "avenger plan event item post m_id(%s),charac_no(%u), itemidx(%u)",
-            NumberToString(get_acc_id(), 0), getCurCharacNo(), itemIdx);
+            NumberToString(get_acc_id(), 0), getCurCharacNo(), item.m_addInfo);
         return 1;
     }
     return 0;

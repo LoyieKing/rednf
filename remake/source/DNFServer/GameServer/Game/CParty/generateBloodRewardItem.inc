@@ -130,6 +130,15 @@ void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
         {
             WongWork::stGenerateResult_t specific;
             Inven_Item made;                        // -0x14e（默认构造）
+            // [R28wrt §34.2.2 字段写修复] ORIG 0x085b8a74/0x085b8a77
+            //   `mov -0x20(%ebp),%eax; mov %eax,-0x148(%ebp)` = made(@-0x14a)+0x02
+            //   = Inven_Item::m_addInfo（Inven_Item.h:269，unsigned int）← ultIdx
+            //   （ORIG 槽 -0x20），位于 0x085b8aa2 `call create_item` **之前**
+            //   （4.1 直落形：值先载 %eax 再 store，字段与 RHS 异型 ⇒ RHS-first）。
+            //   消费链（缺写 ⇒ 读未初始化值）：create_item ORIG 0x08511fd2/0x08511ff3
+            //   `mov 0x10(%ebp),%eax; mov 0x2(%eax),%eax` 直读 item+0x02 作
+            //   find_item(int) 实参；找不到 ⇒ 落失败/错误日志块 ⇒ 邮件物品 idx 恒错。
+            made.m_addInfo = ultIdx;
             G_CDataManager()->m_itemList->create_item(
                 ENUM_ITEM_CREATE_TYPE_1, made, 1);
             specific.m_dropItems.push_back(made);

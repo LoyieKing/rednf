@@ -223,7 +223,11 @@ void CParty::clear_reward(int param)
                             user->GetGuildDBInfo())->m_memberCount));  // +0x22
                 unsigned int tempExp =
                     static_cast<unsigned int>(user->get_guild_temp_exp());
-                float weight = G_CDataManager()->m_guildParameter.getExpWeight(guildLvl);
+                // [R28a07 ④-精度轴] ORIG 0x085ae9b0/0x085ae9d3：`fildll tempExp; fstpl -0x360;
+                //   call getExpWeight; fmull -0x360` —— getExpWeight 返回值**无** fstps 舍入
+                //   ⇒ 原码局部类型是 **double**（getExpWeight 返回 double）。原写 float 多一次
+                //   double→float 舍入（有效位 53→24），w 的小数位 >24bit 时 addExp 分叉。
+                double weight = G_CDataManager()->m_guildParameter.getExpWeight(guildLvl);
                 int addExp = static_cast<int>(
                     static_cast<double>(weight) *
                         static_cast<double>(tempExp));
@@ -251,7 +255,8 @@ void CParty::clear_reward(int param)
                         user->GetGuildDBInfo())->m_memberCount));  // +0x22
             unsigned int tempExp =
                 static_cast<unsigned int>(user->get_guild_temp_exp());
-            float weight = G_CDataManager()->m_guildParameter.getExpWeight(guildLvl);
+            // [R28a07 ④-精度轴] 同上（ORIG 0x085af4xx 第二处同构）。
+            double weight = G_CDataManager()->m_guildParameter.getExpWeight(guildLvl);
             int addExp = static_cast<int>(
                 static_cast<double>(weight) * static_cast<double>(tempExp));
             // ORIG:条件为 != 0(today 分支先发射,add_guild_exp 为 else)。
@@ -473,12 +478,21 @@ void CParty::clear_reward(int param)
     if (m_battleField.m_pDungeon->m_89e != 1)
     {
         int killCount = bd.GetTotalKilledMonsterCount();
+        // [R28a07 ④-精度轴] ORIG 0x085ae99e..0x085ae9b0：`mov $0x0,%edx; mov %eax,-0x310;
+        //   mov %edx,-0x30c; fildll -0x310; fstps -0x33c`（= `(float)(unsigned)mobReward`
+        //   **具名落盘**），随后 `fildl killCount; fmuls -0x33c` —— 原码 mobReward 先舍入为
+        //   float（24bit 有效位）再乘；原写表达式内联使 4.4 保持 x87 80 位（少一次舍入，
+        //   mobReward ≥ 2^24 时 baseExp 分叉）。P252 具名 float 局部强制落盘。
+        float mw = static_cast<float>(mobReward);
         float baseExp = static_cast<float>(killCount) *
-                        static_cast<float>(mobReward) / 2.0f * partyBonusRate;
+                        mw / 2.0f * partyBonusRate;
         float diffWeight =
             spScript->m_monsterExpTable398[bfView.get_dungeon_diff()];
-        double weighted =
-            static_cast<double>(baseExp) * static_cast<double>(diffWeight);
+        // [R28a07 ④-精度轴] ORIG 0x085af97d..0x085af99c：`flds 表项; flds -0x338(baseExp);
+        //   fmulp; **fstps -0x334**; call get_exp_weight; fmuls -0x334` ⇒ 原码 weighted 是
+        //   **float**（舍入点）；原写 `double weighted` 使 4.4 发 `fstpl`（double 舍入点），
+        //   |weighted| > 2^24 时 totalMobExp 分叉。P252 同族。
+        float weighted = baseExp * diffWeight;
         totalMobExp = static_cast<unsigned int>(static_cast<long long>(
             weighted * m_battleField.m_pDungeon->get_exp_weight()));
     }
@@ -500,12 +514,14 @@ void CParty::clear_reward(int param)
         {
             G_CDataManager()->get_mob_reward(user->get_charac_level(), mobReward);
             int killCount = bd.GetTotalKilledMonsterCount();
+            // [R28a07 ④-精度轴] 同上（ORIG 0x085af3xx 第二处同构，fstps -0x324 具名落盘）。
+            float mw = static_cast<float>(mobReward);
             float baseExp = static_cast<float>(killCount) *
-                            static_cast<float>(mobReward) / 2.0f * partyBonusRate;
+                            mw / 2.0f * partyBonusRate;
             float diffWeight =
                 spScript->m_monsterExpTable398[bfView.get_dungeon_diff()];
-            double weighted =
-                static_cast<double>(baseExp) * static_cast<double>(diffWeight);
+            // [R28a07 ④-精度轴] 同上（ORIG 0x085afaax 第二处同构，fstps -0x324）。
+            float weighted = baseExp * diffWeight;
             totalMobExp = static_cast<unsigned int>(static_cast<long long>(
                 weighted * m_battleField.m_pDungeon->get_exp_weight()));
         }
@@ -689,6 +705,14 @@ void CParty::clear_reward(int param)
             {
                 questItem.reset();
                 entry = clearItems.at(ci);
+                // [R28-04 §34.2.2 真④] ORIG 0x085b0698/0x085b069e：
+                //   `mov -0x184(%ebp),%eax; mov %eax,-0x1fb(%ebp)`
+                //   = questItem(+0x02 m_addInfo) = entry.first（本次要造的 itemId）。
+                //   消费链（ORIG）：CItemList::create_item @0x08511fcd 先
+                //   `set_add_info(count)` 写 +0x07，随后 0x08511fd5
+                //   `mov 0x2(%eax),%eax` + 0x08511fe2 `find_item` 取 +0x02 作 itemId
+                //   ⇒ 缺此写则 find_item(未初始化/0) 走建物失败路径。
+                questItem.m_addInfo = entry.first;
                 G_CDataManager()->m_itemList->create_item(
                     static_cast<ENUM_ITEM_CREATE_TYPE>(1), questItem,
                     entry.second);

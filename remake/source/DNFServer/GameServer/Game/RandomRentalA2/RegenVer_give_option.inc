@@ -82,7 +82,7 @@ bool CRandomOptionItemHandle::RegenVer_give_option(
             1, "RandomOption.cpp",
             __PRETTY_FUNCTION__,
             0x1fe, "different_weight_ (%d,%d) ",
-            (int)(unsigned char)rarity, (int)outGrade);
+            (int)rarity, (int)outGrade);
         return false;
     }
     int dwA = dw->second.m_field0;

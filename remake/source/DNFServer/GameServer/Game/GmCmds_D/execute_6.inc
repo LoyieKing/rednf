@@ -132,7 +132,11 @@ void CIndependentDrop::execute()
                 ->m_independentDrops);
         if (!drops.empty())
         {
-            sprintf(lineBuf, "%d\t%d\t%s\n", *sit, 0,
+            // [R28fmt 2026-09-13 §34.2.1 实参来源轴] ORIG 0x084b1146/0x084b1148/
+            // 0x084b114c/0x084b1150：arg3(0xc)=*sit、arg2(0x8)=0（`mov (%eax),%eax;
+            // mov %ebx,0x10(%esp); mov %eax,0xc(%esp); movl $0x0,0x8(%esp)`）⇒ 源码为
+            // (0, *sit, name)——原 (sit, 0) 使输出列序相反（0/1 标志与怪物 ID 互换）。
+            sprintf(lineBuf, "%d\t%d\t%s\n", 0, *sit,
                     static_cast<STMonsterScript*>(monster->getMonsterScript())
                         ->m_name.c_str());
             strcat(content, lineBuf);
@@ -155,7 +159,9 @@ void CIndependentDrop::execute()
         std::vector<stMonsterIndependentDrop_t> drops = ai->getIndepentDropItem();
         if (!drops.empty())
         {
-            sprintf(lineBuf, "%d\t%d\t%s\n", *sit, 1, ai->GetName());
+            // [R28fmt 2026-09-13 §34.2.1 实参来源轴] ORIG 0x084b12d1/0x084b12d5：
+            // arg3(0xc)=*sit、arg2(0x8)=1 ⇒ 源码为 (1, *sit, name)。
+            sprintf(lineBuf, "%d\t%d\t%s\n", 1, *sit, ai->GetName());
             strcat(content, lineBuf);
             ResultToStr(drops, content);
             ++count;

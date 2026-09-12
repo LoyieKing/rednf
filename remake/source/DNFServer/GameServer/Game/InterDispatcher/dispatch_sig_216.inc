@@ -94,6 +94,14 @@ int Inter_VillageAttackedEnd::dispatch_sig(CUser* /*user*/, char* data, int /*le
                 }
 #undef S207_REVENGE_CONDS
             }
+            else
+            {   // ORIG 0x084df8c3 `cmpl $0x3,-0x20(%ebp); jne 0x084dfa5d`（Ghidra local_20 = get_state()）
+                // ⇒ st != 3 时 ORIG 跳过发包段（0x084df9ed put_binary / 0x084dfa16 finalize /
+                //    0x084dfa29 SetVillageAttackedReward / 0x084dfa3b Send）直达循环增量段
+                //    （0x084dfa5d = PacketGuard D1 + iterator ppEi）。我方原先落到发包段 ⇒ 多发 0x1ec 包。
+                // R28a15 ④ 修复（与同函数恒真 flag(-0x22) 重测无关）。
+                continue;
+            }
         }
         else
         {

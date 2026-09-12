@@ -3,6 +3,8 @@
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e2bde orig/ours=185/179 ndiff-blocks=30
 //   帧差 sub $fc vs $dc + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0xfc,%esp | mov    %eax,-0x1c(%ebp) | lea    -0x9b(%ebp),%eax
+// R28p2p §34.2.1（实参符号性轴，2026-09-13）：trace2/trace4 的 min/max/avg 六处实参补 (short)
+//   ⇒ 复现 ORIG 的 movzwl+cwtl / movzwl+movswl %ax,%esi 符号扩展（原先只有单条 movzwl 零扩展）。
 int Dispatcher_P2P_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
     (void)param;                                                // ORIG 不读写 param
@@ -35,9 +37,9 @@ int Dispatcher_P2P_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& pa
                     0x5954, 0);
     trace2("num(%d) min(%d) max(%d), avg(%d), 100(%u), 200(%u), 300(%u), 400(%u)",
            (int)pkt.m_p2pUser,                                  // num=diff（ORIG ebx=-0x91）
-           (int)pkt.m_p2pMinPing,                               // min（movswl 符号扩展）
-           (int)pkt.m_p2pMaxPing,                               // max
-           (int)pkt.m_p2pAvgPing,                               // avg
+           (int)(short)pkt.m_p2pMinPing,                        // min（ORIG 0x081e2d48 movzwl; 0x081e2d4f movswl %ax,%esi）
+           (int)(short)pkt.m_p2pMaxPing,                        // max（ORIG 0x081e2d3a movzwl; 0x081e2d41 cwtl）
+           (int)(short)pkt.m_p2pAvgPing,                        // avg（ORIG 0x081e2d2c movzwl; 0x081e2d33 cwtl）
            (unsigned int)pkt.m_p2pOverPing100, (unsigned int)pkt.m_p2pOverPing200,
            (unsigned int)pkt.m_p2pOverPing300, (unsigned int)pkt.m_p2pOverPing400);
 
@@ -49,7 +51,9 @@ int Dispatcher_P2P_Statistics::process(CUser* user, MSG_BASE& msg, ParamBase& pa
                     0x595f, 0);
     trace4("num(%d) min(%d) max(%d), avg(%d), 100(%u), 200(%u), 300(%u), 400(%u)",
            (int)pkt.m_relayUser,                                // num（ORIG ebx=-0x8d=(char)msg+0x0e）
-           (int)pkt.m_relayMinPing, (int)pkt.m_relayMaxPing, (int)pkt.m_relayAvgPing,
+           (int)(short)pkt.m_relayMinPing,                      // min（ORIG 0x081e2e36 movzwl; 0x081e2e3a movswl %ax,%esi）
+           (int)(short)pkt.m_relayMaxPing,                      // max（ORIG 0x081e2e2b movzwl; 0x081e2e2f cwtl）
+           (int)(short)pkt.m_relayAvgPing,                      // avg（ORIG 0x081e2e20 movzwl; 0x081e2e24 cwtl）
            (unsigned int)pkt.m_relayOverPing100, (unsigned int)pkt.m_relayOverPing200,
            (unsigned int)pkt.m_relayOverPing300, (unsigned int)pkt.m_relayOverPing400);
 

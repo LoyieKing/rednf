@@ -79,7 +79,7 @@ bool CRandomOptionItemHandle::give_option(itemIndex_t itemIdx,
             1, "RandomOption.cpp",
             __PRETTY_FUNCTION__,
             0x319, "different_weight_ (%d,%d) ",
-            (int)(unsigned char)rarity, (int)outGrade);
+            (int)rarity, (int)outGrade);
         return false;
     }
     // [R9form4 2026-09-12 形态对齐] ORIG 0x085f2cc6 段：单次 `ptEv` 后整体拷贝 8 字节子对象
@@ -111,6 +111,12 @@ bool CRandomOptionItemHandle::give_option(itemIndex_t itemIdx,
     // ⇒ ORIG 的 -0x10/-0xc 两槽对应的是**循环变量 i 与 sel 的具名声明**
     // （我方 slotI 单变量已同时承担两者、同步递增，补独立索引纯增冗余指令）。
     // 判据⑫ 在本件不成立，已回退；give_option 残余维持 P292 族判词。
+    // [R28fmt 2026-09-13 §27.4 求值次数/支配域] ORIG 的 iterator 默认构造
+    // （`_ZN9__gnu_cxx17__normal_iteratorIP11OptionGroupSt6vectorIS1_SaIS1_EEEC1Ev`
+    // @0x085f309d）发射在 for-init（`movl $0x0,-0xc` @0x085f30a2）**之前** = 循环外
+    // （回边 0x085f32a0→0x085f30ae）；我方原先声明在 if 块内 ⇒ C1Ev 每轮在回边区发射。
+    // 声明上提后与 ORIG 同点（默认构造为平凡置 NULL，语义不可观察，仅求值次数/域对齐）。
+    std::vector<OptionGroup>::iterator victim;
     for (int slotI = 0; slotI < quantity && slotI <= 2; ++slotI)
     {
         unsigned long bound = (unsigned long)remaining;
@@ -123,7 +129,6 @@ bool CRandomOptionItemHandle::give_option(itemIndex_t itemIdx,
                 .get_value();
         if (sel < groupVec.size())
         {
-            std::vector<OptionGroup>::iterator victim;
             victim = groupVec.begin() + sel;
             // [K2ERandomBoss 2026-09-11] P167 差集：ORIG 2×`iterator::deEv`（同一
             // victim 解引用两次）+ 无 `vector::ixEj`；原 `OptionGroup og = groupVec[sel]`
