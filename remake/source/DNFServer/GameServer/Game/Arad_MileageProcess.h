@@ -22,7 +22,7 @@ class ItemVendingMachine;
 class Arad_MileageProcess
 {
 public:
-    Arad_MileageProcess(ItemVendingMachine* vm);  // ORIG W 0x0817a2ce（C1=C2 同址）
+    Arad_MileageProcess(ItemVendingMachine* vm) throw();  // ORIG W 0x0817a2ce（C1=C2 同址）
     ~Arad_MileageProcess();                       // ORIG W 0x0817a2dc（空体；非虚）
 
     void BuySuccess(CUser* user, int a2, int a3, int a4, int a5, int a6, int a7,

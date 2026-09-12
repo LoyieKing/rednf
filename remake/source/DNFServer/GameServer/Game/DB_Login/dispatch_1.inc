@@ -213,7 +213,10 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
     // ---- GetGameDBInfo：1 => 重查失败错误码 0xf；否则更新登录统计 ----
     if (GetGameDBInfo(sig) != 1)
     {
-        UpdateLoginStat(userDbIdx, sig);
+        // [R6a05 ④ 修复] ORIG 0x0840fdc7/0x0840fdca：`mov 0x10(%ebp),%eax; mov %eax,0x4(%esp)`
+        // ⇒ 第一实参是第 3 形参 slot（非 userDbIdx）；其余 9 处 UpdateLoginStat 调用
+        // 均为 userDbIdx（0xc(%ebp)），仅此点不同 ⇒ 原写成 userDbIdx 会更新错误的 DB 行。
+        UpdateLoginStat(slot, sig);
     }
     else
     {

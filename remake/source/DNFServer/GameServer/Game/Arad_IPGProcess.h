@@ -26,7 +26,7 @@ class ItemVendingMachine;
 class Arad_IPGProcess
 {
 public:
-    Arad_IPGProcess(ItemVendingMachine* vm);   // ORIG W 0x0817a2ba（C1=C2 同址）
+    Arad_IPGProcess(ItemVendingMachine* vm) throw();   // ORIG W 0x0817a2ba（C1=C2 同址）
     ~Arad_IPGProcess();                        // ORIG W 0x0817a2c8（D1=D2 同址，空体；非虚）
 
     void CashShopModeCoin(CUser* user, unsigned short param2, unsigned int param3,

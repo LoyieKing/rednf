@@ -3518,7 +3518,12 @@ public:
     void EventDungeonClearReward(std::vector<std::pair<int, int> > const& items);
     // ORIG W 0x08689576 _ZN5CParty…（实为 _ZN5CUser23EventDungeonClearRewardERKSt6vectorISt4pairIiiESaIS2_EE；
     // clear_reward 事件地下城奖励链消费；定义待事件域批次）
-    unsigned char IsUsedCoinInDungeon() const;
+    // [R6a18 类型旋钮对齐·Main 授权] 返回类型 unsigned char→bool（返回类型不入 mangled、
+    //   布局/偏移零变化）。依据：ORIG 唯一消费点 CParty::ClearDungeon 0x085a96d4 段为
+    //   `call IsUsedCoinInDungeon; xor $0x1,%eax; test %al,%al; je`（raw 字节
+    //   0x085a96d9 = 83 f0 01 84 c0 74 3a）⇒ P292 消费端判据 = bool；
+    //   字段 m_field8eae0 已为 bool（值域 {0,1}）⇒ 语义不变、指令与 ORIG 同形。
+    bool IsUsedCoinInDungeon() const;
     void ResetCoinCount();
     int GetUsedCoinCount();
     void set_trick_area(int area);

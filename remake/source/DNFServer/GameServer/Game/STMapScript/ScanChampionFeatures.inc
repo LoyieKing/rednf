@@ -1,10 +1,11 @@
-// [b28d-solo-STMapScript] _Z20ScanChampionFeaturesiR15STAssignMonster：AE（离开 DIFF/NEAR）。
-// 修法：补 ORIG 具名临时 feature@-0x14（P0 值先物化）并置于 tok 之前，复现槽序
-// -0x18(tok)/-0x14(feature)/-0x10(i)/-0xc(k)。p167 残 1：ORIG push_back(int&&)（4.1 视同型
-// cast 为 prvalue），4.4 对 (int)feature 多一条 mov ⇒ 保留 lvalue 形；int 拷贝/移动等价（N）。
+// [b28d-solo-STMapScript + R6a20 ④ 修复] _Z20ScanChampionFeaturesiR15STAssignMonster
+// 槽序 -0x18(tok)/-0x14(prvalue 临时)/-0x10(i)/-0xc(k)；ORIG 0x089e6d57 只一次 store 到
+// -0x14（**绑定临时**，非具名局部），0x089e6d6a call 目标 = push_back(int&&)（EOi）。
+// 旧译文用 lvalue `push_back(feature)` ⇒ 选中 ERKi（const int&）调用目标不同；
+// 用具名局部 + static_cast<int&&> 会多一对 store/load（实测 AE→DIFF 劣化）。
+// 正解 = prvalue 形 `(int)CHAMPION_FEATURE_LIST[k]`：物化单个 -0x14 临时并 lea 直传。
 void ScanChampionFeatures(int count, STAssignMonster& monster)
 {
-    int feature;                       // ORIG -0x14(%ebp)：值先物化再传址（P0）
     std::string tok;
     for (int i = 0; i < count; ++i)
     {
@@ -13,10 +14,8 @@ void ScanChampionFeatures(int count, STAssignMonster& monster)
         {
             if (tok == CHAMPION_FEATURE_NAME[CHAMPION_FEATURE_LIST[k] & 0xff])
             {
-                feature = CHAMPION_FEATURE_LIST[k];   // ORIG 0x089e6d4d-0x089e6d6a
-                // ORIG 调 push_back(int&&)（4.1 把同类型 cast 视作 prvalue）；
-                // 4.4 对 (int)feature 产额外 mov ⇒ 保留 lvalue 形（拷贝/移动对 int 等价）。
-                monster.m_vec28.push_back(feature);
+                // ORIG 0x089e6d4d-0x089e6d6a：prvalue 临时 + push_back(int&&)
+                monster.m_vec28.push_back((int)CHAMPION_FEATURE_LIST[k]);
                 break;
             }
         }

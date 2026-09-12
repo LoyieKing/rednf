@@ -6,11 +6,15 @@ void CUser::_processEffectItem(CStackableItem* item, unsigned int itemIdx,
                                unsigned int curSec)
 {
     // P0/P183（b28d-G3C 复核 2026-09-10）：删具名 uchar tag 槽。ORIG 0x0865ec1d
-    //   `movzbl 0x2e0(%eax),%eax; xor $0x1,%eax; test %al,%al; je <+0x58>`
+    //   `movzbl 0x2e0(%eax),%eax; xor $0x1,%eax; test %al,%al; je 0x0865ec66`
     //   —— **无栈槽往返**（xor 在 %eax 全宽 = int 提升域，test 落 %al = 截断后判零）。
     //   我方原形多 3 条：`mov %al,-0x2d; xorb $1,-0x2d; cmpb $0,-0x2d`（独有 -0x2d 槽，
     //   并连带 StatChangeInfo 对象被顶到 -0x48，ORIG 在 -0x38）。改为内联表达式。
-    if (!(unsigned char)(item->m_stat2dc.m_flagLo ^ 1))
+    // [R6a19 2026-09-12 语义修复] ORIG 的 je 落点 0x0865ec66 = **主流程**（movzbl 0x2dc
+    //   起）⇒ 条件为假（flag^1==0，即 flag==1）直落 fall-through 的 trace 块，条件为真
+    //   （flag^1!=0，即 flag!=1）才跳到主流程。故报错条件是 (flag^1)!=0 = flag!=1；
+    //   旧形 `!(flag^1)`（=flag==1 才报错）与 ORIG 逐值相反（0↔1 互换），本次改正。
+    if ((unsigned char)(item->m_stat2dc.m_flagLo ^ 1))
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x391e, 0)
             ("ERROR : Mismatch tag [stat change duration] and "

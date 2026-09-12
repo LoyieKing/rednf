@@ -15,8 +15,14 @@ int IsEquipable(CUser* user, const CItem* item, int slot)
     //   ⇒ A 为真时不评 B；A 为假且 B==slot 时也不返回。
     //   旧写两个独立 if（`if(!A()) return 0x11; if(B()!=slot) return 0x11;`）在两处多返回：
     //   ①A 真 & B!=slot ②A 假 & B==slot ⇒ 已按 ORIG 合并为短路与。
-    if (!item->IsCreatureItem() && item->GetItemType() != slot)
-        return 0x11;
+    // [R6a10 2026-09-12 P360 形态对齐] ORIG 0x085003d9 与 0x085003f2 两条 je **同落 +0x48**
+    // （短路与语义不变），且第二条件独立物化 `cmp 0x10(%ebp),%eax; setne %al; test %al,%al; je`。
+    // 写成 `&&` 链时 4.4 恒折成链尾 mov $1/mov $0 岛（无 setne）；拆成嵌套 if 即逐条件复现 ORIG。
+    if (!item->IsCreatureItem())
+    {
+        if (item->GetItemType() != slot)
+            return 0x11;
+    }
     // ORIG 8500406/8500438：getFootControlRateLimit 两处各自调用（P48 去缓存）
     if (item->getFootControlRateLimit() >= 0) {
         // [SemA06 试形 C] 去具名 ratio 局部（ORIG 侧该槽为 4.1 的表达式临时）

@@ -59,12 +59,18 @@ bool DB_TOD_Reset_UserAPC::GetAPCUserInfo(_APCInfo& info)
             trace("TOD:select guild db fail, guild_id:%d, server_id:%d",
                   guildId, serverId);
         }
-        else if (db8->get_n_rows() != 0 &&
-                 !db8->get_str(0, info.m_guildName, 0x16))
+        // [R6a10 2026-09-12 P360 形态对齐] ORIG 0x0844082b..0x0844085e：
+        // `test %eax,%eax; setne %al; test %al,%al; je 0x084408b0` 与第二条件
+        // `xor $1,%eax; test %al,%al; je 0x084408b0` **同落出口**（短路与语义不变）。
+        // `&&` 链会折掉 setne；拆嵌套 if 即复现。
+        else if (db8->get_n_rows() != 0)
         {
-            cMyTrace trace(__PRETTY_FUNCTION__, 0x9f4e, 5);
-            trace("TOD:select guild db fail, guild_id:%d, server_id:%d",
-                  guildId, serverId);
+            if (!db8->get_str(0, info.m_guildName, 0x16))
+            {
+                cMyTrace trace(__PRETTY_FUNCTION__, 0x9f4e, 5);
+                trace("TOD:select guild db fail, guild_id:%d, server_id:%d",
+                      guildId, serverId);
+            }
         }
     }
     int triples[0x73][3];   // slot/it_id/clear_avatar_id × 115（0x564 字节）

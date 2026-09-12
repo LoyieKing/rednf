@@ -14,7 +14,10 @@
 // ORIG 0x088be63d。
 int getGrowTypeIndex(const char* name)
 {
-    int idx = -1;                     // ORIG 首指令 movl $0xffff,-0x20
+    // [R6a14 · ④ 修复] ORIG 0x088be649 raw 字节 `c7 45 e0 ff ff 00 00`
+    // = movl $0x0000ffff,-0x20(%ebp) ⇒ 初值 0xffff（非 -1）。调用点
+    //（StScriptImporters/importQPGuideScript.inc）用 `grow == 0xffff` 判失败。
+    int idx = 0xffff;
     for (;;)
     {
         static GrowTypeMap __lookup;  // ORIG ...E8__lookup

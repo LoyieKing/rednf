@@ -81,7 +81,10 @@ void CUser::giveLotteryCountItem(int itemNo, bool match)
             //   照抄 ORIG（其 findString 返回 0 时 strncpy(NULL) 为 ORIG 自身缺陷）。
             strncpy(msg, g_scriptStringManager_.findString(
                        4, "game_server_msg_104", (bool*)0), 0xff);
-            msg[0xff] = '\0';
+            // 2026-09-12（R6a08 §高#17）：ORIG 0x086918b4 `call strncpy@plt` 之后
+            //   紧接 0x086918b9 `mov 0x8(%ebp),%eax`（无补 NUL 写、无 movb $0x0,-0x9b）
+            //   ⇒ 我方旧形多写 msg[0xff]='\0'（NEW 0x08488bd9 `movb $0x0,-0x9b(%ebp)`）。
+            //   按用户裁定「完全复刻 ORIG 逻辑（含缺陷）」删除该防御性写入。
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 getCurCharacName(), it, 0, (unsigned int)getCurCharacNo(),
                 msg, (int)strlen(msg), 0, GetServerGroup(), false, false);

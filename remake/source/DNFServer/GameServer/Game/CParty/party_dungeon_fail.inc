@@ -38,7 +38,10 @@ void CParty::party_dungeon_fail()
     if (reinterpret_cast<CBattle_Field*>(&m_battleField)->m_villageMonsterId != 0)
         skipPanalty = 1;
     if (dungeon != 0 &&
-        (dungeon->get_dimension_possible() >= 1 ||
+        // [R6scan27/Main · #27] ORIG 0x085b370c `call get_dimension_possible` → 0x085b3711
+        //   `test %al,%al` + 0x085b3713 `jg`（raw 84 c0 7f 0e）= **有符号 >0**；
+        //   原写 `>= 1`（unsigned char ⇒ 无符号 setne/jne）⇒ 值 ≥0x80 分叉。
+        ((signed char)dungeon->get_dimension_possible() > 0 ||
          // ORIG 085b3718 `movzbl 0x89c(%eax)` = CDungeon::m_89c（unsigned char，
          // 宽度修正：原 (char*)→movsbl 异形）
          dungeon->m_89c != 0))

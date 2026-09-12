@@ -810,10 +810,12 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
                 if (item.get_add_info() < addInfo)
                     return 0x11;
                 item.set_add_info(addInfo);
-                int exist = getCurCharacCargoR()->check_item_exist(item.m_addInfo);
-                if (exist >= 0)
-                    toSlot = exist;
-                else
+                // ORIG 0x0866228a：`shr $0x1f,%eax; test %al,%al; je 0x086622dc`
+                // —— 本分支 check_item_exist 结果不落槽、**不写 toSlot**，直落正常路径
+                // （tryInsertItemSpecialSlot 收旧 toSlot）。case 0 同型点 ORIG 0x0865fb62/65
+                // 确有 `mov %eax,0x20(%ebp)`，勿照抄。
+                if ((((unsigned int)getCurCharacCargoR()->check_item_exist(
+                         item.m_addInfo)) >> 31))
                 {
                     if (!getCurCharacCargoR()->check_slot_empty(toSlot))
                     {

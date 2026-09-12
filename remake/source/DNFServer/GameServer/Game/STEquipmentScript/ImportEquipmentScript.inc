@@ -2268,17 +2268,22 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 else
                 {
                 // ORIG LAB_08999014：分档号由 ScanInt 读出（bool* 出参形式）；
-                // find==end 时先 [key].clear()，else 分支仍走一次 operator[]（保证
-                // 存在默认元素），最后再取 &table[key] 作为当前参数区。
+                // find==end（该档尚不存在）时仅求值一次 operator[]（建立默认元素），
+                // find!=end（该档已存在）时才 [key].clear() 重置旧参数；最后再取
+                // &table[key] 作为当前参数区。
+                // [R6a00 2026-09-12 ④ 修正] 原实现把两分支体写反（缺失才 clear）：
+                // ORIG 0x89990e8 `je 0x8999107`（eq 为假 = 已存在）落入 clear 块
+                // （0x899911d ix + 0x8999125 call clear），fall-through（缺失）仅 ix；
+                // raw 0x89990e6 = `84 c0 74 1d`。第五轮误判 EQUAL。
                 int key = ScanInt(&boolScratch);
                 std::map<int, EquipmentParameterInfo>& table = script->m_paramMap678;
                 if (table.find(key) == table.end())
                 {
-                    table[key].clear();
+                    table[key];
                 }
                 else
                 {
-                    table[key];
+                    table[key].clear();
                 }
                 curParam = &table[key];
                 curParam->m_414 = 1;
@@ -2294,20 +2299,24 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 }
                 else
                 {
-                // ORIG LAB_08999174：进入“分档 0”参数区。find(0)==end() 时先
-                // table[0].clear()，否则仍求值一次 table[0]（保证默认元素存在），
-                // 最后再取 &table[0] 作为当前参数区并置 m_414 = 1、清计数。
+                // ORIG LAB_08999174：进入“分档 0”参数区。find(0)==end()（尚不存在）
+                // 时仅求值一次 table[0]（建立默认元素），find(0)!=end()（已存在）时
+                // 才 table[0].clear() 重置；最后再取 &table[0] 作为当前参数区并置
+                // m_414 = 1、清计数。
+                // [R6a00 2026-09-12 ④ 修正] 同上一处：ORIG 0x899923e `je 0x8999267`
+                // （eq 假 = 已存在）落入 clear 块（0x8999287 ix + 0x899928f call clear），
+                // fall-through（缺失）仅 ix。
                 std::map<int, EquipmentParameterInfo>& table = script->m_paramMap678;
                 int probeKey = 0;
                 if (table.find(probeKey) == table.end())
                 {
-                    int clearKey = 0;
-                    table[clearKey].clear();
+                    int existKey = 0;
+                    table[existKey];
                 }
                 else
                 {
-                    int existKey = 0;
-                    table[existKey];
+                    int clearKey = 0;
+                    table[clearKey].clear();
                 }
                 int layKey = 0;
                 curParam = &table[layKey];

@@ -34,6 +34,11 @@ void GrowthEquipEvent::GiftGrowthWeaponBox(CUser& user) const
     if (itemBase == 0)
         return;
 
+    // [R6a20 ④ 修复] ORIG 0x080f70f0 `mov -0x14(%ebp),%eax; mov %eax,-0x53(%ebp)`：
+    //   -0x53 = item+0x02 = Inven_Item::m_addInfo（pack(1) 布局见 Inven_Item.h），
+    //   即源码在此把礼包箱 idx 写进 item 本体；我方此前漏写该字段。
+    item.m_addInfo = giftBoxIdx;
+
     // vtable+0x08 = CItem::make_item(Inven_Item&) const
     itemBase->make_item(item);
     item.set_add_info(1);           // ORIG Inven_Item::set_add_info(item,1)
@@ -45,7 +50,9 @@ void GrowthEquipEvent::GiftGrowthWeaponBox(CUser& user) const
                 4, "game_server_msg_278", static_cast<bool*>(0)),
             0xff);
 
-    if (giftBoxIdx != 0)
+    // [R6a20 ④ 修复] ORIG 0x080f7160 `mov -0x53(%ebp),%eax; test %eax,%eax; je`：
+    //   判定读的是 item.m_addInfo（同槽），非本地 giftBoxIdx ⇒ 复刻 ORIG 读源。
+    if (item.m_addInfo != 0)
     {
         // [b28c-L18/N2 复核] ORIG 0x080f7055 `sub $0x180,%esp` + `push %esi;push %ebx`：
         // len/characNo 均无槽（%esi/%ebx 保活）。实测去具名局部三个变体全部反劣：
