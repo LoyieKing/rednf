@@ -38,7 +38,9 @@ int Dispatcher_CeraPackageOpen::process(CUser* user, MSG_BASE& msg,
     {
         return 1;                                           // 静默返回（ORIG ebx=1）
     }
-    if (!item->is_stackable() || item->GetItemType() != 0x26)
+    // ORIG 0x081e79d3：第二段守卫为 `item == 0 || !is_stackable() || GetItemType() != 0x26`
+    // 负极性短路链（ORIG 二次判空 `cmpl $0x0,-0x20(%ebp); je 0x081e7a02(失败岛)`，第九轮 ④ 补齐）
+    if (item == 0 || !item->is_stackable() || item->GetItemType() != 0x26)
     {
         // vtable+0xc 直调 = GetItemType()（P5；CItem.h 虚序 D1/D0/make_item/GetItemType）
         return 1;

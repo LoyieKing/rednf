@@ -118,27 +118,18 @@ void GameWorld::ResetAllFatigue()
             // 322/305 与行级 diff 465 行逐值不变（4.4 对 bool/int register 同折叠
             // `mov %eax,%ebx`，ORIG 0x086cc750 的 `test %al,%al; je; mov $0x1,%eax; jmp;
             // mov $0x0,%eax; mov %eax,%edi` 物化岛不可造）⇒ 类型档无效，已回滚 bool 形。
-            register bool bApplied = false;
-            if (isFirst)
-            {
-                // [b28d-solo-GameWorld] P52/P134 链式单语句：ORIG 0x086cc6f2 getCurSec
-                // 先求值存 %edi（跨 Get/findGameScript 保活），字面量直构按值 string
-                // 临时（0x086cc71e 单次 C1EPKc，无 _ZNSsC1ERKSs）；具名 name 局部会多发
-                // 一次拷贝构造 + 2 次析构（p167 EXTRA 实证）。
-                if (static_cast<ARAD::Arad_EventPeriodDataManager*>(
-                        ARAD::Singleton<ARAD::Arad_DataManager>::Get()->findGameScript(
-                            std::string("Arad_EventPeriodDataManager")))
-                        ->isApplied((ENUM_REPEAT_EVENT_CODE)0x8e,
-                                    GlobalData::s_systemTime_.getCurSec()) != 0)
-                {
-                    bApplied = true;
-                }
-                else
-                {
-                    bApplied = false;
-                }
-            }
-            if (bApplied)
+            // [R9a09 #33 ④] ORIG 0x086cc6e9 `je 0x086cc75b`（isFirst 失败）与
+            // 0x086cc752 `je 0x086cc75b`（isApplied 失败）**同落**同一 0/1 归一化点
+            // ⇒ 原码是单表达式短路 `if (isFirst && ...->isApplied(...))`；我方旧形
+            // register bool bApplied + if/else 赋值 ⇒ 4.4 产「先 `mov %al,%bl` 存值 +
+            // 析构后才归一化」，ORIG 的两个短路守卫在我方缺失（#33）。
+            // 改为单表达式条件短路（P52/P134 链式单语句保持 getCurSec 先求值）。
+            if (isFirst &&
+                static_cast<ARAD::Arad_EventPeriodDataManager*>(
+                    ARAD::Singleton<ARAD::Arad_DataManager>::Get()->findGameScript(
+                        std::string("Arad_EventPeriodDataManager")))
+                    ->isApplied((ENUM_REPEAT_EVENT_CODE)0x8e,
+                                GlobalData::s_systemTime_.getCurSec()) != 0)
             {
                 // ORIG 0x086cc7c8 `lea -0x58(%ebp),%eax; call AradServerStateMessage::C1`
                 // = 直接栈对象（无 placement-new extern call/landing，N83）。

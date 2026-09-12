@@ -1,5 +1,9 @@
 // [b28d-lane2] verdict=DIFF ndiff=214（ORIG 0x084e43bc）：槽序/帧差(N82/P212/P221)+混合残差；gap-12。
 // [b28d-solo-InterDispatcher] verdict=DIFF（ORIG 0x84e43bc）：本轮删死 NumberToString 调用（p167 CLEAR）；余 P226/N18a/P30。
+// [R9a08] Send 返回 bool（CUser.h:2988 串定 / ORIG AntibotSend 0x086485a7 `movzbl -0x173ad(%ebp),%eax`），
+//   原 `char sendRet=(char)target->Send(...)` + `sendRet != 0` 多出 3 条 setne 物化
+//   （我方 8175698 `cmpb $0x0,-0x9(%ebp); setne %al; movzbl %al,%ebx`），
+//   ORIG 0x084e46ee 为 `movzbl -0x9(%ebp),%ebx` 直读 ⇒ 改 bool 局部 + 直传（值域 {0,1} 等价）。
 int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_Antibot_SendBufferClientPktView* pPkt = reinterpret_cast<Inter_Antibot_SendBufferClientPktView*>(data);
@@ -60,7 +64,7 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
     packet.put_binary(
         buffer, (int)(short)pPkt->m_8);
     packet.finalize(false);
-    char sendRet = (char)target->Send(packet);
+    bool sendRet = target->Send(packet);
 
     if (packetType == 0x230)
     {
@@ -83,7 +87,7 @@ int Inter_Antibot_SendBufferClient::dispatch_sig(CUser* /*user*/, char* data, in
         target->m_historyLog.SendBuffertoClientLog(
             pPkt->m_0,
             (short)pPkt->m_8,
-            (unsigned char)target->m_field4++, sendRet != 0);
+            (unsigned char)target->m_field4++, sendRet);
     }
     return 0;
 }

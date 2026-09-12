@@ -4000,14 +4000,17 @@ struct EventCommon
                      0xaea, 0)("[InsertAvatarItem] period value : %s", date);
         }
     }
-    char* jewel = db->blob_to_str(0, ((DB_AvatarInsertView*)sig)->m_jewel, 0x1e);
+    // [R9form4 2026-09-12 形态对齐] 删具名 `char* jewel` 局部，blob_to_str 内联进 set_query
+    //   实参位（ORIG 0x083ffe0e 段：实参求值槽组 -0xc0ac/-0xc0a8/-0xc0a4/-0xc0a0/-0xc09c，
+    //   我方旧形多一个 -0x20 具名槽致全帧槽平移 4）。
     db->set_query(q, ((DB_AvatarInsertView*)sig)->m_characNo,
                   ((DB_AvatarInsertView*)sig)->m_slot,
                   ((DB_AvatarInsertView*)sig)->m_itId, date,
                   ((DB_AvatarInsertView*)sig)->m_obtainFrom,
                   ((DB_AvatarInsertView*)sig)->m_abilityNo,
                   ((DB_AvatarInsertView*)sig)->m_agency,
-                  ((DB_AvatarInsertView*)sig)->m_stat, jewel,
+                  ((DB_AvatarInsertView*)sig)->m_stat,
+                  db->blob_to_str(0, ((DB_AvatarInsertView*)sig)->m_jewel, 0x1e),
                   ((DB_AvatarInsertView*)sig)->m_hiddenOption,
                   ((DB_AvatarInsertView*)sig)->m_emblemEndurance,
                   ((DB_AvatarInsertView*)sig)->m_field4f,

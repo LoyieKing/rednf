@@ -61,7 +61,9 @@ int Dispatcher_CranePickUp::dispatch_sig(CUser* user, PacketBuf& packet)
         guard.put_header(1, 0x1e7);
         guard.put_byte(1);
         guard.put_int(pickIdx);
-        guard.put_short((short)G_CGameManager()->GetCraneMinigameManager()->getItemCnt((int)slot));
+        // [R9a06] 去冗余 `(short)` cast：ORIG 0x0821d78d `call getItemCnt` 后直接
+        //   `mov %eax,0x4(%esp)`（无 cwtl）；我方原 cast 多一条 `cwtl`（0x081c6aba）。
+        guard.put_short(G_CGameManager()->GetCraneMinigameManager()->getItemCnt((int)slot));
         guard.finalize(true);
         user->Send(guard);
         return 0;                                                     // guard 析构 0858de80

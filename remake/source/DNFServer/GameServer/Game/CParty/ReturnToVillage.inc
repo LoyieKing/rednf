@@ -71,9 +71,13 @@ void CParty::ReturnToVillage()
         // （P214③/P116：rep stos 立即数是 dword 次数不是字节长度）⇒ 缓冲 char[0x100]，
         // 且 -0x138+0x100 = -0x38 恰接 PacketGuard 槽。
         char names[0x100] = {0};
-        // [2026-09-10 真缺口修正] ORIG 本分支仅 0x085acafe 一次 `call _getMemberNames`
-        // （LeaveDungeon 实参求值点），此前无独立调用（p167 曾 EXTRA +1）⇒ 删除独立调用；
-        // names 仍由实参内联调用填充，语义等价。
+        // [R9a07 ④ 修复·ORIG 直证] ORIG 0x085acd96..0x085acda6：for 循环**外**独立调用一次
+        // `_getMemberNames(buf)`（`lea -0x138(%ebp),%eax; mov %eax,0x4(%esp); mov 0x8(%ebp),%eax;
+        // mov %eax,(%esp); call`，返回值丢弃；紧随 0x085acdab `movl $0x0,-0x1c(%ebp)` 循环变量
+        // 初始化）；循环内 LeaveDungeon 第 3 实参为**直接取址** `lea -0x138(%ebp),%eax;
+        // mov %eax,0xc(%esp)`（0x085ace2f）。旧码把该调用内联进循环内实参位 ⇒ 动态调用次数/
+        // 时机与 ORIG 不同（两侧静态站点数相同，p167 调用差集对此类位置搬移是盲的）。
+        _getMemberNames(names);
         for (int i = 0; i <= 3; ++i)
         {
             if (_checkValidUser(i))
@@ -90,7 +94,7 @@ void CParty::ReturnToVillage()
                     m_member[i].m_pUser->m_historyLog.LeaveDungeon(
                         m_battleField.m_pDungeon->GetDungeonName(),
                         reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_diff(),
-                        _getMemberNames(names),
+                        names,
                         m_battleField.m_bloodState);
                 }
                 if (m_battleField.m_pDungeon != 0)

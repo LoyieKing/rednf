@@ -162,14 +162,22 @@ void SpecialItemHandler::respond_special_item_premium(int type,
         break;
     case 0x21:
     {
-        if (flag2 == 0 && count != 0 &&
-            !user->IsRestrictedGoods(count))
+        // [R9a04 第九轮 §14#33] ORIG 0x0827d7f4/0x0827d7fa/0x0827d813 三跳**同落**
+        //   0x0827d874（无可达 bool 物化岛）；4.4 对 `&&` 链恒产 `mov $1/jmp/mov $0/
+        //   test/je` 岛 ⇒ 改嵌套 if 复现 ORIG 直跳形（探针 t6/t9 实证）。
+        if (flag2 == 0)
         {
-            user->SetRestrictedGoods(count);
-            int serverCode = 0;
-            if (g_SPremiumInfo[ptype].m_useTargetServer == 1)
-                serverCode = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x378
-            m_owner->SaveFeaturedIdx(user, count, (int)timeVal, serverCode);
+            if (count != 0)
+            {
+                if (!user->IsRestrictedGoods(count))
+                {
+                    user->SetRestrictedGoods(count);
+                    int serverCode = 0;
+                    if (g_SPremiumInfo[ptype].m_useTargetServer == 1)
+                        serverCode = G_CEnvironment()->m_serverEnvir.m_serverGroup;  // +0x378
+                    m_owner->SaveFeaturedIdx(user, count, (int)timeVal, serverCode);
+                }
+            }
         }
         count = G_CDataManager()->m_itemList->GetRestrictCode(item);
         flag = 1;
@@ -258,11 +266,16 @@ void SpecialItemHandler::respond_special_item_premium(int type,
     }
 
     // ---- 公共收尾（switch 之后）----
-    if (count != 0 && user->IsRestrictedGoods(count) != 1)
+    // [R9a04 第九轮 §14#33] ORIG 0x0827dc8c/0x0827dca5 两跳**同落** 0x0827dce1
+    //   （无 bool 物化岛）⇒ 嵌套 if 复现（同上探针依据）。
+    if (count != 0)
     {
-        user->SetRestrictedGoods(count);
-        int ts = premium_helper_function::get_target_server(ptype);
-        m_owner->SaveFeaturedIdx(user, count, (int)timeVal, ts);
+        if (user->IsRestrictedGoods(count) != 1)
+        {
+            user->SetRestrictedGoods(count);
+            int ts = premium_helper_function::get_target_server(ptype);
+            m_owner->SaveFeaturedIdx(user, count, (int)timeVal, ts);
+        }
     }
 
     // [CeraShop12Run 2026-09-11 旋钮C] ORIG 0x0827dcf5..0x0827dd17 为

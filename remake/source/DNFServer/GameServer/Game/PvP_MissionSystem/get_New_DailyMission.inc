@@ -65,7 +65,16 @@ void PvP_MissionSystem::get_New_DailyMission(
                 //   （m = mi->second; if (m != 0)）"实测 486→**476**（比 ORIG 480
                 //   少 7 条，劣化）⇒ 回滚为 `&& mi->second != 0` 单链形
                 //   （代价 = 多 1 次 ptEv call，实测优于拆分形）。
-                if (!(mi == m_missionMap.end()) && mi->second != 0)
+                // [R9a12 2026-09-12 SEMANTIC-DIFF 修复] ORIG 0x085e2947 `test %al,%al;
+                //   jne 0x085e2a1e`：mi==end 时跳到 0x085e2a1e = `nop; ++li`
+                //   （内层 list 循环继续），**不减 weight、不 tmp.erase(li)、不 break**；
+                //   旧文把 mi==end 与 mi->second==0 合并（`!(mi==end) && mi->second!=0`
+                //   的 false 边统一落到 0x085e29db 的 erase+break）⇒ mi==end 时误执行
+                //   erase+break。两侧调用多重集 73=73 完全相同、p167 CLEAR ⇒ 只能靠
+                //   逐 jcc 守卫存在性对照（PROTOCOL_R9 §14 #33）发现（#33 盲区实证）。
+                if (mi == m_missionMap.end())
+                    continue;
+                if (mi->second != 0)
                 {
                     // [P2S1PvPQuest 2026-09-11 P167] ORIG 0x85e2792/0x85e2956 用
                     //   `_ZNKSt17_Rb_tree_iteratorISt4pairIKiP8CMissionEEptEv`

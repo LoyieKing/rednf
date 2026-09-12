@@ -235,7 +235,11 @@ int CUser::lottery_item(int slot)
             resItem->getExpirationDate());
     } else {
         // ---- 普通道具（含随机选项生成）----
-        if (resItem != NULL && resItem->IsRandomOption()) {
+        // [R9a20 2026-09-12 ④] 删除 `resItem != NULL &&` 防御性判空（复刻 ORIG）：
+        //   ORIG 0x08674062 `mov -0x50(%ebp),%eax; mov (%eax),%eax; add $0x4c,%eax`
+        //   直接解引用（无 cmpl/je）；我方 4.4 为判空多发 `cmpl $0x0,-0x5c(%ebp); je`
+        //   （改前 .o 0x10c6 实测）。删除后新 .o 0x10c6 段与 ORIG 逐条同形。
+        if (resItem->IsRandomOption()) {
             if (!GlobalData::g_randomOptionHandle->give_option(
                     resultId,
                     static_cast<ENUM_RARITY>(resItem->get_rarity()),
@@ -347,9 +351,14 @@ int CUser::lottery_item(int slot)
     }
 
     if (eligibleToShout) {
+        // [R9a20 2026-09-12 ④] 原 `(resItem != NULL && resItem->IsRandomOption())` 判空
+        //   已删除：ORIG 0x086747e9 `cmp $0x1,%eax` / `je` 后直接
+        //   `0x086747ee mov -0x50(%ebp),%eax; 0x086747f1 mov (%eax),%eax`（无判空）；
+        //   我方改前多发 `cmpl $0x0,-0x5c(%ebp); je`（.o 0x184f）。删除后新 .o 0x184f
+        //   段与 ORIG 同形；函数前向 jcc 数 75→72 = ORIG。
         bool skipByPlace =
             (getMoveSpace() == static_cast<UserSpace::T>(1)) ||
-            (resItem != NULL && resItem->IsRandomOption());
+            (resItem->IsRandomOption());
         if (!skipByPlace) {
             PacketGuard shout;                                    // local_100
             shout.put_header(0, 0x56);

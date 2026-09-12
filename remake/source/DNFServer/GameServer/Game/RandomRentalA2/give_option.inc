@@ -82,8 +82,10 @@ bool CRandomOptionItemHandle::give_option(itemIndex_t itemIdx,
             (int)(unsigned char)rarity, (int)outGrade);
         return false;
     }
-    int dwA = dw->second.m_field0;
-    int dwB = dw->second.m_field4;
+    // [R9form4 2026-09-12 形态对齐] ORIG 0x085f2cc6 段：单次 `ptEv` 后整体拷贝 8 字节子对象
+    //   （`mov 0x8(%eax),%edx; mov 0x4(%eax),%eax; mov %eax,-0x78; mov %edx,-0x74`）；
+    //   旧形两次 `dw->second.m_*` 独立访问 ⇒ 两次 ptEv（p167 EXTRA ×1）。
+    DifferentWeightValue dwV = dw->second;
 
     // 组值表：map<int, OptionGroupValue> @+0x160。
     std::map<int, OptionGroupValue>::const_iterator ogIt =
@@ -131,9 +133,9 @@ bool CRandomOptionItemHandle::give_option(itemIndex_t itemIdx,
             groupVec.erase(victim);
 
             opts->m_fields[slotI].m_field1 =
-                (unsigned char)_get_option_value(dwA, dwB);
+                (unsigned char)_get_option_value(dwV.m_field0, dwV.m_field4);
             opts->m_fields[slotI].m_field2 =
-                (unsigned char)_get_option_value(dwA, dwB);
+                (unsigned char)_get_option_value(dwV.m_field0, dwV.m_field4);
         }
     }
 

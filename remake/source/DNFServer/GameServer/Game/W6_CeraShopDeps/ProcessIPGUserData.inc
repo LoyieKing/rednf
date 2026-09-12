@@ -166,8 +166,10 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                                 G_CDataManager()->FindGoods(groupIdx));
                             CItem* found =
                                 G_CDataManager()->find_item(static_cast<int>(itemIdx64));
-                            if (goods != 0 && found != 0 &&
-                                goods->GetSticker() == 0x16)
+                            // [R9a15] ORIG 0x08322439 直证：无 goods/found 判空，
+                            // 直接 `mov -0x48(%ebp),%eax; call GetSticker`（我方旧稿多
+                            // 两级短路守卫 + bool 归一岛，属 §14 #33「ORIG 无守卫我方有」）。
+                            if (goods->GetSticker() == 0x16)
                             {
                                 const int kindValue = found->GetItemType();
                                 user->SetChildrensDayEventValue(kindValue, insertSlot,

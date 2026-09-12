@@ -119,10 +119,12 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
         (void)accId;
         if (0 < playSec && playSec < 0x2a31)
         {
-            CStatisticServerProxy* proxy =
-                GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0);
-            if (proxy != 0)
-                proxy->SendPacket((char*)&ting, 0x12);
+            // [R9a14 ④ #17/#33] ORIG 0x08648f34→0x08648f48：GetServerProxy 返回值**直接**
+            //   作 this 调用（0x08648f39/41/45 实参后 0x08648f48 `call SendPacket`），
+            //   全段无 `cmpl $0x0` / `je` ⇒ 原码无判空守卫，我方多出的防御性守卫已删。
+            GlobalData::s_statistic_proxy_mgr
+                ->GetServerProxy((ENUM_SERVER_GROUP)0)
+                ->SendPacket((char*)&ting, 0x12);
         }
     }
 
@@ -199,10 +201,11 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
             specPkt.m_errorLine = (short)GetLastLoginChannelNo();     // +0x10
             memcpy((char*)specPkt.m_specs, hwSpec + 4, hwCount * 0xc);
             int specLen = (int)(unsigned short)(hwCount * 0xc + 0x12);
-            CStatisticServerProxy* proxy = GlobalData::s_statistic_proxy_mgr
-                ->GetServerProxy((ENUM_SERVER_GROUP)GetServerGroup());
-            if (proxy != 0)
-                proxy->SendPacket(specBase, specLen);
+            // [R9a14 ④ #17/#33] ORIG 0x08649339→0x08649349：GetServerProxy 返回值直接
+            //   作 this（0x0864933e/42/46 实参），无 `cmpl $0x0`/`je` 判空 ⇒ 删除守卫。
+            GlobalData::s_statistic_proxy_mgr
+                ->GetServerProxy((ENUM_SERVER_GROUP)GetServerGroup())
+                ->SendPacket(specBase, specLen);
         }
         // ORIG +0x95a：队列 1 投递（在 if(+0x8d0df) 块之后，无条件执行）。
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);

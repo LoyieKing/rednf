@@ -71,8 +71,13 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
         ack.finalize(true);
         user->Send(ack);
     }
-    if (!GlobalData::s_villageMonsterMgr->OnEvent() &&
-        GlobalData::s_villageMonsterMgr->GetRewardType() == 1)
+    // [R9a16 §14 #33] ORIG 两条独立前向 jcc 各自直跳 body 之后（0x085b9b96 /
+    // 0x085b9bb1 同目标 0x085b9de7）：0x085b9b91 `xor $0x1; test; je` 与
+    // 0x085b9bac `sete %al; test; je`。旧码 `if (!A && B)` 合并短路 ⇒ 4.4 产
+    // 「链首直跳 + mov $1/jmp/mov $0/test/je 岛」（P360 给错形）⇒ 拆嵌套 if 复现。
+    if (!GlobalData::s_villageMonsterMgr->OnEvent())
+    {
+    if (GlobalData::s_villageMonsterMgr->GetRewardType() == 1)
     {
         // [轴 B，地址自校 0x085b9be0] ORIG `mov -0x2c,%eax; cmp -0x30,%eax;
         // jb +0x24a` = **无符号**比较（我方旧文 int 产 `jl`，符号性相反）。
@@ -134,6 +139,7 @@ int CParty::OnFinishVillageMonsterFighting(CUser* user, bool flag)
                 }
             }
         }
+    }
     }
         ret = 0;                                        // ORIG 085b9de7 `mov $0x0,%ebx`
     }

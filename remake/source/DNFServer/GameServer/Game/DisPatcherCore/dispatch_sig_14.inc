@@ -34,10 +34,9 @@ int DisPatcher_QuestAction::dispatch_sig(CUser* user, PacketBuf& packet)
                 short local_28;
                 if (packet.get_short(local_28) != true)
                 {
-                    LineFunc(0x7149,
-                             __PRETTY_FUNCTION__,
-                             0, 0);
-                    return 0;
+                    return LineFunc(0x7149,
+                                    __PRETTY_FUNCTION__,
+                                    0, 0);
                 }
                 int local_24 = reinterpret_cast<int>(G_CDataManager()->find_quest(static_cast<int>(local_28)));
                 if (local_24 == 0)
@@ -80,28 +79,25 @@ int DisPatcher_QuestAction::dispatch_sig(CUser* user, PacketBuf& packet)
                 short local_4c;
                 if (packet.get_short(local_4c) != true)
                 {
-                    LineFunc(0x71b9,
-                             __PRETTY_FUNCTION__,
-                             0, 0);
-                    return 0;
+                    return LineFunc(0x71b9,
+                                    __PRETTY_FUNCTION__,
+                                    0, 0);
                 }
                 char local_4a;
                 if (packet.get_byte(local_4a) != true)
                 {
-                    LineFunc(0x71ba,
-                             __PRETTY_FUNCTION__,
-                             0, 0);
-                    return 0;
+                    return LineFunc(0x71ba,
+                                    __PRETTY_FUNCTION__,
+                                    0, 0);
                 }
                 char local_49[14];
                 local_49[0] = '\0';
                 if ((((local_4a == '\x10') || (local_4a == ' ')) || (local_4a == '@')) &&
                     (packet.get_byte(local_49[0]) != true))
                 {
-                    LineFunc(0x71c4,
-                             __PRETTY_FUNCTION__,
-                             0, 0);
-                    return 0;
+                    return LineFunc(0x71c4,
+                                    __PRETTY_FUNCTION__,
+                                    0, 0);
                 }
                 user->quest_action(static_cast<int>(packet.at(1) & 0xff), static_cast<int>(local_4c),
                                    static_cast<int>(local_4a), static_cast<int>(local_49[0]));
@@ -112,26 +108,23 @@ int DisPatcher_QuestAction::dispatch_sig(CUser* user, PacketBuf& packet)
                 short local_3b;
                 if (packet.get_short(local_3b) != true)
                 {
-                    LineFunc(0x719a,
-                             __PRETTY_FUNCTION__,
-                             0, 0);
-                    return 0;
+                    return LineFunc(0x719a,
+                                    __PRETTY_FUNCTION__,
+                                    0, 0);
                 }
                 short local_39;
                 if (packet.get_short(local_39) != true)
                 {
-                    LineFunc(0x719b,
-                             __PRETTY_FUNCTION__,
-                             0, 0);
-                    return 0;
+                    return LineFunc(0x719b,
+                                    __PRETTY_FUNCTION__,
+                                    0, 0);
                 }
                 short local_37[7];
                 if (packet.get_short(local_37[0]) != true)
                 {
-                    LineFunc(0x719c,
-                             __PRETTY_FUNCTION__,
-                             0, 0);
-                    return 0;
+                    return LineFunc(0x719c,
+                                    __PRETTY_FUNCTION__,
+                                    0, 0);
                 }
                 if (0 < local_37[0])
                 {

@@ -335,9 +335,9 @@ bool CAssaultMgr::OnRequestAssault(CUser* attacker, CUser* target, int* result)
             Inven_Item equipSlot =
                 static_cast<const CInventory*>(attacker->getCurCharacInvenR())->GetInvenSlot(0, 0xb);
             const int itemIdx = equipSlot.m_addInfo;
-            CDataManager* cdm = G_CDataManager();
-            const CItem* discountItem =
-                (cdm != 0) ? cdm->find_item(itemIdx) : 0;
+            // ORIG 082eed66..082eed75：G_CDataManager() 结果直供 this（无 cdm 具名槽、
+            // 无判空分支）——旧版防御性 `(cdm != 0) ? : 0` 已按 ORIG 移除（§10 #17）。
+            const CItem* discountItem = G_CDataManager()->find_item(itemIdx);
             if (discountItem != 0)
             {
                 const float discount =

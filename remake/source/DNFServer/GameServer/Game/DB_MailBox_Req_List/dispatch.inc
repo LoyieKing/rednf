@@ -387,8 +387,17 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
     // ORIG 0x0841ef03 `mov -0x214(%ebp),%eax; test; je body` + 调用后
     // `xor $1,%eax; test %al; je body` ⇒ 原码是短路 `||`（if/else + bool
     // 局部恒多发 movb/cmpb 两条）。
-    if (creatureList[0] == 0 ||
-        setCreatureData(db, req->m_characNo, creatureList, sig))
+    // [R9a16 §14 #33] ORIG 0x0841ef0b / 0x0841ef3e 两条独立 `je 0x0841ef4a`（=then 体）：
+    // 短路 `||` 的 4.1 lowering（`mov -0x214; test; je` + `xor $1; test; je`）；4.4 对
+    // 同形 `||` 恒产「sete/mov $1/jmp/mov $0/test/je」bool 物化岛 ⇒ 改「正极性包裹 +
+    // 早退」复现（P214①：负极性短路恒 je;jne 反演）。
+    if (creatureList[0] != 0)
+    {
+        if (!setCreatureData(db, req->m_characNo, creatureList, sig))
+        {
+            return 0;
+        }
+    }
     {
         SIG_U32(sig, SIG_OFF_CHARAC_NO) = req->m_characNo;
         SIG_U32(sig, SIG_OFF_FIELD3336) = req->m_field10;
@@ -400,5 +409,4 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
     }
-    return 0;
 }

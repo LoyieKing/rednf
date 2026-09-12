@@ -121,8 +121,11 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             int v = std::atoi(args[2].c_str());
             if (-1 < v && v < 10000)
             {
-                unsigned int maxFatigue = user->getCurCharacMaxFatigue();
-                user->setCurCharacFatigue(static_cast<int>(maxFatigue & 0xffff) - v);
+                // [R9a01 2026-09-12] ORIG 0x0820c796 无形参/具名槽、无冗余掩码：
+                //   `call; movzwl %ax,%eax; mov %eax,%edx; sub v,%edx`（P0 表达式直传；
+                //   movzwl 已零扩展 ⇒ 原 `& 0xffff` 是多余物化，按用户裁定移除）。
+                user->setCurCharacFatigue(
+                    static_cast<int>(user->getCurCharacMaxFatigue()) - v);
                 user->SendFatigue();
                 guard.put_header(1, 0xb3);
                 guard.put_byte(1);
@@ -819,11 +822,16 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
         int itemIdx = pItem->get_index();
         int count = 100;
-        if (pItem->is_stackable())
+        // [R9a01 2026-09-12] 补 ORIG 0x0821068f 判空守卫（`cmpl $0x0,-0xc0(%ebp);
+        // je 0x082106d9`，与 is_stackable 的 je 同落点 ⇒ 短路形 `pItem != 0 &&`）。
+        if (pItem != 0)
         {
-            if (static_cast<CStackableItem*>(pItem)->getStackableLimit() < count)
+            if (pItem->is_stackable())
             {
-                count = static_cast<CStackableItem*>(pItem)->getStackableLimit();
+                if (static_cast<CStackableItem*>(pItem)->getStackableLimit() < count)
+                {
+                    count = static_cast<CStackableItem*>(pItem)->getStackableLimit();
+                }
             }
         }
         ENUM_ITEMSPACE space = (ENUM_ITEMSPACE)0;
@@ -951,11 +959,16 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         }
         int idx = pItem->get_index();
         int count = 100;
-        if (pItem->is_stackable())
+        // [R9a01 2026-09-12] 补 ORIG 0x082114b6 判空守卫（`cmpl $0x0,-0x90(%ebp);
+        // je 0x08211500`，与 is_stackable 的 je 同落点 ⇒ 短路形 `pItem != 0 &&`）。
+        if (pItem != 0)
         {
-            if (static_cast<CStackableItem*>(pItem)->getStackableLimit() < count)
+            if (pItem->is_stackable())
             {
-                count = static_cast<CStackableItem*>(pItem)->getStackableLimit();
+                if (static_cast<CStackableItem*>(pItem)->getStackableLimit() < count)
+                {
+                    count = static_cast<CStackableItem*>(pItem)->getStackableLimit();
+                }
             }
         }
         ENUM_ITEMSPACE space = (ENUM_ITEMSPACE)0;

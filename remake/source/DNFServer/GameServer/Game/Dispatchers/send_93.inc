@@ -2,6 +2,16 @@
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N82] ORIG 0x081e1704 orig/ours=154/163 ndiff-blocks=34
 //   帧差 sub $30 vs $40 + 槽号漂移（4.1 不按 lifetime 复用栈槽）
 //   首差: sub    $0x30,%esp | mov    %eax,-0xc(%ebp) | lea    -0x1c(%ebp),%eax
+// [R9form4 2026-09-12 形态对齐] 三处源形（ORIG 0x081e1704 逐条实证）：
+//   ① ORIG 无 vector 引用槽：begin/end 调用点各自 `mov -0xc(%ebp),%eax; lea 0xc(%eax),%edx`
+//      （我方旧形 `add $0xc,%eax; mov %eax,-0x1c(%ebp)` 多槽 + 帧 0x40 vs 0x30）⇒ 改宏内联展开；
+//   ② ORIG 无 v0..v3 具名标量槽（我方旧形 `mov %ax,-0x16; movswl -0x16,%eax` 往返 ×4）
+//      ⇒ put 调用与 ++it 交错、实参取 `de` 结果直传（P0/P183）；
+//   ③ ORIG put_byte(out.m_4) 直传 int（`mov 0x4(%eax),%eax; mov %eax,0x4(%esp)`），
+//      无 `and $0xff` ⇒ 删掩码（P162）。
+#define R9F4_OBU_REWARDS(p)                                                       \
+    (*reinterpret_cast<std::vector<int>*>(                                        \
+        const_cast<char*>(reinterpret_cast<const char*>(&(p))) + 0xc))
 void Dispatcher_ObjectBringUp::send(CUser* user, ParamBase& param)
 {
     // [G1-Dispatchers 负结论] 试删具名 `out` 引用改内联 cast 表达式：our 164→162（gap −11→−9）
@@ -21,31 +31,25 @@ void Dispatcher_ObjectBringUp::send(CUser* user, ParamBase& param)
         if (out.m_b != 0)
         {
             // +0x0c 处 vector<int>：每轮消费 4 个 int（short,int,int,short）
-            // P96：ORIG 侧为非 const `vector<int>::begin/end` + `__normal_iterator<int*>`（p167：我方
-            // const 版 begin/end/ppEv/de 共 10 项 EXTRA），故此处必须取非 const 引用。
-            std::vector<int>& rewards =
-                *reinterpret_cast<std::vector<int>*>(
-                    const_cast<char*>(reinterpret_cast<const char*>(&out)) + 0xc);
-            std::vector<int>::iterator it = rewards.begin();
-            while (it != rewards.end())
+            // P96：ORIG 侧为非 const `vector<int>::begin/end` + `__normal_iterator<int*>`，
+            // 且 begin/end 调用点各自经宏重取 vector 地址（无引用槽）。
+            std::vector<int>::iterator it = R9F4_OBU_REWARDS(out).begin();
+            while (it != R9F4_OBU_REWARDS(out).end())
             {
-                const short v0 = static_cast<short>(*it); ++it;
-                const int v1 = *it; ++it;
-                const int v2 = *it; ++it;
-                const short v3 = static_cast<short>(*it); ++it;
-                pg.put_short(v0);
-                pg.put_int(v1);
-                pg.put_int(v2);
-                pg.put_short(v3);
+                pg.put_short(*it); ++it;
+                pg.put_int(*it); ++it;
+                pg.put_int(*it); ++it;
+                pg.put_short(*it); ++it;
             }
         }
     }
     else
     {
         pg.put_byte(0);
-        pg.put_byte(out.m_4 & 0xff);
+        pg.put_byte(out.m_4);
     }
 
     pg.finalize(true);
     user->Send(pg);
 }
+#undef R9F4_OBU_REWARDS

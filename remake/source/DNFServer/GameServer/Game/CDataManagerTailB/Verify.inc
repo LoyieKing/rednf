@@ -240,7 +240,13 @@ bool CDataManager::Verify() const
         }
     }
 
-    if (!itemFail)
+    // [R9a15] ORIG 0x08361839 直证：item 段失败标志非 0 时 `mov $0x0,%ebx; jmp 0x083620e0`
+    // ⇒ 原码是 `if (itemFail) return false;`（我方旧稿写成 `if (!itemFail){...}` ⇒ 失败时
+    // 反而跳过全部后续 return true，返回值语义与 ORIG 相反）。
+    if (itemFail)
+    {
+        return false;
+    }
     {
         // [ORIG +0x0994..+0x1149] Quest 表奖励引用检查
         bool questFail = false;
@@ -278,7 +284,9 @@ bool CDataManager::Verify() const
                         trace("Quest reward item element not found "
                               "(quest: %d)(item: %d)",
                               quest->m_index, it->m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
-                        questFail = true;
+                        // [R9a15] ORIG 0x083619b4 直证：`movb $0x0,-0x61(%ebp)`（该 trace
+                        // 路径写 0，不置失败）⇒ 照抄 ORIG 缺陷，勿改为 true。
+                        questFail = false;
                     }
                 }
             }
@@ -297,7 +305,8 @@ bool CDataManager::Verify() const
                         trace("Quest reward select item element not found "
                               "(quest: %d)(item: %d)",
                               quest->m_index, it->m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
-                        questFail = true;
+                        // [R9a15] ORIG 0x08361afe 直证：`movb $0x0,-0x61(%ebp)` ⇒ 照抄。
+                        questFail = false;
                     }
                 }
             }
@@ -314,7 +323,8 @@ bool CDataManager::Verify() const
                         trace("Quest reward collision quest element now found "
                               "(quest: %d)(collision quest: %d)",
                               quest->m_index, *it);  // 【ORIG asm 08361b7e: quest+0x04】
-                        questFail = true;
+                        // [R9a15] ORIG 0x08361c17 直证：`movb $0x0,-0x61(%ebp)` ⇒ 照抄。
+                        questFail = false;
                     }
                 }
             }
@@ -334,13 +344,20 @@ bool CDataManager::Verify() const
                         trace("Quest reward collision item element not found "
                               "(quest: %d)(item: %d)",
                               quest->m_index, (*it).m_itemIdx);  // 【ORIG asm 08361b7e: quest+0x04】
-                        questFail = true;
+                        // [R9a15] ORIG 0x08361d55 直证：`movb $0x0,-0x61(%ebp)` ⇒ 照抄。
+                        questFail = false;
                     }
                 }
             }
         }
 
-        if (!questFail)
+        // [R9a15] ORIG 0x08361de5 直证：quest 失败标志非 0 时 `mov $0x0,%ebx; jmp 出口`
+        // ⇒ 原码是 `if (questFail) return false;`（旧稿 `if (!questFail){...}` 使失败时
+        // 跳过怪物/模拟段并 return true，与 ORIG 相反）。
+        if (questFail)
+        {
+            return false;
+        }
         {
             // [ORIG +0x1187..] 怪物等级区间检查（CDataManager+0x08 管理器 +
             // 0x18 monsterMap；CMonster+0x58/+0x5c level min/max）
@@ -380,6 +397,9 @@ bool CDataManager::Verify() const
             {
                 cMyTrace trace(__PRETTY_FUNCTION__, 0x2815, 9, true, true);
                 trace("Simulate dungeon clear data fail!!!!");
+                // [R9a15] ORIG 0x083620a6 直证：该失败路径 `mov $0x0,%ebx; jmp 0x083620d2`
+                // ⇒ 原码 return false（成功路径 0x083620ad `mov $0x1,%ebx` = 末尾 return true）。
+                return false;
             }
         }
     }

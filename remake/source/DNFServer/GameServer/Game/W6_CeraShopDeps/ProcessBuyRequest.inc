@@ -496,8 +496,10 @@ bool CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                 if (priced->is_stackable() &&
                     goodsList[i]->GetStackCount() > 1)
                 {
+                    // ORIG 0x8321b79 `movl $0x8c25d63,0x8(%esp)`（snprintf 调用 0x8321b92）：fmt = ORIG
+                    // 0x8c25d63 raw 字节 `25 73 20 25 64 b0 b3 00`（"%s %d개"，无前缀）。
                     OS_API::snprintf(itemName, 0x62,
-                                     "\xbd\xc3\xb4\xdc\xc7\xd2\xc0\xaf %s %d\xb0\xb3",
+                                     "%s %d\xb0\xb3",
                                      priced->GetItemName(),
                                      goodsList[i]->GetStackCount());
                 }
@@ -508,8 +510,10 @@ bool CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
             }
             else
             {
+                // ORIG 0x8321bd5 `movl $0x8c25d6b,0x8(%esp)`（snprintf 调用 0x8321bee）：fmt raw 字节
+                // `c4 da c0 ce 20 25 64 b0 b3 00`（"차인 %d개"）。
                 OS_API::snprintf(itemName, 0x62,
-                                 "\xbd\xc3\xb4\xdc\xc7\xd2\xc0\xaf %d\xb0\xb3",
+                                 "\xc4\xda\xc0\xce %d\xb0\xb3",
                                  goodsList[i]->GetStackCount());
             }
 

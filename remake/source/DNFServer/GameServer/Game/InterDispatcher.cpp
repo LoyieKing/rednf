@@ -6088,10 +6088,21 @@ struct Inter_NpcLimitBuyItemChangeInfoPktView
 #pragma pack(push, 1)
 // Inter_NpcLimitBuyItemInfoRenewPktView —— Inter_NpcLimitBuyItemInfoRenew::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
+// [R9form4 2026-09-12] 记录数组具名化（ORIG 0x084e6ed7 实证：`mov -0xc(%ebp),%edx; mov
+//   -0x10(%ebp),%ecx; mov %edx,%eax; add %eax,%eax; add %edx,%eax; shl $0x2,%eax;
+//   mov 0xe(%eax,%ecx,1),%eax` = base(具名 pPkt) + i*0xc + 0xe 折叠 disp）；
+//   递归记录步长 0xc、元素 3×int（+0x0/+0x4/+0x8）。
+struct Inter_NpcLimitBuyItemInfoRenewRec
+{
+    int m_f0;   // +0x00
+    int m_f1;   // +0x04
+    int m_f2;   // +0x08
+};
 struct Inter_NpcLimitBuyItemInfoRenewPktView
 {
     char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
+    Inter_NpcLimitBuyItemInfoRenewRec m_recs[1];  // +0x0e，步长 0xc（越界读照抄 ORIG，P171）
 };
 #pragma pack(pop)
 

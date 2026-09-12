@@ -69,12 +69,20 @@ void CGameManager::CheckOutPvp(CUser* user, bool flag)
                                       room->get_index(),
                                       NumberToString(user->get_acc_id(), 0));
             }
-            if (!flag && room->get_recv_pvp_rank_count() > 0)
+            // [R9a09 #33 ④] ORIG 0x08298118 `je 0x0829818a`（!flag 失败）与
+            // 0x0829812c `je 0x0829818a`（count<=0 失败）**同落**尾部出口 ⇒ 原码外层是
+            // 单表达式短路 `if (!flag && count > 0)`；我方旧形被 4.4 折成「链首 je 归一化块
+            // + 链尾 jle 归一化块 + mov $1/jmp/mov $0 + test」⇒ ORIG 的两个短路守卫在我方
+            // 缺失（#33）。改写为嵌套 if（P360 逐条件独立跳转）复现两跳同落出口。
+            if (!flag)
             {
-                if (room->IsInsertTimerRecvPvpRank() != 1 &&
-                    room->IsEndPvpBattle() != 1)
+                if (room->get_recv_pvp_rank_count() > 0)
                 {
-                    room->send_pvp_end();
+                    if (room->IsInsertTimerRecvPvpRank() != 1 &&
+                        room->IsEndPvpBattle() != 1)
+                    {
+                        room->send_pvp_end();
+                    }
                 }
             }
         }

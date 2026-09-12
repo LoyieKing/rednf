@@ -153,8 +153,13 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
             if (GlobalData::s_pCeraShop->IsSpecialItem(
                     itemId, specialType, specialValue, specialFlag)) {
                 CItem* specItem = G_CDataManager()->find_item(itemId);
-                int kind = specItem->GetItemType();
-                if (kind != 0x10 && kind != 0x22) {
+                // [R9a14 ④ #33] ORIG 0x086751aa/0x086751c1：`call *%edx` 两次（短路，
+                //   首次返回 0x10 时不再调）且**无具名 kind 局部**；0x086751d4 test %al,
+                //   0x086751d6 `je 0x08675396`（插入段落点）⇒ 原码是「单一判定 if/else」，
+                //   主段 fall-through、插入段为跳转目标。原写「缓存 kind + 两处独立 if」
+                //   使虚调用只发 1 次（ORIG 2 次）且多出第二处比较（我方 4 处 cmp vs ORIG 2 处）。
+                if (!(specItem->GetItemType() == 0x10 ||
+                      specItem->GetItemType() == 0x22)) {
                     int featured = 0;                            // local_e0
                     int restrictCode =
                         G_CDataManager()->m_itemList->GetRestrictCode(
@@ -178,7 +183,7 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
                     }
                     newSlot = 0xffff;   // 特殊品不落背包槽（ORIG 写回 0xffff）
                 }
-                if (kind == 0x10 || kind == 0x22) {
+                else {
                     newSlot =
                         reinterpret_cast<CBoosterGage*>(
                     GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)17))

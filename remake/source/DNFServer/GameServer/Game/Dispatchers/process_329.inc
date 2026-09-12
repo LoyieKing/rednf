@@ -30,11 +30,13 @@ int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg,
     }
     if (R->m_errorCode < 0)
     {
-        LineFunc(
+        // ORIG 0x081e441b..0x081e4420：call LineFunc 后 jmp 尾块（tail 无 `mov $0,%eax`）
+        // ⇒ 原码是 `return LineFunc(...)`，返回值 = 第 1 参 line = 0x5c20 直接作为
+        // process 的返回码上抛（协议层 0x5c20 vs 旧版误写 return 0）。
+        return LineFunc(
             0x5c20,
             __PRETTY_FUNCTION__,
             R->m_errorCode, 0);
-        return 0;
     }
 
     // err == 0 主流程
