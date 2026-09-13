@@ -3684,6 +3684,14 @@ break;
                 else
                 {
     {
+        // ★ ORIG 0x89b9fc7..0x89ba037 是**循环**（回边 0x89ba037 `je 0x89b9fc6`）：
+        //   `ScanInt(&ok) → if(!ok) break; if(v<0) return false;
+        //    if(!m_set498.insert(v).second){ logFormat; return false; }` 反复执行，
+        //   直到 ScanInt 失败。旧转写只跑一次 ⇒ 该标签的值 token 只消费 1 个
+        //   （ORIG 消费整段），随后外层 `while(ScanType)` 撞上整型 token 置 ok=false
+        //   提前收尾（实测 cash/avatar_optionchange5.stk：ORIG 46 / 我方 42 token）。
+        for (;;)
+        {
         int v = ScanInt(&ok);
         if (!ok)
         {
@@ -3699,6 +3707,7 @@ break;
                 0, "../RDARScriptItem.cpp", __FUNCTION__, 0x2982,
                 "[avatar select ability except] is duplicated");
             return false;
+        }
         }
     }
     break;
