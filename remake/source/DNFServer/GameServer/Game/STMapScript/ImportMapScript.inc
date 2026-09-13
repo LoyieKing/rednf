@@ -330,77 +330,102 @@ bool ImportMapScript(STMapScript* script, const char* path)
                         {
                             if (!__inited)
                             {
+                                // [b53FIX · 惰性建链每环必须落到**下一个 case 的守卫**]
+                                // ORIG 089de0ab（[filename] insert 返回后）`jmp 0x89de0f6`
+                                // = `[layer]`(0x1dd) 的 `movzbl 0x94fe59c` 守卫；其后各环同形：
+                                //   0x1dd → 0x89de198（[order]）
+                                //   0x1e3 → 0x89de274（[loop y axis]）
+                                //   0x1ee → 0x89de315（[screen pos]）
+                                //   0x1f8 → 0x89de3e5（[/ani info]）
+                                //   0x205 → 0x89de464（sub_next，末环）
+                                // 本方旧形每环都写 `goto sub_next` ⇒ 建表轮只插入 **[filename]** 一项，
+                                // 其余 5 个 sub-tag 的 find 永远失败；而 `int subId;` 无初值、失败棱形
+                                // 不写回（ORIG 089de161/089de211 `je` 直接跳过 `mov %eax,-0x118(%ebp)`）
+                                // ⇒ subId 保留上轮陈旧值 0x1d7。
+                                // 实机 A/B 实证（Frida 17.18，/data/ab_sub_ours.js 钩住内层分派点
+                                // 0x8621622 读 [ebp-0x118]）：
+                                //   line="[filename]" → subId=0x1d7 ✓
+                                //   line="[layer]"    → subId=0x1d7 ✗（应 0x1dd）
+                                //   line="[order]"    → subId=0x1d7 ✗（应 0x1e3）
+                                //   line="[/ani info]"→ subId=0x1d7 ✗（应 0x205）
+                                // ⇒ 误入本分支，ScanStr 消费 `[/ani info]` 后的 token 失败
+                                // ⇒ ImportMapScript("Lorien/s0.map") ret=0 ⇒ `Loading Maps Fail`。
                                 __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[filename]", 0x1d7));
-                                goto sub_next;
                             }
-                            if (!ScanStr(&sub))
-                                return false;
-                            ani.m_filename = sub;           // Ss::operator=(RKSs)
-                            goto sub_tail;
-                            break;
+                            else
+                            {
+                                if (!ScanStr(&sub))
+                                    return false;
+                                ani.m_filename = sub;           // Ss::operator=(RKSs)
+                                goto sub_tail;
+                            }
                         }
                         case 0x1dd:                         // [layer]
                         {
                             if (!__inited)
                             {
                                 __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[layer]", 0x1dd));
-                                goto sub_next;
                             }
-                            if (!ScanStr(&sub))
-                                return false;
-                            ani.m_layer = getDrawLayer(sub.c_str());  // local_4d0
-                            goto sub_tail;
-                            break;
+                            else
+                            {
+                                if (!ScanStr(&sub))
+                                    return false;
+                                ani.m_layer = getDrawLayer(sub.c_str());  // local_4d0
+                                goto sub_tail;
+                            }
                         }
                         case 0x1e3:                         // [order]
                         {
                             if (!__inited)
                             {
                                 __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[order]", 0x1e3));
-                                goto sub_next;
                             }
-                            if (!ScanStr(&sub))
-                                return false;
-                            if (sub == "[below]")
-                                ani.m_orderUpper = false;   // local_4cc=0
-                            else if (sub == "[upper]")
-                                ani.m_orderUpper = true;    // local_4cc=1
                             else
-                                return false;
-                            goto sub_tail;
-                            break;
+                            {
+                                if (!ScanStr(&sub))
+                                    return false;
+                                if (sub == "[below]")
+                                    ani.m_orderUpper = false;   // local_4cc=0
+                                else if (sub == "[upper]")
+                                    ani.m_orderUpper = true;    // local_4cc=1
+                                else
+                                    return false;
+                                goto sub_tail;
+                            }
                         }
                         case 0x1ee:                         // [loop y axis]
                         {
                             if (!__inited)
                             {
                                 __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[loop y axis]", 0x1ee));
-                                goto sub_next;
                             }
-                            int flag = -1;                  // local_4e8
-                            if (ScanInt(&flag) != 1)
-                                return false;
-                            ani.m_loopYAxis = (flag != 0);  // uStack_4cb
-                            goto sub_tail;
-                            break;
+                            else
+                            {
+                                int flag = -1;                  // local_4e8
+                                if (ScanInt(&flag) != 1)
+                                    return false;
+                                ani.m_loopYAxis = (flag != 0);  // uStack_4cb
+                                goto sub_tail;
+                            }
                         }
                         case 0x1f8:                         // [screen pos]
                         {
                             if (!__inited)
                             {
                                 __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[screen pos]", 0x1f8));
-                                goto sub_next;
                             }
-                            int v = -1;                     // local_4ec
-                            if (ScanInt(&v) != 1)
-                                return false;
-                            ani.m_screenX = v;              // uStack_4c8
-                            if (ScanInt(&v) != 1)
-                                return false;
-                            ani.m_screenY = v;              // uStack_4c4
-                            ani.m_hasScreenPos = true;      // uStack_4ca
-                            goto sub_tail;
-                            break;
+                            else
+                            {
+                                int v = -1;                     // local_4ec
+                                if (ScanInt(&v) != 1)
+                                    return false;
+                                ani.m_screenX = v;              // uStack_4c8
+                                if (ScanInt(&v) != 1)
+                                    return false;
+                                ani.m_screenY = v;              // uStack_4c4
+                                ani.m_hasScreenPos = true;      // uStack_4ca
+                                goto sub_tail;
+                            }
                         }
                         case 0x205:                         // [/ani info]
                         {
@@ -1315,9 +1340,21 @@ bool ImportMapScript(STMapScript* script, const char* path)
             STRivalMapData proto;                           // -0x574 ctor 循环外一次
             while (true)
             {
+                // [b53FIX · 首 token 失败 = **正常列表结束**，不是 import 失败]
+                // ORIG 089e1216..089e1225：第 1 个 ScanInt(&ok) 失败棱形为
+                //   `movzbl ok; xor $0x1; test %al,%al; je <第二读>; nop; jmp 0x89dd0ab`，
+                // 而 0x89dd0ab 正是**主循环头**（`movl $0x1,0x4(%esp); lea -0x42c(%ebp);
+                // call ScanType`）⇒ 等价于本块的 `continue;`（跳到下一 tag）。
+                // 只有第 2/3 读失败才走 return-false 棱形
+                // （089e1251 / 089e127d：`mov $0x0,%ebx; jmp 0x89e3b6c`）。
+                // 本方旧形把首读也写成 `return false`（注释亦误记「首 token 失败也 false」），
+                // 实机 A/B 实证（Lorien/s0.map，Frida /data/ab_ms_ours.js）：
+                //   `[event monster position]` 正常读完 4 组 (682,288,0)/(597,201,0)/
+                //   (502,250,0)/(763,270,0) 后，第 5 轮首读撞上下一 TYPE tag
+                //   （tok#216）⇒ !ok ⇒ ret=0 ⇒ `Loading Maps Fail`。
                 proto.m_field00 = ScanInt(&ok);
                 if (!ok)
-                    return false;                           // 0x42d0 首 token 失败也 false
+                    break;                                  // ORIG 089e1225 → 0x89dd0ab
                 proto.m_field04 = ScanInt(&ok);
                 if (!ok)
                     return false;
@@ -1604,81 +1641,111 @@ bool ImportMapScript(STMapScript* script, const char* path)
         }
         if (tok == "[move layered map]")                    // 0x089e2216 区（__lookup 表段）
         {
-            static std::map<const char*, int, less_TCHAR> __lookup;
-            static SpinLock __init_lock;
-            static bool __inited = false;
             std::string line;                               // local_5f8（循环外构造一次）
-            bool loop = true;                               // local_5f9
+            bool loop;                                      // local_5f5（ORIG 无初值存储）
             do
             {
                 loop = ScanType(line, true);
                 if (!loop)
                     return false;
-                int id;
-                for (;;)
+                // [b53FIX · 惰性建表轮的回跳点必须是「find 循环头」而不是 do 体首]
+                // ORIG 089e25ff/089e2614：switch 之后收尾为
+                //   `movzbl __inited; xor $1; test; jne <do 条件>` +
+                //   `leave SpinLock; movb $1,__inited; jmp 0x89e223e`。
+                // 0x89e223e 正是**本块静态对象守卫段入口**
+                // （089e223e `movzbl 0x94fe3f8` = map ctor guard → 089e22ba SpinLock
+                //  guard 0x94fe400 → 089e2336 `movzbl 0x94fe5c8`(__inited) 的
+                //  `for(;;)` find 头）⇒ 建表轮结束后**不重新 ScanType**，直接以同一个
+                // `line` 重跑 find/switch（此时 __inited 已置 1，find 命中真实 id）。
+                // 本方旧形把 `layered_next:` 放在 do 体尾（`while(loop)` 之前）
+                // ⇒ 建表轮结束经 `while(loop)` 回到 do 体首，**多读一个 token**。
+                // 实机 A/B 实证（cartelcommand/15282(0.0)start.map，/data/ab_ly_ours.js
+                // 钩内层分派点 0x8625a37 读 id/[ebp-0x609]/__inited）：
+                //   tok#97 `[move layered map]`（主循环 +0x16d）
+                //   → tok#98 `[zpos under]`（+0x537e）→ LAYDISP id=0x0 loop=1 inited=0（建表轮）
+                //   → 旧回边 → ScanType 消费 tok#99（数字，非 TYPE 不报 getType）
+                //   → ScanType 内 `ok` 一旦置 false 便不再复位（ORIG 同形，089bc8ae
+                //      `movb $0x0,-0x9(%ebp)`；089bc8b2 起只判 tok==5/0）
+                //   → tok#100 `[/move layered map]` 虽为 TYPE 仍返回 false
+                //   ⇒ ImportMapScript ret=0 ⇒ `Loading Maps Fail`（#1564，前 1563 份全过）。
+                layered_next:
                 {
-                    if (!__inited)
+                    static std::map<const char*, int, less_TCHAR> __lookup;
+                    static SpinLock __init_lock;
+                    static bool __inited = false;
+                    int id;
+                    for (;;)
                     {
-                        __init_lock.enter();
-                        if (__inited)
+                        if (!__inited)
                         {
-                            __init_lock.leave();
-                            continue;
+                            __init_lock.enter();
+                            if (__inited)
+                            {
+                                __init_lock.leave();
+                                continue;
+                            }
+                            id = 0;
+                            break;
                         }
-                        id = 0;
+                        std::map<const char*, int, less_TCHAR>::const_iterator it =
+                            __lookup.find(line.c_str());
+                        if (it != __lookup.end())
+                            id = it->second;
                         break;
                     }
-                    std::map<const char*, int, less_TCHAR>::const_iterator it =
-                        __lookup.find(line.c_str());
-                    if (it != __lookup.end())
-                        id = it->second;
-                    break;
-                }
-                switch (id)
-                {
-                case 0:
-                case 0x8b8:                                 // [zpos under]
-                {
-                    if (__inited)
+                    switch (id)
                     {
-                        script->m_moveLayeredType = 1;      // movl $1,0x350
-                        script->m_zposUnder = ScanInt(&loop);  // -0x354 ← &-0x5f5
-                        if (loop != true)
-                            return false;
+                    case 0:
+                    case 0x8b8:                             // [zpos under]
+                    {
+                        if (__inited)
+                        {
+                            script->m_moveLayeredType = 1;  // movl $1,0x350
+                            script->m_zposUnder = ScanInt(&loop);  // -0x354 ← &-0x5f5
+                            if (loop != true)
+                                return false;
+                            // ORIG 089e24e4/089e24f0：ok 成功棱形 `je 0x89e25ef` →
+                            // `nop; jmp 0x89e25f3` = switch **之后**的公共收尾
+                            // （`if(!__inited){…}` + `while(loop)`），**不是** find 头。
+                            // 旧形 `goto layered_next` 会把同一个 `[zpos under]` 再分派一次，
+                            // 追加一次 ScanInt ⇒ 吞掉下一个 token（A/B 实证 tok#100）。
+                            break;
+                        }
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[zpos under]", 0x8b8));
+                        /* fall through */
+                    }
+                    case 0x8be:                             // [all dead case passable]
+                    {
+                        if (__inited)
+                        {
+                            script->m_allDeadCasePassable = 1;  // movb $1,0x358
+                            if (loop != true)
+                                return false;
+                            // ORIG 089e2578/089e2584：成功棱形 `je 0x89e25f2` →
+                            // `nop` → 0x89e25f3 公共收尾（同上一分支，非 find 头）。
+                            break;
+                        }
+                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[all dead case passable]", 0x8be));
+                        /* fall through */
+                    }
+                    case 0x8c3:                             // [/move layered map]
+                    {
+                        if (__inited)
+                            loop = false;
+                        else
+                            __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/move layered map]", 0x8c3));
+                        break;
+                    }
+                    default:
+                        break;
+                    }
+                    if (!__inited)
+                    {
+                        __init_lock.leave();
+                        __inited = true;
                         goto layered_next;
                     }
-                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[zpos under]", 0x8b8));
-                    /* fall through */
                 }
-                case 0x8be:                                 // [all dead case passable]
-                {
-                    if (__inited)
-                    {
-                        script->m_allDeadCasePassable = 1;  // movb $1,0x358
-                        if (loop != true)
-                            return false;
-                        goto layered_next;
-                    }
-                    __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[all dead case passable]", 0x8be));
-                    /* fall through */
-                }
-                case 0x8c3:                                 // [/move layered map]
-                {
-                    if (__inited)
-                        loop = false;
-                    else
-                        __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[/move layered map]", 0x8c3));
-                    break;
-                }
-                default:
-                    break;
-                }
-                if (!__inited)
-                {
-                    __init_lock.leave();
-                    __inited = true;
-                }
-            layered_next:;
             } while (loop);
             continue;
         }

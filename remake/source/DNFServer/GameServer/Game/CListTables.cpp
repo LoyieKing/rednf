@@ -226,7 +226,17 @@ public:
     char m_isTowerOfDespair;                      // +0x2a9
     char m_pad2aa[0x6e];                          // +0x2aa..+0x318
     std::vector<_DailySchedule> m_dailySchedule;  // +0x318
-    char m_pad324[0x1e6];                         // +0x324..+0x50a
+    // [b24FIX · 与权威定义对齐] 权威 CDungeon.h 的 STDungeonScript 末端为
+    //   m_map4e4(+0x4e4,0x18) / m_4fc / m_500 / m_504 / m_505 / m_508 / m_50c(+0x50c)
+    //   ⇒ **sizeof = 0x510**；旧镜像只铺到 +0x50a（sizeof 0x50C），比权威**短 4 字节**。
+    // 后果（实机 A/B 实证）：load_list 的局部 script 按镜像 0x50C 分配，而
+    //   ImportDungeonScript（按权威 0x510 编译）收尾写 m_50c(+0x50c) 时越界 4 字节，
+    //   恰好落在紧邻其上的迭代器 it —— script 基址 -0x548 + 0x50c = **-0x3c = it 槽位**
+    //   ⇒ it 的节点指针被写坏，循环尾 `it++`(_Rb_tree_increment) 走野指针 SIGSEGV
+    //   （坏值呈数据样：MALLOC_PERTURB 下为 ASCII "7287"）。
+    // 修法：按 ORIG load_list 帧实证（ORIG script 基 -0x54c、it -0x3c、帧 0x56c）把镜像
+    //   补到与权威等长：0x324+0x1e9 = 0x50D → 对齐后 sizeof 0x510 ✓。
+    char m_pad324[0x1e9];                         // +0x324..0x50d（对齐后 sizeof 0x510）
 };
 
 class STMonsterScript

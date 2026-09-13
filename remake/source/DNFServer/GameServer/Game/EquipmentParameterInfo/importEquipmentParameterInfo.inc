@@ -1414,8 +1414,22 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         if (!__inited)
         {
             __lookup.insert(std::pair<const char* const, int>("[account bind linear ability]", 0x1a5d));
-            goto L_1a60;
         }
+        /* FALLTHRU（ORIG 0x89abf9b 登记后 jmp 0x89ac008 = [level linear ability] 的 guard）*/
+    case 0x1a60:
+    L_1a60:
+        if (!__inited)
+        {
+            __lookup.insert(std::pair<const char* const, int>("[level linear ability]", 0x1a60));
+            goto L_1b39;
+        }
+        /* 两个 guard 的 `je` **同落** 共享执行体 0x89ac05a（实证：0x1a5d/0x1a60
+           的 `xor $1; test; je` 目标地址相同）⇒ 执行体必须写在**两个 guard 之后**。
+           旧转写把体夹在 0x1a5d 与 0x1a60 之间 ⇒ 体成为 0x1a5d 专属、而
+           `[level linear ability]` 落到 `[all skill item]` 的执行体 ⇒ 该标签的值
+           token 无人消费，外层 `while(ScanType)` 置 ok=false 提前收尾
+           （实测 character/common/ring/ring_24194.equ：ORIG 73 token / 我方 60；
+            全库 3772 个 .equ 文件的解析范围不一致）。 */
     {
         // ORIG 0x89abffa/0x89abf9b（两关键字共享执行体）：ScanInt（bool 出参）
         // 必须成功写 m_growthLevelBegin，失败即返回 0；ScanInt 无检查写
@@ -1513,13 +1527,6 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
         }
         goto L_chain_end;
     }
-    case 0x1a60:
-    L_1a60:
-        if (!__inited)
-        {
-            __lookup.insert(std::pair<const char* const, int>("[level linear ability]", 0x1a60));
-            goto L_1b39;
-        }
     case 0x1b39:
     L_1b39:
         if (!__inited)

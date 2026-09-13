@@ -1288,6 +1288,23 @@ case 0x3a5:  // "[randomized object creation]"
                 goto retry_0_head;   // ORIG LAB_088ea711
             }
         }
+        // [b53FIX · case 0x3a5 缺 break ⇒ 穿透进 case 0x421 吞掉 `[size]` 标签]
+        // ORIG 088e9be8（`rsub == "[/randomized object creation]"` 成立）→
+        //   `jne 0x88ea723` = `nop; mov $0x1,%esi; jmp 0x88ea746`（~string 后
+        //   `test %esi,%esi; je 0x88f0a27; jmp 0x88f0988`）
+        // ⇒ 收尾即 switch 公共 break 棱形（esi 为「块正常结束」标志，false 棱形走
+        // return-false）。本方旧形漏写 `break;`，4.4 把 case 末尾排成
+        // case 0x421 `[point by type]` 的 `!__inited` 守卫，else 棱形穿透进其
+        // else 体（首语句 `ScanInt((bool*)0)`）。
+        // 实机 A/B 实证（Frida 17.18，/data/ab_gn_ours.js 对 Act7/gentnorthgate.dgn）：
+        //   tok#100 TYPE `[/randomized object creation]` → 本 case 收尾
+        //   tok#101 TYPE **`[size]`** 被穿透后的 `ScanInt` 吞掉（无 getType）
+        //   tok#102/103（7 / 3）亦被误读 ⇒ `[size]` 处理器（含
+        //   `m_grids.resize(m_width*m_height)`，ORIG 0x88e8c02）从未执行
+        //   ⇒ mazeLocal.m_grids 空 ⇒ 其后 `[greed]`（ORIG 0x88e8e21 同构无越界检查）
+        //   在 `m_grids[0].m_gridValue = cc`（+0x2e9e）上 SIGSEGV。
+        // ORIG 同数据：tok#101 由主循环 ScanType 正常分派 → resize(7*3=21) → ret=1。
+        break;
     }
 
 case 0x421:  // "[point by type]"
@@ -1916,6 +1933,14 @@ case 0x54f:  // "[absolute change stat]"
             script->m_statMap290.insert(
                 std::map<AbsoluteChangeStat::T, float>::value_type(key, v));
         }
+        // [b53FIX · case 0x54f 缺 break ⇒ 穿透进 case 0x576 的同类缺陷]
+        // ORIG 088ebe6f/088ebe72：同一 while(ScanStr) 棱形为
+        //   `je 0x88ebe77`（成功续体）+ `nop; jmp 0x88f0988`（switch 公共 break 落点），
+        // ⇒ ORIG 本 case 结束于 break。本方旧形漏写，4.4 把 else 失败棱形直排成
+        // `jne 0x860aeb7`（= case 0x576 `[limit escape character]` 的守卫），
+        // 由 `[absolute change stat]` 列表收尾的 ScanStr 失败处穿透进下一 case。
+        // 该缺陷被上一条（case 0x912）掩盖在更早的失败点之后，一并按 ORIG 修正。
+        break;
     }
 
 
@@ -3245,6 +3270,24 @@ case 0x912:  // "[coin info]"
             script->m_map4e4.insert(std::make_pair(static_cast<int>(diff),
                                                    static_cast<UseCoinDungeonDiff>(d)));
         }
+        // [b53FIX · case 0x912 缺 break ⇒ 穿透进 case 0x942 导致整份 dgn 导入失败]
+        // ORIG 088f01f0/088f01f3：`while(ScanStr(&token))` 失败棱形为
+        //   `je 0x88f01f8`（成功续体）+ `nop; jmp 0x88f0988`，
+        // 其中 0x88f0988 是**switch 之后**的公共 break 落点（其后即
+        // `movzbl __inited …` 的循环尾判据），即 ORIG 本 case 结束于 break。
+        // 本方旧形漏写 `break;`，4.4 把「case 末尾」直接排成下一个 case 的守卫
+        // （`jne 0x860f1cf` = case 0x942 的 `!__inited` 测试），于是 else 棱形
+        // 穿透进 `case 0x942 [party member coin limit]` 的 else 体：
+        //   `script->m_4fc = ScanInt(&ok); if (!ok) return false;`
+        // 实机 A/B 实证（Frida 17.18 gadget，/data/ab_gt_ours.js）：
+        //   tok#183(k5 `[/coin info]`) 由 ScanStr 消费（无 getType）
+        //   → tok#184(k5 `[name]`) 由**穿透后的 ScanInt** 消费（无 getType）
+        //   → `!ok` ⇒ ImportDungeonScript ret=0。
+        // 该 dgn 是 `Impossible/GoblinKingdom.dgn`（CDungeonList::load_list 第 43 份，
+        // 也是唯一被 `[coin info]` 收尾的文件）⇒ `Loading Dungeons Fail`。
+        // ORIG 同数据同位置：tok#185/186 由本 case 后的 `[name]` 的 ScanStr 消费，
+        // 一路读到 EOF ⇒ ret=1。
+        break;
     }
 
 

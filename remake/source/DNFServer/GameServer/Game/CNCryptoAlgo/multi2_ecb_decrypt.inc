@@ -6,7 +6,7 @@ int multi2_ecb_decrypt(const unsigned char *ct, unsigned char *pt, symmetric_key
    LTC_ARGCHK(skey != NULL);
    LOAD32H(p[0], ct);
    LOAD32H(p[1], ct+4);
-   s_decrypt(p, skey->multi2.N, skey->multi2.uk);
+   decrypt(p, skey->multi2.N, skey->multi2.uk);   /* b24FIX: 宏 → static decrypt()（ORIG 0x080b4a49） */
    STORE32H(p[0], pt);
    STORE32H(p[1], pt+4);
    return CRYPT_OK;

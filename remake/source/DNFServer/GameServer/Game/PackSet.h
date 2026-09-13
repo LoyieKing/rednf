@@ -33,8 +33,19 @@ typedef std::string tstring;
 
 enum pack_load_type_t
 {
-    PACK_LOAD_FULL  = 0,        // clear()/sort()/deleted()/open 以 ==0 判定 FULL
-    PACK_LOAD_INDEX = 1         // 【推断】枚举字面名未见 DWARF；open 非 0 分支只装 .ani
+    // [b24FIX · 取值方向纠正] ORIG 实证（PackSet::open 0x08ac5a52）：
+    //   0x08ac5b8d `cmp DWORD PTR [ebp+0x10],0x0` + `je 0x08ac5c21` ⇒ **type==0 走
+    //   .ani 过滤分支**（该分支在 `call update_content_from_memory`(0x08ac605b) 之前先
+    //   `IndexEntry::name()` → `std::string::find(".ani",0)`（串 @0x8e2e8cf = ".ani\0"）
+    //   → 与 npos 比较后跳过不命中者）；**type!=0 才走全量装载分支**（0x08ac5ef1 调用点
+    //   无过滤，mem = 整个文件缓冲）。
+    //   ⇒ PACK_LOAD_INDEX = 0、PACK_LOAD_FULL = 1。旧表把两者写反，导致 InitRDARScript
+    //   的 `open(name, 0, PACK_LOAD_INDEX)` 被当成 FULL ⇒ 对不含 .ani 的条目按无效
+    //   offset_ 执行 memcpy(源 = mem + header_size() + offset_) ⇒ 野指针 SIGSEGV
+    //   （实机栈实证：返回址 0x0829eeb4、size=0x50、src=0xd3e4f6a4）。
+    PACK_LOAD_INDEX = 0,        // 仅索引 + .ani 条目内容（open 的 ==0 分支）
+    PACK_LOAD_FULL  = 1         // 全量装载（open 的非 0 分支；modified/added/deleted/
+                                // write/sort 均以 != PACK_LOAD_FULL 判「需全量」）
 };
 
 enum entry_type_t

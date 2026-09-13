@@ -3285,74 +3285,133 @@ static void khazad_crypt(const unsigned char *plaintext, unsigned char *cipherte
 
 #ifdef LTC_MULTI2
 
-#define s_pi1(p) do { (p)[1] ^= (p)[0]; } while (0)
+// [b24FIX · Multi2 密钥调度崩溃根因] 旧形把 LibTomCrypt 的 s_pi1..s_pi4/s_setup 写成**宏**，
+// 且宏内在首行引入与调用方**同名**的局部别名：
+//     #define s_pi2(p, k) do { ulong32* _p = (p); const ulong32* _k = (k); ...
+// 而调用方 s_setup/s_encrypt/s_decrypt 的局部变量恰为 `_p` / `_k` ⇒ 展开成
+//     { ulong32* _p = (_p); const ulong32* _k = (_k); ... }
+// 按 C++「声明点即声明符之后、初始化器之前」规则，初始化器读到的是**新声明的自身**
+// （未初始化）⇒ `_p` 为垃圾指针，`_p[0] ^= _t` 首次即写坏地址。
+// 实机实证：SIGSEGV @ `mov DWORD PTR [eax],edx`，eax 取自未初始化槽（G_Cipher() 惰性
+// 构造 Cipher → ctor 第 13 个图 CNCryptoMulti2 → Initialize → multi2_setup → s_setup）。
+// ORIG 把这一族写成**静态函数**（nm 实证，全部局部符号）：
+//     _ZL3ROLji 0x080b46b4   _ZL3pi1Pm 0x080b46c9   _ZL3pi2PmS_ 0x080b46e5
+//     _ZL3pi3PmS_ 0x080b4741 _ZL3pi4PmS_ 0x080b47e5  _ZL5setupPmS_S_ 0x080b482e
+//     _ZL7encryptPmiS_ 0x080b4986            _ZL7decryptPmiS_ 0x080b4a49
+// 故此处按 ORIG 逐一还原为 static 函数（形参名/类型照 mangled：ROL(unsigned int,int)、
+// pi*/setup(unsigned long*, …)、encrypt/decrypt(unsigned long*, int, unsigned long*)）。
+// 算法常量与 ORIG 反汇编逐条一致：
+//   pi2: t=(p1+k0); t=ROL1(t)+t-1; t=ROL4(t)^t; p0^=t          （0x080b46e5-0x80b4730）
+//   pi3: t=p0+k1; t=ROL2(t)+t+1; t=ROL8(t)^t; t+=k2; t=ROL1(t)-t; t=ROL16(t)^(p0|t); p1^=t
+//   pi4: t=(p1+k3); t=ROL2(t)+t+1; p0^=t
+//   setup 的 16 步「pi/uk[n++]=p[?]」交替序列与 0x080b482e 完全一致（含 pi2/pi3/pi4 的 k+4 段）。
+// ROL 复用本 TU 前方（line 2176）已还原的 out-of-line static ROL —— ORIG 中 cast5 的 FI 与
+// multi2 的 pi2/pi3/pi4 **共用同一个** `_ZL3ROLji` @0x080b46b4（pi2/pi3/pi4 内 7 处
+// `call 80b46b4` 实证）。此处 #undef 宏，使下文 ROL(...) 解析到该函数（`call _ZL3ROLji`），
+// 而非 ROLc 宏的就地展开。
+#undef ROL
 
-#define s_pi2(p, k) do { ulong32* _p = (p); const ulong32* _k = (k); ulong32 _t; \
-   _t = (_p[1] + _k[0]) & 0xFFFFFFFFUL; \
-   _t = (ROL(_t, 1) + _t - 1)  & 0xFFFFFFFFUL; \
-   _t = (ROL(_t, 4) ^ _t)  & 0xFFFFFFFFUL; \
-   _p[0] ^= _t; } while (0)
+static void pi1(ulong32* p)
+{
+   p[1] ^= p[0];
+}
 
-#define s_pi3(p, k) do { ulong32* _p = (p); const ulong32* _k = (k); ulong32 _t; \
-   _t = _p[0] + _k[1]; \
-   _t = (ROL(_t, 2) + _t + 1)  & 0xFFFFFFFFUL; \
-   _t = (ROL(_t, 8) ^ _t)  & 0xFFFFFFFFUL; \
-   _t = (_t + _k[2])  & 0xFFFFFFFFUL; \
-   _t = (ROL(_t, 1) - _t)  & 0xFFFFFFFFUL; \
-   _t = ROL(_t, 16) ^ (_p[0] | _t); \
-   _p[1] ^= _t; } while (0)
+static void pi2(ulong32* p, ulong32* k)
+{
+   ulong32 t;
+   t = (p[1] + k[0]) & 0xFFFFFFFFUL;
+   t = (ROL(t, 1) + t - 1) & 0xFFFFFFFFUL;
+   t = (ROL(t, 4) ^ t) & 0xFFFFFFFFUL;
+   p[0] ^= t;
+}
 
-#define s_pi4(p, k) do { ulong32* _p = (p); const ulong32* _k = (k); ulong32 _t; \
-   _t = (_p[1] + _k[3])  & 0xFFFFFFFFUL; \
-   _t = (ROL(_t, 2) + _t + 1)  & 0xFFFFFFFFUL; \
-   _p[0] ^= _t; } while (0)
+static void pi3(ulong32* p, ulong32* k)
+{
+   ulong32 t;
+   t = p[0] + k[1];
+   t = (ROL(t, 2) + t + 1) & 0xFFFFFFFFUL;
+   t = (ROL(t, 8) ^ t) & 0xFFFFFFFFUL;
+   t = (t + k[2]) & 0xFFFFFFFFUL;
+   t = (ROL(t, 1) - t) & 0xFFFFFFFFUL;
+   t = ROL(t, 16) ^ (p[0] | t);
+   p[1] ^= t;
+}
 
-#define s_setup(dk, k, uk) do { \
-   const ulong32* _dk = (dk); const ulong32* _k = (k); ulong32* _uk = (uk); \
-   int _n = 0, _t = 4; ulong32 _p[2]; \
-   _p[0] = _dk[0]; _p[1] = _dk[1]; \
-      s_pi1(_p); \
-      s_pi2(_p, _k); \
-      _uk[_n++] = _p[0]; \
-      s_pi3(_p, _k); \
-      _uk[_n++] = _p[1]; \
-      s_pi4(_p, _k); \
-      _uk[_n++] = _p[0]; \
-      s_pi1(_p); \
-      _uk[_n++] = _p[1]; \
-      s_pi2(_p, _k+_t); \
-      _uk[_n++] = _p[0]; \
-      s_pi3(_p, _k+_t); \
-      _uk[_n++] = _p[1]; \
-      s_pi4(_p, _k+_t); \
-      _uk[_n++] = _p[0]; \
-      s_pi1(_p); \
-      _uk[_n++] = _p[1]; } while (0)
+static void pi4(ulong32* p, ulong32* k)
+{
+   ulong32 t;
+   t = (p[1] + k[3]) & 0xFFFFFFFFUL;
+   t = (ROL(t, 2) + t + 1) & 0xFFFFFFFFUL;
+   p[0] ^= t;
+}
 
-#define s_encrypt(p, N, uk) do { \
-   ulong32* _p = (p); int _N = (N); const ulong32* _uk = (uk); \
-   int _n, _t; \
-   for (_t = _n = 0; ; ) { \
-      s_pi1(_p); if (++_n == _N) break; \
-      s_pi2(_p, _uk+_t); if (++_n == _N) break; \
-      s_pi3(_p, _uk+_t); if (++_n == _N) break; \
-      s_pi4(_p, _uk+_t); if (++_n == _N) break; \
-      _t ^= 4; } } while (0)
+static void setup(ulong32* dk, ulong32* k, ulong32* uk)
+{
+   int n = 0, t = 4;
+   ulong32 p[2];
 
-#define s_decrypt(p, N, uk) do { \
-   ulong32* _p = (p); int _N = (N); const ulong32* _uk = (uk); \
-   int _n, _t; \
-   for (_t = 4*(((_N-1)>>2)&1), _n = _N; ;  ) { \
-      switch (_n<=4 ? _n : ((_n-1)%4)+1) { \
-         case 4: s_pi4(_p, _uk+_t); --_n; /* FALLTHROUGH */ \
-         case 3: s_pi3(_p, _uk+_t); --_n; /* FALLTHROUGH */ \
-         case 2: s_pi2(_p, _uk+_t); --_n; /* FALLTHROUGH */ \
-         case 1: s_pi1(_p); --_n; break; \
-         case 0: goto _s_decrypt_done; \
-      } \
-      _t ^= 4; \
-   } \
-   _s_decrypt_done: ; } while (0)
+   p[0] = dk[0];
+   p[1] = dk[1];
+   pi1(p);
+   pi2(p, k);
+   uk[n++] = p[0];
+   pi3(p, k);
+   uk[n++] = p[1];
+   pi4(p, k);
+   uk[n++] = p[0];
+   pi1(p);
+   uk[n++] = p[1];
+   pi2(p, k + t);
+   uk[n++] = p[0];
+   pi3(p, k + t);
+   uk[n++] = p[1];
+   pi4(p, k + t);
+   uk[n++] = p[0];
+   pi1(p);
+   uk[n++] = p[1];
+}
+
+#define ROL(x, y)   ROLc(x, y)
+
+// s_encrypt/s_decrypt 同样按 ORIG 还原为静态函数（_ZL7encryptPmiS_ 0x080b4986 /
+// _ZL7decryptPmiS_ 0x080b4a49）；旧宏形与 s_pi* 存在同一处同名自初始化缺陷
+// （`ulong32* _p = (_p);`），故 Multi2 加解密路径同样不可用，一并修正。
+static void encrypt(ulong32* p, int N, ulong32* uk)
+{
+   int n, t;
+
+   for (t = n = 0; ; )
+   {
+      pi1(p);
+      if (++n == N) break;
+      pi2(p, uk + t);
+      if (++n == N) break;
+      pi3(p, uk + t);
+      if (++n == N) break;
+      pi4(p, uk + t);
+      if (++n == N) break;
+      t ^= 4;
+   }
+}
+
+static void decrypt(ulong32* p, int N, ulong32* uk)
+{
+   int n, t;
+
+   for (t = 4 * (((N - 1) >> 2) & 1), n = N; ; )
+   {
+      switch (n <= 4 ? n : ((n - 1) % 4) + 1)
+      {
+      case 4: pi4(p, uk + t); --n;   /* FALLTHROUGH */
+      case 3: pi3(p, uk + t); --n;   /* FALLTHROUGH */
+      case 2: pi2(p, uk + t); --n;   /* FALLTHROUGH */
+      case 1: pi1(p); --n; break;
+      case 0: goto s_decrypt_done;
+      }
+      t ^= 4;
+   }
+s_decrypt_done: ;
+}
 
 
 #include "CNCryptoAlgo/multi2_setup.inc"

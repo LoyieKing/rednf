@@ -81,74 +81,101 @@ bool importInGameEventInfoList(InGameEventInfoList* list, const char* path)
         case 0x24:                       // [/event_list]（0x0897edce leaf）
             // ORIG 各 leaf `movzbl __inited; xor$1; test; je parse` —— 取反
             // 短路物化形（P32：!bool 判产生 xor$1），注册块落 if 体。
+            // ★注册链（P-chain）：注册块**结束即贯穿**到下一 case 块头
+            //   （0x0897eddc 登记 → 0x0897ee29 `jmp 0x0897ee35` = [idx] 块），
+            //   逐块把 7 个键登记进 __lookup；解析块才离开 switch 去公共尾。
+            //   ⇒ 源码必须写成 `if (!__inited) { insert } else { parse }` 后
+            //   **fall through**，不可用 `break`（旧 `break` 只登记
+            //   "[/event_list]" 一条 ⇒ 其余 tag 全落 default 被静默丢弃，
+            //   实测 Event/InGameEventList.evt 只吃到 4 个 token 即失败）。
             if (!__inited)
             {
                 __lookup.insert(
                     std::map<const char*, int, less_TCHAR>::value_type(
                         "[/event_list]", 0x24));
-                break;                               // → 公共尾
             }
-            return true;                             // 0x0897ee2b mov$1,%ebx
+            else
+            {
+                return true;                         // 0x0897ee2b mov$1,%ebx
+            }
+            // fall through → [idx] 块
         case 0x27:                       // [idx]
             if (!__inited)
             {
                 __lookup.insert(
                     std::map<const char*, int, less_TCHAR>::value_type(
                         "[idx]", 0x27));
-                break;
             }
-            ScanInt(&info.m_eventId);                // 0x0897ee9b（返回值弃）
-            ScanStr(&info.m_name);                   // 0x0897eeac
-            break;
+            else
+            {
+                ScanInt(&info.m_eventId);            // 0x0897ee9b（返回值弃）
+                ScanStr(&info.m_name);               // 0x0897eeac
+                break;                               // 0x0897eeb1 jmp 公共尾
+            }
+            // fall through → [record type] 块
         case 0x2b:                       // [record type]
             if (!__inited)
             {
                 __lookup.insert(
                     std::map<const char*, int, less_TCHAR>::value_type(
                         "[record type]", 0x2b));
+            }
+            else
+            {
+                ScanInt(&info.m_field4);
                 break;
             }
-            ScanInt(&info.m_field4);
-            break;
+            // fall through → [start] 块
         case 0x2e:                       // [start]
             if (!__inited)
             {
                 __lookup.insert(
                     std::map<const char*, int, less_TCHAR>::value_type(
                         "[start]", 0x2e));
+            }
+            else
+            {
+                ScanInt(&info.m_startTime);
                 break;
             }
-            ScanInt(&info.m_startTime);
-            break;
+            // fall through → [end] 块
         case 0x31:                       // [end]
             if (!__inited)
             {
                 __lookup.insert(
                     std::map<const char*, int, less_TCHAR>::value_type(
                         "[end]", 0x31));
+            }
+            else
+            {
+                ScanInt(&info.m_endTime);
                 break;
             }
-            ScanInt(&info.m_endTime);
-            break;
+            // fall through → [state] 块
         case 0x34:                       // [state]
             if (!__inited)
             {
                 __lookup.insert(
                     std::map<const char*, int, less_TCHAR>::value_type(
                         "[state]", 0x34));
+            }
+            else
+            {
+                ScanInt(&info.m_isEventing);         // +0x14 int（头注实证）
                 break;
             }
-            ScanInt(&info.m_isEventing);             // +0x14 int（头注实证）
-            break;
+            // fall through → [/event] 块
         case 0x37:                       // [/event]
             if (!__inited)
             {
                 __lookup.insert(
                     std::map<const char*, int, less_TCHAR>::value_type(
                         "[/event]", 0x37));
-                break;
             }
-            list->insertEventInfo(info.m_field4, info);   // 0x0897f0ae
+            else
+            {
+                list->insertEventInfo(info.m_field4, info);   // 0x0897f0ae
+            }
             break;
         default:
             break;                                   // 未命中静默（含 "[event_list]" 开标签）

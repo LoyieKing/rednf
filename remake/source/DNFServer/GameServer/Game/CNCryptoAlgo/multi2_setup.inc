@@ -15,7 +15,7 @@ int  multi2_setup(const unsigned char *key, int keylen, int num_rounds, symmetri
    }
    LOAD32H(dk[0], key + 32);
    LOAD32H(dk[1], key + 36);
-   s_setup(dk, sk, skey->multi2.uk);
+   setup(dk, sk, skey->multi2.uk);   /* b24FIX: 宏 s_setup → static setup()（ORIG 0x080b482e） */
 
    zeromem(sk, sizeof(sk));
    zeromem(dk, sizeof(dk));

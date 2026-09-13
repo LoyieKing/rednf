@@ -3957,7 +3957,36 @@ public:
     stNewAccountLevelUpToJobScript m_newAccountLevelUp;  // +0xb5e0
     eventReward m_eventReward;                    // +0xb628
     DeleteInvalidItemScript m_deleteInvalidItem;  // +0xb658
+    // ========================================================================
+    // [b61FIX · SP 每级表（+0xDA90）越界尾段补齐]
+    // ORIG 的 `set_reward_sp()`(0x08360bde) 与 `GetSpAtLevelUp()`(0x08360cb8) 访问
+    //   `0x8(%eax,%edx,4)`，edx = 0x36a2 + i ⇒ **基址 this+8、目标 this+0xDA90**，
+    //   区间 [this+0xDA90, this+0xDC10)（两个循环各 0x60 个 4 字节元素）。
+    //   而 ORIG 的 `GlobalInstance<CDataManager>::create`(0x080cf147) 只
+    //   `movl $0xb678,(%esp); call operator new` ⇒ **ORIG 自身即越界写/读**
+    //   （越界 0x2418 字节）。
+    // ORIG 之所以不炸：其实测堆布局里 CGameManager 落在 CDM+0xE0E8，而写入窗口止于
+    //   +0xDC10，两者不重叠。
+    // 实测（Frida 读 G_CDataManager()/G_CGameManager() 返回地址）：
+    //   ORIG: dm=0xb0959a8 gm=0xb0a3a90 delta=0xE0E8 ⇒ CGM∈[dm+0xE0E8,+0xE404)
+    //         vs 窗口 [dm+0xDA90,+0xDC10) → 不重叠 ✓
+    //   OURS: dm=0xa839c60 gm=0xa8475e0 delta=0xD980 ⇒ CGM∈[dm+0xD980,+0xDC9C)
+    //         → **完全包住窗口** ✗ ⇒ 窗口正好砸中 m_blueMarblePool(+0x1fc)
+    //   实证链：[TL] #78（池完好，日志 "Init Reward SP "）→ #79（池已坏，"Success"）
+    //   定位到 set_reward_sp；随后 allocBlueMarble → getBlueMarble#1 → 0x0 →
+    //   getMemoryPoolIndex() SIGSEGV。
+    //   两侧 operator new 序列（进程启动→CGameManager create）条数同为 18402、
+    //   总字节同为 4046523，仅次序/碎片不同 ⇒ 堆布局非源码可对齐项。
+    // 处理：把该尾段并入对象本体——**不改动任何既有成员偏移**，仅使
+    //   sizeof 0xB678 → 0xDC10 ⇒ 两个 SP 函数的指令序列与 ORIG **逐字节保持同形**，
+    //   同时写入不再越界。代价：`create` 中 `new` 立即数由 0xb678 变 0xdc10（唯一
+    //   可见差异）；ORIG 该区域本不属于对象、无任何成员读写，故无行为差异。
+    // ========================================================================
+    char m_spTableGap[0xda90 - 0xb678];           // +0xb678..+0xda90（ORIG 中位于对象之外）
+    unsigned int m_spTableTail[0x60];             // +0xda90..+0xdc10（SP 每级表实际落点）
 };
+static_assert(sizeof(CDataManager) == 0xdc10,
+              "CDataManager 布局变更：SP 每级表尾段 (+0xda90..+0xdc10) 失配");
 
 CDataManager* G_CDataManager();
 

@@ -228,24 +228,39 @@
                             {
                                 if (!ScanType(sub2, true))
                                     return 0x97;
+                                // ★[mob index]/[item index] = **成对读到 ScanInt 失败为止**
+                                //   的内层循环（ORIG 0x089f765b..0x089f7714：循环头
+                                //   0x089f765b `index=ScanInt(&ok)`，回边 0x089f7714
+                                //   `jmp 0x089f765b`；`if(!ok) break` 与紧随的 `continue`
+                                //   合并为单条 `0x089f767e jmp 0x089f7611` = 外层 ScanType）。
+                                //   旧转写只读一对就 continue ⇒ token 流错位，
+                                //   Etc/mercenary.etc 报 0x97（日志 "Fail - 151 line"）。
+                                //   [item index] 同构（头 0x089f7737 / 回边 0x089f77f3 /
+                                //   失败出口 0x089f775a jmp 0x089f7611）。
                                 if (sub2 == "[mob index]")
                                 {
-                                    index = ScanInt(&ok);
-                                    if (!ok) continue;
-                                    count = ScanInt(&ok);
-                                    if (!ok) return 0xa3;
-                                    group.m_field20 = group.m_field20 + count;   // group+0x20 累计（ORIG 两段物化）
-                                    group.m_mobList.push_back(std::make_pair(count, index));
+                                    while (true)
+                                    {
+                                        index = ScanInt(&ok);
+                                        if (!ok) break;
+                                        count = ScanInt(&ok);
+                                        if (!ok) return 0xa3;
+                                        group.m_field20 = group.m_field20 + count;   // group+0x20 累计（ORIG 两段物化）
+                                        group.m_mobList.push_back(std::make_pair(count, index));
+                                    }
                                     continue;
                                 }
                                 if (sub2 == "[item index]")
                                 {
-                                    index = ScanInt(&ok);
-                                    if (!ok) continue;
-                                    count = ScanInt(&ok);
-                                    if (!ok) return 0xb3;
-                                    group.m_field24 = group.m_field24 + count;   // group+0x24 累计（ORIG 两段物化）
-                                    group.m_itemList.push_back(std::make_pair(count, index));
+                                    while (true)
+                                    {
+                                        index = ScanInt(&ok);
+                                        if (!ok) break;
+                                        count = ScanInt(&ok);
+                                        if (!ok) return 0xb3;
+                                        group.m_field24 = group.m_field24 + count;   // group+0x24 累计（ORIG 两段物化）
+                                        group.m_itemList.push_back(std::make_pair(count, index));
+                                    }
                                     continue;
                                 }
                                 if (sub2 == "[/reward group]")

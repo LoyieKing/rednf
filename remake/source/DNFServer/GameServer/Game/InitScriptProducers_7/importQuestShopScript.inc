@@ -109,18 +109,40 @@ int importQuestShopScript(const char* path, stQuestShop& out)
                 }
                 else if (token == "[level info]")
                 {
-                    stStatusLevelInfo info;
-                    info.m_second = static_cast<unsigned char>(ScanInt(&ok));
-                    if (!ok)
+                    // [b56FIX · 缺 case 内循环 ⇒ 整个 [quest status] 记录被截断]
+                    // ORIG 0890fcdf..0890fd50：[level info] 的 case 体是**循环**——
+                    //   0890fcdf `call stStatusLevelInfoC1`（ctor 在环内，每轮重建）
+                    //   0890fcf6 ScanInt(bool*)→info.m_second；!ok → `jmp 0x890fd52`
+                    //   0890fd1a ScanInt(bool*)→info.m_first ；!ok → `jmp 0x890fd52`
+                    //   0890fd4b `status.m_levelInfos.push_back(info)`
+                    //   0890fd50 `jmp 0x890fcdf` ⇐ **回到环首再读一对**
+                    //   0890fd52 `jmp 0x890fb2f`（内层 while(!closeRecord) 头）
+                    // 我方旧形一个 case 只读**一对**就落回内层 while，于是剩余的数字被
+                    // 内层 `ScanType` 一个个吞（ok 一旦为 false 不复位），撞到
+                    // `[/level info]` 这个 TYPE 时被判为失败 ⇒ 内层循环提前结束 ⇒
+                    // 同一个 [quest status] 记录里 `[quest point]` 之后的内容全部
+                    // 被外层循环当成新记录解析，`[/quest status]` 再无匹配 ⇒ 外层
+                    // `ScanType` 也返回 false ⇒ import 提前收尾。
+                    // 实机 A/B 实证（Etc/questshop.etc，/tmp/ab_qt_{ours,orig}.js 对钩
+                    // getToken/getType/ScanType）：两条 token 流在前 49 个词**完全一致**，
+                    // 第 50 个词（TYPE `[/level info]`）我方带 `getType`（=被 ScanType 消费，
+                    // 返回地址 @f8 内层头），ORIG **不带 getType**（=被失败的 ScanInt 消费）
+                    // ⇒ 随后我方 END ret=0 只走了 53 个词，ORIG 继续走完 589 个词。
+                    for (;;)
                     {
-                        continue;
+                        stStatusLevelInfo info;
+                        info.m_second = static_cast<unsigned char>(ScanInt(&ok));
+                        if (!ok)
+                        {
+                            break;
+                        }
+                        info.m_first = static_cast<unsigned char>(ScanInt(&ok));
+                        if (!ok)
+                        {
+                            break;
+                        }
+                        status.m_levelInfos.push_back(info);
                     }
-                    info.m_first = static_cast<unsigned char>(ScanInt(&ok));
-                    if (!ok)
-                    {
-                        continue;
-                    }
-                    status.m_levelInfos.push_back(info);
                 }
                 else if (token == "[quest point]")
                 {

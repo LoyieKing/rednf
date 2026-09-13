@@ -153,8 +153,19 @@ bool Arad_Script::Load(const char* dir, const char* file)
                 {
                     c = -1;
                 }
-                if (c == 10 || c == -1)
+                // [b24FIX · 空行/EOF = 本节解析**成功**结束] ORIG 0x817bd06 置 c=-1 后
+                // **直接 `jmp 0x817be89`**（不是 fallthrough）：该处做
+                //   `cmp [ebp-0x28],0xffffffff / jne 0x817bca2（继续下一行）/ mov eax,1`
+                // ⇒ c==-1 时 `return 1`。旧形 `if (c == 10 || c == -1) break;` 把两种
+                // 终止混为一谈，空行会落到行尾判据 `if (usedCols_ != rowIdx) return 0;`
+                // （此时 rowIdx 仍是 -1）⇒ 恒返回 0。
+                // 实机 A/B 实证：`Nexon/AradSpecialUseItems.txt` 的 39 行数据全部解析成功
+                // （usedRows=39）后遇到空行 `\r\n`，旧形在此返回 0 → parsing 返回 39
+                // （0x27）→ Init Arad GameScriptManager 失败；ORIG 同数据同位置返回 1。
+                if (c == 10)
                     break;
+                if (c == -1)
+                    return 1;
                 continue;
             }
             colBuf[colLen] = (char)c;

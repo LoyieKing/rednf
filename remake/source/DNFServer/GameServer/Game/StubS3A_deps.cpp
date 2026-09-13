@@ -183,10 +183,30 @@ static_assert(sizeof(RedeemEntryView) == 0x44, "Redeem entry stride drift");
 // FT_Done_Face/FT_Done_FreeType 此前仅由 GlobalData.o 定义（无库定义）。
 // 函数体逐字节照搬自 GlobalData.cpp。
 // ===========================================================================
+// [b24FIX · 真 FreeType 运行期绑定] 体改为 dlopen 转发（详见 GlobalData.cpp 同条注释）。
+// 本 TU **仍持有定义**这一事实正是 CaptchaGen::~CaptchaGen 0x080de706 EH landing 的
+// 成因（GlobalData.cpp 只见声明）⇒ 定义位置不动，仅替换函数体。
+#include <dlfcn.h>
+
+static void* ft32_sym_deps(const char* name)
+{
+    static void* handle = 0;
+    if (handle == 0)
+        handle = dlopen("libfreetype.so.6", RTLD_NOW | RTLD_GLOBAL);
+    if (handle == 0)
+        return 0;
+    return dlsym(handle, name);
+}
+
 extern "C" int FT_Done_Face(void* face)
 {
-    (void)face;
-    return 0;
+    typedef int (*fn_t)(void*);
+    static fn_t f = 0;
+    if (f == 0)
+        f = (fn_t)ft32_sym_deps("FT_Done_Face");
+    if (f == 0)
+        return 6;
+    return f(face);
 }
 
 // FreeType 库内部收尾函数（ORIG 0x087c3c00 FT_Done_Library / 0x087dc6b0
@@ -196,13 +216,15 @@ extern "C" int FT_Done_Memory(void* memory);
 
 // ORIG 0x087bca50（idx49 报告）：library != 0 时读取其首字段 memory（offset 0），
 // 依次调用 FT_Done_Library(library) 与 FT_Done_Memory(memory)；恒返 0。
+// [b24FIX] 改为转发真 FT_Done_FreeType（其内部即为「取 library->memory → 释放各模块
+// → 释放 memory」序列，与 ORIG 语义一致）。
 extern "C" int FT_Done_FreeType(void* library)
 {
-    if (library != 0)
-    {
-        void* memory = *(void**)library;   // library->memory @ offset 0
-        FT_Done_Library(library);
-        FT_Done_Memory(memory);
-    }
-    return 0;
+    typedef int (*fn_t)(void*);
+    static fn_t f = 0;
+    if (f == 0)
+        f = (fn_t)ft32_sym_deps("FT_Done_FreeType");
+    if (f == 0)
+        return 6;
+    return f(library);
 }

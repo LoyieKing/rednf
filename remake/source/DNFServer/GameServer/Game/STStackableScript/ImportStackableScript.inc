@@ -1503,9 +1503,10 @@ break;
                 }
                 else
                 {
-    ScanStr(&token);                 // ORIG 0x089b3bf6：读入公共 token
-    script->m_strc0 = token;         // 0x089b3c0d：op= 写 +0xc0
-    ScanInt(&script->m_fieldc4);     // 0x089b3bf2：ScanInt(int*) 直写 +0xc4
+    // [b55FIX · body 错位修正] ORIG 089b3b64..089b3b79（[set item master] 0x2358 的 body）：
+    //   `movl $0x0,(%esp); call ScanInt(bool*); mov %eax,0x240(%edx)` ⇒ 只吃 1 个 token 写 +0x240。
+    // 我方旧形错挂了 [icon mark] 的 body（ScanStr+ScanInt→c0/c4），是本次错位链的起点。
+    script->m_240 = ScanInt((bool*)0);
     break;
                 }
             case 0x235b:  // "[icon mark]"
@@ -1515,7 +1516,29 @@ break;
                 }
                 else
                 {
-    script->m_fieldf4 = ScanInt(&ok);
+    // [b55FIX · 本区四例 body 整体错位一格（每个 case 挂的是下一个 case 的 body）]
+    // ORIG 089b3bdb..089b3c21（[icon mark] 0x235b 的 body）：
+    //   `lea -0x1448(%ebp); call ScanStr` → `lea -0x144c(%ebp); call ScanInt(int*)`
+    //   → `Ss::operator=` 写 script+0xc0 → `mov %edx,0xc4(%eax)` 写 script+0xc4
+    //   ⇒ **ScanStr 一个 token + ScanInt(int*) 一个 token = 吃 2 个 token**。
+    // 我方旧形把它写成 `script->m_fieldf4 = ScanInt(&ok)`（只吃 1 个 token、且不读串），
+    // 于是 `[icon mark]` 后的那个字符串被**留给主循环的 ScanType**：ScanType 内部
+    // `ok` 一旦因非 TYPE token 置 false 便不再复位（ORIG 同形 089bc8ae），随后即便
+    // 读到 `[int data]` 也返回 false ⇒ 主循环 break ⇒ `[int data]` 整段被丢弃。
+    // 实机 A/B 实证（ect/event_uplegacy_ft70_10000026.stk，Frida /tmp/ab_sk3.js）：
+    //   tok#39(STRING) 被 `[icon mark]` 的 ScanInt 吞掉并失败 → tok#40(DECIMAL)+
+    //   tok#41 TYPE "[int data]" 由主循环 ScanType 消费 → `ScanType ret=0 @b976` →
+    //   END ret=1 但 `m_vec88` 元素数 = 0（ORIG 同文件 vec88=29）。
+    //   ⇒ 之后 `createStackableLotteryInfo` 收到空 vector，`*it/++it` 永不等于 end()
+    //      ⇒ 死循环 + push_back 越界 ⇒ SIGSEGV（`Loading items` 崩）。
+    {
+        std::string mark;           // ORIG -0x1448
+        int markValue = 0;          // ORIG -0x144c
+        ScanStr(&mark);
+        script->m_strc0 = mark;         // 0x089b3c0d：op= 写 +0xc0
+        ScanInt(&markValue);            // 0x089b3bf2：ScanInt(int*)
+        script->m_fieldc4 = markValue;
+    }
     break;
                 }
             case 0x2368:  // "[usable period]"
@@ -1525,18 +1548,19 @@ break;
                 }
                 else
                 {
-    script->m_fieldf8 = ScanInt(&ok);
+    // ORIG 089b3c83..089b3c98：ScanInt(bool*) → `mov %eax,0xf4(%edx)`（+0xf4）。
+    script->m_fieldf4 = ScanInt((bool*)0);
     break;
                 }
             case 0x236b:  // "[expiration date]"
-    // ORIG 089b3c9d：ScanInt 写 +0x240。
+    // ORIG 089b3cfa..089b3d0f：ScanInt(bool*) → `mov %eax,0xf8(%edx)`（+0xf8）。
                 if (!__inited)
                 {
                     __lookup.insert(std::map<char const*, int, less_TCHAR>::value_type("[expiration date]", 0x236b));
                 }
                 else
                 {
-    script->m_240 = ScanInt((bool*)0);
+    script->m_fieldf8 = ScanInt((bool*)0);
     break;
                 }
             case 0x237a:  // "[package data]"
@@ -3300,7 +3324,25 @@ break;
     pos = 0xa; break;              // "magic stone"
                 }
             default:
-    return false;   // ORIG default(089b9284) → return false
+    // [b54FIX · 链尾 insert 穿透进无条件 return false ⇒ 建表轮整体失败]
+    // ORIG 089b922c..089b9279：`[magic stone]`(0x28d4，**本子表最后一个 case**) 的
+    //   `!__inited_4` 登记棱形登记完 insert 后 `jmp 0x89b9284`，而 0x89b9284 就是
+    //   default 落点：
+    //     89b9284 movzbl 0x94fe024; test %al,%al
+    //     89b928d je 89b929b        ; __inited_4==0（建表轮）→ 解锁/置位/重入 find
+    //     89b928f mov $0,%ebx; mov $0,%esi; jmp 0x89b9313   ; 已建表 → return false
+    //   089b929b: `leave SpinLock; movb $1,__inited_4; jmp 0x89b8b72`（重入 find）。
+    // 即 ORIG 的 default 是 **`if (__inited_4) return false;` + 贯穿到公共尾**，
+    //   不是无条件 return false。
+    // 本方旧形写无条件 `return false;` ⇒ 建表轮登记完 11 个槽位后直接落进 default
+    //   返回 0，子表永远为空无人使用（`pos` 也永远不写）。
+    // 实机 A/B 实证：`recipe/nrcp_kat_revengespr.stk` 的 `[minimum itemmaking level]`
+    //   后 ScanStr 读到 "weapon"（表内 0x28b6 项），却随即 `ImportStackableScript`
+    //   ret=0（Frida /tmp/ab_sk.js：tok#56 ScanStr ret=1 @9d4a → END ret=0，中间再无
+    //   任何 Scan*）⇒ `Loading items Fail`（前 63776 个 .equ + 2401 个 .stk 全过）。
+    if (__inited_4)
+        return false;
+    break;
         }
         if (__inited_4)
         {

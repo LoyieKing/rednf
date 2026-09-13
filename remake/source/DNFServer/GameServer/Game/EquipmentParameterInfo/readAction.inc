@@ -46,6 +46,20 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
 
     switch (id)
     {
+    // [b54FIX · 建表轮入口 `case 0:` 缺失 ⇒ 自旋锁永久锁死]
+    // ORIG 089a1649/089a165f：分派链 `cmp $0x1248,%eax; je 0x89a199e` 之后紧跟
+    //   `test %eax,%eax; je 0x89a199e` ⇒ **id==0 与 id==0x1248 同一目标**，即 ORIG
+    //   源码首例写作 `case 0: case 0x1248:`（与 readCondtion.inc:49、
+    //   importEquipmentParameterInfo.inc:145 同形，那两处本就带 `case 0:`）。
+    // 本方旧形漏写 `case 0:` ⇒ `__inited==0` 的建表轮 `id=0` 落进本文件末位
+    //   `default: return false;`，**既不逐例 insert，也走不到 `L_chain_end` 的
+    //   `__init_lock.leave(); __inited = true;`** ⇒ 自旋锁永久保持锁定、`__inited`
+    //   永远为 0；此后每次 readAction 都在 `__init_lock.enter()` 内空转。
+    // 实机 A/B 实证：`character/common/jacket/cloth/tuxedo_phantom.equ` 的 `[target]`
+    //   分派后（Frida /data/ab_eq.js：ScanType ret=1 @readAction）再无任何 getToken
+    //   或 Scan*；/tmp/ab_fn.js 钩该 TU 内 1247 个符号，计数在 3s 处冻结、进程态恒
+    //   为 R、VmRSS 恒 351872 kB（非内存增长）⇒ 自旋锁死锁。
+    case 0:
     case 0x1248:
         if (!__inited)
         {

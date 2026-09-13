@@ -1097,9 +1097,25 @@ static QuestScript g_questScriptCopyEmitUse(g_questScriptCopyEmitSrc);
                     break;
                 }
             default:
-                if (!__inited)
+                // [b56FIX · default 极性写反 ⇒ 建表轮被判失败]
+                // ORIG 08a63e68..08a63e7d（本 switch 的 default/尾）：
+                //   8a63e68 movzbl 0x95004f4(__inited); test %al,%al
+                //   8a63e71 je 8a63e7d        ; __inited==0（建表轮）→ **不返回**，
+                //                             ; 落到 8a63e7d 的 `!__inited` 解锁/置位/重查
+                //   8a63e73 mov $0,%ebx; jmp 0x8a65a37   ; __inited!=0 ⇒ return 0（未知 type）
+                //  8a63e7d: leave SpinLock; movb $1,__inited; jmp 0x8a62f35（重查）
+                // 即 ORIG 的判据是 **`if (__inited) return 0;`**；本方旧形写
+                // `if (!__inited) return 0;` 极性相反 ⇒ 首次遇到 `[type]` 时
+                // `v=0` 进链首逐例 insert（末 case insert 后贯穿到 default），
+                // 此时 `__inited` 仍为 0 ⇒ 直接 `return 0`，整份 .qst 被判失败。
+                // 实机 A/B 实证（Title/achievement_34_title.qst，Frida /tmp/ab_qq_{ours,orig}.js
+                // 对钩 getToken/getType/ScanType）：两流前 22 个词完全一致，第 21 词
+                // `[type]` 由主循环 ScanType 消费、第 22 词被 ScanStr 读走后，我方
+                // `END ret=0`（共 22 词），ORIG `END ret=1`（共 50 词），随后
+                // `QuestList::load_list` 在第 1 个文件即失败 ⇒ `Loading Quests Fail`。
+                if (__inited)
                 {
-                    return 0;                        // ORIG +0x2660
+                    return 0;                        // ORIG 08a63e73
                 }
                 break;
             }

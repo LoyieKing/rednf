@@ -945,6 +945,17 @@ bool ImportPassiveObjectScript(STPassiveObjectScript* script, const char* path,
                             }
                         switch (dv)
                         {
+                        // [b54FIX · 建表轮入口 `case 0:` 缺失 ⇒ 子表永远为空（静默丢数据）]
+                        // ORIG 08a2ebfd：分派链 `cmp $0x1f58,%eax; je 0x8a2ec2c` 之后紧跟
+                        //   `test %eax,%eax; je 0x8a2ec2c` ⇒ **dv==0 与 dv==0x1f58 同目标**，
+                        //   即 ORIG 源码首例写作 `case 0: case 0x1f58:`（与 readCondtion.inc:49、
+                        //   importEquipmentParameterInfo.inc:145 同形）。
+                        // 本方旧形漏写 `case 0:` ⇒ `__inited==0` 建表轮 `dv=0` 落进本 switch 末尾
+                        //   `default: break;`（ORIG 0x8a2f2f3 出口），随后子表公共尾照常
+                        //   `leave(); __inited = true;` —— 锁没死、但**一个条目都没登记**，
+                        //   此后每次 find 都 miss（dv=-1）⇒ [destroy condition]/[destroy action]/
+                        //   [on attack] 等全部子块被静默忽略，脚本数据丢失且无任何报错。
+                        case 0:
                         case 0x1f58:   // [destroy condition] → m_type（子 token 0..4 / -1）
                             if (!__inited)
                             {

@@ -58,18 +58,29 @@ bool ScanRewardItems(std::vector<RewardItemInfo>& out, std::string token)
             return false;
         info.m_itemIdx = v;
         info.m_job = 0xb;
-        v = ScanStrOrInt(ok2, s, ok1, 1);
+        // [b57FIX · ScanStrOrInt 的两个输出标志用反了（拿 isStr 当 isInt 判）]
+        // ORIG 08a65e3d..08a65e76 实参布局（objdump 逐条）：
+        //   (%esp)=isStr ← **-0xe**（那个全程只被测试、不参与其它判断的 unusedFlag 槽）
+        //   0x4(%esp)=s ；0x8(%esp)=isInt ← **-0xd**（即 ok2）；0xc=consume=1
+        //   `call _Z12ScanStrOrIntRbRSsS_b` → `mov %eax,-0xc(%ebp)`(v)
+        //   08a65e61 `movzbl -0xd; xor $1; test; je 08a65e76` ⇒ **`if (!ok2) return false;`
+        //     判的是 isInt**（DECIMAL/HEX/FLOAT/STRING/PAIR_INT 都会置 isInt=1）
+        //   08a65e76 `movzbl -0xe; test %al,%al; je 08a65eec` ⇒ `if (unusedFlag) { … }`
+        //     即 isStr 分支：s=="[job]" 读 m_job/m_growType，末尾 08a65ed3 **无条件**
+        //     再 ScanInt 一次，08a65eec 是共享的 m_count 赋值尾。
+        // 旧形写 `ScanStrOrInt(ok2, s, ok1, 1)`（isStr→ok2、isInt→ok1）却仍
+        // `if (!ok2) return false;` ⇒ **拿 isStr 当 isInt 判**：奖励项第 2 个 token
+        // 是整数时 isStr=0 ⇒ 直接 return false。
+        // 实机 A/B 实证（Title/achievement_34_title.qst，Frida /tmp/ab_qq_{ours,orig}.js
+        // 对钩 getToken/getType/ScanType）：同一 token 流前 32 词逐词一致；第 33/34 词
+        // 是两个 DECIMAL，ORIG 继续读到第 35 词 `[/reward int data]`（无 getType ⇒ 由
+        // ScanTypeOrInt 消费）后返回 true 并走完 50 词（END ret=1）；我方在第 34 词后即
+        // END ret=0 ⇒ `importQuestScript` 返回 0 ⇒ `QuestList::load_list` 第 1 个文件
+        // 即失败 ⇒ `Loading Quests Fail`。
+        v = ScanStrOrInt(unusedFlag, s, ok2, 1);
         if (!ok2)
             return false;
-        // [b14 报告核对·真语义缺口] ORIG 0x08a65e6a..0x8a65eec 控制流（报告
-        // Ghidra C 0x8a65e6a 段 + objdump 逐条核对）：
-        //   ok1==0 → je 0x8a65eec（共享 m_count 赋值尾，直接用 ScanStrOrInt 返回值）；
-        //   ok1==1 → s=="[job]" 时读 m_job/m_growType，随后**无条件**再 ScanInt；
-        //            非 "[job]" 时也执行该 ScanInt（je 0x12e 落在同一段）。
-        // 原实现把最后那次 ScanInt 写成 else 分支 ⇒ [job] 情形少读一个 int（真 bug）。
-        // 同时 ORIG 全程只用一个 -0xc 变量（v 兼作 ScanInt 中转槽，Ghidra local_10
-        // 贯穿），故删除 v2。
-        if (ok1)
+        if (unusedFlag)
         {
             if (s == "[job]")
             {

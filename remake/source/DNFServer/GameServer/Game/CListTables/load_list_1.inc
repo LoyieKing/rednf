@@ -220,7 +220,25 @@ bool QuestList::load_list()
         }
         if (script.m_mapIdx != -1)
         {
-            CMap* map = (CMap*)G_CDataManager()->find_map(script.m_mapIdx);
+            // [b58FIX · 查表实参取错字段（用 +0x150 而非 ORIG 的 +0x158）]
+            // ORIG 083546fb..0835471c（QuestList::load_list，script 局部在 -0x734）：
+            //   83546fb `mov -0x5e4(%ebp),%eax` = script+0x150（AppearMap::m_mapA）
+            //   8354701 `cmp $0xffffffff,%eax; je 83547a0` ⇒ **-1 判据用 +0x150**
+            //   835470a `mov -0x5dc(%ebp),%ebx` = script+0x158（AppearMap::m_appearMap）
+            //   835471c `call _ZNK12CDataManager8find_mapEi` ⇒ **查表实参用 +0x158**
+            //   835472a `mov -0x5dc(%ebp),%eax` ⇒ 出错日志的 %d 也是 +0x158
+            // 本方旧形把查表写成 `script.m_mapIdx`（+0x150）⇒ 拿「源地图号」去查表。
+            // 实机 A/B 实证（behimos/OuterWall/epic_27_OuterWall_hiyasis_1.qst）：
+            //   该 .qst 的 `[appear map]` 四个值 = 21, -1, 3025, …
+            //   （ORIG/OURS token 流逐词相同，ScanInt 值也逐条相同）
+            //   ⇒ AppearMap{m_mapA=21, m_mapB=-1, m_appearMap=3025, …}
+            //   ORIG `[VM] find_map idx=3025 -> 0x190c4760`（命中）；
+            //   我方 `[VM] find_map MISS idx=21` ⇒ 打
+            //   "NPC wrong npc appear map index 3025." ⇒ QuestList::load_list ret=0
+            //   ⇒ `Loading Quests Fail`。
+            //   另证：两侧 m_mainMap 的键集合（2406 个 get_index 值）**完全相同**，
+            //   且都不含 21 ⇒ 不是地图表缺项，而是查错了字段。
+            CMap* map = (CMap*)G_CDataManager()->find_map(script.m_mapIdx2);
             if (map == 0)
             {
                 LogManager::logFormat(
@@ -231,7 +249,23 @@ bool QuestList::load_list()
                     path, script.m_mapIdx2);
                 return 0;
             }
-            if (!G_CDataManager()->VerifyMap(*map, script.m_mapIdx2))
+            // [b59FIX · VerifyMap 第三实参同样取错字段（应为 +0x150，非 +0x158）]
+            // ORIG 08354771..0835478a（紧接上面 find_map 的调用点）：
+            //   8354771 `mov -0x5e4(%ebp),%ebx` = script+0x150
+            //   8354777 `call _Z14G_CDataManagerv`
+            //   835477c `mov %ebx,0x8(%esp)`   ← 第 3 实参 = **+0x150**
+            //   8354780 `mov -0x24(%ebp),%edx` ← 第 2 实参 = find_map 的返回值（map）
+            //   835478a `call _ZNK12CDataManager9VerifyMapERK4CMapi`
+            // ⇒ 本块三个字段的取法各不相同，必须逐一对齐：
+            //     -1 判据      → +0x150 (m_mapIdx)
+            //     find_map 实参 → +0x158 (m_mapIdx2)
+            //     日志 %d      → +0x158 (m_mapIdx2)
+            //     VerifyMap 实参→ +0x150 (m_mapIdx)
+            // 实机实证：behimos/Junggle/epic_28_Junggle_hiyasis_2.qst
+            //   `[QC] CRASH ← CDataManager::VerifyMap +0x30e
+            //            ← vector<stDungeonAssignItem_t>::size()`
+            //   （旧形传 3025 而不是 21，VerifyMap 内部按该 idx 索引越界）。
+            if (!G_CDataManager()->VerifyMap(*map, script.m_mapIdx))
             {
                 return 0;
             }

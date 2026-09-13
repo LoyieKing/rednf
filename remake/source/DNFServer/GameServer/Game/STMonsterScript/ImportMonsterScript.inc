@@ -1358,19 +1358,12 @@ case 0xcbe:  // "[basic action]"
             break;
         }
 
-case 0xcc1:  // "[attack action]"
+case 0xcc1:  // "[attack action]"（ORIG 0x08a17791 je 下一 guard ⇒ 无叶体，贯穿到 [action list]）
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[attack action]", 3265));
-            /* FALLTHRU */
         }
-        else
-        {
-        script->m_attackActions.clear();
-        while (ScanStr(&token))
-            script->m_attackActions.push_back(token);
-            break;
-        }
+        /* FALLTHRU */
 
 case 0xcc2:  // "[action list]"
         if (!__inited)
@@ -1659,8 +1652,19 @@ case 0xd22:  // "[throw attack]"（收集父 case；ORIG C LAB_08a184c3：
                 std::string fname;           // -0x1a88（filename 循环暂存）
                 int subId2;                  // ORIG -0xec
                 int i;                       // ORIG -0xe8（各 resize/读循环共用）
-                while (true)
+                // ★ ORIG 0x08a19043 是**循环条件**（`lea eax,[ebp-0x1a10]; call ScanStr;
+                //   test al,al; jne 0x08a18544`），序言 `0x08a1853f jmp 0x08a19043`
+                //   直接跳到该条件 ⇒ 源码为 `while (ScanStr(&token)) { for(;;){…派发…} }`：
+                //   **先取词、再派发**。旧转写写成 `while(true){…派发…; if(!ScanStr(&token)) break;}`
+                //   = do-while，会用**上一个 tag 遗留的 token** 先派发一轮（KingNugol 实测：
+                //   遗留 token="[throw sound]" 命中子表 3423，把子块的 "[attack index]" 字符串
+                //   当成 m_field40 吞掉 ⇒ 随后 ScanStr 撞上整型 token 失败、本块少读 23 个
+                //   token、整个 .mob 提前收尾）。
+                //   注册轮重入点 = body 头（0x08a1903d jmp 0x08a18544）⇒ 内层 for(;;)。
+                while (ScanStr(&token))
                 {
+                  for (;;)
+                  {
                     static std::map<const char*, int, less_TCHAR> __lookup;
                     static SpinLock __init_lock;
                     static bool __inited = false;
@@ -1831,10 +1835,10 @@ case 0xd22:  // "[throw attack]"（收集父 case；ORIG C LAB_08a184c3：
                     {
                         __init_lock.leave();               // ORIG 08a1902a..31
                         __inited = true;                   // ORIG 08a19036
-                        continue;                            // ORIG 08a1903d jmp 08a18544
+                        continue;                            // ORIG 08a1903d jmp 08a18544（回 body 头）
                     }
-                    if (!ScanStr(&token))                    // ORIG 08a19043..53
-                        break;
+                    break;                                   // 本 token 派发完毕 → 回外层 ScanStr 条件
+                  }
                 }
                 script->m_throwAttacks.push_back(elem);      // +0x9c ORIG 08a1906f
             }
@@ -2999,176 +3003,128 @@ case 0xf2b:  // "[is grabable]"
             break;
         }
 
-case 0xf2e:  // "[ai pattern]"（ORIG 叶为空；importAIInfoScript 仅在 0xf3e 调 1 次）
+// ===========================================================================
+// [报告缺失·按 ORIG objdump 0x08a1ccdf..0x08a1d314 转写] AI 参数族 **fall-through 链**：
+//   ORIG 中 0xf2e..0xf3d 16 个 case 的 guard 全部形如
+//   `movzx __inited; xor $1; test; je <下一 case 的 guard>`（无 else 体、无解析块），
+//   即源码为 `if (!__inited) { insert }` 后**直接贯穿**到下一 case；
+//   整段链共用末位 0xf3e 的解析体 0x08a1d2ec：
+//     lea edx,[this+0x138]; mov [esp+8],1; lea eax,[ebp-0x1a0c];
+//     mov [esp+4],eax; mov [esp],edx; call importAIInfoScript(STAIInfoScript*,std::string*,bool)
+//   ⇒ 语义 = 这些"AI 子标签"一律交给 importAIInfoScript 自行按 tag 消费其值
+//     （[ai pattern]/[think term]/[warlike]/[vision]/[intelligence]/[keep distance with target]…
+//      的取值个数各不相同，正是该函数内部对 tag 的分派结果）。
+//   旧转写把 0xf2e..0xf3d 写成 `else { break; }`（真 no-op）⇒ 这些标签的值 token 无人消费，
+//   使外层 `while (ScanType(tag,true))` 读到值 token 后置 ok=false 而**提前终止整个 .mob 解析**
+//   （实测 Act8/BlackScaleMoussambani.mob：ORIG 290 token / 我方 127 token；1956 个 .mob
+//    中 1300 个 token 数不符，即本 bug 的规模）。
+// ===========================================================================
+case 0xf2e:  // "[ai pattern]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[ai pattern]", 3886));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU（ORIG 0x08a1ccdf je 下一 guard） */
 
 case 0xf2f:  // "[think term]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[think term]", 3887));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf30:  // "[destination change term]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[destination change term]", 3888));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf31:  // "[targeting bonus]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[targeting bonus]", 3889));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf32:  // "[keep distance with target]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep distance with target]", 3890));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf33:  // "[warlike]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[warlike]", 3891));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf34:  // "[vision]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[vision]", 3892));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf35:  // "[intelligence]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[intelligence]", 3893));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf36:  // "[keep range distance with target]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target]", 3894));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf37:  // "[back vision]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[back vision]", 3895));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf38:  // "[no change target]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[no change target]", 3896));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf39:  // duplicate unnumbered keep-range key in ORIG map
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target]", 3897));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf3a:  // "[keep range distance with target 1]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target 1]", 3898));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf3b:  // "[keep range distance with target 2]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target 2]", 3899));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf3c:  // "[keep range distance with target 3]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target 3]", 3900));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf3d:  // "[keep range distance with target 4]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target 4]", 3901));
-            /* FALLTHRU */
         }
-        else
-        {
-            break;
-        }
+        /* FALLTHRU */
 case 0xf3e:  // "[keep range distance with target 5]"
         if (!__inited)
         {
             __lookup.insert(std::map<const char*, int, less_TCHAR>::value_type("[keep range distance with target 5]", 3902));
-            /* FALLTHRU */
+            /* FALLTHRU（ORIG 0x08a1d2ea jmp 下一 case guard 0x08a1d314） */
         }
         else
         {
-            importAIInfoScript(&script->m_aiInfo, &tag, true);
+            importAIInfoScript(&script->m_aiInfo, &tag, true);   // ORIG 0x08a1d30a
             break;
         }
 
