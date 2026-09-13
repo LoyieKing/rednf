@@ -2419,10 +2419,16 @@ break;
         bool bMore = true;
         while (bMore)
                 {
-            if (!ScanType(line, true))
-        {
-                break;                        // ScanType EOF → 结束本段
-            }
+            // ★ ORIG 0x089b685d `call ScanType` 之后**无 test/je**（下一条即
+            //   0x089b6862 的 static guard 检查）⇒ 返回值被**丢弃**；本循环只由
+            //   `[/enchant]` 把 bMore 置 0 结束（0x089b6ac8 `movb $0,-0x55` →
+            //   0x089b6cf6 `cmpb $0,-0x55; jne 0x89b684c` 回循环头）。
+            //   旧转写 `if (!ScanType(line,true)) break;` 在 ret=0（sticky ok 被
+            //   值 token 置假）时提前退出 ⇒ monsterCard 系列 .stk 少解析 ~33 token，
+            //   且 ORIG 在 ret=0 时**仍会用当前 line 继续调
+            //   importEquipmentParameterInfo**（mc_o 探针 trace 实证：T49..T60
+            //   每次 ScanType ret=0 之后仍有 `[[EPI# enter`）。
+            ScanType(line, true);
                     // [b28d-solo-STStackableScript] ORIG 089b6862..089b6ccf：本内层
                     // 分发有**独立 static 三件套**（map 0x94fdfe8 / SpinLock
                     // 0x94fe000 / __inited 0x94fe004；guard 0x94fdd08/0x94fdd10 =
@@ -2449,17 +2455,18 @@ break;
                             __init_lock_3.leave();
                     continue;
                 }
-                etag = 0;
-                break;
+                // ★ 注册轮：登记本表**全部**键后必须**重派发同一个 line**
+                //   （ORIG 尾形 `SpinLock::leave; movb $1,__inited; jmp <派发头>`）。
+                //   旧转写登记完就落回 while(bMore) 体尾 ⇒ 当前标签被**整个吞掉**且
+                //   不派发，只在「本进程首个命中该内层表的文件」上暴露
+                //   （emblem/red/emblem_red.stk 实测：ORIG 39 / 我方 35 token）。
+                __lookup_3.insert(std::map<char const*, int, less_TCHAR>::value_type("[/enchant]", 0x26d0));
+                __lookup_3.insert(std::map<char const*, int, less_TCHAR>::value_type("[pvp]", 0x26d3));
+                __init_lock_3.leave();
+                __inited_3 = true;
+                continue;
             }
-            if (etag == 0)
-                {
-                        __lookup_3.insert(std::map<char const*, int, less_TCHAR>::value_type("[/enchant]", 0x26d0));
-                        __lookup_3.insert(std::map<char const*, int, less_TCHAR>::value_type("[pvp]", 0x26d3));
-                        __init_lock_3.leave();
-                        __inited_3 = true;
-            }
-            else if (etag == 0x26d0)
+            if (etag == 0x26d0)
             {
                 bMore = false;                // 089b6ac8：[/enchant] → 出口
             }
@@ -3669,6 +3676,14 @@ break;
                 else
                 {
     {
+        // ★ ORIG 0x89b9eaf..0x89b9f1e 是**循环**（回边 `je 0x89b9eaf`）：
+        //   `v=ScanInt(&ok); if(!ok){ m_4b0=1; break; } if(v<=0) return false;
+        //    if(!m_set480.insert(v).second){ logFormat; return false; }` 反复执行。
+        //   旧转写只跑一次 ⇒ 该标签只消费 1 个值（ORIG 消费整段），随后外层
+        //   `while(ScanType)` 撞上整型 token 置 ok=false 提前收尾
+        //   （实测 cash/avatar_optionchange6.stk：ORIG 45 / 我方 41 token）。
+        for (;;)
+        {
         int v = ScanInt(&ok);
         if (!ok)
         {
@@ -3687,6 +3702,7 @@ break;
                 0, "../RDARScriptItem.cpp", __FUNCTION__, 0x296f,
                 "[usable avatar index] is duplicated");
             return false;
+        }
         }
     }
     break;

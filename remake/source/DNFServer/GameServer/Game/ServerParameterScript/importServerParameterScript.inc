@@ -1960,5 +1960,15 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
         }
     }
 lab_finish:
-    return script->m_558 != -1;
+    // ★ ORIG 0x08a8c23f 尾形：`cmp $0xffffffff,%eax; jne L; mov $0, %ebx; jmp C;
+    //   L: mov $1,%ebx; C: <~string>; mov %ebx,%eax; ret` ⇒ 返回值是**完整 32 位**
+    //   0/1。旧转写 `return script->m_558 != -1;`（bool 返回）被 4.4.7 折成
+    //   `setne %bl`（我方 0x086bce4d 实证），只有低 8 位被写，eax 高 24 位残留
+    //   上一次 ebx ⇒ Frida A/B 实测 ret=0x0924f301（= readCharFromBuffer::charBuffer+1），
+    //   ORIG 为 1。改成两段式 return 即复现 ORIG 的分支形。
+    if (script->m_558 == -1)
+    {
+        return 0;
+    }
+    return 1;
 }

@@ -53,10 +53,19 @@ bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
 
         if (token == "[EMOTION INFO]")
         {
+            // ★ ORIG 0x0890df14..0x0890e12f 控制流实证：记录体是**内层无限循环**，
+            //   每条记录结束后不经 ScanType 直接重进 0x0890df14 再解析下一条；
+            //   任一 Scan 失败 ⇒ ebx=0 ⇒ 清 ~str/~data 后 `je 0x890dede`
+            //   = 回**外层** ScanType（是 break，**不是** return false）。
+            //   旧转写为单发 + 失败 return false ⇒ Etc/EmotionExpressionData.etc 只
+            //   解析 1 条记录（12 token）就回到外层，外层 ScanType 因 k2 置 sticky
+            //   ok=false 后一路吞到 410 token 并返回 0 收工（ORIG 514）。
+            for (;;)
+            {
             stOneEmotionData data;                  // ctor 0x891b560 + clear
             std::string str;                        // ORIG -0x1c（块内构造）
             int tag = ScanInt(&ok);
-            if (!ok) { return false; }
+            if (!ok) { break; }
             out->m_tags.push_back(tag);
             data.m_0 = tag;
 
@@ -64,30 +73,30 @@ bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
             // 是 4.1 的具名中转；我方补 `int v4 = ScanInt(&ok); data.m_4 = v4;` 后
             // ourN 239→241 且全槽整体深 4（新槽未复用 ORIG 的 -0xc）⇒ 反劣，已回退。
             data.m_4 = ScanInt(&ok);
-            if (!ok) { return false; }
+            if (!ok) { break; }
             if (!ScanStr(&data.m_8))
             {
-                return false;
+                break;
             }
             if (!ScanStr(&data.m_c))
             {
-                return false;
+                break;
             }
             int v = ScanInt(&ok);
-            if (!ok) { return false; }
+            if (!ok) { break; }
             // ORIG `mov -0x20(%ebp),%eax; cmp $0x1,%eax; sete %al; mov %al,-0x34(=data.m_10)`
             // ⇒ 直接 bool→字节字段赋值即复现 sete 形（勿写 `(v==1)?1:0`：那会产分支形）。
             data.m_10 = (v == 1);
             v = ScanInt(&ok);
-            if (!ok) { return false; }
+            if (!ok) { break; }
             data.m_11 = (v == 1);
             v = ScanInt(&ok);
-            if (!ok) { return false; }
+            if (!ok) { break; }
             data.m_12 = (v == 1);
 
             if (!ScanStr(&data.m_14))
             {
-                return false;
+                break;
             }
             for (;;)
             {
@@ -102,6 +111,7 @@ bool importEmotionTypeTagsScript(const char* path, stEmotionTypeTagsInfo* out)
                 data.m_18.push_back(str);
             }
             out->m_data.push_back(data);
+            }
         }
     }
 }

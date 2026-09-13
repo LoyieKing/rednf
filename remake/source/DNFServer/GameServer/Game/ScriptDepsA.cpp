@@ -360,10 +360,17 @@ const char* CATEGORY_STRING[44] = {
         }
         else if (token == "[equip level const]")
         {
-            // [b28d-solo-ScriptDepsA] ORIG：本段与「未匹配任何段名」的链尾
-            // 默认路径**共用同一段代码**（反编译 C 的 do-while 尾部 ScanInt
-            // 实证）⇒ 单一 ScanInt 调用点（p167 EXTRA ScanInt×1 的来源）。
-            goto parse_equip_level;
+            // ★ ORIG 0x0890ac19 实证：本段**内联**自己的 ScanInt/0x1d92 尾巴，
+            //   成功后 `je 0x890a70e`（= 0x890a712 循环头），与「未匹配任何段名」
+            //   的链尾**不是**同一段代码。旧转写把二者合并成 `goto parse_equip_level`
+            //   ⇒ 未识别标签也会吞一个 ScanInt 并在 !ok 时 return 0x1d92，
+            //   实测 Etc/AmplifyItem.etc：ORIG ret=0，我方 ret=7570(0x1d92)。
+            //   代码形状照 ORIG：先存 +0x3c，再判 ok。
+            out.m_field3c = ScanInt(&ok);
+            if (!ok)
+            {
+                return 0x1d92;
+            }
         }
         else if (token == "[purify material]")
         {
@@ -447,11 +454,9 @@ const char* CATEGORY_STRING[44] = {
         }
         else
         {
-        parse_equip_level:
-            // 链尾合并默认路径（与 [equip level const] 同一代码）。
-            out.m_field3c = ScanInt(&ok);
-            if (!ok)
-                return 0x1d92;
+            // ORIG 0x0890b0c7 `je 0x890a711`：最后一个标签比较失败后直接落到
+            // 0x890a712 = `while (ScanType(line,true))` 循环头 ⇒ **未识别标签
+            // 被静默忽略**（不 ScanInt、不报错）。此处不得再补任何扫描/返回。
         }
     }
     return 0;

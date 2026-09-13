@@ -128,11 +128,19 @@ bool BlueMarbleInfoScript::importScript(const char* dir, const char* path)
         }
         else if (line == "[gold base]")
         {
-            m_goldBase = ScanFloat((float*)0);
+            // ★ ORIG 0x088d5deb 实证：`mov 0x8(%ebp),%eax; add $0x38,%eax;
+            //   mov %eax,(%esp); call _Z9ScanFloatPf` ⇒ 传 **真指针 &m_goldBase**，
+            //   返回值丢弃。旧转写 `m_goldBase = ScanFloat((float*)0)` 走了
+            //   ScanFloat(float*) 的 `value==0 立即 return 0` 早退分支
+            //   （ORIG 0x088bc594 同形）⇒ **一个 token 都不消费**，随后 ScanType
+            //   吃到该 float(k4) 置 sticky ok=false，BlueMarble.blu 在 42 token 处
+            //   提前收工（ORIG 474）。返回值本身也不该用（ORIG 无存储）。
+            ScanFloat(&m_goldBase);
         }
         else if (line == "[gold multi]")
         {
-            m_goldMulti = ScanFloat((float*)0);
+            // ORIG 0x088d5e15：`add $0x3c,%eax; call ScanFloatPf` 同型。
+            ScanFloat(&m_goldMulti);
         }
         else if (line == "[equipment upgrade max]")
         {
