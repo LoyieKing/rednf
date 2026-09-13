@@ -1929,10 +1929,23 @@ break;
                 else
                 {
     {
+        // ★ ORIG 0x89b4c68..0x89b4d52：**循环**消费 ——
+        //   `SsC1Ev; 0x89b4c76 clear(); ScanStr(&name); mov %al,-0x144d;
+        //    xor $1; test; jne <退出>; push_back(string(name.c_str())); jmp 0x89b4c76`
+        //   ⇒ 源码为 `for(;;){ name.clear(); if(!ScanStr(&name)) break; push_back(...); }`
+        //   （clear() 在**循环体头**、退出在 push 之前）。
+        //   旧转写写成 `name.clear(); if (ScanStr(&name)) push_back(...);` 只读**一个**字符串
+        //   ⇒ 该标签的后续 9 对 k9/k10 无人消费，外层 `while(ScanType)` 置 ok=false 提前收尾
+        //   （实测 addition/10000551.stk：ORIG 128 token / 我方 124；全库 85 个 .stk
+        //    文件受此影响，均差 -4 左右）。
         std::string name;   // ORIG -0x1568（每次构造 + clear）
-        name.clear();
-        if (ScanStr(&name))
+        for (;;)
+        {
+            name.clear();
+            if (!ScanStr(&name))
+                break;
             script->m_boosterSelect41c.m_nameVec.push_back(std::string(name.c_str()));
+        }
     }
     break;
                 }

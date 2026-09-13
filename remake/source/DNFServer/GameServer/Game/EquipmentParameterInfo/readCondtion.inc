@@ -1253,23 +1253,30 @@ void readCondtion(EquipmentParameterInfo* info, std::string& line,
             return;
         }
         k = 0;
+        // ★ ORIG 0x89a0ada..0x89a0bff：六次比较**全部**拿 `lea -0x770(%ebp)`（刚读出的
+        //   局部 tok）当左操作数，与 "<" / "<=" / "=<" / "=" / ">=" / "=>" / ">" 逐串比。
+        //   旧转写把后五项误写成外层的 `token`（= 标签名 "[is stat]"）⇒ 除 "<" 外永远
+        //   不等 ⇒ 落 `else { return; }` 提前收尾，`[is stat]` 只吃掉 4 个 token 而 ORIG
+        //   吃 5 个（`ScanInt(&val)` 被跳过），进而外层 `while(ScanType)` ok=false
+        //   提前终止整个 .equ（实测 character/common/jacket/larmor/100070009.equ：
+        //   ORIG 296 token / 我方 192）。
         if (tok == "<")
         {
             k = 1;
         }
-        else if (token == "<=" || token == "=<")
+        else if (tok == "<=" || tok == "=<")
         {
             k = 2;
         }
-        else if (token == "=")
+        else if (tok == "=")
         {
             k = 3;
         }
-        else if (token == ">=" || token == "=>")
+        else if (tok == ">=" || tok == "=>")
         {
             k = 4;
         }
-        else if (token == ">")
+        else if (tok == ">")
         {
             k = 5;
         }

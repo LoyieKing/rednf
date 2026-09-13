@@ -71,6 +71,7 @@ int importHeroMissionConditionsData(std::vector<HeroMissionCondition>* out,
                 if (t <= 0 || t > 6)
                     return 0x3fc;
                 cond.m_missionType = t;
+                break;
             }
         case 0x400:   // [type]
             if (!__inited)
@@ -85,6 +86,7 @@ int importHeroMissionConditionsData(std::vector<HeroMissionCondition>* out,
                 if (t == 0)
                     return 0x407;
                 cond.m_field04 = t;
+                break;
             }
         case 0x40c:   // [repeat]
             if (!__inited)
@@ -96,6 +98,7 @@ int importHeroMissionConditionsData(std::vector<HeroMissionCondition>* out,
                 if (!ScanStr(&s))
                     return 0x40f;
                 cond.m_isRepeatMission = (s == "true");
+                break;
             }
         case 0x414:   // [reset]
             if (!__inited)
@@ -107,6 +110,7 @@ int importHeroMissionConditionsData(std::vector<HeroMissionCondition>* out,
                 if (!ScanStr(&s))
                     return 0x417;
                 cond.m_isResetState = (s == "true");
+                break;
             }
         case 0x41c:   // [item]
             if (!__inited)
@@ -128,6 +132,7 @@ int importHeroMissionConditionsData(std::vector<HeroMissionCondition>* out,
                     reward.m_addInfo = static_cast<unsigned short>(add);
                     cond.m_rewards.push_back(reward);
                 }
+                break;
             }
         case 0x431:   // [condition]
             if (!__inited)
@@ -145,6 +150,7 @@ int importHeroMissionConditionsData(std::vector<HeroMissionCondition>* out,
                         return 0x43c;
                     cond.m_extra.push_back(static_cast<unsigned short>(v));
                 }
+                break;
             }
         case 0x442:   // [mail title]
             if (!__inited)
@@ -156,6 +162,7 @@ int importHeroMissionConditionsData(std::vector<HeroMissionCondition>* out,
                 if (!ScanStr(&s))
                     return 0x445;
                 cond.m_mailTitle = s;
+                break;
             }
         case 0x44a:   // [mail content]
             if (!__inited)
@@ -167,6 +174,7 @@ int importHeroMissionConditionsData(std::vector<HeroMissionCondition>* out,
                 if (!ScanStr(&s))
                     return 0x44d;
                 cond.m_mailContent = s;
+                break;
             }
         case 0x452:   // [/mission]
             if (!__inited)
@@ -182,6 +190,7 @@ int importHeroMissionConditionsData(std::vector<HeroMissionCondition>* out,
                 }
                 out->push_back(cond);
                 cond.clear();
+                break;
             }
         }
 
