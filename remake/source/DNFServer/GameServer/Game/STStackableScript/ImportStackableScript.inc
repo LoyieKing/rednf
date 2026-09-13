@@ -3133,14 +3133,23 @@ break;
             }
             else if (sub == "[A condition item]")
             {
+                // ★ ORIG 0x89b87f8..0x89b8879 是**内层循环**（回边 `jmp 0x89b87f8`）：
+                //   `a=ScanInt(&ok); if(!ok) break; b=ScanInt(&ok); if(!ok) break;
+                //    push_back(make_pair(a,b));` 反复执行，直到任一 ScanInt 失败
+                //   （两处失败出口都落 0x89b8882 = 下一个 else-if 的比较点）。
+                //   旧转写只读**一对**就回到外层 ScanType ⇒ 后续 48 对 k2 无人消费、
+                //   外层撞上整型 token 置 ok=false 提前收尾
+                //   （实测 event/chuseok/event_7942.stk：ORIG 290 / 我方 134 token）。
+                for (;;)
+                {
                 int a = ScanInt(&ok);
                 if (!ok)
-                    continue;
+                    break;
                 int b = ScanInt(&ok);
-                if (ok)
-                {
-                    script->m_cube3d4.m_materials.push_back(
-                        std::make_pair(a, b));
+                if (!ok)
+                    break;
+                script->m_cube3d4.m_materials.push_back(
+                    std::make_pair(a, b));
                 }
             }
             else if (sub == "[B condition item]")
@@ -3156,14 +3165,20 @@ break;
             }
             else if (sub == "[result item]")
             {
+                // ★ ORIG 0x89b8918..0x89b89bd 同 [A condition item]：**内层循环**
+                //   （回边 `jmp 0x89b8918`），每轮读 3 个 int 组一个 stLimitCubeResult，
+                //   任一 ScanInt 失败即跳出到下一个 else-if（三处失败出口均落 0x89b89c9）。
+                for (;;)
+                {
                 int a = ScanInt(&ok);
                 if (!ok)
-                    continue;
+                    break;
                 int b = ScanInt(&ok);
                 if (!ok)
-                    continue;
+                    break;
                 int c = ScanInt(&ok);
-                if (ok)
+                if (!ok)
+                    break;
                 {
                     // ORIG 0x089b8982 同上：仅 C1 调用点，无 D1（N2 豁免）。
                     stLimitCubeResult r;
@@ -3171,6 +3186,7 @@ break;
                     r.m_count = b;
                     r.m_prob = c;
                     script->m_cube3d4.m_results.push_back(r);
+                }
                 }
             }
         }
