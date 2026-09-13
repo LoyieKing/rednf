@@ -153,12 +153,7 @@
 // ORIG 0x08115de2 实证（push_back 4/2/2 字节 store + 迭代 deEv 读 +0/+4/+6）：
 // 权威类型名 stEVENTADDINFO（vector 实例 mangled St6vectorI14stEVENTADDINFO…），
 // 旧重建发明的 EventAddInfo 属发明符号（N114/§4.4）。
-struct stEVENTADDINFO
-{
-    int eventId;             // +0x00（push_back 4 字节 store）
-    unsigned short info0;    // +0x04
-    unsigned short info1;    // +0x06
-};
+// §4.4 唯一声明点：定义已收敛到 CGuildServerProxy.h:123（本 TU 经其 include 取得）。
 
 #include "CEventManager/MakeNotiEventInfo.inc"
 

@@ -188,7 +188,7 @@ public:
     int m_field00;                     // +0x00
     int m_field04;                     // +0x04
     std::map<Zone, CVillageMonsterArea> m_areas;  // +0x08 (0x18)
-    ENUM_VILLAGE_ATTACKED_REWARD m_field20;  // +0x20
+    int m_field20;                       // +0x20（origin 侧为 int；枚举仅用于 SetRewardType/OnDestroyVillageMonster 形参）
 
     int  OnKillVillageMonster(int a, int b, unsigned short c, bool d);
                                                       // _ZN16village_attacked18CVillageMonsterMgr20OnKillVillageMonsterEiitb

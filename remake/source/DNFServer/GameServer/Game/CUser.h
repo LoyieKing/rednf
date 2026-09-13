@@ -1274,7 +1274,7 @@ public:
     char m_question3c[4];           // +0x3c..0x3f（generateQuestion 问题四元组）
     unsigned char m_pad40;          // +0x40（ORIG init 清零；WongWorkA 核证）
     char m_pad41to43[3];            // +0x41..0x43
-    ENUM_REQUEST_STATE m_requestState44;  // +0x44（setRequestState/getRequestState）
+    int m_requestState44;           // +0x44（setRequestState/getRequestState；origin 侧为 int，WongWorkSecurityCard_A/init.inc 以 int 0 赋值）
     int m_cancelCnt48;              // +0x48（getCancelCnt/incCancelCnt）
 };
 
