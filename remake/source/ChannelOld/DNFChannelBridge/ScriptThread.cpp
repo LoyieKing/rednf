@@ -17,6 +17,11 @@ ChannelServiceApp::ScriptThread::~ScriptThread()
 
 void ChannelServiceApp::ScriptThread::loop(void* temp)
 {
+    // [2026-09-14 复核] 这里**保持 puts**：ORIG df_bridge_r 的 ScriptThread::loop
+    //   0x08063942 是 `mov [esp],0x81242b4; call puts` ⇒ 串本身无 \n、由 puts 补一个
+    //   ⇒ 前一行粘连、后一行另起 —— 与 ORIG 输出 `…Success…Success*** Start up ScriptThread`
+    //   + 换行 + `Start up UDPThread` 完全吻合。（曾误改成 printf，导致 `Start up UDPThread`
+    //   被粘到同一行，A/B 立刻暴露，已回退。）
     puts("*** Start up ScriptThread");
     ChannelService* pApp = getManager();
     DBMgr DBMgr_;

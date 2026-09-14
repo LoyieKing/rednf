@@ -102,7 +102,11 @@ void TMemoryPoolStatic<T, Size, Q>::startup()
         puts("momory alloc failed");
         throw Exception("memory alloc failed");
     }
-    printf("%d th allocated Success\n", Size);
+    // [2026-09-14 修复] ORIG df_bridge_r 的格式串是 `"%d th allocated Success"`（常量
+    //   0x0dacd8，`Success` 后紧跟 NUL，**无 \n**）；而 df_channel_r 的同一处
+    //   (0x025580) 是带 \n 的 —— 两个服务的这根串本来就不同，别互抄。
+    //   旧转写照 channel 抄了 \n ⇒ bridge 的输出多断行（A/B 集合口径 3 行差异）。
+    printf("%d th allocated Success", Size);
     for (int i = 0; i <= Size - 1; i = i + 1)
     {
         T* t = repository_ + i;

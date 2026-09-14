@@ -304,7 +304,18 @@ void CServerXml::ProcessLoad(TiXmlNode* node)
             int id = 0;
             TiXmlElement* e = s->ToElement();
             e->Attribute("id", &id);
-            TiXmlNode* text = s->FirstChild("text");
+            // [2026-09-14 修复] 这里找的是**当前字符集对应的子节点**，不是名为 "text" 的子节点。
+            //   ORIG df_monitor_r 0x08057e3d..0x08057e4a 实证：
+            //     `mov eax,[ebp+0x8](this); mov [esp+4],eax; mov eax,[ebp-0x18](s);
+            //      mov [esp],eax; call TiXmlNode::FirstChild(const char*)`
+            //   ⇒ `s->FirstChild((char*)this)`，`this` 偏移 0 处正是 CharsetInit 里
+            //   `strcpy(m_cCharSet, cTemp)` 写进去的字符集名（server_str.xml 的
+            //   `<option><charset type="twn"/>` ⇒ "twn"）。
+            //   XML 形如 `<string id="1"><kor text=".."/><twn text=".."/>…</string>`
+            //   —— 子元素是 kor/twn/jpn/usa，**没有** 名为 text 的子节点；旧转写查
+            //   "text" 必然取不到 ⇒ 每次加载 server_str.xml 都打一行 `twn Tag Error`
+            //   并提前 return（A/B 里就是 monitor 最后那 1 行差异）。
+            TiXmlNode* text = s->FirstChild((char*)this);
             if (text == 0)
             {
                 printf("%s Tag Error\n", (char*)this);
