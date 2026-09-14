@@ -183,34 +183,13 @@ static_assert(sizeof(RedeemEntryView) == 0x44, "Redeem entry stride drift");
 // FT_Done_Face/FT_Done_FreeType 此前仅由 GlobalData.o 定义（无库定义）。
 // 函数体逐字节照搬自 GlobalData.cpp。
 // ===========================================================================
-// [b24FIX · 真 FreeType 运行期绑定] 体改为 dlopen 转发（详见 GlobalData.cpp 同条注释）。
-// 本 TU **仍持有定义**这一事实正是 CaptchaGen::~CaptchaGen 0x080de706 EH landing 的
-// 成因（GlobalData.cpp 只见声明）⇒ 定义位置不动，仅替换函数体。
-// [2026-09-14] 原自创的 `static void* ft32_sym_deps(const char*)` 已删除，改用
-//  FT32Bind.h 的 FT32_BIND 宏（与 GlobalData.cpp 同一份，宏不产生符号）。
-#include "FT32Bind.h"
-
-extern "C" int FT_Done_Face(void* face)
-{
-    FT32_BIND(int, (void*));
-    if (ft32_fn_ == 0)
-        return 6;
-    return ft32_fn_(face);
-}
-
-// FreeType 库内部收尾函数（ORIG 0x087c3c00 FT_Done_Library / 0x087dc6b0
-// FT_Done_Memory）：定义仍在 GlobalData.cpp，此处仅取声明。
+// [2026-09-14] FreeType 已改为**静态链入真库**（`toolchains/freetype32/lib/
+// libfreetype.a`，FreeType 2.4.8，与 ORIG 同版本同模块集；见 GlobalData.cpp 同条注释）。
+// 因此本 TU 的两个原「占位定义」全部撤销，只保留 FT_Done_FreeType 的语义说明。
+//
+// 保留要点：FT_Done_Face / FT_Done_FreeType **在本 TU 仍是外部符号**（定义在库里），
+// 与 ORIG 一致 ⇒ CaptchaGen::~CaptchaGen 0x080de706 的 EH landing 前提不变。
 extern "C" int FT_Done_Library(void* library);
 extern "C" int FT_Done_Memory(void* memory);
-
-// ORIG 0x087bca50（idx49 报告）：library != 0 时读取其首字段 memory（offset 0），
-// 依次调用 FT_Done_Library(library) 与 FT_Done_Memory(memory)；恒返 0。
-// [b24FIX] 改为转发真 FT_Done_FreeType（其内部即为「取 library->memory → 释放各模块
-// → 释放 memory」序列，与 ORIG 语义一致）。
-extern "C" int FT_Done_FreeType(void* library)
-{
-    FT32_BIND(int, (void*));
-    if (ft32_fn_ == 0)
-        return 6;
-    return ft32_fn_(library);
-}
+extern "C" int FT_Done_Face(void* face);
+extern "C" int FT_Done_FreeType(void* library);

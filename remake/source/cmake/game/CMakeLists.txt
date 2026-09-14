@@ -1181,6 +1181,18 @@ dnf_service(game
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/mysqlclient/libmysqlclient.a
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/yassl/libyassl.a
         -Wl,--no-whole-archive
+        # [2026-09-14 · 真 FreeType 静态链入] ORIG 内置 **FreeType 2.4.8**（调试路径串
+        #   `/root/f248/include/freetype/...` 实证），模块集 = tt + sfnt + smooth + raster
+        #   （`nm ORIG | grep '_module_class|_driver_class|_renderer_class$'` 只有 7 个；
+        #   `af_/pso_/t1_/cid_/cff_/pcf_/bdf_/ft_gzip` 计数全 0 ⇒ 无 autofit/psaux/
+        #   type1/cff/zlib）。**静态链入**：ORIG 的 162 个 `FT_*` 是二进制内 T 符号，
+        #   且 ORIG 无 libfreetype.so.6 的 DT_NEEDED（`-lfreetype` 会新增 NEEDED 并与
+        #   game_export.dynlist 冲突）。此处**按需取用**（不进 --whole-archive）⇒ 只拉入
+        #   游戏实际引用到的目标文件，符号闭包与 ORIG 对齐。
+        #   取代原先源码里手写的 `FT_*` dlopen 转发（那会自创 ft32_sym/ft32_sym_deps
+        #   符号，且运行期依赖容器内 libfreetype.so.6）。
+        #   源码/重建：source/toolchain/build-freetype248-static32.sh
+        ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/freetype32/lib/libfreetype.a
     LINK_FLAGS
         # [b28d-Main·检查点22] NEEDED 次序与 ORIG 逐位对齐：
         #   libpthread → librt → libnxencryption → libGeoIP.so.1 → libdl → libm → libc。

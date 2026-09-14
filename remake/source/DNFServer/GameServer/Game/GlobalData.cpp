@@ -1251,144 +1251,49 @@ int CaptchaGen::kJapaneseHirakanaCount = 72;  // VA 0x08b2c4f0
 }
 
 // ============================================================================
-// [b24FIX · 真 FreeType 运行期绑定] 启动崩溃根因修正（第三处）
+// FreeType —— **静态链入真库**（2026-09-14 定案）
 // ----------------------------------------------------------------------------
-// 症状：GlobalData::Init → InitCaptcha → addFont→FT_New_Face「成功」但 face==NULL
-//   → generateImage 解引用 face->glyph(+0x54) ⇒ SIGSEGV。
-// 根因：仓内 FT_* 原为**伪成功空桩**（FT_Open_Face 直接 `*aface = 0; return 0`），
-//   而 ORIG 静态链入**真 FreeType**（FT_New_Face 0x087c4730 / FT_Load_Glyph
-//   0x087c3020 等为二进制内 T 符号，函数体属第三方库本体、identical 豁免）。
-// 为何不用 `-lfreetype` 动态链接：ORIG 的 FT_* 是静态链入的 T 符号；动态链接会把
-//   它们退化为 U 并新增 DT_NEEDED libfreetype.so.6 ⇒ 与本工程逐位对齐 ORIG 的
-//   .dynsym（game_export.dynlist）/ NEEDED 次序直接冲突（见本文件末链接注释）。
-// 修法：FT_* 保持二进制内 T 符号（符号面零变化），函数体改为**运行期 dlopen 转发**
-//   到系统 32 位 libfreetype.so.6（CentOS7 altarch i686 freetype-2.8-14，与镜像内
-//   64 位 libfreetype.so.6.14.0 同版本）。语义与原 FT_* 一致 = ORIG 的真 FreeType。
-//   调用点（addFont/generateImage）逐字未动 ⇒ 其 codegen 对齐结论不受影响。
-// [2026-09-14] 原自创的 `static void* ft32_sym(const char*)` 已删除（用户指示：
-//  不得自创 ORIG 没有的函数）。解析逻辑改为 FT32Bind.h 的 FT32_BIND 宏**就地展开**
-//  到各 FT_* 函数内 ⇒ 二进制里不再多出 `_ZL8ft32_symPKc` 这类 onlyNEW 符号。
-#include "FT32Bind.h"
+// ORIG 的 FT_* 是二进制内 **T 符号**，逐条来自其**静态链入的 FreeType 2.4.8**
+//   （实证：ORIG 内含调试路径串 `/root/f248/include/freetype/...`；模块类符号只有
+//    tt_driver_class / sfnt_module_class / ft_raster1|5_renderer_class /
+//    ft_smooth[_lcd|_lcdv]_renderer_class，`af_/pso_/t1_/cid_/cff_/pcf_/bdf_/ft_gzip`
+//    计数全 0 ⇒ 无 autofit/psaux/type1/cff/zlib；FT_* 公开符号 162 个）。
+// 本仓按同版本、同模块集重建 i686 静态库并链入（`toolchains/freetype32/lib/
+//   libfreetype.a`，重建脚本 `source/toolchain/build-freetype248-static32.sh`）
+//   ⇒ 本 TU **不再定义任何 FT_***，只保留声明与 generateImage 用到的结构视图。
+//
+// 演进留痕（勿回退到后两种）：
+//   ① 最初：伪成功空桩（`*aface = 0; return 0`）⇒ face==NULL，generateImage 解引用
+//      face->glyph(+0x54) SIGSEGV；
+//   ② 中间：运行期 dlopen 转发到系统 libfreetype.so.6，并为此**自创**
+//      `ft32_sym`/`ft32_sym_deps` 两个函数（onlyNEW +2，且运行期依赖容器里装 32 位
+//      freetype）—— 用户明确否掉自创函数；
+//   ③ 现在：静态链入真库本体（与 ORIG 同构、无 DT_NEEDED 新增、无自创符号）。
+//
+// 注意：FT_Done_Face / FT_Done_FreeType **只在此处声明**（定义在库内），这一「只见
+//   声明」的事实正是 CaptchaGen::~CaptchaGen 复现 ORIG 0x080de706 EH landing 的前提
+//   （同 TU 定义则无 landing；探针 /tmp/gdprobe/p2.cpp 实证）。
+// ============================================================================
 
-extern "C" int FT_Init_FreeType(void** alibrary)
-{
-    FT32_BIND(int, (void**));
-    if (ft32_fn_ == 0)
-        return 6;
-    return ft32_fn_(alibrary);
-}
-
-// FreeType 收尾 API（ORIG 0x087c14b0）。[SweepCAutoPunish 2026-09-10] 定义已迁
-// StubS3A_deps.cpp（P210② 跨 TU 迁定义，Main 授权）：本 TU 只见声明 ⇒ 4.4 判该
-// 调用可能抛，CaptchaGen dtor 复现 ORIG 0x080de706 的 EH landing（push esi/ebx +
-// vector D2 cleanup + _Unwind_Resume）。探针 /tmp/gdprobe/p2.cpp（同 TU 定义 ⇒
-// 无 landing；仅声明 ⇒ 有 landing）实证；nm 全链接集确认无其它定义。
+extern "C" int FT_Init_FreeType(void** alibrary);
 extern "C" int FT_Done_Face(void* face);
-
-// FreeType 库内部收尾函数（ORIG 0x087c3c00 FT_Done_Library / 0x087dc6b0
-// FT_Done_Memory / 0x087c43a0 FT_Open_Face）。均真实存在于 ORIG，属静态链入
-// 第三方库本体，函数体不参与 identical 目标（同 crypto 豁免）；wrapper
-// FT_Done_FreeType / FT_New_Face 的调用站点 codegen 需与 ORIG 一致，故此处给
-// 占位定义保链接。FT_Library 首字段为 memory（offset 0），见 idx49 报告汇编。
-extern "C" int FT_Done_Library(void* library)
-{
-    FT32_BIND(int, (void*));
-    if (ft32_fn_ == 0)
-        return 6;
-    return ft32_fn_(library);
-}
-
-extern "C" int FT_Done_Memory(void* memory)
-{
-    FT32_BIND(int, (void*));
-    if (ft32_fn_ == 0)
-        return 6;
-    return ft32_fn_(memory);
-}
-
-// FT_Open_Face 用参结构（FreeType FT_Open_Args_，pathname@0xc、stream@0x10）
-struct FT_Open_Args
-{
-    unsigned int flags;   // +0x00
-    const void*  memory_base;  // +0x04
-    long         memory_size;  // +0x08
-    const char*  pathname;     // +0x0c
-    void*        stream;       // +0x10
-    void*        module;       // +0x14
-};
-
-extern "C" int FT_Open_Face(void* library, FT_Open_Args* args, long face_index,
-                            void** aface)
-{
-    // [b24FIX] 转发真 FT_Open_Face（原为 `*aface = 0; return 0` 伪成功 → face NULL 崩溃）。
-    FT32_BIND(int, (void*, FT_Open_Args*, long, void**));
-    if (ft32_fn_ == 0)
-        return 6;
-    return ft32_fn_(library, args, face_index, aface);
-}
-
-// [b22判词·N-codegen] FT_Done_FreeType 语义忠实 ORIG 0x087bca50（体已迁
-// StubS3A_deps.cpp，见上条注释；本 TU 仅声明）。残余 DIFF 全属跨版本 codegen
-// 结构差：①ORIG 用 callee-saved %ebx 跨两次 call 持有 memory（push/pop %ebx），
-// 4.4.7 -O0 为具名局部 memory 建槽；②ORIG `test %eax,%eax` vs 本 `cmpl $0,0x8(%ebp)`；
-// ③ORIG epilogue 有 %ebx 压栈 vs 本 `mov $0,%eax; leave; ret`；④call 未 relink
-// 时为 .o 重定位占位（§6.3 假阳性），relink 后转 AE。语义等价。
+extern "C" int FT_Done_Library(void* library);
+extern "C" int FT_Done_Memory(void* memory);
 extern "C" int FT_Done_FreeType(void* library);
 
-// addFont 用 FreeType API（ORIG 0x087c4730/0x087c2f20/0x087bdd80）占位定义，
-// 豁免同 FT_Init_FreeType（本环境无 libfreetype；调用点 codegen 与 ORIG 一致，
-// 函数体属静态链入第三方库不参与 identical）。FT_ENCODING_UNICODE 以字面量
-// 0x756e6963（"cinu"）代入。
-// [b22判词·N-codegen] FT_New_Face 语义忠实 ORIG 0x087c4730（pathname==0 返 6；否则
-// 构造 FT_Open_Args{flags=4,pathname,stream=0} 调 FT_Open_Face 并透传返回值）。
-// 残余 DIFF 全属跨版本 codegen 结构差、无法源码复现：①ORIG 把返回值 FVar1 留在
-// %eax 跨分支（寄存器化标量局部，违 P0），4.4.7 -O0 一律为具名局部建 result 槽；
-// ②args 结构帧槽号（ORIG -0x28/-0x1c/-0x18 vs 本 -0x18/-0xc/-0x8）与帧尺寸
-// （0x38 vs 0x30）随局部槽化次序错位；③ORIG `mov 0xc(%ebp),%edx;test %edx,%edx`
-// vs 本 `cmpl $0x0,0xc(%ebp)`（test-reg vs cmp-slot）；④`call <FT_Open_Face>` 未
-// relink 时为 .o 重定位占位（§6.3 假阳性），relink 后转 AE。语义等价。
+// addFont 用 FreeType API（ORIG 0x087c4730/0x087c2f20/0x087bdd80）。FT_ENCODING_UNICODE
+// 以字面量 0x756e6963（"cinu"）代入。
 extern "C" int FT_New_Face(void* library, const char* filepathname, long face_index,
-                           void** aface)
-{
-    // ORIG 0x087c4730（idx73 报告）：pathname==0 返 6；否则构造
-    // FT_Open_Args{flags=4, pathname, stream=0} 调 FT_Open_Face 并以其返回值返回。
-    // ORIG 把返回值（FVar1）留在 %eax 跨分支（编译器寄存器化标量局部，违 P0 但
-    // ORIG 事实）；本环境 4.4.7 -O0 一律为具名局部分配槽（见 diff：result 槽化 +
-    // 帧尺寸/槽号/test-reg-vs-cmpl-slot 差），属跨版本 codegen 结构差，无法源码复现。
-    if (filepathname == 0)
-    {
-        return 6;
-    }
-    FT_Open_Args args;
-    args.flags = 4;
-    args.pathname = filepathname;
-    args.stream = 0;
-    return FT_Open_Face(library, &args, face_index, aface);
-}
-
+                           void** aface);
 extern "C" int FT_Set_Pixel_Sizes(void* face, unsigned int pixel_width,
-                                  unsigned int pixel_height)
-{
-    FT32_BIND(int, (void*, unsigned int, unsigned int));
-    if (ft32_fn_ == 0)
-        return 6;
-    return ft32_fn_(face, pixel_width, pixel_height);
-}
+                                  unsigned int pixel_height);
+extern "C" int FT_Select_Charmap(void* face, unsigned long encoding);
 
-extern "C" int FT_Select_Charmap(void* face, unsigned long encoding)
-{
-    FT32_BIND(int, (void*, unsigned long));
-    if (ft32_fn_ == 0)
-        return 6;
-    return ft32_fn_(face, encoding);
-}
-
-// ---- generateImage 用 FreeType 结构视图与 API 占位 ----
+// ---- generateImage 用 FreeType 结构视图 ----
 // [b28d-solo-GlobalData] 偏移实证：face+0x54=glyph（ORIG 0x080deff3
 // `mov 0x54(%eax),%eax`）、glyph+0x4c=bitmap（0x080df034 `add $0x4c,%eax`）、
 // FT_Bitmap{rows@0,width@4,pitch@8,buffer@0xc}（0x080df118/0x080df086/
-// 0x080df0b2/0x080df0ac）。仅建模用到的字段；函数体属静态链入第三方库，
-// 不参与 identical 目标（同既有 FT_* 占位豁免），符号名取自 ORIG nm。
+// 0x080df0b2/0x080df0ac）。与真库 2.4.8 的头布局一致（同版本静态库，故视图可直用）。
 typedef long FT_Fixed;
 struct FT_Vector
 {
@@ -1428,38 +1333,11 @@ struct FT_FaceRec
 };
 
 extern "C" int FT_Set_Transform(FT_FaceRec* face, FT_Matrix* matrix,
-                                FT_Vector* delta)
-{
-    FT32_BIND(int, (FT_FaceRec*, FT_Matrix*, FT_Vector*));
-    if (ft32_fn_ == 0)
-        return 6;
-    return ft32_fn_(face, matrix, delta);
-}
-
-extern "C" unsigned int FT_Get_Char_Index(FT_FaceRec* face, unsigned long charcode)
-{
-    FT32_BIND(unsigned int, (FT_FaceRec*, unsigned long));
-    if (ft32_fn_ == 0)
-        return 0;
-    return ft32_fn_(face, charcode);
-}
-
+                                FT_Vector* delta);
+extern "C" unsigned int FT_Get_Char_Index(FT_FaceRec* face, unsigned long charcode);
 extern "C" int FT_Load_Glyph(FT_FaceRec* face, unsigned int glyph_index,
-                             int load_flags)
-{
-    FT32_BIND(int, (FT_FaceRec*, unsigned int, int));
-    if (ft32_fn_ == 0)
-        return 6;
-    return ft32_fn_(face, glyph_index, load_flags);
-}
-
-extern "C" int FT_Render_Glyph(FT_GlyphSlotRec* slot, int render_mode)
-{
-    FT32_BIND(int, (FT_GlyphSlotRec*, int));
-    if (ft32_fn_ == 0)
-        return 6;
-    return ft32_fn_(slot, render_mode);
-}
+                             int load_flags);
+extern "C" int FT_Render_Glyph(FT_GlyphSlotRec* slot, int render_mode);
 
 // [SplitC 2026-09-11 batch4 · TU 迁移] CaptchaGen ctor 已迁出至 CaptchaGen.cpp（ORIG GI 键对齐）。
 
