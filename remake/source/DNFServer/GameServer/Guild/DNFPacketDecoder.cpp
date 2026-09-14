@@ -332,12 +332,30 @@ void CPacketDecoder::Attach(CApplication* app)
     }
 }
 
+// [2026-09-14 修复] 这两个 setter 原本是**空函数体**，而 ORIG 是实打实的赋值：
+//   · ORIG df_guild_r 0x08070864 `SetUdpQueue`：`mov eax,[ebp+8]; mov edx,[ebp+0xc];
+//     mov DWORD PTR [eax],edx; ret`            ⇒ m_udpParseQ（+0） = q
+//   · ORIG df_guild_r 0x08070872 `SetTCPQueue`：同型，落点是 `[eax+0xc]`
+//                                              ⇒ m_tcpParseQ（+0xc） = q
+//   后果（整机 A/B 实测）：`CApplication::SwitchQueueTCP()` 在 `SwitchQueue()`
+//   成功之后调 `SetTCPQueue(GetParseQueue())`，而空实现让解码器**一直读它
+//   Attach 时抓到的那条队列**；`InitPeer` 里对端记下的是**创建时刻**的
+//   `GetRecvQ()`，而 CSwapQueue 每次交换都会让 recv/parse 两个槽互换 ⇒
+//   「对端压入的队列」与「解码器读的队列」从第一次交换之后就永久错位。
+//   表现：guild 收得到心跳（走 UDP / 或恰好同槽）却**永远收不到登录包**
+//   （id=4000 → 槽 4004 `OnInnerPacketLogin`），于是从不回复、game 侧超时关连接、
+//   我们这边 `Recv ERROR = 0 … nRead(0)` → `DisConnSig()+DeletePeer()` → 无限重连，
+//   `m_gameServers` 永远为空 ⇒ `Game Server Index Over Index` 刷屏。
+//   对照：monitor / manager / dbmw 的这两个函数都**与 ORIG 逐指令相同**（都是真赋值），
+//   只有 guild 是空壳。
 void CPacketDecoder::SetUdpQueue(std::queue<CUdpRecvBuffer*>* q)
 {
+    m_udpParseQ = q;
 }
 
 void CPacketDecoder::SetTCPQueue(std::queue<CTcpRecvBuffer*>* q)
 {
+    m_tcpParseQ = q;
 }
 
 CPacketDecoder::~CPacketDecoder()
