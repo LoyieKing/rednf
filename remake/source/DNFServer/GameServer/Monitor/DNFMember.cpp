@@ -1,4 +1,6 @@
 // df_monitor_r — DNFMember（从 MonitorTypes/App/Table 拆分）
+// MemPool<T> 的完整定义在 DNFPacketBuffer.h（静态池成员需要完整类型才能定义）
+#include "DNFPacketBuffer.h"
 #include <stdio.h>
 #include "RawAccess.h"
 #include <string.h>
@@ -38,11 +40,18 @@
 bool CheckDailyScheduleTimeOver(int day, long time);
 bool CheckDayHourScheduleTimeOver(int day, int hour, long time);
 
-void CMember::operator delete(void* p) { ::operator delete(p); }
+void CMember::operator delete(void* p) { m_MembermemPool_.free(p); }
 
-void CMember::operator delete(void* p, unsigned int size) { ::operator delete(p); }
+void CMember::operator delete(void* p, unsigned int size) { m_MembermemPool_.free(p, size); }
 
-void* CMember::operator new(unsigned int size) { return ::operator new(size); }
+// ORIG：`CMember::operator new` = `MemPool<CMember>::m_MembermemPool_.alloc()`（忽略入参 size）。
+MemPool<CMember> CMember::m_MembermemPool_(0x4e20);
+
+void* CMember::operator new(unsigned int size)
+{
+    (void)size;
+    return m_MembermemPool_.alloc();
+}
 
 CMember::CMember(unsigned int key, CMemberManager* mgr)
     : m_key(key), m_flag(0)

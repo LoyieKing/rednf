@@ -242,6 +242,10 @@ class CCashObject
 public:
     CCashObject();
     ~CCashObject();
+    // ORIG 静态对象池（0x81bac8c，count = 0x1388 = 5000）：
+    // `operator new/delete` 走 MemPool<CCashObject>::alloc/free，
+    // 否则启动期不会有 log/Mempool 那一行。
+    static MemPool<CCashObject> m_Pool_;
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);

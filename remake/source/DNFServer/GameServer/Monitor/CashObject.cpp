@@ -1,4 +1,6 @@
 // df_monitor_r — CashObject（从 MonitorTypes/App/Table 拆分）
+// MemPool<T> 的完整定义在 DNFPacketBuffer.h（静态池成员需要完整类型才能定义）
+#include "DNFPacketBuffer.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -29,11 +31,18 @@
 #include "DNFBuddy.h"
 #include "DNFMember.h"
 
-void* CCashObject::operator new(unsigned int size) { return ::operator new(size); }
+// ORIG：`CCashObject::operator new` = `MemPool<CCashObject>::m_Pool_.alloc()`（忽略入参 size）。
+MemPool<CCashObject> CCashObject::m_Pool_(0x1388);
 
-void CCashObject::operator delete(void* p) { ::operator delete(p); }
+void* CCashObject::operator new(unsigned int size)
+{
+    (void)size;
+    return m_Pool_.alloc();
+}
 
-void CCashObject::operator delete(void* p, unsigned int size) { ::operator delete(p); }
+void CCashObject::operator delete(void* p) { m_Pool_.free(p); }
+
+void CCashObject::operator delete(void* p, unsigned int size) { m_Pool_.free(p, size); }
 
 CCashObject::CCashObject()
     : m_lifeTime(5), m_characNo(0), m_memberObject(0)

@@ -127,6 +127,17 @@ void CServerHandler::Load(std::multimap<unsigned int, stServerInfo*>* map)
                 DNF_LOG_SCOPE_LINE(0x59, "./log/Config", "DB Config Reload.\n");
             }
             CDBServer* db = new CDBServer(info);
+            // ORIG 0x806cd1e：`call *%edx`，edx 取自 `CDBServer` vtable[0]
+            // （`_ZTV9CDBServer` @0x8121e50，前两项是 offset-to-top/typeinfo，
+            //   第 3 项 = `CDBServer::Initialize()` @0x806be84）⇒ ORIG 在
+            // RegistDBServer **之前**调了一次虚 `Initialize()`。
+            // 少了这一下，CDBServer 就没有自己的 UDP client socket
+            // （`CUdpHandler::InitClientSocket`），`SendToServer` 里
+            // `m_clientSock == -1` 直接 return 0 —— 于是 guild→dbmw_guild 的
+            // UDP 包（`OnDBMWConnectionCheck`、`OnQueryGuildBooting`）**静默丢弃**：
+            // 整机 A/B 里 dbmw_guild 少 2 行、guild 的 Udp 日志少一行
+            // `InitClientSocket(143): Opened port with fd 7`。
+            db->Initialize();
             RegistDBServer(db);
         }
         else if (info->m_field2 == 4)
@@ -142,6 +153,9 @@ void CServerHandler::Load(std::multimap<unsigned int, stServerInfo*>* map)
                 DNF_LOG_SCOPE_LINE(0x6b, "./log/Config", "Manager Config Reload.\n");
             }
             CManagerServer* ms = new CManagerServer(info);
+            // ORIG 0x806cec0：同 DB 分支，RegistManagerServer 之前先走一次
+            // vtable[0] = `CManagerServer::Initialize()`（同样要建 UDP client socket）。
+            ms->Initialize();
             RegistManagerServer(ms);
         }
     }

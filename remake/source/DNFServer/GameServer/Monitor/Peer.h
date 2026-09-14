@@ -243,6 +243,10 @@ class CPeer : public TCPSocket
 public:
     CPeer();
     ~CPeer();
+    // ORIG 静态对象池（0x8192898，count = 0x3e8 = 1000）：
+    // `operator new/delete` 走 MemPool<CPeer>::alloc/free，
+    // 否则启动期不会有 log/Mempool 那一行。
+    static MemPool<CPeer> pool_;
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);

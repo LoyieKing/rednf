@@ -242,6 +242,10 @@ class CDNFProhibitUser
 public:
     CDNFProhibitUser();
     ~CDNFProhibitUser();
+    // ORIG 静态对象池（0x8193260，count = 0x2710 = 10000）：
+    // `operator new/delete` 走 MemPool<CDNFProhibitUser>::alloc/free，
+    // 否则启动期不会有 log/Mempool 那一行。
+    static MemPool<CDNFProhibitUser> m_ProhibitUsermemPool_;
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);

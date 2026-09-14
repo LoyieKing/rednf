@@ -1,4 +1,6 @@
 // df_monitor_r — DNFProhibitUser（从 MonitorTypes/App/Table 拆分）
+// MemPool<T> 的完整定义在 DNFPacketBuffer.h（静态池成员需要完整类型才能定义）
+#include "DNFPacketBuffer.h"
 #include <stdio.h>
 #include "RawAccess.h"
 #include <string.h>
@@ -27,7 +29,7 @@
 #include "Packet_DBMW_Change_Char_Name.h"
 #include "Packet_Monitor_Reply_Charac_Info.h"
 
-void CDNFProhibitUser::operator delete(void* p, unsigned int size) { ::operator delete(p); }
+void CDNFProhibitUser::operator delete(void* p, unsigned int size) { m_ProhibitUsermemPool_.free(p, size); }
 
 CDNFProhibitUser::CDNFProhibitUser()
 {
@@ -44,9 +46,16 @@ CDNFProhibitUser::~CDNFProhibitUser()
     m_channel = 0xff;
 }
 
-void* CDNFProhibitUser::operator new(unsigned int size) { return ::operator new(size); }
+// ORIG：`CDNFProhibitUser::operator new` = `MemPool<CDNFProhibitUser>::m_ProhibitUsermemPool_.alloc()`（忽略入参 size）。
+MemPool<CDNFProhibitUser> CDNFProhibitUser::m_ProhibitUsermemPool_(0x2710);
 
-void CDNFProhibitUser::operator delete(void* p) { ::operator delete(p); }
+void* CDNFProhibitUser::operator new(unsigned int size)
+{
+    (void)size;
+    return m_ProhibitUsermemPool_.alloc();
+}
+
+void CDNFProhibitUser::operator delete(void* p) { m_ProhibitUsermemPool_.free(p); }
 
 unsigned int CDNFProhibitUser::GetDBID() { return *(unsigned int*)this; }
 

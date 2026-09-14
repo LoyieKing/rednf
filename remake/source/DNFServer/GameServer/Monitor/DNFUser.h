@@ -243,6 +243,10 @@ class CUser
 public:
     CUser();
     ~CUser();
+    // ORIG 静态对象池（0x8193298，count = 0x6d60 = 28000）：
+    // `operator new/delete` 走 MemPool<CUser>::alloc/free，
+    // 否则启动期不会有 log/Mempool 那一行。
+    static MemPool<CUser> m_UsermemPool_;
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);

@@ -1,4 +1,6 @@
 // df_monitor_r — DNFBuddy（从 MonitorTypes/App/Table 拆分）
+// MemPool<T> 的完整定义在 DNFPacketBuffer.h（静态池成员需要完整类型才能定义）
+#include "DNFPacketBuffer.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -27,13 +29,20 @@
 #include "Packet_Monitor_Reply_Charac_Info.h"
 #include "DNFMember.h"
 
-void CBuddy::operator delete(void* p, unsigned int size) { ::operator delete(p); }
+void CBuddy::operator delete(void* p, unsigned int size) { m_Pool_.free(p, size); }
 
 unsigned int* CBuddy::getBuddyDBInfo() { return (unsigned int*)this; }
 
-void* CBuddy::operator new(unsigned int size) { return ::operator new(size); }
+// ORIG：`CBuddy::operator new` = `MemPool<CBuddy>::m_Pool_.alloc()`（忽略入参 size）。
+MemPool<CBuddy> CBuddy::m_Pool_(0x61a80);
 
-void CBuddy::operator delete(void* ptr) { ::operator delete(ptr); }
+void* CBuddy::operator new(unsigned int size)
+{
+    (void)size;
+    return m_Pool_.alloc();
+}
+
+void CBuddy::operator delete(void* ptr) { m_Pool_.free(ptr); }
 
 CBuddy::CBuddy(STBuddyDBInfo& info)
 {

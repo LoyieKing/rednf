@@ -245,6 +245,10 @@ public:
     void ChangeCharName(char* name);
     char* GetName();
     unsigned int GetOccurTime();
+    // ORIG 静态对象池（0x8193228，count = 0x186a0 = 100000）：
+    // `operator new/delete` 走 MemPool<CBlackUser>::alloc/free，
+    // 否则启动期不会有 log/Mempool 那一行。
+    static MemPool<CBlackUser> m_memPool_;
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);

@@ -295,6 +295,10 @@ struct STBuddyDBInfo
 class CMember
 {
 public:
+    // ORIG 静态对象池（0x81bab7c，count = 0x4e20 = 20000）：
+    // `operator new/delete` 走 MemPool<CMember>::alloc/free，
+    // 否则启动期不会有 log/Mempool 那一行。
+    static MemPool<CMember> m_MembermemPool_;
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);

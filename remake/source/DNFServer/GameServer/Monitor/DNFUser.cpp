@@ -1,4 +1,6 @@
 // df_monitor_r — DNFUser（从 MonitorTypes/App/Table 拆分）
+// MemPool<T> 的完整定义在 DNFPacketBuffer.h（静态池成员需要完整类型才能定义）
+#include "DNFPacketBuffer.h"
 #include <stdio.h>
 #include "RawAccess.h"
 #include <string.h>
@@ -35,7 +37,7 @@
 #include "DNFServerHandler.h"
 #include "DNFServerInterface.h"
 
-void CUser::operator delete(void* p, unsigned int size) { ::operator delete(p); }
+void CUser::operator delete(void* p, unsigned int size) { m_UsermemPool_.free(p, size); }
 
 CUser::CUser()
     : m_dbid(0), m_uniqCharNo(0), m_gameServer(0), m_tcpGameServer(0), m_posState(0),
@@ -69,7 +71,14 @@ CUser::~CUser()
     m_channelInfoMap.clear();
 }
 
-void* CUser::operator new(unsigned int size) { return ::operator new(size); }
+// ORIG：`CUser::operator new` = `MemPool<CUser>::m_UsermemPool_.alloc()`（忽略入参 size）。
+MemPool<CUser> CUser::m_UsermemPool_(0x6d60);
+
+void* CUser::operator new(unsigned int size)
+{
+    (void)size;
+    return m_UsermemPool_.alloc();
+}
 
 unsigned int CUser::GetUniqCharNo() { return m_uniqCharNo; }
 
@@ -78,7 +87,7 @@ void CUser::AttachMember(CMember* member)
     m_member = member;
 }
 
-void CUser::operator delete(void* p) { ::operator delete(p); }
+void CUser::operator delete(void* p) { m_UsermemPool_.free(p); }
 
 void* CUser::GetGameServer() { return m_gameServer; }
 

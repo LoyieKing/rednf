@@ -240,6 +240,10 @@ struct stUserHuntingPoint;
 class CBuddy
 {
 public:
+    // ORIG 静态对象池（0x81bac34，count = 0x61a80 = 400000）：
+    // `operator new/delete` 走 MemPool<CBuddy>::alloc/free，
+    // 否则启动期不会有 log/Mempool 那一行。
+    static MemPool<CBuddy> m_Pool_;
     static void* operator new(unsigned int size);
     static void operator delete(void* ptr);
     static void operator delete(void* ptr, unsigned int size);

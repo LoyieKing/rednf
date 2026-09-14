@@ -29,7 +29,7 @@
 #include "DNFPacketBuffer.h"
 #include "DNFPacketTranslater.h"
 
-void CPeer::operator delete(void* p, unsigned int size) { ::operator delete(p); }
+void CPeer::operator delete(void* p, unsigned int size) { pool_.free(p, size); }
 
 int CPeer::recv_packet()
 {
@@ -351,6 +351,13 @@ CPeer::~CPeer()
     m_sendRemain = 0;
 }
 
-void* CPeer::operator new(unsigned int size) { return ::operator new(size); }
+// ORIG：`CPeer::operator new` = `MemPool<CPeer>::pool_.alloc()`（忽略入参 size）。
+MemPool<CPeer> CPeer::pool_(0x3e8);
 
-void CPeer::operator delete(void* p) { ::operator delete(p); }
+void* CPeer::operator new(unsigned int size)
+{
+    (void)size;
+    return pool_.alloc();
+}
+
+void CPeer::operator delete(void* p) { pool_.free(p); }

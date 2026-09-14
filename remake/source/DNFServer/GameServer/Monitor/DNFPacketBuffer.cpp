@@ -135,50 +135,77 @@ int getErrno()
     return *__errno_location();
 }
 
+// ---- ORIG 静态对象池：11 个池的 (符号, count) 全部来自 ORIG df_monitor_r 的
+//      全局构造器 `__static_initialization_and_destruction_0`：
+//        CUdpRecvBuffer::m_RecvBufferMemPool_  @0x81927a8 count 0x2710
+//        CTcpRecvBuffer::m_BufferMemPool_      @0x81927bc count 0x3e8
+//        CTcpSendBuffer::m_BufferMemPool_      @0x81927d0 count 0x3e8
+//        CPacketBuffer::m_BufferMemPool_       @0x81927e4 count 0x3e8
+//        CPeer::pool_                          count 0x3e8
+//        CUser::m_UsermemPool_                 count 0x6d60
+//        CMember::m_MembermemPool_             count 0x4e20
+//        CBuddy::m_Pool_                       count 0x61a80
+//        CBlackUser::m_memPool_                count 0x186a0
+//        CCashObject::m_Pool_                  count 0x1388
+//        CDNFProhibitUser::m_ProhibitUsermemPool_ count 0x2710
+//      对应 ORIG 的 `X::operator new` = `MemPool<X>::alloc()`、
+//      `operator delete(p)` = `free(p)`、`operator delete(p,n)` = `free(p,n)`。
+//      这一层不做的话，运行时用 ::operator new 而不进池，启动期就不会有
+//      log/Mempool 那 4 行（`class size(620608) cnt(1000)` 等），
+//      整机 A/B 里 monitor/Mempool 会整份缺失（ORIG 每轮 4 行 / 我们 0 行）。
+MemPool<CUdpRecvBuffer> CUdpRecvBuffer::m_RecvBufferMemPool_(0x2710);
+MemPool<CTcpRecvBuffer> CTcpRecvBuffer::m_BufferMemPool_(0x3e8);
+MemPool<CTcpSendBuffer> CTcpSendBuffer::m_BufferMemPool_(0x3e8);
+MemPool<CPacketBuffer> CPacketBuffer::m_BufferMemPool_(0x3e8);
+
 void* CUdpRecvBuffer::operator new(unsigned int size)
 {
-    return ::operator new(size);
+    (void)size;   // ORIG 忽略入参，池按 sizeof(T) 切分
+    return m_RecvBufferMemPool_.alloc();
 }
 
 void CUdpRecvBuffer::operator delete(void* ptr)
 {
-    ::operator delete(ptr);
+    m_RecvBufferMemPool_.free(ptr);
 }
 
 void* CTcpRecvBuffer::operator new(unsigned int size)
 {
-    return ::operator new(size);
+    (void)size;
+    return m_BufferMemPool_.alloc();
 }
 
 void CTcpRecvBuffer::operator delete(void* ptr)
 {
-    ::operator delete(ptr);
+    m_BufferMemPool_.free(ptr);
 }
 
 void* CTcpSendBuffer::operator new(unsigned int size)
 {
-    return ::operator new(size);
+    (void)size;
+    return m_BufferMemPool_.alloc();
 }
 
 void CTcpSendBuffer::operator delete(void* ptr)
 {
-    ::operator delete(ptr);
+    m_BufferMemPool_.free(ptr);
 }
 
 void* CPacketBuffer::operator new(unsigned int size)
 {
-    return ::operator new(size);
+    (void)size;
+    return m_BufferMemPool_.alloc();
 }
 
 void CPacketBuffer::operator delete(void* ptr)
 {
-    ::operator delete(ptr);
+    m_BufferMemPool_.free(ptr);
 }
 
-void CUdpRecvBuffer::operator delete(void* p, unsigned int size) { ::operator delete(p); }
+void CUdpRecvBuffer::operator delete(void* p, unsigned int size) { m_RecvBufferMemPool_.free(p, size); }
 
-void CTcpRecvBuffer::operator delete(void* p, unsigned int size) { ::operator delete(p); }
+void CTcpRecvBuffer::operator delete(void* p, unsigned int size) { m_BufferMemPool_.free(p, size); }
 
-void CTcpSendBuffer::operator delete(void* p, unsigned int size) { ::operator delete(p); }
+void CTcpSendBuffer::operator delete(void* p, unsigned int size) { m_BufferMemPool_.free(p, size); }
 
-void CPacketBuffer::operator delete(void* p, unsigned int size) { ::operator delete(p); }
+void CPacketBuffer::operator delete(void* p, unsigned int size) { m_BufferMemPool_.free(p, size); }

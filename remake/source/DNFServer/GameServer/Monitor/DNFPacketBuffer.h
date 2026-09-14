@@ -242,6 +242,10 @@ struct stUserHuntingPoint;
 class CUdpRecvBuffer
 {
 public:
+    // ORIG 静态池（符号 `_ZN14CUdpRecvBuffer19m_RecvBufferMemPool_E` @0x81927a8，
+    // 大小 0x14；全局构造器里以 count=0x2710=10000 构造）。ORIG 的
+    // `CUdpRecvBuffer::operator new` 直接 `call MemPool<CUdpRecvBuffer>::alloc()`。
+    static MemPool<CUdpRecvBuffer> m_RecvBufferMemPool_;
     static void* operator new(unsigned int size);
     static void operator delete(void* ptr);
     static void operator delete(void* ptr, unsigned int size);
@@ -251,6 +255,8 @@ public:
 class CTcpRecvBuffer
 {
 public:
+    // ORIG @0x81927bc，count=0x3e8=1000
+    static MemPool<CTcpRecvBuffer> m_BufferMemPool_;
     static void* operator new(unsigned int size);
     static void operator delete(void* ptr);
     static void operator delete(void* ptr, unsigned int size);
@@ -260,6 +266,8 @@ public:
 class CTcpSendBuffer
 {
 public:
+    // ORIG @0x81927d0，count=0x3e8=1000
+    static MemPool<CTcpSendBuffer> m_BufferMemPool_;
     static void* operator new(unsigned int size);
     static void operator delete(void* ptr);
     static void operator delete(void* ptr, unsigned int size);
@@ -269,6 +277,8 @@ public:
 class CPacketBuffer
 {
 public:
+    // ORIG @0x81927e4，count=0x3e8=1000（ORIG 里从未被 alloc 过 ⇒ 不产生 Mempool 日志）
+    static MemPool<CPacketBuffer> m_BufferMemPool_;
     static void* operator new(unsigned int size);
     static void operator delete(void* ptr);
     static void operator delete(void* ptr, unsigned int size);
