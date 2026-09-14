@@ -358,8 +358,46 @@ void CApplication::CheckArgv(int argc, char** argv)
     }
 }
 
+// [2026-09-14 修复] ORIG df_guild_r 0x0806321c `CApplication::Send_Term_Signal`（0x1aa 字节）
+//   本地原先只剩 `return 0;`（空壳；func_size_audit.py 扫出 OURS=0xa vs ORIG=0x1aa）。
+//   ORIG 逐段实证（字符串取 .rodata）：
+//     path = "./pid/"(0x811caba) + name + ".pid"(0x811cac1)
+//     fp = fopen(path, "r"(0x811cac6))
+//     fp == 0        → printf("%s process id file open <韩>실패\n"(0x811cac8), path)               ⇒ return 0
+//     fscanf(fp, "%d"(0x811cae6), &pid)
+//     pid <= 0       → fclose; printf("%d<韩>번의 잘못된 process id\n"(0x811cae9), pid)              ⇒ return 0
+//     kill(pid, 15)  → 返回值 < 0 时 fclose; printf("%d<韩>번 process<韩>로 종료 signal …실패"(0x811cb04), pid) ⇒ return 0
+//     否则            → fclose; remove(path); `cmp eax,-1` → puts("FAIL TO DELETE PID FILE ERROR"(0x811cb29))
+//   所有分支 epilogue 都是 `mov eax,ebx`（ebx 恒为 0）⇒ ORIG 恒返回 0（bool 即 false）。
+//   姊妹函数 Send_Suspend_Signal 本地本来就是实现的，只有这个被漏成空壳。
 bool CApplication::Send_Term_Signal(const std::string& name)
 {
+    std::string path = "./pid/" + name + ".pid";
+    FILE* fp = fopen(path.c_str(), "r");
+    if (fp == 0)
+    {
+        printf("%s process id file open \xbd\xc7\xc6\xd0\n", path.c_str());
+        return 0;
+    }
+    int pid = 0;
+    fscanf(fp, "%d", &pid);
+    if (pid <= 0)
+    {
+        fclose(fp);
+        printf("%d\xb9\xf8\xc0\xc7 \xc0\xdf\xb8\xf8\xb5\xc8 process id\n", pid);
+        return 0;
+    }
+    if (kill(pid, 0xf) < 0)
+    {
+        fclose(fp);
+        printf("%d\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc5 \xbd\xc7\xc6\xd0", pid);
+        return 0;
+    }
+    fclose(fp);
+    if (remove(path.c_str()) == -1)
+    {
+        puts("FAIL TO DELETE PID FILE ERROR");
+    }
     return 0;
 }
 

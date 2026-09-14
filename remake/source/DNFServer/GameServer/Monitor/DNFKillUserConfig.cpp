@@ -30,7 +30,25 @@ CKillUSRConfig::CKillUSRConfig() {}
 
 CKillUSRConfig::~CKillUSRConfig() { Clear_Table(); }
 
-void CKillUSRConfig::Load_Table(const std::string& path) {}
+// [2026-09-14 修复] ORIG df_monitor_r `CKillUSRConfig::Load_Table`（0x15f 字节，
+//   func_size_audit.py 扫出本地只有 0x5 的空壳）。ORIG 逐段实证：
+//     rc = Load_Txt_Table_Data(path.c_str(), 0x64)     ← [esp+8]=0x64
+//     `cmp [ebp-0x1c],0; jle fail` 然后 `cmp [ebp-0x1c],0x64; jle 成功`
+//       ⇒ 等价于 `0 < rc && rc <= 0x64`
+//     fail: DNF_LOG_SCOPE_LINE(0x5b, "./log/TableError",
+//                               "Kill USR Config Table - ReturnCode = %d\n"(0x811f558), rc)
+//           throw CDNFException("CKillUSRConfig::Load_Setup_Table() Exception break!"(0x811f594))
+void CKillUSRConfig::Load_Table(const std::string& path)
+{
+    int rc = Load_Txt_Table_Data(path.c_str(), 0x64);
+    if (0 < rc && rc <= 0x64)
+    {
+        return;
+    }
+    DNF_LOG_SCOPE_LINE(0x5b, "./log/TableError",
+                       "Kill USR Config Table - ReturnCode = %d\n", rc);
+    throw CDNFException("CKillUSRConfig::Load_Setup_Table() Exception break!");
+}
 
 bool CKillUSRConfig::Parse_Table(char* line, int idx)
 {

@@ -79,7 +79,27 @@ CMemberExpTbl::CMemberExpTbl() throw()
 
 CMemberExpTbl::~CMemberExpTbl() {}
 
-void CMemberExpTbl::Load_Table(const std::string& path) {}
+// [2026-09-14 修复] ORIG df_monitor_r `CMemberExpTbl::Load_Table`（0x175 字节，
+//   func_size_audit.py 扫出本地只有 0x5 的空壳）。ORIG 逐段实证：
+//     rc = Load_Txt_Table_Data(path.c_str(), 0xb)     ← [esp+8]=0xb
+//     m_count = (unsigned char)rc                      ← `mov BYTE PTR [eax+4],dl`（+4 就是 m_count）
+//     `test al,al; je fail` 然后 `cmp al,0xb; jbe 成功` ⇒ 等价于 `0 < m_count && m_count <= 0xb`
+//     fail: DNF_LOG_SCOPE_LINE(0x69, "./log/TableError",
+//                               "Member Exp Table - ReturnCode = %d\n"(0x811fbc0), <m_count>)
+//           throw CDNFException("CMemberConfig::Load_Table() Exception Break!"(0x811fb90))
+//   注意异常串里写的是 **CMemberConfig**（ORIG 原版如此，逐字保留）。
+void CMemberExpTbl::Load_Table(const std::string& path)
+{
+    int rc = Load_Txt_Table_Data(path.c_str(), 0xb);
+    m_count = (unsigned char)rc;
+    if (m_count != 0 && m_count <= 0xb)
+    {
+        return;
+    }
+    DNF_LOG_SCOPE_LINE(0x69, "./log/TableError",
+                       "Member Exp Table - ReturnCode = %d\n", (unsigned int)m_count);
+    throw CDNFException("CMemberConfig::Load_Table() Exception Break!");
+}
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0016 | monitor | 与ORIG差异=DIFF | CMemberExpTbl::Parse_Table | 详见 function_reports/monitor/_ZN13CMemberExpTbl11Parse_TableEPci.md
 bool CMemberExpTbl::Parse_Table(char* line, int idx)

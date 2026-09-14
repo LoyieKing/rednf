@@ -119,6 +119,14 @@ CSwapQueue<T, N>::CSwapQueue()
 template<class T, int N>
 CSwapQueue<T, N>::~CSwapQueue()
 {
+    // [2026-09-14 修复] ORIG df_guild_r 0x08053e90 `~CSwapQueue<Tcp,2>`（0x34 字节，
+    //   func_size_audit.py 扫出本地只有 0x5 的空壳）：**逆序析构 N 个就地构造的 T**
+    //   ——元素位于 `m_data + 8 + i*0x28`（与本地构造函数里的 placement new 位置一致）。
+    //   ORIG 反汇编：`ebx = this+0x58; loop { cmp ebx,this+8; je done; ebx -= 0x28;
+    //   ((T*)ebx)->~T(); }`（先尾后头）。本地空实现 ⇒ 两条队列（含 std::deque 的
+    //   缓冲区）永不释放。
+    for (int i = N - 1; i >= 0; i--)
+        ((T*)(m_data + 8 + i * 0x28))->~T();
 }
 
 template<class T, int N>
