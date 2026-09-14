@@ -19,6 +19,11 @@ void CServerXml::StrLoading(std::string file)
             CharsetInit(pRootNode);
             EventLoad(pRootNode);
             ProcessLoad(pRootNode);
+#if defined(DNF_SVC_AUCTION) || defined(DNF_SVC_POINT)
+            // ORIG df_auction_r StrLoading(std::string)@0x0808f20e 实测在
+            // ProcessLoad 之后 call auctionStringLoad@0x0808fb50
+            auctionStringLoad(pRootNode);
+#endif
         }
     }
 }

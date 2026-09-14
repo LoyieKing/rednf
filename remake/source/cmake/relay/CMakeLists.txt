@@ -24,9 +24,14 @@ set(CMAKE_CXX_COMPILER ${DF_CXX_WRAPPER})
 
 project(relay CXX)
 
-# 链接驱动用宿主机 g++（同 build 脚本）
+# [2026-09-14 修复] 原用**宿主 g++** 链接 ⇒ 产物打上宿主 glibc 2.39 的版本符号
+#   （实测 `GLIBC_2.34/2.35`），而目标运行环境是 CentOS 7 / glibc 2.17
+#   ⇒ 在容器里直接 `version 'GLIBC_2.34' not found` 跑不起来；
+#   ORIG 的 df_relay_r 只要 GLIBC_2.4。
+#   改用 game 同款「c6root 4.4.7 驱动 + --sysroot + 显式 crt」链接脚本
+#   （dnf_game_link.sh 本身就是通用的 32 位 c6root 链接驱动，非 game 专属）。
 set(CMAKE_CXX_LINK_EXECUTABLE
-    "g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+    "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake)
 
@@ -96,8 +101,14 @@ file(REAL_PATH ${RELAY} _relay_abs)
 string(SUBSTRING ${_relay_abs} 1 -1 _relay_rel)
 set(RELAY_OBJ_PREFIX ${RELAY_OBJ_ROOT}/${_relay_rel})
 
+# [2026-09-14] 原为 `g++ -m32 -no-pie`（宿主 g++）⇒ 产物要求 GLIBC_2.34/2.35，
+#   在目标环境（CentOS 7 / glibc 2.17）里直接跑不起来；ORIG 只要 GLIBC_2.4。
+#   改为与 game 同款 c6root 4.4.7 驱动 + --sysroot 链接（dnf_game_link.sh）。
+#   注：c6root 4.4.7 的 g++ 不认 `-no-pie`（该选项晚于 4.4），4.4 默认即非 PIE，
+#   故这里去掉该参数。
 add_custom_command(TARGET relay POST_BUILD
-    COMMAND g++ -m32 -no-pie -o ${CMAKE_BINARY_DIR}/df_relay_r
+    COMMAND ${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh
+        -o ${CMAKE_BINARY_DIR}/df_relay_r
         ${RELAY_OBJ_PREFIX}/UserPool.cpp.o
         ${RELAY_OBJ_PREFIX}/DNFRelayServer.cpp.o
         ${RELAY_OBJ_PREFIX}/Exception.cpp.o

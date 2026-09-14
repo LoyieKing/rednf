@@ -114,7 +114,20 @@ namespace np_server_xml
 
 #include "ServerXml/StrPunish.inc"
 
+#if defined(DNF_SVC_AUCTION) || defined(DNF_SVC_POINT)
+// ORIG df_auction_r / df_point_r 的 ServerXml TU 含拍卖串两件（.text 顺序实测：
+//   StrPunish@0x0808f8ea → auctionStringLoad@0x0808fb50 → GetServerString@0x0808fdb6
+//   → getAuctionString@0x0808ff70 → GetEventString@0x08090078），
+// 实现系恢复 1dc28fd43 前那版（原版即从 df_auction_r 反编译重建）；
+// 用服务宏隔离 ⇒ df_game_r 等其它服务本 TU 的预处理结果与改动前逐字节相同。
+#include "ServerXml/auctionStringLoad.inc"
+#endif
+
 #include "ServerXml/GetServerString.inc"
+
+#if defined(DNF_SVC_AUCTION) || defined(DNF_SVC_POINT)
+#include "ServerXml/getAuctionString.inc"
+#endif
 
 #include "ServerXml/GetEventRGBA.inc"
 

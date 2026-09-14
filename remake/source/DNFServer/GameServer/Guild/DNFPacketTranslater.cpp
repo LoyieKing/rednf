@@ -4679,16 +4679,19 @@ void CPacketTranslater::OnGuildCargoPushItem(PacketHeader* pkt)
     {
         Packet_Guild_Guild_Cargo_Push_Item* pb = (Packet_Guild_Guild_Cargo_Push_Item*)pkt;
         Packet_Channel_Guild_Cargo_Push_Item resp;
+        // 入包成员名改用 shared/packet 权威定义（Packet_Guild_Guild_Cargo_Push_Item.h）
+        // 的具名：m_slot→m_b(+0x12)、m_count→m_d(+0x16)、m_fsn→m_e(+0x50)、
+        // m_fst→m_f(+0x51)；偏移与 ORIG 0x0808495c 逐条一致（该头即权威版，无第二份定义）。
         resp.m_b = pb->m_charNo;
-        resp.m_d = pb->m_slot;
+        resp.m_d = pb->m_b;
         resp.m_item = pb->m_item;
-        resp.m_e = pb->m_fsn;
-        resp.m_flag = pb->m_fst;
+        resp.m_e = pb->m_f;      // ORIG 0x08084a19：pkt+0x51(word) → resp+0x4d(m_e)
+        resp.m_flag = pb->m_e;   // ORIG 0x08084a27：pkt+0x50(byte) → resp+0x4c(m_flag)
         char* itemDesc = (char*)CGuildCargo::PrintDnfItemInfo(pb->m_item);
         CMyFileLog log0(__FUNCTION__, 0x19b3);
         log0("./log/GuildCargo", "PUSH ITEM(g:%d,cn:%d,sn:%d,sl:%d,fsn:%d,fst:%d,it:%d,%s)",
-             pb->m_guildKey, pb->m_charNo, pb->m_slot,
-             pb->m_count, (unsigned int)pb->m_fsn, (unsigned int)pb->m_fst,
+             pb->m_guildKey, pb->m_charNo, pb->m_b,
+             pb->m_d, (unsigned int)pb->m_e, (unsigned int)pb->m_f,
              (unsigned int)pb->m_itemType, itemDesc);
         if (m_pclApp == 0)
         {
@@ -4744,17 +4747,20 @@ void CPacketTranslater::OnGuildCargoPushItem(PacketHeader* pkt)
             user->SendTcpGameserver((PacketHeader*)&resp);
             return;
         }
-        int slot = pb->m_slot;
-        int result = guild->GetGuildCargo()->InsertItem(*(DnfItemInfo*)pb->m_item, slot, pb->m_count, pb->m_itemType, (int)pb->m_charNo);
+        // pb->m_item 在权威包里是 +0x1b 处的 DnfItemInfo 值成员（ORIG 0x08084e87
+        // `add eax,0x1b` 取址传引用），故原 `*(DnfItemInfo*)pb->m_item` 指针式用法
+        // 一并改为值/成员访问。
+        int slot = pb->m_b;
+        int result = guild->GetGuildCargo()->InsertItem(pb->m_item, slot, pb->m_d, pb->m_itemType, (int)pb->m_charNo);
         resp.m_c = (unsigned char)result;
         resp.m_d = slot;
         if (result == 0xc1)
         {
             guild->GetGuildCargo()->InsertHistory((ENUM_GUILD_CARGO_BEHAVIOR)1, (int)pb->m_charNo, user->GetCharName(),
-                                 ((DnfItemInfo*)pb->m_item)->m_itemId, ((DnfItemInfo*)pb->m_item)->m_addInfo, &((DnfItemInfo*)pb->m_item)->m_opt);
+                                 pb->m_item.m_itemId, pb->m_item.m_addInfo, &pb->m_item.m_opt);
             CServerHandler* handler = m_pclApp->m_serverHandler;
             guild->GetGuildCargo()->SendHistoryToDBMW(handler, (ENUM_GUILD_CARGO_BEHAVIOR)1, (int)pb->m_charNo,
-                                     user->GetCharName(), slot, 0, *(DnfItemInfo*)pb->m_item);
+                                     user->GetCharName(), slot, 0, pb->m_item);
             guild->GetGuildCargo()->SendGuildCargoToDBMW(handler, (int)pb->m_charNo);
             guild->GetGuildCargo()->PrintCargo((ENUM_GUILD_CARGO_BEHAVIOR)1);
         }

@@ -21,7 +21,11 @@ class Packet_Stat_Compatibility_Index;
 class Packet_Avater_Disjoint_Statistic;
 class Packet_Randombox_statistic;
 class Packet_Reason_Crash_Down_Info;
-class Packet_Secret_Shop_Statistic;
+// Packet_Secret_Shop_Statistic 不能只做前置声明：Statistics.cpp 需要完整类型
+// （AddSecretShopStatistic 读 pkt->m_items[i].m_data[...]；SendDBSecretShopStatistic
+// 定义局部 pkt）。权威定义 = shared/packet/include/Packet_Secret_Shop_Statistic.h
+// （statics 的 -I 里解析到的就是它），此处直接 include，不再另抄一份视图。
+#include "Packet_Secret_Shop_Statistic.h"
 class Packet_User_Count_Statistic;
 class Packet_Circulation_Statistic;
 class Packet_Blood_dungeon_statistic;

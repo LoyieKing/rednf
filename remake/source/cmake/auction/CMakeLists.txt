@@ -22,6 +22,40 @@ set(AUCTIONDICT "${AUCTION}/GameData/auction/dictionary")
 set(AUCTIONSRC  "${AUCTION}/auction_source")
 set(AUCTIONHDR  "${AUCTION}/auction_header")
 
+# ---- MySQL Connector/C 6.0.2 客户端（与 df_manager_r 同一套源码/产物）----
+# ORIG 依据（/tmp/orig_svc/df_auction_r）：
+#   nm | grep -cE ' T mysql_' = 110，' U mysql_' = 0 ⇒ ORIG 不是靠 weak 空桩，
+#   而是把 MySQL 客户端**静态链入**；yaSSL/TaoCrypt 的导出符号面（372 个 T）
+#   与 df_manager_r 逐名一致 ⇒ 同一份 yaSSL 源码编入。
+# 故删除已不存在的 common_source/mysql_stubs.cpp（weak 空桩，提交 734cf82cf 已删），
+# 改为在 SOURCES 里直接列入 ${MYSQLCLIENT_A} 与 yaSSL 源码（照 df_manager_r 写法）。
+set(MYSQL      "${DNF_SRC}/Library3rd/MySQL")
+set(YASSL      "${MYSQL}/extlib/yassl")
+set(MYSQLCLIENT_DIR "${DNF_SRC}/../build/manager/mysqlclient")
+set(MYSQLCLIENT_A   "${MYSQLCLIENT_DIR}/libmysqlclient.a")
+set(MYSQLCLIENT_TREES "${MYSQLCLIENT_DIR}/trees.o")
+if(NOT EXISTS "${MYSQLCLIENT_A}" OR NOT EXISTS "${MYSQLCLIENT_TREES}")
+    message(STATUS "libmysqlclient.a 缺失，调用 source/toolchain/build-mysqlclient.sh 生成…")
+    execute_process(COMMAND sh ${DNF_SRC}/toolchain/build-mysqlclient.sh
+        WORKING_DIRECTORY ${DNF_SRC}/toolchain RESULT_VARIABLE _mysqlclient_rc)
+    if(NOT _mysqlclient_rc EQUAL 0)
+        message(FATAL_ERROR "build-mysqlclient.sh 失败 rc=${_mysqlclient_rc}")
+    endif()
+endif()
+
+# yaSSL / TaoCrypt 源码清单（名序与 df_manager_r 的 TAOCRYPT_SRC / YASSL_SRC 一致）
+set(YASSL_TAOCRYPT aes aestables algebra arc4 asn coding des dh dsa file hash integer
+    md2 md4 md5 misc random ripemd rsa sha block_instnt)
+set(YASSL_CORE buffer cert_wrapper crypto_wrapper handshake lock log socket_wrapper
+    ssl timer yassl_error yassl_imp yassl_int)
+set(YASSL_SOURCES "")
+foreach(f IN LISTS YASSL_TAOCRYPT)
+    list(APPEND YASSL_SOURCES ${YASSL}/taocrypt/src/${f}.cpp)
+endforeach()
+foreach(f IN LISTS YASSL_CORE)
+    list(APPEND YASSL_SOURCES ${YASSL}/src/${f}.cpp)
+endforeach()
+
 # 源文件与顺序：build-auction.sh 的链接顺序 = `ls *.o`（按 .o 基名字母序，
 # ServerCommon/Thread.cpp 以 ServerCommon_Thread.o 参与排序）。SRC_OPTS 复刻
 # 逐文件 flags：tinyxml*（-O3 gnu++98）、CFileLogWriterBase（-fno-exceptions）、
@@ -97,12 +131,15 @@ dnf_service(auction
         ${CORE}/UnicodeConvert.cpp
         ${BASIC}/WorkThread.cpp
         ${AUCTIONGD}/Zone.cpp
-        ${COMMON}/mysql_stubs.cpp
+        # mysql_stubs.cpp（weak 空桩）已随 734cf82cf 删除 → 换成真正的 MySQL 客户端
+        # 静态库（见下方 LIBS 的 ${MYSQLCLIENT_A}）+ yaSSL/TaoCrypt 源码。
+        ${YASSL_SOURCES}
         ${SERVERCOMMON}/tinyxml.cpp
         ${SERVERCOMMON}/tinyxmlerror.cpp
         ${SERVERCOMMON}/tinyxmlparser.cpp
-        ${COMMON}/tmp_stubs.cpp
         ${AUCTIONGD}/version.cpp
+        # mysqlclient 的 zlib trees.o（位于 libmysqlclient.a 之前，同 df_manager_r）
+        ${MYSQLCLIENT_TREES}
     INCLUDES
         -isystem${DNF_SRC}/Library3rd/Boost/Include
         -isystem${DNF_SRC}/Library3rd/MySQL/include
@@ -118,6 +155,11 @@ dnf_service(auction
         "${SERVERCOMMON}/CFileLogWriterBase.cpp|-fno-exceptions"
         "${AUCTIONSRC}/HandlerFor_GA_.cpp|-DSTATISTICS_STDATA_57"
         "${AUCTIONSRC}/HandlerFor_GP_JPN.cpp|-DSTATISTICS_STDATA_57"
+    # MySQL Connector/C 6.0.2 静态库（ORIG df_auction_r：T mysql_ = 110、U mysql_ = 0）。
+    # libstdc++ 保持动态（ORIG df_auction_r 的 NEEDED 含 libstdc++.so.6），
+    # 与 df_manager_r 的写法不同：manager 静态链 libstdc++。
+    LIBS
+        ${MYSQLCLIENT_A}
     LINK_FLAGS
         -no-pie -static-libgcc -lpthread -ldl ${DF_ZLIB32}/lib/libz.a -lm
 )
@@ -135,6 +177,20 @@ set_source_files_properties(${BASIC}/Token.cpp PROPERTIES COMPILE_OPTIONS
     "-include;${_AUCTION_FILEPATH_H};-DAUCTION_FILEPATH_TOKEN")
 set_source_files_properties(${COMMON}/LogSendThread.cpp PROPERTIES COMPILE_OPTIONS
     "-include;${_AUCTION_FILEPATH_H};-DAUCTION_FILEPATH_LOGSENDTHREAD")
+
+# ---- yaSSL / TaoCrypt 逐文件 flags + 专属 include（照 df_manager_r 原样）----
+# ORIG 的 yaSSL 即用这套口径编出（-O3 -fPIC -DNDEBUG -std=gnu++98 + yassl define）。
+set(YASSL_OPTS -O3 -fPIC -DNDEBUG -std=gnu++98 -DHAVE_CONFIG_H -DYASSL_PREFIX -D_LIB -DHAVE_YASSL -DYASSL_PURE_C -DHAVE_OPENSSL)
+foreach(f IN LISTS YASSL_TAOCRYPT)
+    set_source_files_properties(${YASSL}/taocrypt/src/${f}.cpp PROPERTIES
+        COMPILE_OPTIONS "${YASSL_OPTS}"
+        INCLUDE_DIRECTORIES "${YASSL}/include;${YASSL}/taocrypt/include;${YASSL}/taocrypt/mySTL")
+endforeach()
+foreach(f IN LISTS YASSL_CORE)
+    set_source_files_properties(${YASSL}/src/${f}.cpp PROPERTIES
+        COMPILE_OPTIONS "${YASSL_OPTS}"
+        INCLUDE_DIRECTORIES "${YASSL}/include;${YASSL}/taocrypt/include;${YASSL}/taocrypt/mySTL")
+endforeach()
 
 # 链接用宿主 g++（与 build-auction.sh 一致：-m32 -no-pie -static-libgcc）。
 find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PATH)

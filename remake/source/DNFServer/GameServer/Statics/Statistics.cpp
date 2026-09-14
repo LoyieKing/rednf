@@ -1822,8 +1822,12 @@ void StatisticManager::AddGoldcardEventStatistic(Packet_Goldcard_Event_Statistic
     int idx = (unsigned char)pkt->m_level;
     if (0 <= idx && idx < 100)
     {
-        m_goldcard[idx].m_createCnt += pkt->m_createCnt;
-        m_goldcard[idx].m_openCnt += pkt->m_openCnt;
+        // 累加目标用 GoldCardEventStatistic 权威头（Game/GoldCardEventStatistic.h，
+        // GMAccounts.h §4.4 指定唯一声明点）的字段名：m_field1=+0x01、m_field5=+0x05。
+        // ORIG 0x807499a 实证：elem[i]=this+0x48c+9*i，elem+0x01 += pkt+0xb（create）、
+        // elem+0x05 += pkt+0xf（open）；elem+0x00（m_field0）本函数不写。
+        m_goldcard[idx].m_field1 += pkt->m_createCnt;
+        m_goldcard[idx].m_field5 += pkt->m_openCnt;
     }
 }
 void StatisticManager::SendDBGoldcardEventStatistic(CServerHandler* handler)

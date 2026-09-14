@@ -206,26 +206,28 @@ unsigned int CGuild::GetGuildKey()
     return m_guildKey;
 }
 
+// 成员名按权威定义（Game/Inven_Item.h）改写；偏移与调用序与 ORIG
+// _ZN12RandomOption5resetEv 0x08089620 逐条一致（+0/+3/+6/+9/+0xa/+0xd）。
 void RandomOption::reset()
 {
-    m_f0.reset();
-    m_f3.reset();
-    m_f6.reset();
-    m_s9.reset();
-    m_f10.reset();
-    m_s13.reset();
+    m_fields[0].reset();   // +0x00（原 m_f0）
+    m_fields[1].reset();   // +0x03（原 m_f3）
+    m_fields[2].reset();   // +0x06（原 m_f6）
+    m_seed9.reset();       // +0x09（原 m_s9）
+    m_fielda.reset();      // +0x0a（原 m_f10）
+    m_seedd.reset();       // +0x0d（原 m_s13）
 }
 
 void RandomOptionField::reset()
 {
-    m_data[0] = 0;
-    m_data[1] = 0;
-    m_data[2] = 0;
+    m_field0 = 0;   // 原 m_data[0]
+    m_field1 = 0;   // 原 m_data[1]
+    m_field2 = 0;   // 原 m_data[2]
 }
 
 void RandomOptionSeed::reset()
 {
-    m_data[0] = 0;
+    m_field = 0;    // 原 m_data[0]
 }
 
 #pragma pack(push,1)
@@ -270,9 +272,9 @@ UpgradeSeparateInfo::UpgradeSeparateInfo()
 void UpgradeSeparateInfo::reset()
 {
     struct Bits { unsigned char a:5, b:1, c:2; };
-    reinterpret_cast<Bits*>(m_data)->a = 0;
-    reinterpret_cast<Bits*>(m_data)->b = 0;
-    reinterpret_cast<Bits*>(m_data)->c = 0;
+    reinterpret_cast<Bits*>(&m_field)->a = 0;   // 原 m_data（权威定义中为 union 别名 m_field）
+    reinterpret_cast<Bits*>(&m_field)->b = 0;
+    reinterpret_cast<Bits*>(&m_field)->c = 0;
 }
 
 ReservedCapacity::ReservedCapacity()
@@ -2845,5 +2847,6 @@ unsigned short CGuild::GetGuildDBFlag()
 
 unsigned char UpgradeSeparateInfo::GetUpgradeSeparate() const
 {
-    return (unsigned char)(*(unsigned char*)m_data & 0x1f);
+    // 原 m_data（权威定义中为 union 别名 m_field）；ORIG 0x080a03f0 = movzx;and $0x1f
+    return (unsigned char)(m_field & 0x1f);
 }

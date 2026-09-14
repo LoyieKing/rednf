@@ -12,6 +12,17 @@ include("${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake")
 
 set(_SD "${DNF_SRC}/ChannelOld/DNFChannelBridge")
 
+# ---- MySQL 客户端 + yaSSL/TaoCrypt：与 manager 完全同源同写法 ----
+# ORIG df_bridge_r 的判定依据：
+#   nm | grep -cE ' T mysql_'  = 110（与本工程 manager 的符号集**逐名相同**）
+#   nm | grep -ciE 'yassl|taocrypt' = 1638（yaSSL/TaoCrypt 亦静态链入）
+#   nm | grep -E ' T ...' 显示 deflate/inflate/crc32 等 zlib 亦被客户端引用拉入
+#   DWARF：31 个 CU 全部为工程 TU，**无 MysqlClient.cpp** —— 因此本工程早期
+#   为占位而写的 MysqlClient.cpp（8 个 mysql_* 桩）从 SOURCES 中移除，
+#   DBMgr 的 mysql_* 调用改为直接解析到静态链接的真实客户端。
+set(MYSQL ${DNF_SRC}/Library3rd/MySQL)
+set(YASSL ${MYSQL}/extlib/yassl)
+
 # 源文件与顺序取自 build-bridge.sh 默认 SOURCES（含 DNFServerCommon/DNFFunctionLib）。
 dnf_service(bridge
     SOURCES
@@ -37,18 +48,81 @@ dnf_service(bridge
         ${_SD}/TCPUser.cpp
         ${_SD}/UDPThread.cpp
         ${_SD}/DBMgr.cpp
-        ${_SD}/MysqlClient.cpp
         ${_SD}/DNFChannelBridge.cpp
         ${_SD}/ChannelService.cpp
         ${_SD}/CheckThread.cpp
         ${_SD}/DNFServerCommon/DNFFunctionLib.cpp
+        # ---- yaSSL / TaoCrypt（与 manager 的 TAOCRYPT_SRC + YASSL_SRC 同表同序）----
+        ${YASSL}/taocrypt/src/aes.cpp
+        ${YASSL}/taocrypt/src/aestables.cpp
+        ${YASSL}/taocrypt/src/algebra.cpp
+        ${YASSL}/taocrypt/src/arc4.cpp
+        ${YASSL}/taocrypt/src/asn.cpp
+        ${YASSL}/taocrypt/src/coding.cpp
+        ${YASSL}/taocrypt/src/des.cpp
+        ${YASSL}/taocrypt/src/dh.cpp
+        ${YASSL}/taocrypt/src/dsa.cpp
+        ${YASSL}/taocrypt/src/file.cpp
+        ${YASSL}/taocrypt/src/hash.cpp
+        ${YASSL}/taocrypt/src/integer.cpp
+        ${YASSL}/taocrypt/src/md2.cpp
+        ${YASSL}/taocrypt/src/md4.cpp
+        ${YASSL}/taocrypt/src/md5.cpp
+        ${YASSL}/taocrypt/src/misc.cpp
+        ${YASSL}/taocrypt/src/random.cpp
+        ${YASSL}/taocrypt/src/ripemd.cpp
+        ${YASSL}/taocrypt/src/rsa.cpp
+        ${YASSL}/taocrypt/src/sha.cpp
+        ${YASSL}/taocrypt/src/block_instnt.cpp
+        ${YASSL}/src/buffer.cpp
+        ${YASSL}/src/cert_wrapper.cpp
+        ${YASSL}/src/crypto_wrapper.cpp
+        ${YASSL}/src/handshake.cpp
+        ${YASSL}/src/lock.cpp
+        ${YASSL}/src/log.cpp
+        ${YASSL}/src/socket_wrapper.cpp
+        ${YASSL}/src/ssl.cpp
+        ${YASSL}/src/timer.cpp
+        ${YASSL}/src/yassl_error.cpp
+        ${YASSL}/src/yassl_imp.cpp
+        ${YASSL}/src/yassl_int.cpp
+        # ---- mysqlclient 的 zlib trees.o（位于 libmysqlclient.a 之前）----
+        ${DNF_SRC}/../build/manager/mysqlclient/trees.o
     INCLUDES
-        -isystem${DNF_SRC}/Library3rd/MySQL/include
+        -isystem${MYSQL}/include
     DEFINES
         -D_GNU_SOURCE -std=gnu++98 -pthread
+    LIBS
+        ${DNF_SRC}/../build/manager/mysqlclient/libmysqlclient.a
     LINK_FLAGS
         -no-pie -static-libgcc -lpthread -ldl ${DF_ZLIB32}/lib/libz.a -lm
 )
+
+# ---- yaSSL/TaoCrypt 逐文件 flags + 专属 include（与 manager 逐字相同）----
+set(YASSL_OPTS -O3 -fPIC -DNDEBUG -std=gnu++98 -DHAVE_CONFIG_H -DYASSL_PREFIX -D_LIB -DHAVE_YASSL -DYASSL_PURE_C -DHAVE_OPENSSL)
+set(YASSL_TAOCRYPT aes aestables algebra arc4 asn coding des dh dsa file hash integer md2 md4 md5 misc random ripemd rsa sha block_instnt)
+set(YASSL_CORE buffer cert_wrapper crypto_wrapper handshake lock log socket_wrapper ssl timer yassl_error yassl_imp yassl_int)
+foreach(f IN LISTS YASSL_TAOCRYPT)
+    set_source_files_properties(${YASSL}/taocrypt/src/${f}.cpp PROPERTIES
+        COMPILE_OPTIONS "${YASSL_OPTS}"
+        INCLUDE_DIRECTORIES "${YASSL}/include;${YASSL}/taocrypt/include;${YASSL}/taocrypt/mySTL")
+endforeach()
+foreach(f IN LISTS YASSL_CORE)
+    set_source_files_properties(${YASSL}/src/${f}.cpp PROPERTIES
+        COMPILE_OPTIONS "${YASSL_OPTS}"
+        INCLUDE_DIRECTORIES "${YASSL}/include;${YASSL}/taocrypt/include;${YASSL}/taocrypt/mySTL")
+endforeach()
+
+# ---- MySQL Connector/C 6.0.2 客户端静态库（与 manager 共用 build-mysqlclient.sh）----
+# 产物目录与 manager 相同（build/manager/mysqlclient）——这是脚本 OUT 的硬编码口径。
+# 若已存在则不再挂 custom target：避免与并行构建的 manager 同时 ar 同一个归档。
+if(NOT EXISTS ${DNF_SRC}/../build/manager/mysqlclient/libmysqlclient.a)
+    add_custom_target(mysqlclient_bridge ALL
+        COMMAND sh ${DNF_SRC}/toolchain/build-mysqlclient.sh
+        WORKING_DIRECTORY ${DNF_SRC}/toolchain
+        COMMENT "build-mysqlclient.sh -> build/manager/mysqlclient/libmysqlclient.a")
+    add_dependencies(bridge mysqlclient_bridge)
+endif()
 
 # 链接用宿主 g++（与 build-bridge.sh 一致：-m32 -no-pie -static-libgcc）。
 find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PATH)

@@ -458,11 +458,23 @@ void CGuildCargo::InsertHistory(ENUM_GUILD_CARGO_BEHAVIOR behavior, int slot, co
     log.count = count;
     log.behavior = (unsigned char)behavior;
     log.param = param;
-    register const RandomOption* o = option;
-    log.opt0 = o->m_opt0;
-    log.opt1 = o->m_opt1;
-    log.opt2 = o->m_opt2;
-    log.opt3 = o->m_opt3;
+    // 权威定义（Game/Inven_Item.h）的 RandomOption 无 dword 视图（成员改由
+    // m_fields[]/m_seed9/m_fielda/m_seedd 表达），故按 ORIG 0x080a0182 的读取口径
+    // 逐偏移取值：+0/+4/+8 = dword、+0xc = word（与 STGuildCargoLog
+    // opt0@+0x22/opt1@+0x26/opt2@+0x2a/opt3@+0x2e 一一对应）。用结构视图而非
+    // 指针算术，方产出 ORIG 的单基址连续偏移装载形（byte* 的 `o+4` 会生物化 add）。
+    struct OptionDwordView
+    {
+        unsigned int opt0;        // +0x00
+        unsigned int opt1;        // +0x04
+        unsigned int opt2;        // +0x08
+        unsigned short opt3;      // +0x0c
+    } __attribute__((packed));
+    register const OptionDwordView* o = reinterpret_cast<const OptionDwordView*>(option);
+    log.opt0 = o->opt0;
+    log.opt1 = o->opt1;
+    log.opt2 = o->opt2;
+    log.opt3 = o->opt3;
     time_t t;
     time(&t);
     log.time = t;

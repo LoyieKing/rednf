@@ -25,84 +25,16 @@ struct STGuildCargoLog;
 // from GuildDomain.h
 enum ENUM_GUILD_CARGO_BEHAVIOR {};
 
-// ---- from GuildDomain.h（自 DNFGuild.h 移入，供 STGuildCargoDBInfo 使用真实数组成员）----
-struct RandomOptionField
-{
-    void reset();
-    char m_data[3];
-};
-
-struct RandomOptionSeed
-{
-    void reset();
-    char m_data[1];
-};
-
-#pragma pack(push,1)
-struct RandomOption
-{
-    void reset();
-    union
-    {
-        struct
-        {
-            unsigned int m_opt0;     // +0
-            unsigned int m_opt1;     // +4
-            unsigned int m_opt2;     // +8
-            unsigned short m_opt3;   // +0xc
-        };
-        struct
-        {
-            RandomOptionField m_f0;  // +0
-            RandomOptionField m_f3;  // +3
-            RandomOptionField m_f6;  // +6
-            RandomOptionSeed m_s9;   // +9
-            RandomOptionField m_f10; // +10
-            RandomOptionSeed m_s13;  // +0xd
-        };
-    };
-};
-#pragma pack(pop)
-
-struct UpgradeSeparateInfo
-{
-    UpgradeSeparateInfo();
-    void reset();
-    unsigned char GetUpgradeSeparate() const;
-    char m_data[1];
-};
-
-#pragma pack(push,1)
-struct ReservedCapacity
-{
-    ReservedCapacity();
-    void reset();
-    unsigned int m_field0;   // +0
-    unsigned int m_field4;   // +4
-    unsigned char m_field8;  // +8
-};
-#pragma pack(pop)
-
-#pragma pack(push,1)
-class DnfItemInfo
-{
-public:
-    DnfItemInfo();
-    void reset();
-    unsigned char m_seal;          // +0
-    unsigned int m_itemId;         // +1
-    unsigned char m_attr;          // +5
-    unsigned int m_addInfo;        // +6
-    unsigned short m_endurance;    // +0xa
-    unsigned int m_extendInfo;     // +0xc
-    unsigned char m_abilityType;   // +0x10
-    unsigned short m_abilityValue; // +0x11
-    char m_pad[0x1d - 0x13];       // +0x13..0x1c
-    RandomOption m_opt;            // +0x1d（0xe 字节）
-    UpgradeSeparateInfo m_up;      // +0x2b
-    ReservedCapacity m_res;        // +0x2c
-};
-#pragma pack(pop)
+// ---- RandomOptionField / RandomOptionSeed / RandomOption / UpgradeSeparateInfo /
+//      ReservedCapacity / DnfItemInfo 的权威定义在 Game 域 ----
+// 这里曾为「单独编译 guild」复制过一份同名副本（尺寸/偏移与 Game 域完全等价，
+// 仅成员名不同），与 Packet_Guild_Guild_Cargo_Push_Item.h 同时 include 时触发
+// redefinition（GuildCargo.h:29 vs Game/Inven_Item.h:38 等）。按工程口径删除
+// 遗留副本，改为 include 权威头（DnfItemInfo.h 内已 include Inven_Item.h）。
+// 数据成员偏移依据（ORIG df_guild_r，二者一致）：
+//   RandomOption 0xe（+0/+3/+6 三字段、+9 seed、+0xa 字段、+0xd seed）
+//   UpgradeSeparateInfo 1、ReservedCapacity 9、DnfItemInfo 0x35（opt@+0x1d）
+#include "../Game/DnfItemInfo.h"
 
 // from GuildDomain.h
 struct STGuildCargoDBInfo
