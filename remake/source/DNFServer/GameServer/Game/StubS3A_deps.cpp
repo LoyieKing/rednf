@@ -186,27 +186,16 @@ static_assert(sizeof(RedeemEntryView) == 0x44, "Redeem entry stride drift");
 // [b24FIX · 真 FreeType 运行期绑定] 体改为 dlopen 转发（详见 GlobalData.cpp 同条注释）。
 // 本 TU **仍持有定义**这一事实正是 CaptchaGen::~CaptchaGen 0x080de706 EH landing 的
 // 成因（GlobalData.cpp 只见声明）⇒ 定义位置不动，仅替换函数体。
-#include <dlfcn.h>
-
-static void* ft32_sym_deps(const char* name)
-{
-    static void* handle = 0;
-    if (handle == 0)
-        handle = dlopen("libfreetype.so.6", RTLD_NOW | RTLD_GLOBAL);
-    if (handle == 0)
-        return 0;
-    return dlsym(handle, name);
-}
+// [2026-09-14] 原自创的 `static void* ft32_sym_deps(const char*)` 已删除，改用
+//  FT32Bind.h 的 FT32_BIND 宏（与 GlobalData.cpp 同一份，宏不产生符号）。
+#include "FT32Bind.h"
 
 extern "C" int FT_Done_Face(void* face)
 {
-    typedef int (*fn_t)(void*);
-    static fn_t f = 0;
-    if (f == 0)
-        f = (fn_t)ft32_sym_deps("FT_Done_Face");
-    if (f == 0)
+    FT32_BIND(int, (void*));
+    if (ft32_fn_ == 0)
         return 6;
-    return f(face);
+    return ft32_fn_(face);
 }
 
 // FreeType 库内部收尾函数（ORIG 0x087c3c00 FT_Done_Library / 0x087dc6b0
@@ -220,11 +209,8 @@ extern "C" int FT_Done_Memory(void* memory);
 // → 释放 memory」序列，与 ORIG 语义一致）。
 extern "C" int FT_Done_FreeType(void* library)
 {
-    typedef int (*fn_t)(void*);
-    static fn_t f = 0;
-    if (f == 0)
-        f = (fn_t)ft32_sym_deps("FT_Done_FreeType");
-    if (f == 0)
+    FT32_BIND(int, (void*));
+    if (ft32_fn_ == 0)
         return 6;
-    return f(library);
+    return ft32_fn_(library);
 }

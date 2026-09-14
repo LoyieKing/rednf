@@ -1265,27 +1265,17 @@ int CaptchaGen::kJapaneseHirakanaCount = 72;  // VA 0x08b2c4f0
 //   到系统 32 位 libfreetype.so.6（CentOS7 altarch i686 freetype-2.8-14，与镜像内
 //   64 位 libfreetype.so.6.14.0 同版本）。语义与原 FT_* 一致 = ORIG 的真 FreeType。
 //   调用点（addFont/generateImage）逐字未动 ⇒ 其 codegen 对齐结论不受影响。
-#include <dlfcn.h>
-
-static void* ft32_sym(const char* name)
-{
-    static void* handle = 0;
-    if (handle == 0)
-        handle = dlopen("libfreetype.so.6", RTLD_NOW | RTLD_GLOBAL);
-    if (handle == 0)
-        return 0;
-    return dlsym(handle, name);
-}
+// [2026-09-14] 原自创的 `static void* ft32_sym(const char*)` 已删除（用户指示：
+//  不得自创 ORIG 没有的函数）。解析逻辑改为 FT32Bind.h 的 FT32_BIND 宏**就地展开**
+//  到各 FT_* 函数内 ⇒ 二进制里不再多出 `_ZL8ft32_symPKc` 这类 onlyNEW 符号。
+#include "FT32Bind.h"
 
 extern "C" int FT_Init_FreeType(void** alibrary)
 {
-    typedef int (*fn_t)(void**);
-    static fn_t f = 0;
-    if (f == 0)
-        f = (fn_t)ft32_sym("FT_Init_FreeType");
-    if (f == 0)
+    FT32_BIND(int, (void**));
+    if (ft32_fn_ == 0)
         return 6;
-    return f(alibrary);
+    return ft32_fn_(alibrary);
 }
 
 // FreeType 收尾 API（ORIG 0x087c14b0）。[SweepCAutoPunish 2026-09-10] 定义已迁
@@ -1302,24 +1292,18 @@ extern "C" int FT_Done_Face(void* face);
 // 占位定义保链接。FT_Library 首字段为 memory（offset 0），见 idx49 报告汇编。
 extern "C" int FT_Done_Library(void* library)
 {
-    typedef int (*fn_t)(void*);
-    static fn_t f = 0;
-    if (f == 0)
-        f = (fn_t)ft32_sym("FT_Done_Library");
-    if (f == 0)
+    FT32_BIND(int, (void*));
+    if (ft32_fn_ == 0)
         return 6;
-    return f(library);
+    return ft32_fn_(library);
 }
 
 extern "C" int FT_Done_Memory(void* memory)
 {
-    typedef int (*fn_t)(void*);
-    static fn_t f = 0;
-    if (f == 0)
-        f = (fn_t)ft32_sym("FT_Done_Memory");
-    if (f == 0)
+    FT32_BIND(int, (void*));
+    if (ft32_fn_ == 0)
         return 6;
-    return f(memory);
+    return ft32_fn_(memory);
 }
 
 // FT_Open_Face 用参结构（FreeType FT_Open_Args_，pathname@0xc、stream@0x10）
@@ -1337,13 +1321,10 @@ extern "C" int FT_Open_Face(void* library, FT_Open_Args* args, long face_index,
                             void** aface)
 {
     // [b24FIX] 转发真 FT_Open_Face（原为 `*aface = 0; return 0` 伪成功 → face NULL 崩溃）。
-    typedef int (*fn_t)(void*, FT_Open_Args*, long, void**);
-    static fn_t f = 0;
-    if (f == 0)
-        f = (fn_t)ft32_sym("FT_Open_Face");
-    if (f == 0)
+    FT32_BIND(int, (void*, FT_Open_Args*, long, void**));
+    if (ft32_fn_ == 0)
         return 6;
-    return f(library, args, face_index, aface);
+    return ft32_fn_(library, args, face_index, aface);
 }
 
 // [b22判词·N-codegen] FT_Done_FreeType 语义忠实 ORIG 0x087bca50（体已迁
@@ -1388,24 +1369,18 @@ extern "C" int FT_New_Face(void* library, const char* filepathname, long face_in
 extern "C" int FT_Set_Pixel_Sizes(void* face, unsigned int pixel_width,
                                   unsigned int pixel_height)
 {
-    typedef int (*fn_t)(void*, unsigned int, unsigned int);
-    static fn_t f = 0;
-    if (f == 0)
-        f = (fn_t)ft32_sym("FT_Set_Pixel_Sizes");
-    if (f == 0)
+    FT32_BIND(int, (void*, unsigned int, unsigned int));
+    if (ft32_fn_ == 0)
         return 6;
-    return f(face, pixel_width, pixel_height);
+    return ft32_fn_(face, pixel_width, pixel_height);
 }
 
 extern "C" int FT_Select_Charmap(void* face, unsigned long encoding)
 {
-    typedef int (*fn_t)(void*, unsigned long);
-    static fn_t f = 0;
-    if (f == 0)
-        f = (fn_t)ft32_sym("FT_Select_Charmap");
-    if (f == 0)
+    FT32_BIND(int, (void*, unsigned long));
+    if (ft32_fn_ == 0)
         return 6;
-    return f(face, encoding);
+    return ft32_fn_(face, encoding);
 }
 
 // ---- generateImage 用 FreeType 结构视图与 API 占位 ----
@@ -1455,47 +1430,35 @@ struct FT_FaceRec
 extern "C" int FT_Set_Transform(FT_FaceRec* face, FT_Matrix* matrix,
                                 FT_Vector* delta)
 {
-    typedef int (*fn_t)(FT_FaceRec*, FT_Matrix*, FT_Vector*);
-    static fn_t f = 0;
-    if (f == 0)
-        f = (fn_t)ft32_sym("FT_Set_Transform");
-    if (f == 0)
+    FT32_BIND(int, (FT_FaceRec*, FT_Matrix*, FT_Vector*));
+    if (ft32_fn_ == 0)
         return 6;
-    return f(face, matrix, delta);
+    return ft32_fn_(face, matrix, delta);
 }
 
 extern "C" unsigned int FT_Get_Char_Index(FT_FaceRec* face, unsigned long charcode)
 {
-    typedef unsigned int (*fn_t)(FT_FaceRec*, unsigned long);
-    static fn_t f = 0;
-    if (f == 0)
-        f = (fn_t)ft32_sym("FT_Get_Char_Index");
-    if (f == 0)
+    FT32_BIND(unsigned int, (FT_FaceRec*, unsigned long));
+    if (ft32_fn_ == 0)
         return 0;
-    return f(face, charcode);
+    return ft32_fn_(face, charcode);
 }
 
 extern "C" int FT_Load_Glyph(FT_FaceRec* face, unsigned int glyph_index,
                              int load_flags)
 {
-    typedef int (*fn_t)(FT_FaceRec*, unsigned int, int);
-    static fn_t f = 0;
-    if (f == 0)
-        f = (fn_t)ft32_sym("FT_Load_Glyph");
-    if (f == 0)
+    FT32_BIND(int, (FT_FaceRec*, unsigned int, int));
+    if (ft32_fn_ == 0)
         return 6;
-    return f(face, glyph_index, load_flags);
+    return ft32_fn_(face, glyph_index, load_flags);
 }
 
 extern "C" int FT_Render_Glyph(FT_GlyphSlotRec* slot, int render_mode)
 {
-    typedef int (*fn_t)(FT_GlyphSlotRec*, int);
-    static fn_t f = 0;
-    if (f == 0)
-        f = (fn_t)ft32_sym("FT_Render_Glyph");
-    if (f == 0)
+    FT32_BIND(int, (FT_GlyphSlotRec*, int));
+    if (ft32_fn_ == 0)
         return 6;
-    return f(slot, render_mode);
+    return ft32_fn_(slot, render_mode);
 }
 
 // [SplitC 2026-09-11 batch4 · TU 迁移] CaptchaGen ctor 已迁出至 CaptchaGen.cpp（ORIG GI 键对齐）。

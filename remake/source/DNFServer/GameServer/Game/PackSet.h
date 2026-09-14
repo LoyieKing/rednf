@@ -33,19 +33,32 @@ typedef std::string tstring;
 
 enum pack_load_type_t
 {
-    // [b24FIX · 取值方向纠正] ORIG 实证（PackSet::open 0x08ac5a52）：
-    //   0x08ac5b8d `cmp DWORD PTR [ebp+0x10],0x0` + `je 0x08ac5c21` ⇒ **type==0 走
-    //   .ani 过滤分支**（该分支在 `call update_content_from_memory`(0x08ac605b) 之前先
-    //   `IndexEntry::name()` → `std::string::find(".ani",0)`（串 @0x8e2e8cf = ".ani\0"）
-    //   → 与 npos 比较后跳过不命中者）；**type!=0 才走全量装载分支**（0x08ac5ef1 调用点
-    //   无过滤，mem = 整个文件缓冲）。
-    //   ⇒ PACK_LOAD_INDEX = 0、PACK_LOAD_FULL = 1。旧表把两者写反，导致 InitRDARScript
-    //   的 `open(name, 0, PACK_LOAD_INDEX)` 被当成 FULL ⇒ 对不含 .ani 的条目按无效
-    //   offset_ 执行 memcpy(源 = mem + header_size() + offset_) ⇒ 野指针 SIGSEGV
-    //   （实机栈实证：返回址 0x0829eeb4、size=0x50、src=0xd3e4f6a4）。
-    PACK_LOAD_INDEX = 0,        // 仅索引 + .ani 条目内容（open 的 ==0 分支）
-    PACK_LOAD_FULL  = 1         // 全量装载（open 的非 0 分支；modified/added/deleted/
-                                // write/sort 均以 != PACK_LOAD_FULL 判「需全量」）
+    // [2026-09-14 复核·推翻 f5e0f179c 的「取值方向纠正」]
+    // ORIG 实证（三条互相独立、结论一致）：
+    //  ① 判据字符串自证：`sort`/`added`/`deleted`/`modified`/`write` 的失败分支都
+    //     `fprintf(stdout,"%s\n","PACK_LOAD_FULL needed")`（串在 ORIG .rodata），
+    //     而 ORIG 的判据是 `mov eax,[this+0xc]; test eax,eax; je <放行>`
+    //     （sort 0x08ac5905、deleted 0x08ac5349）⇒ **失败条件 = `m_type != 0`**
+    //     ⇒ 该常量（源里写作 PACK_LOAD_FULL）**== 0**。
+    //  ② `open` 的第 3 实参在 `[ebp+0x14]`（`open(char const*,char const*,pack_load_type_t)`
+    //     的 `this`=+8、arg1=+0xc、arg2=+0x10、**type=+0x14**；函数尾 0x08ac60b1
+    //     `mov edx,[ebp+0x14]; mov [eax+0xc],edx` 即 `m_type = type` 直证）。
+    //     0x08ac5e35 `cmp DWORD PTR [ebp+0x14],0x0` / `jne 0x08ac5f49`：
+    //       **type==0**（落穿 0x08ac5e3f）→ 遍历**全部** entry 调
+    //         `update_content_from_memory`（0x08ac5ef1），**无 .ani 过滤** = 全量；
+    //       **type!=0**（0x08ac5f49）→ 逐 entry `IndexEntry::name()` →
+    //         `std::string::find(".ani",0)`（串 @0x8e2e8cf）后 `setne`+`je` 跳过
+    //         不命中者（0x08ac605b 才 update）= 只装 .ani 条目。
+    //  ③ `clear()` 写 `[this+0xc] = 0`（0x08ac48f8）＝清成全量态；`InitRDARScript`
+    //     给 `open` 压第 3 实参 **1**（`movl $0x1,0xc(%esp)`）= 索引态。
+    // ⇒ **PACK_LOAD_FULL = 0、PACK_LOAD_INDEX = 1**（即本表原值）。
+    // f5e0f179c 的「纠正」把 0/1 对调，依据是 0x08ac5b8d `cmp [ebp+0x10],0x0` ——
+    // 但 +0x10 是第 2 个 `char const*`（空指针检查），**不是 type**；该提交据此把
+    // clear/sort/added/deleted/modified 5 个原本与 ORIG 逐条一致的函数改成了不一致
+    // （identical 35400 → 35394，−5）。本次复核按 ①②③ 三条证据恢复原值。
+    PACK_LOAD_FULL  = 0,        // 全量装载（open 的 type==0 分支；modified/added/
+                                // deleted/write/sort 均以 != PACK_LOAD_FULL 判「需全量」）
+    PACK_LOAD_INDEX = 1         // 仅索引 + .ani 条目内容（open 的 type!=0 分支）
 };
 
 enum entry_type_t
