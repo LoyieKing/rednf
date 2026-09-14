@@ -124,45 +124,16 @@ void CPeriodicMessageMgr::SetMessageData(char* msg, int startHour, int endHour)
     }
 }
 
-// 与 DNFFLib::get_rand_int 同源形态：divide==0 走 switch（mov;test; jne），
-// r/65536 用 i586 除法定型（sar;shr;lea;sar），单变量 r 原地 LCG。
-__attribute__((target("arch=i586")))
-unsigned int get_rand_int(int n)
-{
-    if (n < 0)
-    {
-        return 0;
-    }
-    switch (n)
-    {
-    case 0:
-        return rand();
-    default:
-        break;
-    }
-    int r = rand();
-    if (r > n)
-    {
-        return rand() % n;
-    }
-    r *= 0x41c64e6d;
-    r += 0x3039;
-    unsigned int result = (r / 65536) & 0x7ff;
-    r *= 0x41c64e6d;
-    r += 0x3039;
-    result <<= 10;
-    result ^= (r / 65536) & 0x3ff;
-    r *= 0x41c64e6d;
-    r += 0x3039;
-    result <<= 10;
-    result ^= (r / 65536) & 0x3ff;
-    if (result > (unsigned int)n)
-    {
-        return result % n;
-    }
-    return result;
-}
-
+// 自由函数 get_rand_int —— 原实现在此处定义，已迁出（ORIG 判词 2026-09-14）：
+//   df_monitor_r 里该符号全 binary 只有一处定义，且不在本 TU 的 .o 内 ——
+//   0x0809bf18 紧邻 comp_by_time(0x0809bf04)，其后是 CTask_ChristmasEvent 一族
+//   （0x0809c00e 起），该 .o 的 GI 键为 _GLOBAL__I__Z12get_rand_inti(0x0809c4a3)
+//   ⇒ 定义在 TaskImpl.o 且为该 TU 首强实体；而本 TU 的 .o 区在 0x0805exxx-
+//   0x0806cxxx（CApplicationInstance 0x080627c4、GI 键 0x08066025），相隔 ~0x3a000。
+//   ⇒ DNFApplication.o 既不定义也不调用它（唯一调用点在 0x0809c058，属 TaskImpl.o）。
+//   故定义已落回 TaskImpl.cpp 顶部；返回类型 int 的依据见 DNFApplication.h:255 起。
+//   此处不得再定义：会与 ServerCommon/DNFFunctionLib.cpp 的同名定义构成
+//   _Z12get_rand_inti 重复符号（后者对 monitor 已由 DF_NO_FREE_GET_RAND_INT 关闭）。
 CollectItms::CollectItms()
 {
     m_field0 = 0;

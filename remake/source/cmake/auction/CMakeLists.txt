@@ -33,8 +33,7 @@ set(MYSQL      "${DNF_SRC}/Library3rd/MySQL")
 set(YASSL      "${MYSQL}/extlib/yassl")
 set(MYSQLCLIENT_DIR "${DNF_SRC}/../build/manager/mysqlclient")
 set(MYSQLCLIENT_A   "${MYSQLCLIENT_DIR}/libmysqlclient.a")
-set(MYSQLCLIENT_TREES "${MYSQLCLIENT_DIR}/trees.o")
-if(NOT EXISTS "${MYSQLCLIENT_A}" OR NOT EXISTS "${MYSQLCLIENT_TREES}")
+if(NOT EXISTS "${MYSQLCLIENT_A}")
     message(STATUS "libmysqlclient.a 缺失，调用 source/toolchain/build-mysqlclient.sh 生成…")
     execute_process(COMMAND sh ${DNF_SRC}/toolchain/build-mysqlclient.sh
         WORKING_DIRECTORY ${DNF_SRC}/toolchain RESULT_VARIABLE _mysqlclient_rc)
@@ -42,6 +41,11 @@ if(NOT EXISTS "${MYSQLCLIENT_A}" OR NOT EXISTS "${MYSQLCLIENT_TREES}")
         message(FATAL_ERROR "build-mysqlclient.sh 失败 rc=${_mysqlclient_rc}")
     endif()
 endif()
+# 注：不像 df_manager_r 那样显式列入 mysqlclient/trees.o —— ORIG df_auction_r/
+# df_point_r 的 zlib 是**动态** libz.so.1（readelf NEEDED 含 libz.so.1；nm 只有
+# `U compress`/`U uncompress`，无任何 zlib 的 T 符号），显式链 trees.o 会平白多出
+# _tr_init/_tr_align/_tr_flush_block/_tr_stored_block/_tr_tally 五个 ORIG 没有的
+# 静态符号。libmysqlclient.a 内部仍含 trees.o，将来若启用压缩会被自动拉入。
 
 # yaSSL / TaoCrypt 源码清单（名序与 df_manager_r 的 TAOCRYPT_SRC / YASSL_SRC 一致）
 set(YASSL_TAOCRYPT aes aestables algebra arc4 asn coding des dh dsa file hash integer
@@ -138,8 +142,6 @@ dnf_service(auction
         ${SERVERCOMMON}/tinyxmlerror.cpp
         ${SERVERCOMMON}/tinyxmlparser.cpp
         ${AUCTIONGD}/version.cpp
-        # mysqlclient 的 zlib trees.o（位于 libmysqlclient.a 之前，同 df_manager_r）
-        ${MYSQLCLIENT_TREES}
     INCLUDES
         -isystem${DNF_SRC}/Library3rd/Boost/Include
         -isystem${DNF_SRC}/Library3rd/MySQL/include

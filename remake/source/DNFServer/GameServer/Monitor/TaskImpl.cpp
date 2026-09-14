@@ -30,6 +30,52 @@
 #include "DNFApplication.h"
 #include "DNFPacketTranslater.h"
 
+// ---------------------------------------------------------------------------
+// 自由函数 get_rand_int —— ORIG df_monitor_r 0x0809bf18 定义于本 TU：
+//   .text 中紧邻 comp_by_time(0x0809bf04)，其后即本文件的 CTask_ChristmasEvent
+//   （0x0809c00e 起），该 .o 的 GI 键 = _GLOBAL__I__Z12get_rand_inti(0x0809c4a3)
+//   ⇒ 本函数是该 TU 的首个强实体，必须定义在下方 CTask_ChristmasEvent 之前。
+//   与 ORIG 的 DNFFLib::get_rand_int(0x0805f17e)/df_game_r 0x086b1b87 逐指令一致
+//   （73 条），同源副本；返回类型 int（依据见 DNFApplication.h:255 起注释），
+//   与本 TU 内 DNFFunctionLib.h:34 的声明一致。
+// ---------------------------------------------------------------------------
+__attribute__((target("arch=i586")))
+int get_rand_int(int range)
+{
+    if (range < 0)
+    {
+        return 0;
+    }
+    switch (range)
+    {
+    case 0:
+        return rand();
+    default:
+        break;
+    }
+    int r = rand();
+    if (r > range)
+    {
+        return rand() % range;
+    }
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    unsigned int result = (r / 65536) & 0x7ff;
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    result <<= 10;
+    result ^= (r / 65536) & 0x3ff;
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    result <<= 10;
+    result ^= (r / 65536) & 0x3ff;
+    if (result > (unsigned int)range)
+    {
+        return result % range;
+    }
+    return result;
+}
+
 int CTask_ChristmasEvent::DecideEventTime()
 {
     int hours[25] = {

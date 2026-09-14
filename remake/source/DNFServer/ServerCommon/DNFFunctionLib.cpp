@@ -143,8 +143,28 @@ __attribute__((target("arch=i586")))
 
 // ORIG 中自由函数 get_rand_int 与 DNFFLib::get_rand_int 为同字节的独立复制体
 // （73 条指令逐条一致），并非包装调用；此处保持与成员版本相同的完整实现。
+// [DNF_SVC_STATICS] df_statics_r 例外：ORIG 该二进制的自由函数 get_rand_int（0x8062b28）
+//   属于一个小 TU —— 其静态初始化函数 _GLOBAL__I__Z12get_rand_inti 只初始化一个
+//   ios_base::Init，正是 Statics/TaskImpl.cpp 那个 TU（该文件已提供定义）；
+//   而 DNFFunctionLib.o 那个 TU（_GLOBAL__I__Z8Char2HexhPc）只初始化
+//   ios Init + 3 个 std::string，与 ORIG 同址 TU 逐条对应，其中不含自由函数
+//   get_rand_int。故 statics 构建下屏蔽此副本，避免同一符号两处强定义（链接冲突）
+//   并保持与 ORIG 相同的 TU 归属。其它服务不受影响（本宏仅 statics 目标定义）。
+// [DNF_SVC_MONITOR] df_monitor_r 同款例外：ORIG 该二进制的自由函数 get_rand_int
+//   （0x0809bf18）位于 TaskImpl.o —— .text 中紧邻 comp_by_time(0x0809bf04)、
+//   后接 CTask_ChristmasEvent 一族（0x0809c00e 起），该 .o 的 GI 键为
+//   _GLOBAL__I__Z12get_rand_inti(0x0809c4a3)；DNFApplication.o 区（GI 键
+//   CApplicationInstance 0x08066025）与 DNFFunctionLib.o 区（_GLOBAL__I__Z8Char2HexhPc）
+//   均相隔 ~0x3a000 字节且不含该符号。旁证：df_auction/community/coserver/guild/
+//   manager/point/bridge 这 7 个 ORIG 都编入了 DNFFunctionLib.o（ExplodeString 在）
+//   却没有自由 get_rand_int ⇒ ORIG 的 DNFFunctionLib.cpp 本来就不定义它。
+//   Monitor/TaskImpl.cpp 已按 ORIG 提供定义（该 TU 首强实体，GI 键一致），故此处
+//   屏蔽此副本，避免 _Z12get_rand_inti 两处强定义（链接冲突）并保持 ORIG 的 TU 归属。
+//   其它服务不受影响（DNF_SVC_MONITOR 仅 monitor 目标定义）。
+#if !defined(DNF_SVC_STATICS) && !defined(DNF_SVC_MONITOR)
 __attribute__((target("arch=i586")))
 #include "DNFFunctionLib/get_rand_int_1.inc"
+#endif
 
 #include "DNFFunctionLib/ExplodeString.inc"
 

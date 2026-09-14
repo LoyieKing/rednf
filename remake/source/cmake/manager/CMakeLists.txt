@@ -14,8 +14,14 @@ project(manager CXX)
 # 链接驱动：宿主 g++（c6root 4.4.7 驱动无法解析宿主 -m32 crt1.o，与原脚本一致）。
 # ============================================================
 
-# 链接驱动：复刻 build-manager.sh 的最终链接（宿主 g++ + 静态库 + -m32 -no-pie）
-set(CMAKE_CXX_LINK_EXECUTABLE "/usr/bin/g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+# 链接驱动：复刻 build-manager.sh 的最终链接（宿主 g++ + 静态库 + -m32 ）
+# [2026-09-14 修复] 原用**宿主 g++** 链接 ⇒ 产物要求 GLIBC_2.34/2.35，而目标运行环境
+#   是 CentOS 7（glibc 2.17）⇒ `version 'GLIBC_2.34' not found` 直接跑不起来；
+#   ORIG 只要 GLIBC_2.4。改用 game 同款的 c6root 4.4.7 驱动 + --sysroot 链接脚本
+#   （dnf_game_link.sh 本身是通用 32 位 c6root 链接驱动，非 game 专属）。
+#   注意：c6root 4.4.7 的 g++ 不认 `-no-pie`（晚于 4.4），4.4 默认即非 PIE ⇒ 已从 LINK_FLAGS 去掉。
+set(CMAKE_CXX_LINK_EXECUTABLE
+    "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake)
 
@@ -154,7 +160,7 @@ dnf_service(manager
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
     LINK_FLAGS
-        -m32 -no-pie -lpthread -ldl -lm
+        -m32 -lpthread -lrt -ldl -lm
 )
 
 # 脚本全局 -std=gnu++0x（tinyxml/yaSSL 由逐文件 -std=gnu++98 覆盖）

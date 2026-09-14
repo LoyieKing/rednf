@@ -254,7 +254,19 @@ class CGMAccounts;
 
 CAppBase* CApplicationInstance();
 void ShowLogo();
-unsigned int get_rand_int(int n);
+// 自由函数 get_rand_int —— 权威签名 int get_rand_int(int)（ORIG 判词 2026-09-14）。
+//   1) df_monitor_r 0x0809bf18 与 df_game_r 0x086b1b87（同名同 mangled）及
+//      df_statics_r 0x08062b28 的函数体逐指令一致（73 条，仅重定位地址不同）
+//      ⇒ 全工程同一实体，返回类型唯一。
+//   2) df_game_r 调用点对被调返回值直接做「有符号整除」，无符号返回类型不可能
+//      编译出该序列：0x08473271 DisJoint::_GetAdditionalItemInfo / 0x086739be、
+//      0x08673a23、0x08673a62 CUser::lottery_item / 0x0867191b、0x08671966
+//      CUser::_ProcCompoundCore = imul %edx(0x10624dd3); sar $0x6,%edx;
+//      sar $0x1f,%eax; sub %eax,%ecx（= signed x/1000；无符号为 mul+shr，无符号
+//      修正）。Ghidra 报告里的 `uint` 是返回路径取值非负导致的推断，非声明类型。
+//   3) 因此 ServerCommon/DNFFunctionLib.h:34 的 `int` 为权威声明；本处原
+//      `unsigned int` 与 ServerCommon 定义冲突（编译期 ambiguates），已按 ORIG 改正。
+int get_rand_int(int n);
 
 class CPeriodicMessageMgr
 {
