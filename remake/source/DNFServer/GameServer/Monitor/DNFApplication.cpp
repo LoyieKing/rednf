@@ -331,7 +331,11 @@ void CApplication::Load(int argc, char** argv)
                 mgr->Init(&m_tcpNetSystem);
                 mgr->SetIP(mgrIp);
                 mgr->SetPort(mgrPort);
-                if (m_tcpNetSystem.OpenTcpService(*mgr->GetSockRef(), mgrIp, mgrPort) == 1)
+                // [2026-09-14 修复] 极性反了：ORIG CTcpNetSystem::OpenTcpService
+                //   0x08053afd `mov eax,1` = **成功返 1**、0x080539e9 `mov eax,0` = 失败返 0；
+                //   而 ORIG monitor 连接成功时打印的是 **Success!**（A/B 两轮稳定实测）。
+                //   旧转写判 `== 1 → Fail` ⇒ 成功报 Fail、失败报 Success，正好相反。
+                if (m_tcpNetSystem.OpenTcpService(*mgr->GetSockRef(), mgrIp, mgrPort) == 0)
                 {
                     printf("Application OpenTcpService(%s, %d) Fail!\n", mgrIp, mgrPort);
                     DNF_LOG_SCOPE_LINE(0x1d3,"./log/TcpServer", "Application OpenTcpService(%s, %d, %d) Fail!",
@@ -361,7 +365,8 @@ void CApplication::Load(int argc, char** argv)
                 db->Init(&m_tcpNetSystem);
                 db->SetIP(dbIp);
                 db->SetPort(dbPort);
-                if (m_tcpNetSystem.OpenTcpService(*db->GetSockRef(), dbIp, dbPort) == 1)
+                // 同上：OpenTcpService 成功返 1 ⇒ 失败分支判 == 0
+                if (m_tcpNetSystem.OpenTcpService(*db->GetSockRef(), dbIp, dbPort) == 0)
                 {
                     printf("Application OpenTcpService(%s, %d) Fail!\n", dbIp, dbPort);
                     DNF_LOG_SCOPE_LINE(0x200,"./log/TcpServer", "Application OpenTcpService(%s, %d, %d) Fail!",
