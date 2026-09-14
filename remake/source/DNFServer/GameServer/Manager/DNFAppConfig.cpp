@@ -58,7 +58,12 @@ int CAppConfig::Check_FileName(const std::string& fileName)
         throw CDNFException(
             "CAppConfig::Set_FileName() There is no cfg file Exception Break! Check ./cfg/*.cfg files");
     std::string pid = std::string("./pid/") + fileName + std::string(".pid");
-    if (access(pid.c_str(), 0) != 0)
+    // [2026-09-14 修复] ORIG df_manager_r 0x08069bd3/0x08069bda 实证：pid 检查用的是
+    //   `call access; **sete** al; test al,al; je <放行>` ⇒ **access==0（pid 文件存在）才抛**。
+    //   旧转写写成 `!= 0`（不存在就抛）⇒ 极性反了，manager 在干净的 pid 目录下**永远起不来**
+    //   （A/B 里表现为「There is already pid file!」后自杀）；cfg 检查那处 ORIG 是
+    //   `setne`（0x08069ad9），本来就是「不存在才抛」，无需改。
+    if (access(pid.c_str(), 0) == 0)
         throw CDNFException(
             "CAppConfig::Set_FileName() There is already pid file! Exception Break! Check ./pid/*.pid files");
     return 1;

@@ -133,7 +133,11 @@ bool CAppConfig::Parse_Table(char* line, int idx)
 
 void CAppConfig::Load_Table(const std::string& path)
 {
-    std::string full = "./cfg/" + path;
+    // [2026-09-14 修复] ORIG df_guild_r 0x0805e9b5/0x0805e9cb 实证：
+    //   路径 = "./cfg/"(串@0x811aab8) + path + ".cfg"(串@0x811aabf)。旧转写漏后缀
+    //   ⇒ 调用点传 argv[1]="server" 时查的是 ./cfg/server（不存在）⇒ 启动即抛
+    //   "App Config Table File Load Failed"，guild 永远起不来。
+    std::string full = "./cfg/" + path + ".cfg";
     int rc = Load_Txt_Table_Data(full.c_str(), 0x32);
     if (0 < rc && rc < 0x33)
     {

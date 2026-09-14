@@ -43,7 +43,9 @@ bool CAppConfig::Parse_Table(char* line, int idx)
 }
 void CAppConfig::Load_Table(const std::string& filename)
 {
-    std::string path = "./cfg/" + filename;
+    // [2026-09-14 修复] ORIG df_statics_r 0x08054279/0x0805428f 实证：与 Check_FileName 同型，
+    //   路径 = "./cfg/"(串@0x80e427a) + filename + ".cfg"(串@0x80e4281)。旧转写漏后缀。
+    std::string path = "./cfg/" + filename + ".cfg";
     int rc = Load_Txt_Table_Data(path.c_str(), 10);
     if (0 < rc && rc < 0xb)
     {
@@ -54,8 +56,13 @@ void CAppConfig::Load_Table(const std::string& filename)
 }
 void CAppConfig::Check_FileName(const std::string& filename)
 {
-    std::string cfg = "./cfg/" + filename;
-    std::string pid = "./pid/" + filename;
+    // [2026-09-14 修复] ORIG df_statics_r 0x0805443d..0x080544df 实证：cfg 由
+    //   `operator+(const char*, string)` 拼 "./cfg/"(串@0x80e427a) + filename，
+    //   再 `operator+(string, const char*)` 拼 ".cfg"(串@0x80e4281)；pid 同型
+    //   （"./pid/"(0x80e42f0) + ".pid"(0x80e42f7)）。旧转写漏了后缀 ⇒ 检查的是
+    //   `./cfg/server`（不存在）⇒ 启动即抛 "There is no cfg file"，statics 永远起不来。
+    std::string cfg = "./cfg/" + filename + ".cfg";
+    std::string pid = "./pid/" + filename + ".pid";
     if (access(cfg.c_str(), 0) != 0)
     {
         DNF_LOG_SCOPE_LINE(0x6a, "./log/Init", "Check_FileName - %s,%s\n", cfg.c_str(), pid.c_str());
