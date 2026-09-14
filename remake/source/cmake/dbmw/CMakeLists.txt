@@ -167,7 +167,7 @@ dnf_service(dbmw
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
     LINK_FLAGS
-        -m32 -no-pie -lpthread -ldl -lm
+        -m32 -no-pie -lpthread -ldl -lm -lrt
 )
 
 target_compile_options(dbmw PRIVATE -std=gnu++0x)

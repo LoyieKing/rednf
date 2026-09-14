@@ -55,9 +55,20 @@ set_target_properties(stun PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
     LINKER_LANGUAGE CXX
 )
-target_link_libraries(stun PRIVATE -lpthread -lcrypt)
+# [2026-09-14] c6root 驱动 + -nostdlib 后 C++ 运行时需显式给出（ORIG stun 的编译器
+#   是 c5r52tool 4.1.2-52，故用同根的 64 位静态 libstdc++/libgcc）。
+target_link_libraries(stun PRIVATE
+    ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.2/libstdc++.a
+    ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.2/libgcc_eh.a
+    ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.2/libgcc.a
+
+    -lpthread)
 
 # 链接用宿主 g++（与 build-stun.sh 一致：-no-pie 动态链接宿主 libstdc++/libc）。
 # c5root 4.1.2 驱动不识别 -no-pie，且其默认库搜索路径（/usr/lib64）在现代宿主上失效。
 find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PATH)
-set(CMAKE_CXX_LINK_EXECUTABLE "${DNF_HOST_GXX} -no-pie <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+# [2026-09-14 修复] 原用宿主 g++ ⇒ 产物要求 GLIBC_2.34，CentOS 7(glibc 2.17) 跑不起来
+#   （ORIG df_stun_r 只要 GLIBC_2.2.5）。stun 是 64 位目标，改用 c6root EL6 64 位根链接
+#   （dnf_game_link.sh 现按 -m64 自动切 64 位 crt/libc，产物 glibc ≤2.12）。
+set(CMAKE_CXX_LINK_EXECUTABLE
+    "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh -m64 <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")

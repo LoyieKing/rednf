@@ -4,7 +4,7 @@ cmake_minimum_required(VERSION 3.10)
 # df_statics_r  CMake 构建（取代 source/toolchain/build-statics.sh）
 # 自包含：工具链文件 + 帮助模块 + dnf_service(...)
 # 编译：c6root g++ 4.4.7（-m32 -O0 -std=gnu++0x，CFileLogWriterBase -fno-exceptions）
-# 链接：宿主机 g++ -m32 -no-pie + 4.4.4/4.1.1 静态 libstdc++/libgcc（同 build 脚本）
+# 链接：宿主机 g++ -m32  + 4.4.4/4.1.1 静态 libstdc++/libgcc（同 build 脚本）
 # 源顺序 = build 脚本链接顺序（按 .o 基名排序，对 _GLOBAL__I_ 敏感，必须原样保持）
 # ============================================================
 if(NOT DEFINED DF_CC_VARIANT)
@@ -36,8 +36,12 @@ set(CMAKE_CXX_COMPILER ${DF_CXX_WRAPPER})
 project(statics CXX)
 
 # 链接驱动用宿主机 g++（c6root 4.4.7 无法链接 32 位 crt/libc；build 脚本亦如此）
+# [2026-09-14 修复] 原用**宿主 g++** 链接 ⇒ 产物要求 GLIBC_2.34/2.35，而目标运行环境是
+#   CentOS 7（glibc 2.17）⇒ `version 'GLIBC_2.34' not found` 跑不起来；ORIG 只要 ≤2.4。
+#   改用 game 同款 c6root 4.4.7 驱动 + --sysroot 链接（dnf_game_link.sh 本身通用）。
+#   c6root 4.4.7 不认 -no-pie（晚于 4.4），4.4 默认即非 PIE。
 set(CMAKE_CXX_LINK_EXECUTABLE
-    "g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+    "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake)
 
@@ -108,7 +112,7 @@ dnf_service(statics
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
         -lpthread -ldl -lm
     LINK_FLAGS
-        -m32 -no-pie
+        -m32 
 )
 
 if(NOT DF_CC_VARIANT STREQUAL "c5")

@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.10)
 # 原系统编译器(GCC 13)构建与 ORIG(GCC 4.4.6-3)代码生成差异过大，265 个函数全部
 # DIFF。与 channel/bridge/auction/point 相同方案：c6root 4.4.7 驱动 + cc1plus
 # 4.4.6（DF_CC_VARIANT=c6446r），dnf_toolchain_44.cmake 提供 -nostdinc + c6root
-# 头文件；链接用宿主 g++ -m32 -no-pie（同 build-channel.sh）。
+# 头文件；链接用宿主 g++ -m32 （同 build-channel.sh）。
 #
 # 用法（工具链自举，无需外部 -DCMAKE_TOOLCHAIN_FILE）:
 #   cmake -S source/cmake/community -B build/community
@@ -97,9 +97,14 @@ dnf_service(community
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
         -lpthread -ldl -lm
     LINK_FLAGS
-        -m32 -no-pie
+        -m32 
 )
 
-# 链接用宿主 g++（同 build-channel.sh / build-auction.sh：-m32 -no-pie -static-libgcc）。
+# 链接用宿主 g++（同 build-channel.sh / build-auction.sh：-m32  -static-libgcc）。
 find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PATH)
-set(CMAKE_CXX_LINK_EXECUTABLE "${DNF_HOST_GXX} -m32 -no-pie <OBJECTS> -o <TARGET> <LINK_FLAGS> <LINK_LIBRARIES>")
+# [2026-09-14 修复] 原用**宿主 g++** 链接 ⇒ 产物要求 GLIBC_2.34/2.35，而目标运行环境是
+#   CentOS 7（glibc 2.17）⇒ `version 'GLIBC_2.34' not found` 跑不起来；ORIG 只要 ≤2.4。
+#   改用 game 同款 c6root 4.4.7 驱动 + --sysroot 链接（dnf_game_link.sh 本身通用）。
+#   c6root 4.4.7 不认 -no-pie（晚于 4.4），4.4 默认即非 PIE。
+set(CMAKE_CXX_LINK_EXECUTABLE
+    "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")

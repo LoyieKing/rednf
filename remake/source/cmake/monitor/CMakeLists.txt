@@ -8,7 +8,12 @@ set(CMAKE_CXX_COMPILER ${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_monit
 # 口径与原脚本完全一致（源顺序/按文件 flags/include/链接），参见 manager 说明。
 # 本服务无 yaSSL/mysqlclient。
 # ============================================================
-set(CMAKE_CXX_LINK_EXECUTABLE "/usr/bin/g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+# [2026-09-14 修复] 原用**宿主 g++** 链接 ⇒ 产物要求 GLIBC_2.34/2.35，而目标运行环境是
+#   CentOS 7（glibc 2.17）⇒ `version 'GLIBC_2.34' not found` 跑不起来；ORIG 只要 ≤2.4。
+#   改用 game 同款 c6root 4.4.7 驱动 + --sysroot 链接（dnf_game_link.sh 本身通用）。
+#   c6root 4.4.7 不认 -no-pie（晚于 4.4），4.4 默认即非 PIE。
+set(CMAKE_CXX_LINK_EXECUTABLE
+    "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake)
 
@@ -117,7 +122,7 @@ dnf_service(monitor
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
     LINK_FLAGS
-        -m32 -no-pie -lpthread -ldl -lm
+        -m32  -lpthread -ldl -lm
 )
 
 target_compile_options(monitor PRIVATE -std=gnu++0x)

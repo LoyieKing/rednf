@@ -94,8 +94,16 @@ dnf_service(bridge
         -D_GNU_SOURCE -std=gnu++98 -pthread
     LIBS
         ${DNF_SRC}/../build/manager/mysqlclient/libmysqlclient.a
+        # [2026-09-14] 改用 c6root 驱动（--sysroot -nostdlib）后 C++ 运行时不再由宿主
+        #   驱动隐式带上 ⇒ 显式列出静态 libstdc++/libgcc；zlib 也必须放在对象之后。
+        ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a
+        ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libgcc_eh.a
+        ${DF_C5R52I}/usr/lib/gcc/i386-redhat-linux/4.1.1/libstdc++.a
+        ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
+        ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
+        ${DF_ZLIB32}/lib/libz.a
     LINK_FLAGS
-        -no-pie -static-libgcc -lpthread -ldl ${DF_ZLIB32}/lib/libz.a -lm
+        -static-libgcc -lpthread -lrt -ldl -lm
 )
 
 # ---- yaSSL/TaoCrypt 逐文件 flags + 专属 include（与 manager 逐字相同）----
@@ -124,6 +132,11 @@ if(NOT EXISTS ${DNF_SRC}/../build/manager/mysqlclient/libmysqlclient.a)
     add_dependencies(bridge mysqlclient_bridge)
 endif()
 
-# 链接用宿主 g++（与 build-bridge.sh 一致：-m32 -no-pie -static-libgcc）。
+# 链接用宿主 g++（与 build-bridge.sh 一致：-m32  -static-libgcc）。
 find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PATH)
-set(CMAKE_CXX_LINK_EXECUTABLE "${DNF_HOST_GXX} -m32 -no-pie <OBJECTS> -o <TARGET> <LINK_FLAGS> <LINK_LIBRARIES>")
+# [2026-09-14 修复] 原用**宿主 g++** 链接 ⇒ 产物要求 GLIBC_2.34/2.35，而目标运行环境是
+#   CentOS 7（glibc 2.17）⇒ `version 'GLIBC_2.34' not found` 跑不起来；ORIG 只要 ≤2.4。
+#   改用 game 同款 c6root 4.4.7 驱动 + --sysroot 链接（dnf_game_link.sh 本身通用）。
+#   c6root 4.4.7 不认 -no-pie（晚于 4.4），4.4 默认即非 PIE。
+set(CMAKE_CXX_LINK_EXECUTABLE
+    "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")

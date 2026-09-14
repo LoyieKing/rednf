@@ -19,10 +19,27 @@ export GCC_EXEC_PREFIX="${C6}/usr/libexec/gcc/"
 export LD_LIBRARY_PATH="${C6}/usr/lib64:${C6}/usr/lib"
 
 # 参数原样保留（cmake 传 <FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LIBRARIES>）
+BITS=32
+for a in "$@"; do [ "$a" = "-m64" ] && BITS=64; done
 args=""
 for a in "$@"; do
+    # 请求 64 位时丢掉全局 CMAKE_CXX_FLAGS 里的 -m32（否则后者在后、覆盖 -m64，
+    # 出现 `i386:x86-64 architecture ... incompatible with i386 output`）
+    if [ "$BITS" = "64" ] && [ "$a" = "-m32" ]; then continue; fi
     args="$args $a"
 done
+
+# [2026-09-14] 兼作 64 位服务（stun）的链接驱动：c6root 同时带 64 位 EL6 根
+#   （usr/lib64/crt1.o + lib64/libc.so.6 = glibc 2.12）。宿主 g++ 会把产物打到宿主
+#   glibc 2.39（GLIBC_2.34），在 CentOS 7(2.17) 里跑不起来；用 c6root 驱动则 ≤2.12。
+if [ "$BITS" = "64" ]; then
+    G64="$C6/usr/lib/gcc/x86_64-redhat-linux/4.4.7"
+    PRE64="$C6/usr/lib64/crt1.o $C6/usr/lib64/crti.o $G64/crtbegin.o"
+    POST64="$G64/crtend.o $C6/usr/lib64/crtn.o"
+    exec "${C6}/usr/bin/g++" --sysroot="$C6" -B"$G64" \
+        -L"$C6/usr/lib64" -L"$C6/lib64" -nostdlib \
+        $PRE64 $args $POST64 -lgcc -lc -lgcc
+fi
 
 # crt 前缀 / 后缀。
 PRE="$C6/usr/lib/crt1.o $C6/usr/lib/crti.o $G32/crtbegin.o"
