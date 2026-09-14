@@ -67,7 +67,11 @@ void Field::add(const char* name, unsigned int value)
 char* Field::getFieldName()
 {
     static std::string queryPiece;
-    static char tmp[32];
+    // [2026-09-14 修复] ORIG df_statics_r 里这三个函数级静态 `tmp` 的大小都是
+    //   **0x400**（由 global_size_audit.py 扫出：ORIG 0x400 vs 本地 0x20）。
+    //   本地只按 `%llu` 最长 20 字符的需要开了 32 字节；功能上够用，但对象
+    //   大小与 ORIG 不一致 ⇒ 按 ORIG 对齐成 0x400。
+    static char tmp[0x400];
     queryPiece.clear();
     for (std::map<std::string, unsigned long long>::iterator it = m_fields.begin();
          it != m_fields.end(); ++it)
@@ -84,7 +88,11 @@ char* Field::getFieldName()
 char* Field::getFieldValue()
 {
     static std::string queryPiece;
-    static char tmp[32];
+    // [2026-09-14 修复] ORIG df_statics_r 里这三个函数级静态 `tmp` 的大小都是
+    //   **0x400**（由 global_size_audit.py 扫出：ORIG 0x400 vs 本地 0x20）。
+    //   本地只按 `%llu` 最长 20 字符的需要开了 32 字节；功能上够用，但对象
+    //   大小与 ORIG 不一致 ⇒ 按 ORIG 对齐成 0x400。
+    static char tmp[0x400];
     queryPiece.clear();
     for (std::map<std::string, unsigned long long>::iterator it = m_fields.begin();
          it != m_fields.end(); ++it)
@@ -102,7 +110,11 @@ char* Field::getFieldValue()
 char* Field::getUpdateValue()
 {
     static std::string queryPiece;
-    static char tmp[32];
+    // [2026-09-14 修复] ORIG df_statics_r 里这三个函数级静态 `tmp` 的大小都是
+    //   **0x400**（由 global_size_audit.py 扫出：ORIG 0x400 vs 本地 0x20）。
+    //   本地只按 `%llu` 最长 20 字符的需要开了 32 字节；功能上够用，但对象
+    //   大小与 ORIG 不一致 ⇒ 按 ORIG 对齐成 0x400。
+    static char tmp[0x400];
     queryPiece.clear();
     for (std::map<std::string, unsigned long long>::iterator it = m_fields.begin();
          it != m_fields.end(); ++it)

@@ -213,7 +213,16 @@ int CAppConfig::Check_FileName(const std::string& fileName)
         throw CDNFException(
             "CAppConfig::Set_FileName() There is no cfg file Exception Break! Check ./cfg/*.cfg files");
     std::string pid = std::string("./pid/") + fileName + std::string(".pid");
-    if (access(pid.c_str(), 0) != 0)
+    // [2026-09-14 修复] ORIG df_dbmw_r 0x08069e2d/0x08069e34 实证：pid 检查用的是
+    //   `call access; test eax,eax; **sete** al; test al,al; je 0x8069f2e`，
+    //   异常串 @0x81a8f2c = "There is already pid file!..." ⇒ **access==0（pid 文件
+    //   存在）才抛**。旧转写写成 `!= 0`（不存在就抛）⇒ 极性反了：生产 argv
+    //   （`./df_dbmw_r server_0X nofork`）下 start_dbmw 每次启动前都会
+    //   `rm -f pid/server_0X.pid`，于是 dbmw 每轮都必抛、1 秒一次无限重启
+    //   （整机 A/B 实测 three 实例各 198 次）。
+    //   cfg 检查那处（0x08069d2c..0x08069d38）ORIG 是 `setne` + 串 @0x81a8ed0
+    //   = "There is no cfg file"，本来就是「不存在才抛」，无需改。
+    if (access(pid.c_str(), 0) == 0)
         throw CDNFException(
             "CAppConfig::Set_FileName() There is already pid file! Exception Break! Check ./pid/*.pid files");
     return 1;
