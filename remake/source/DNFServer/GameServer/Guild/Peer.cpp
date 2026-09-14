@@ -239,7 +239,9 @@ bool CPeer::parsing(int len)
             DNF_LOG_SCOPE_LINE(0x100, "./log/TcpRecv",
                 "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",
                 parsinglength);
-            break;
+            // ORIG 0x80515c1 打完这条日志**直接落到** +0x39f（`if (parsinglength > 0)`），
+            // 并不经过下面的 0xf8 判断块；等价于这里的 break 目标在 0xf8 之后。
+            goto parsing_after_header_size_log;
         }
         CTcpRecvBuffer* buf;
         {
@@ -259,7 +261,13 @@ bool CPeer::parsing(int len)
         if (parsinglength == 0)
         {
             m_buf = m_data;
-            break;
+            // ORIG 0x805153b：`m_buf = m_data` 之后 **jmp +0x39f**，也就是**跳过**
+            // 0xf8 那条 "need more data (parsinglength < HEADER_SIZE): body=%d"。
+            // 语义：buffer 里的包**正好整批消费完**（body=0）属于正常情形，不该报
+            // need-more-data；只有真的剩下 1..9 字节的半截头才报。
+            // 我们原来写成 break，会落到 0xf8 判断块里，于是每轮多打 body=0 的日志
+            // （整机 A/B 实测：guild/log/TcpRecv 比 ORIG 多 3 行）。
+            goto parsing_after_header_size_log;
         }
     } while (parsinglength > 9);
     if (parsinglength <= 9)
@@ -268,6 +276,8 @@ bool CPeer::parsing(int len)
             "need more data (parsinglength < HEADER_SIZE): body=%d !!",
             parsinglength);
     }
+parsing_after_header_size_log:
+    // ORIG +0x39f：上面两个 break 分支真正落地的地方（跳过 0xf8 日志块）。
     if (parsinglength > 0)
     {
         if ((unsigned int)parsinglength > 0x1800)
