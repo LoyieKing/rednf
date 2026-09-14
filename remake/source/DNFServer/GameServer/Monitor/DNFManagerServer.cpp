@@ -170,7 +170,10 @@ void CTcpManagerServer::Init(CTcpNetSystem* net)
     this->m_net = net;
 }
 
-void CTcpManagerServer::SetIP(std::string ip) {}
+// [2026-09-14 修复] ORIG df_monitor_r `CTcpManagerServer::SetIP(std::string)`（0x08066508，0x1a 字节）
+//   与 CTcpDBServer::SetIP 同型（同样是 `m_ip = ip;`），本地同样被写成空函数体。
+//   同一个 32B 阈值把它漏掉了。
+void CTcpManagerServer::SetIP(std::string ip) { m_ip = ip; }
 
 void CTcpManagerServer::SetPort(unsigned short port)
 {

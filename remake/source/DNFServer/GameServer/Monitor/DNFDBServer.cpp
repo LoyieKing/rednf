@@ -88,7 +88,17 @@ void CTcpDBServer::Clear()
 
 void CTcpDBServer::Init(CTcpNetSystem* net) { this->m_net = net; }
 
-void CTcpDBServer::SetIP(std::string ip) {}
+// [2026-09-14 修复] ORIG df_monitor_r `CTcpDBServer::SetIP(std::string)`（0x080664bc，0x1a 字节）
+//   本地是空函数体（func_size_audit.py 用 32B 阈值时**漏掉**了它，因为它只有 0x1a）。
+//   ORIG 反汇编：`mov eax,[ebp+8]; mov edx,[ebp+0xc]; mov [esp+4],edx; mov [esp],eax;
+//   call std::string::operator=` ⇒ 就是 `m_ip = ip;`。
+//   后果（整机 A/B 实证）：`m_tcpDbServer.SetIP()` 变成 no-op ⇒ `m_ip` 永远是空串 ⇒
+//   `CServerHandler::Process()` 里 `if (*GetIP()=='\0' || GetPort()==0) {} else { 重连 }`
+//   永远走空分支 ⇒ **monitor 与 DBMW(20203) 的连接断掉后永不重连**，
+//   `CTcpDBServer::IsValidServer()` 每轮都判无效并打日志：
+//   ORIG 轮 `TcpServer` 5 行（含 1 行 "try connect to DBMW(127.0.0.1, 20203)"），
+//   我们轮 144 行（其中 141 行 "Invalid Tcp Server"），两轮各自完全可复现。
+void CTcpDBServer::SetIP(std::string ip) { m_ip = ip; }
 
 void CTcpDBServer::SetPort(unsigned short port) { m_port = port; }
 
