@@ -920,18 +920,19 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
         sender->SendToGameserver((char*)&reply, 0x37);
         return;
     }
-    bool blocked = false;
     if (receiver->IsBlackUser(sender->GetUniqCharNo()) != 0 &&
         m_pclApp->isGM_regFromChannel(sender->GetUniqCharNo()) != 1)
     {
-        blocked = true;
+        reply.m_idByChannel = sender->GetIdByChannel();
+        reply.m_uniqCharNo = sender->GetUniqCharNo();
+        reply.m_type = 2;
+        memcpy(reply.m_name, chat->buddy_n_user_id_what, 0x1d);
+        reply.packetSize = 0x37;
+        sender->SendToGameserver((char*)&reply, 0x37);
+        return;
     }
-    if (!blocked && sender->IsBlackUser(receiver->GetUniqCharNo()) != 0 &&
+    if (sender->IsBlackUser(receiver->GetUniqCharNo()) != 0 &&
         m_pclApp->isGM_regFromChannel(receiver->GetUniqCharNo()) != 1)
-    {
-        blocked = true;
-    }
-    if (blocked)
     {
         reply.m_idByChannel = sender->GetIdByChannel();
         reply.m_uniqCharNo = sender->GetUniqCharNo();
