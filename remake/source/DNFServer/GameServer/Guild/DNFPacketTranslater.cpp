@@ -1245,7 +1245,8 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
     }
     CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(
         pb->m_name);
-    if (target == 0)
+    bool targetIsNull = (target == 0);
+    if (targetIsNull)
     {
         if (reply.m_a == 0)
         {
