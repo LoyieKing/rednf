@@ -1279,30 +1279,30 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
                 {
                     if (pb->m_grade == 2)
                     {
-                        if ((char)caller->GetGuildMemDBInfo()->m_grade == 1)
+                        if ((char)caller->GetGuildMemDBInfo()->m_grade != 1)
+                        {
+                            reply.m_a = 0x66;
+                        }
+                        else
                         {
                             guild->SetSubGuildMaster(target->GetUniqCharNo(), true);
                             target->GetGuildMemDBInfo()->m_grade = 2;
                             guild->ChangeUnconnectedGuildMemberGrade(target->GetUniqCharNo(), 2);
                             guild->SendGuildInfoToMembers(false);
                         }
-                        else
-                        {
-                            reply.m_a = 0x66;
-                        }
                     }
                     else
                     {
                         if (guild->IsSubGuildMaster(target->GetUniqCharNo()))
                         {
-                            if ((char)caller->GetGuildMemDBInfo()->m_grade == 1)
+                            if ((char)caller->GetGuildMemDBInfo()->m_grade != 1)
                             {
-                                guild->SetSubGuildMaster(target->GetUniqCharNo(), false);
-                                guild->SendGuildInfoToMembers(false);
+                                reply.m_a = 0x66;
                             }
                             else
                             {
-                                reply.m_a = 0x66;
+                                guild->SetSubGuildMaster(target->GetUniqCharNo(), false);
+                                guild->SendGuildInfoToMembers(false);
                             }
                         }
                     }
@@ -5213,9 +5213,9 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x1bd1, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoUpgrade : 0 == m_pclApp");
         return;
     }
-    CApplication* app = m_pclApp;
     unsigned int charNo = pb->m_charNo;
-    CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
+    CUserManager* um = &m_pclApp->m_userManager;
+    CUser* user = um->FindUser_CharNo(charNo);
     if (user == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1bdb, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoUpgrade : 0 == pclUser");

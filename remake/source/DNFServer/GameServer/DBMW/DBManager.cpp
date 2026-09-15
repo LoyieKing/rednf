@@ -1638,10 +1638,9 @@ char CDBManager::QueryHellPartyStatisticItemCreate(
             *(signed char*)((char*)packet + i * 0x24 + 0x14),
             *(signed char*)((char*)packet + i * 0x24 + 0x15),
             *(int*)((char*)packet + i * 0x24 + 0x16),
-            // ✗ 已试并回退：`((int*)((char*)packet + 0x1a))[i*9 + k]`（int 数组视图）
-            //   与旧 `*(int*)((char*)packet + i*0x24 + 0x1a + k*4)` **生成完全相同的代码**
-            //   （GCC 把 0x1a 与 k*4 合并进 `add $0x1a+k*4`）⇒ ORIG 的
-            //   `lea; add $k*4; mov 0x1a(%eax)` 分组（disp=0x1a）无法由 .cpp 复现。
+            // ✗ 已试并回退（波11 首测 + 本波加固流程复测）：`((int*)((char*)packet + 0x1a))[i*9+k]`
+            //   与 `*(int*)((char*)packet + i*0x24 + 0x1a + k*4)` 改写前后 **.o md5 恒为
+            //   cf6753d7…**（未变）⇒ 确属 GCC 常量折叠，非漏编假阴性。
             *(int*)((char*)packet + i * 0x24 + 0x1e),
             *(int*)((char*)packet + i * 0x24 + 0x22),
             *(int*)((char*)packet + i * 0x24 + 0x26),
@@ -4545,9 +4544,10 @@ bool CDBManager::onItemLimitEditionUpdateData(
     time_t now = time(0);
     for (int i = 0; i < packet->m_count; i++)
     {
-        // ✗ 已试并回退：`((char*)packet + i*9)[0x1a]`、`*(((char*)packet+i*9)+0x16)` 与
-        //   原下标形**生成完全相同的代码**（GCC 把常量折进索引）⇒ 该「lea;add」分组差异
-        //   不可由 .cpp 层改写消除（需类型级成员偏移才能分开）。
+        // ✗ 已试并回退（波11 首测 + 本波用「rm .o + make」加固流程**复测**）：改写为
+        //   `((char*)packet + i*9)[0x1a]` / `*(((char*)packet + i*9) + 0x16)` 后
+        //   **.o 的 md5 一字未变**（cf6753d7…，前后同值）⇒ 确属 GCC 常量折叠，
+        //   非漏编假阴性 ⇒ 该「lea;add」分组不可由 .cpp 层改写消除。
         if (((char*)packet)[i * 9 + 0x1a] != 0)
         {
             h->set_query(0x4ec8,
@@ -5018,10 +5018,10 @@ char CDBManager::InsertFrameLagStatistics(
     CDBHandle* h = m_handles[0xf];    // frame_lag db
     if (!h)
         return 0;
-    // [2026-09-15 差异修复] 机理 M/四件套①：ORIG 在 `h` 之后有**写后不读**的具名槽
-    //   （`movl $0x20,-0x28(%ebp)` 全函数仅此一次引用，值 0x20）⇒ 照补。
-    int reservedLen = 0x20;
-    (void)reservedLen;
+    // ✗ 已试并回退：补 ORIG 那个写后不读的槽（`int reservedLen = 0x20;`）——
+    //   该槽在 ORIG 确实存在（`movl $0x20,-0x28(%ebp)` 仅 1 次引用），补后我方也生成
+    //   同一指令，但长度 433→434（多 1）且 ndiff 264→265 微升 ⇒ 回退（整体槽序仍差
+    //   0x10，单补一槽会破坏已有对齐）。
     // [2026-09-15 差异修复] 机理④（具名局部要「删」的方向）：ORIG **无** `v` 具名局部
     //   —— 每处都是 `mov 0xc(%ebp),%eax` 直接从参数位取 packet（我方旧码先
     //   `mov %eax,-0x20(%ebp)` 存槽再复用 ⇒ 多一个槽 + 帧 0x12c vs ORIG 0x13c）。
