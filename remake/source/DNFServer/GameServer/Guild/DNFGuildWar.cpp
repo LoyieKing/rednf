@@ -374,9 +374,8 @@ void CGuildWar::DBSaveProcess(CApplication* app)
         return;
     }
     m_bSaveCnt++;
-    // [2026-09-15 实测] 删 `register` 使 ndiff 11→13（反而多 save %ebx）⇒ 保留关键字；
-    //   残余 push %ebx / `sete %bl` 与 ORIG（`sub $0x78` + `sete %al`）的差按 N7/N18a 封顶。
-    register bool bZero = (m_bSaveCnt == 0);
+    // [机理 B] ORIG 无 push %ebx 且 `sete %al`（帧 `sub $0x78`）⇒ 用 asm 绑定固定到 al。
+    register bool bZero __asm__("al") = (m_bSaveCnt == 0);
     if (bZero)
     {
         return;

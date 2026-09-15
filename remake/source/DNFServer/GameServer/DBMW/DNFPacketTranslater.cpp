@@ -32,7 +32,7 @@ struct Packet_DBMW_Collect_Items_Gm_View : PacketHeader
     unsigned char m_serverInfo;  // +0xa
     int m_totalCount;      // +0xb
     int m_curCount;        // +0xf
-    unsigned int m_fullTime; // +0x13
+    unsigned int m_fullTime; // +0x13（unsigned：updateCollectItemsGm 形参为 unsigned，消除转换）
 } __attribute__((packed));
 
 struct Packet_DB_Load_Request_Guild_Board_Write_View : PacketHeader
@@ -223,7 +223,11 @@ void CPacketTranslater::OnGuildMasterDelegate(PacketHeader* header)
         m_pclApp->m_dbManager.QueryGuildMemberGradeByName(
             pkt->m_serverId, pkt->m_guildId, pkt->m_name,
             grade, *(unsigned int*)((char*)&reply + 0x12), result);
-        if (grade == 2)
+        if (grade != 2)
+        {
+            resultCode = 0x56;
+        }
+        else
         {
             if (reply.m_newMasterNo == 0 || result == 0)
             {
@@ -247,10 +251,6 @@ void CPacketTranslater::OnGuildMasterDelegate(PacketHeader* header)
             {
                 resultCode = 0;
             }
-        }
-        else
-        {
-            resultCode = 0x56;
         }
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         gs->SendToServer(
@@ -2256,9 +2256,6 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
 // [DNF-NONIDENTICAL] DNF-DBM-DIFF-0092 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::onQueryTowerFullRank | 详见 function_reports/dbmw/_ZN17CPacketTranslater20onQueryTowerFullRankEP12PacketHeader.md
 void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
 {
-    // ORIG 有一个 20 字节的独占局部（槽 -0x1c..-0x5c 组），其存在决定后续局部起点；
-    // 实测移除后 ndiff 97→132，勿删。
-    char padLocals[0x14];
     if (!m_pclApp)
         return;
     try
@@ -2281,7 +2278,7 @@ void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
         for (std::vector<stTowerRank_t>::const_iterator it = ranks.begin();
              it != ranks.end(); ++it)
         {
-            memcpy((char*)&reply + 0x13 + i * 0x65, &*it, 0x65);
+            *(stTowerRank_t*)((char*)&reply + 0x13 + i * 0x65) = *it;
             i++;
             if (i > 0x3b)
             {

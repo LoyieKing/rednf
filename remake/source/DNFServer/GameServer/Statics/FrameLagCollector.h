@@ -71,7 +71,9 @@ public:
         void init();
         int m0;              // +0x00
         int m_a[6];          // +0x04..0x1b
-        short m_b[8];        // +0x1c..0x2b
+        unsigned short m_b[8]; // +0x1c..0x2b  // [2026-09-15 机理 B/类型] ORIG `m_b[idx] += 1`
+        //   生成 `lea 0x1(%edx),%ecx`（unsigned short ⇒ +1 结果必须新建寄存器再截断），
+        //   signed short 则折叠成 `add $0x1,%edx`（30 形微实验 v3：唯 unsigned 复现 lea）。
         int m_c[3];          // +0x2c
         int m_d[6];          // +0x38
         int m_e[6];          // +0x50

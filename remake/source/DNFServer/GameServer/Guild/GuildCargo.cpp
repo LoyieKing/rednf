@@ -267,7 +267,12 @@ int CGuildCargo::CheckInsertItem(int itemId, int count, int slot, unsigned char 
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-NEAR-0001 | guild | 与ORIG差异=NEAR | CGuildCargo::DeleteItem | 详见 function_reports/guild/_ZN11CGuildCargo10DeleteItemER11DnfItemInfoiihii.md
-// [机理 C · 待环境] 本件差异 = `m_addInfo` signedness 决定 LHS/RHS 载入序；
+// [2026-09-15 W3-GuildRest 已翻正 ✓] Main 解禁 Game/DnfItemInfo.h 后，按其三条约束落地：
+//   `unsigned int m_addInfo` → `int m_addInfo`（同宽同偏移，static_assert sizeof/offsetof 全过）
+//   ⇒ 本件 NEAR→**AE identical**（164/164、ndiff 0）✓；guild 全量重编 identical 1867→**1875**、
+//   非identical 63→**55**（本泳道 2 件直翻 + DNFPacketTranslater 侧连带/并发），只升不降 ✓。
+//   ⇒ 机理 C 的跨服务头路径（§5.19-C 排除项）自此解禁并由本件闭环 ✓。
+// [机理 C · 待环境（历史记录）] 本件差异 = `m_addInfo` signedness 决定 LHS/RHS 载入序；
 // 沙箱实证：改 Game/DnfItemInfo.h 的 m_addInfo → int 可令本件 NEAR→AE identical（164/164 ndiff 0）。
 // 阻断原因：跨服务头 ⇒ game InterDispatcher.cpp.o md5 变化（2ec9edcf→deeb80d0）且 game 不可重链 ⇒ 无法验证 ⇒ 按闸门维持回退。
 // 若将来 game 可重链 ⇒ 本件 + 同族件应优先重估。
@@ -511,7 +516,10 @@ void CGuildCargo::InsertHistory(ENUM_GUILD_CARGO_BEHAVIOR behavior, int slot, co
     //   已试形态（均 ≥8，无一改善）：present 指针 register 形（8，保留）/ C 风格 cast（8）/
     //   `unsigned int*` + o[0..2] + *(unsigned short*)(o+3)（12）/ const 引用形 o.optN（24）/
     //   去 register（24）。
-    //   [NEAR-Guild 2026-09-15 追加 3 形态，均劣化 ⇒ 已回退，全部读数取自链接后 ELF]
+    //   [W3-GuildRest 2026-09-15 复核] 唯一可行路径（给 STGuildCargoLog 增 14 字节视图成员）需改
+//   **ServerCommon/DNFFunctionLib.h**（跨服务共享头，非本次授权的 Game/DnfItemInfo.h）
+//   ⇒ 维持不投入 ✓（本 TU 内确无靶点）。
+//   [NEAR-Guild 2026-09-15 追加 3 形态，均劣化 ⇒ 已回退，全部读数取自链接后 ELF]
     //   V1 `*(OptionDwordView*)(void*)&log.opt0 = *(const OptionDwordView*)option;`（结构体整体赋值）
     //      ⇒ GCC 走 memcpy 路径：先生成 -0x44 临时对象（82 条、ndiff 10）✗
     //   V2 `memcpy(&log.opt0, option, 0xe);` ⇒ 直出 `call memcpy@plt`（GCC -O0 不内联常量拷贝，78 条、ndiff 10）✗

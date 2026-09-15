@@ -49,7 +49,16 @@ int CBuddyHandle::addDB(CServerHandler* handler, char* name)
     // [MonitorRest 本轮] 150/161 DIFF ndiff=68（未归零）：ORIG 的 std::string key 槽 -0x14/alloc -0xd，
     //   我方 key=-0x10/alloc=-0x19；且 log 分支 ORIG `mov $0x1,%eax` vs 我方 `%ebx`（EH 路径寄存器选择）。
     //   已试无效/劣化：① 删 `std::allocator<char> alloc` 改用默认构造（68→71）；
-    //   ② string 具名→临时。登记为「EH 清理路径寄存器/槽分配」族。
+    //   ② string 具名→临时。
+    //   [MonitorRest W3 本轮] ndiff 68→**29**（长度 161→155，ORIG 150）。两步（均保留）：
+    //   ③ **迭代器外提到 key 作用域之外**（`iterator it;` + 块内 `it = find(key)` + 块外比较）⇒
+    //      复现 ORIG 的 `find → ~string → ~allocator → end() → operator!=` 调用序（判据：ORIG 的
+    //      end()/!=() 位于 key 析构之后，说明比较是独立语句、不在 find 行内）；
+    //   ④ `strlen(name) < 0x1e {…} return -1;` 改为 **`strlen(name) >= 0x1e { return -1; }` + 裸块**
+    //      ⇒ 复现 ORIG 的 `jbe`（跳过 -1 返回）而非我方 `ja` 跳到函数尾。
+    //   余 29 = find 的 sret 临时（我方 `it = find()` 经临时再拷贝；ORIG 直接落 it 槽）+
+    //   我方多一次 `_Rb_tree_iterator::C1()` 默认构造（ORIG 无）⇒ 需"声明即初始化且 key 已析构"，
+    //   两者在 C++ 作用域下互斥，已穷举 3 形态。
     if (m_prUser == 0 || m_prUser->GetUniqCharNo() == 0)
     {
         DNF_LOG_SCOPE_LINE(0x5a, "./log/buddy", "Buddy::addDB m_prUser is NULL");
@@ -63,19 +72,24 @@ int CBuddyHandle::addDB(CServerHandler* handler, char* name)
     {
         return 4;
     }
+    std::map<std::string, CBuddy*>::iterator it;
     {
         std::allocator<char> alloc;
         std::string key(name, alloc);
-        if (m_buddies.find(key) != m_buddies.end())
-        {
-            return 0x12;
-        }
+        it = m_buddies.find(key);
+    }
+    if (it != m_buddies.end())
+    {
+        return 0x12;
     }
     if (strcmp(name, m_prUser->GetCharName()) == 0)
     {
         return 1;
     }
-    if (strlen(name) < 0x1e)
+    if (strlen(name) >= 0x1e)
+    {
+        return -1;
+    }
     {
         Packet_DBMW_Add_Buddy pkt;
         pkt.m_uniqCharNo = m_prUser->GetUniqCharNo();
@@ -83,7 +97,6 @@ int CBuddyHandle::addDB(CServerHandler* handler, char* name)
         handler->SendToDB(&pkt);
         return 0;
     }
-    return -1;
 }
 
 int CBuddyHandle::delDB(CServerHandler* handler, char* name)

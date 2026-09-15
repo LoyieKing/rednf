@@ -5535,10 +5535,11 @@ void CPacketTranslater::OnWebEmergencyPatchMessage(PacketHeader* pkt)
                     char* buf = tcp->makePacketHeader(0x27f2, 0x10a);
                     if (buf != 0)
                     {
-                        *(char*)(buf + 10) = (char)rpkt->m_len;
-                        memset(buf + 0xb, 0, 0xff);
-                        memcpy(buf + 0xb, rpkt->m_text, (unsigned int)rpkt->m_len);
-                        tcp->SendToGameServer(buf);
+                        char* out = buf;
+                        *(char*)(out + 10) = (char)rpkt->m_len;
+                        memset(out + 0xb, 0, 0xff);
+                        memcpy(out + 0xb, rpkt->m_text, (unsigned int)rpkt->m_len);
+                        tcp->SendToGameServer(out);
                     }
                 }
             }

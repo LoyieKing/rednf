@@ -1534,6 +1534,10 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
         {
             // [2026-09-15 P183/P332] ORIG 帧 sub $0xd0（我方 $0xe0，多 4 个具名局部）
             //   ⇒ 删掉为取 float 准备的具名指针，右值直用。
+            //   [2026-09-15 机理 M 复测] 但 ORIG 反汇编**确有**两个具名指针槽
+            //   （`add 0xc(%ebp),%eax; add $0xb,%eax; mov %eax,-0x3c(%ebp)` + `-0x38`）
+            //   ⇒ 恢复 pAvg/pDev 真局部实测 ndiff 100→174（劣化，已回退；与 details 段
+            //   槽位分配冲突）。
             float avg_f = pkt->m_records[i].m_avg.m_float;
             float dev_f = pkt->m_records[i].m_deviation;
             m_modules[i].m_data0 += (int)(long long)avg_f;
@@ -1612,29 +1616,33 @@ void StatisticManager::SendDBLagStatistics(CServerHandler* handler, char* timeSt
             m_modules[i].Reset();
         }
     }
-    // [2026-09-15 StaticsStatMgr] ORIG 0x807???? 用 `xor $1,%eax; test; je`（即 if (!empty)
-    //   包裹主体），我方 early-return 生成 `jne` 整体反向；改成 if(!empty) 后 ndiff 23→20。
+    // [2026-09-15 StaticsStatMgr] ORIG 用 `xor $1,%eax; test; je`（即 if (!empty) 包裹主体），
+    //   我方 early-return 生成 `jne` 整体反向；改成 if(!empty) 后 ndiff 23→20。
+    //   [2026-09-15 块归属] ORIG 的 je 目标 = `lea -0xc(%ebp),%esp`（跳过 clear）⇒ **clear 在
+    //   if 的 then 块内**（我方原先在 if 外 ⇒ je 只跳过 for、仍执行 clear，目标差 0x10）。
     if (!m_dungeonLag.empty())
-    for (std::map<unsigned short, STDungeonLagStatistics>::iterator it = m_dungeonLag.begin();
-         it != m_dungeonLag.end(); ++it)
     {
-        memset(pkt.m_query, 0, sizeof(pkt.m_query));
-        snprintf(pkt.m_query, 0x400,
-            "inSert into lag_stat_dungeon (occ_time, server_id, dungeon_idx, first_average, first_deviation, first_count, boss_average, boss_deviation, boss_count) values ('%s', %d, %d, %d, %d, %d, %d, %d, %d)",
-            timeStr, handler->GetServerGroupNo() & 0xff, it->first,
-            (unsigned int)it->second.m_data[0] / (unsigned int)it->second.m_data[3],
-            (unsigned int)it->second.m_data[1] / (unsigned int)it->second.m_data[3],
-            // [2026-09-15 StaticsDiff G/C 轴] ORIG 0x80737fc/0x8073864 = `sar+idivl`（有符号）
-            //   ⇒ 这两处需 (int) 转换（字段是 unsigned int，无 cast 会退化成 divl）。
-            //   残余 2 条差：ORIG `mov mem,%ebx` 直落 vs 我方 `mov mem,%eax; mov %eax,%ebx` 中转。
-            (int)it->second.m_data[2] / (int)it->second.m_data[3],
-            (unsigned int)it->second.m_data[4] / (unsigned int)it->second.m_data[7],
-            (unsigned int)it->second.m_data[5] / (unsigned int)it->second.m_data[7],
-            (int)it->second.m_data[6] / (int)it->second.m_data[7]);
-        DNF_LOG_SCOPE_LINE(0x6b8, "./log/LagStatistics", "%s", pkt.m_query);
-        handler->SendToDB((PacketHeader*)&pkt);
+        for (std::map<unsigned short, STDungeonLagStatistics>::iterator it = m_dungeonLag.begin();
+             it != m_dungeonLag.end(); ++it)
+        {
+            memset(pkt.m_query, 0, sizeof(pkt.m_query));
+            snprintf(pkt.m_query, 0x400,
+                "inSert into lag_stat_dungeon (occ_time, server_id, dungeon_idx, first_average, first_deviation, first_count, boss_average, boss_deviation, boss_count) values ('%s', %d, %d, %d, %d, %d, %d, %d, %d)",
+                timeStr, handler->GetServerGroupNo() & 0xff, it->first,
+                (unsigned int)it->second.m_data[0] / (unsigned int)it->second.m_data[3],
+                (unsigned int)it->second.m_data[1] / (unsigned int)it->second.m_data[3],
+                // [2026-09-15 StaticsDiff G/C 轴] 两处 ORIG 为 `sar+idivl`（有符号）；
+                //   字段本身是 unsigned，故改用 m_dataInt 同址视图（无转换节点 ⇒
+                //   `mov mem,%ebx` 直落；实测 ndiff 6→0 AE）。
+                it->second.m_dataInt[2] / it->second.m_dataInt[3],
+                (unsigned int)it->second.m_data[4] / (unsigned int)it->second.m_data[7],
+                (unsigned int)it->second.m_data[5] / (unsigned int)it->second.m_data[7],
+                it->second.m_dataInt[6] / it->second.m_dataInt[7]);
+            DNF_LOG_SCOPE_LINE(0x6b8, "./log/LagStatistics", "%s", pkt.m_query);
+            handler->SendToDB((PacketHeader*)&pkt);
+        }
+        m_dungeonLag.clear();
     }
-    m_dungeonLag.clear();
 }
 void StatisticManager::AddValueStatistics(Packet_Value_Statistic* pkt)
 {

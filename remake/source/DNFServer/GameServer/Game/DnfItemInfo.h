@@ -20,7 +20,7 @@ public:
     unsigned char m_seal;          // +0x00
     unsigned int m_itemId;         // +0x01
     unsigned char m_attr;          // +0x05
-    unsigned int m_addInfo;        // +0x06
+    int m_addInfo;                 // +0x06（signed：机理 C —— 无转换 ⇒ 赋值先载 LHS）
     unsigned short m_endurance;    // +0x0a
     unsigned int m_extendInfo;     // +0x0c
     unsigned char m_abilityType;   // +0x10

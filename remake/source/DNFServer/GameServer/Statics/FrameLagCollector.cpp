@@ -590,8 +590,8 @@ void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStru
 {
     // [2026-09-15 机理 E] FrameLagStruct 补真实字段后零 cast 直访 ⇒ 长度差消除
     //   （367→356）、ndiff 186→108。
-    //   [实测] 再把 i 提到函数作用域（i 先声明）⇒ 112，劣化 ⇒ 维持 j 在函数作用域、
-    //   i 在 for 内（108）。
+    //   [实测] i 提到函数作用域（i 先声明）+ j 移入内层 for ⇒ 112（劣于 108）⇒ 维持
+    //   j 在函数作用域、i 在 for 内（108）。
     int j;
     for (int i = 0; i < 6; i++)
     {

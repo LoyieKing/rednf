@@ -248,11 +248,20 @@ bool CPeer::parsing(int recvLen)
     //   已试无效/劣化：① `PacketHeader header;`（无默认 ctor，编译失败，已回退）；
     //   ② S5 占位 `int reservedSlot;`（97→125，帧 0x7c→0x8c）；③ `unsigned int pktSize` 提升到循环外
     //   （guild 形态，ndiff 不变）；④ `totalLen <= 9`（guild 比较式，不变）。
-    //   余差：我方 totalLen/headerSize 槽 -0x28/-0x24、ORIG -0x24/-0x1c（我方深 4 且多占 -0x28）⇒
-    //   未再找到可控的中间局部（属 BIND/临时对象分配顺序族）。
+    //   [MonitorRest W3 本轮] ndiff 76→**45**（长度 289→289 未变）。两步（均保留）：
+    //   ⑤ `pktSize` 一并提升为外层变量 ⇒ 槽序变成 qsize/totalLen/pktSize/headerSize =
+    //      -0x28/-0x24/-0x20/-0x1c，与 ORIG **逐槽相同**（判据：GCC 遇序=块内声明序，
+    //      外层先分配占深槽、子块后分配占浅槽；故把 pktSize/qsize 提为外层、headerSize 留在最后即可复现）；
+    //   ⑥ 循环体内 `if ((unsigned)totalLen < pktSize){log;goto}` 改为**纯 goto 到尾部日志块**
+    //      （`goto LAB_NEED_MORE_DATA` + 0xf8 块后 `goto LAB_51773` + 尾部块）⇒ ORIG 的
+    //      "then 块位于 do-while 之后"布局复现（判据：GCC -O0 块布局=语句顺序；ORIG 的
+    //      0x100 日志块与 0xf8 块相邻、且在 LAB_51773 之前）。
+    //   余 45 = 跳转目标级别的级联 + 我方 do-while 条件多 `setg/test`（ORIG 直接 `jg`）。
     PacketHeader header(0, 0);
-    int headerSize = 10;
+    int qsize;
     int totalLen = m_remainLen + recvLen;
+    unsigned int pktSize;
+    int headerSize = 10;
     if (totalLen < 10)
     {
         m_remainLen = m_remainLen + recvLen;
@@ -268,7 +277,7 @@ bool CPeer::parsing(int recvLen)
                 m_buf = m_buf - m_remainLen;
             }
             memcpy(&header, m_buf, 10);
-            unsigned int pktSize = (unsigned int)header.packetSize;
+            pktSize = (unsigned int)header.packetSize;
             if (pktSize < 10 || 0x1800 < pktSize)
             {
                 DNF_LOG_SCOPE_LINE(0xd0,"./log/TcpRecv",
@@ -280,10 +289,7 @@ bool CPeer::parsing(int recvLen)
             }
             if ((unsigned int)totalLen < pktSize)
             {
-                DNF_LOG_SCOPE_LINE(0x100,"./log/TcpRecv",
-                    "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",
-                    totalLen);
-                goto LAB_51773;
+                goto LAB_NEED_MORE_DATA;
             }
             CTcpRecvBuffer* buf;
             {
@@ -295,7 +301,7 @@ bool CPeer::parsing(int recvLen)
             {
                 CGuard<CMutex> guard((CMutex*)m_qLock);
                 ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->push(buf);
-                int qsize = ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->size();
+                qsize = ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->size();
             }
             totalLen = totalLen - pktSize;
             m_buf = m_buf + pktSize;
@@ -308,6 +314,13 @@ bool CPeer::parsing(int recvLen)
         } while (9 < (int)totalLen);
         {
             DNF_LOG_SCOPE_LINE(0xf8,"./log/TcpRecv", "need more data (parsinglength < HEADER_SIZE): body=%d !!",
+                totalLen);
+        }
+        goto LAB_51773;
+LAB_NEED_MORE_DATA:
+        {
+            DNF_LOG_SCOPE_LINE(0x100,"./log/TcpRecv",
+                "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",
                 totalLen);
         }
 LAB_51773:

@@ -599,6 +599,11 @@ void CGuild::QueryGuild(CServerHandler* handler, unsigned int charNo)
 //   试过 ① if 后加 `return;`（→ 我方多 jmp+nop，113 条）② 空 `else {}`（无变化）
 //   ③ 额外复合块 + return（仍多一条 nop）④ D 形态三层配对（循环体内裸块 + 函数尾 `return;`，113 条）
 //   ⇒ 四种位置/形态均无效；Main 已将本件列入「尾 jmp 不来自显式 return」反例清单，登记死胡同。
+// [2026-09-15 W3-GuildRest 实测] 残差 = ORIG 在 `m_guildDBFlag |= 4;` 之后多一条**跳至紧邻下一条**
+//   的 `jmp`，且 ORIG 两条守卫跳转目标差 1 字节（`jne #0x16a` / `je #0x16b`，我方同目标）
+//   ⇒ 复合条件 `&&` 的两个假出口在 ORIG 属**两个不同基本块** ⇒ 块尾标签/尾跳族。
+//   已试并回退：块尾补 `return;`（void 尾语句被 GCC 消除，112/111 与 ndiff 3 不变）✗
+//   ⇒ 与 §5.19-D「块尾标签次序族」（monitor NoticeMemberLogin_Out）同族，源码层无靶点。
 void CGuild::LoadGuild(STGuildDBInfoOnly& info, char* name)
 {
     if ((m_guildDBFlag & 4) == 0 && (m_guildDBFlag & 2) != 0)
@@ -1119,14 +1124,12 @@ int CGuild::GuildLevelUp(CServerHandler* handler, CUser* user)
     //   我方无物化（`jne <T>; mov $0x2,%eax; jmp <T>`）⇒ 属「条件物化形态族」。
     //   已试并回退：①空 then/De Morgan（P354，无改善）② `!f()` 单侧取反（多 `xor $1`）
     //   ③ 交换 `||` 操作数次序（ndiff 6→**25** 劣化）。⇒ 登记死胡同。
+    // [2026-09-15 W3-GuildRest 机理 D 变体（**保留，未 identical**）] ORIG 假出口 **直落函数尾**的 `return 2`
+    //   （`je <尾部 mov $0x2,%eax>`，全函数只物化一份 2）⇒ then 之内即整个后续 body，
+    //   `return 2` 只在函数尾出现一次。
     if (user->GetUniqCharNo() == GetMasterId() ||
         IsSubGuildMaster(user->GetUniqCharNo()))
     {
-    }
-    else
-    {
-        return 2;
-    }
     if (m_dbInfo.m_info.m_guildLevel + 1 > 0x10)
     {
         // [P329] ORIG：nextLev 不具名（`lea 0x1(%eax),%ebx` 寄存器保活，无 -0x14 槽）
@@ -1157,6 +1160,7 @@ int CGuild::GuildLevelUp(CServerHandler* handler, CUser* user)
         "CGuild::GuildLevelUp(%d : %d)GSP(%d)", GetGuildKey(),
         m_dbInfo.m_info.m_guildLevel, m_dbInfo.m_info.m_guildSkillPoint);
     return 0;
+    }
     }
     return 2;
 }
@@ -1396,6 +1400,12 @@ void CGuild::NoticeGuildMemberLogin_Out(CUser* user, char flag)
     }
 }
 
+// [2026-09-15 W3-GuildRest 机理 H 实测] 三处残差同为地址编码族：
+//   ORIG `mov %edx,%eax; shl $2; add %edx,%eax; mov %eax,%ebx; add 0xc(%ebp),%ebx`（add 形）
+//   我方 `mov 0xc(%ebp),%ecx; …; lea (%ecx,%eax,1),%ebx`（lea 索引形）。
+//   已试并回退：① `(Rec*)((unsigned int)info + count*5)` 整型加法 ⇒ 102→106、ndiff 6→13 ✗
+//   ② `info->m_members[count].m_channel` 下标形 ⇒ 104、ndiff 31 ✗。
+//   ⇒ 与 SetSubGuildMaster 尾部同属「add/lea alternative 选择族」，源码层无靶点。
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0123 | guild | 与ORIG差异=DIFF | CGuild::ReplyGuildMembersToWeb | 详见 function_reports/guild/_ZN6CGuild22ReplyGuildMembersToWebEP24STGuildMemberWebConnInfo.md
 int CGuild::ReplyGuildMembersToWeb(STGuildMemberWebConnInfo* info)
 {
@@ -1812,6 +1822,9 @@ void CGuild::AddGuildMember(ST_Notice_Guild_Enter& info, CUser* user)
 //   双中转。属寄存器分配族（帧差来自 push 数，非多余局部）。
 //   已试删除 `unsigned short* cnt = &m_totalCnt;` 并内联全部 `*cnt` ⇒ ndiff 23→39（更差，已回退）
 //   ⇒ 该具名指针局部是必需的（与 P-H 实证一致），登记死胡同。
+//   [2026-09-15 W3-GuildRest 追加] 机理 B 反推：ORIG 的 `push %esi` 来自该 cnt 指针跨 memmove 调用
+//   保活 ⇒ 试 `register unsigned short* cnt __asm__("esi") = &m_totalCnt;`
+//   ⇒ 111→**112**、ndiff 35→**41 劣化** ✗（%esi 亦被复用）⇒ 已回退，双路径均封死。
 void CGuild::SecedeProxyMember(ST_Notice_Guild_Secede& info)
 {
     if ((m_guildDBFlag & 4) == 0 || (m_guildDBFlag & 0x10) == 0)
@@ -1936,6 +1949,12 @@ bool CGuild::IsSubGuildMaster(unsigned int dbid)
     return false;
 }
 
+// [2026-09-15 W3-GuildRest 机理 B 实测] `register bool over __asm__("al")`（seta 落 %al）
+//   使 ndiff 6→4→**1**（残余唯一差异 = `add %edx,%eax` vs 我方 `lea (%edx,%eax,1),%eax`，
+//   即 i386 后端 add/lea alternative 选择族：需 op0==op1==目标，源码层不可控）。
+//   另试：`register int ni __asm__("edx") = ~i;`（106→108 劣化 ✗）、
+//   `register unsigned int ucnt __asm__("eax") = *cnt;`（ndiff→1 但 add 仍在）、
+//   `ucnt = ucnt + ~i;` / `ucnt += ~i;`（均仍 lea）⇒ 属后端指令选择族，已回退。
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0116 | guild | 与ORIG差异=DIFF | CGuild::SetSubGuildMaster | 详见 function_reports/guild/_ZN6CGuild17SetSubGuildMasterEjb.md
 void CGuild::SetSubGuildMaster(unsigned int charNo, bool flag)
 {

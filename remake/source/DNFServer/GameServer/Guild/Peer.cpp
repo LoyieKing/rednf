@@ -265,12 +265,18 @@ int CPeer::recv_packet()
     return n;
 }
 
+// [2026-09-15 W3-GuildRest 机理 N 命中] 交换 `int size` / `unsigned int packetSize` 声明序
+//   （packetSize 先）⇒ 槽位对齐 ORIG（size@-0x1c、packetSize@-0x20；原我方 size@-0x20）
+//   ⇒ ndiff 44→**35** ✓ / 长度仍 288 vs 287。残余 = 尾部 `mov $0x0,%ebx; jmp` 块布局族
+//   （`packetSize<=9` 与 `>0x1800` 两出口的块合并方式）⇒ 块尾/条件布局族，未 identical。
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0108 | guild | 与ORIG差异=DIFF | CPeer::parsing | 详见 function_reports/guild/_ZN5CPeer7parsingEi.md
 bool CPeer::parsing(int len)
 {
     int qsize;
     PacketHeader hdr(0, 0);
     int parsinglength = m_remainLen + len;
+    // [机理 N] ORIG 槽序：size@-0x1c、packetSize@-0x20 ⇒ packetSize 先声明
+    unsigned int packetSize;
     int size = 10;
     if (parsinglength <= 9)
     {
@@ -281,7 +287,6 @@ bool CPeer::parsing(int len)
             m_buf, m_data, m_remainLen, len);
         return 1;
     }
-    unsigned int packetSize;
 parsing_loop:
     {
         if (m_remainLen != 0)

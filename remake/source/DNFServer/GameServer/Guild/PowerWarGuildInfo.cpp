@@ -213,6 +213,10 @@ void CPowerWarGuildInfo::GetAllGuildRankingInfo(int& count, STGuildRank* rank)
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0104 | guild | 与ORIG差异=DIFF | CPowerWarGuildInfo::RewardGuildPowerWarPoint | 详见 function_reports/guild/_ZN18CPowerWarGuildInfo24RewardGuildPowerWarPointER13CGuildManagerbiiii.md
+// [2026-09-15 W3-GuildRest 机理 B 实测] V10 `register int v __asm__("edx") = firstBonus - decrease * rankIdx;`
+//   （即把 ORIG 的 %edx 归属用 asm 绑死）⇒ 169/174、ndiff 10→**14 劣化** ✗ ⇒ 已回退。
+//   原因：%edx 在本函数被 imul/lea 中转反复复用 ⇒ 命中机理 B 排除条件（绑到被复用寄存器必反向劣化，
+//   同 monitor QueryCashMemoryBuddyInfo V1/V3）⇒ 本件确为「IRA 寄存器选择族」✓ 定论。
 // 2026-09-15 HWSpecSend：最佳 ndiff=4（唯一残差 = `register int v` 的物理寄存器选择：我方 ebx、ORIG edx，
 // 表现为我方多一条 `mov %edx,%ebx` 中转）。已试 9 形态全部为 4 或更差：删 `register`=80（帧 +0x10，ORIG 确无栈槽）、
 // `v; v=..`/`const`/去 (int) cast 均 4、`v -= ..`=5、括号/交换操作数/cast/负形式=4/6/4/4、声明上移（含 init）=11、

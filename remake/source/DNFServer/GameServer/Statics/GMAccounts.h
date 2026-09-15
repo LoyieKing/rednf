@@ -305,10 +305,18 @@ struct STDungeonLagStatistics
     STDungeonLagStatistics();
     ~STDungeonLagStatistics() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
-    // [2026-09-15 StaticsDiff G/C 轴] 保持 unsigned（Reset/ctor 与 ORIG 的 divl 组一致）；
-    //   SendDBLagStatistics 里 m_data[2]/m_data[6] 两处 ORIG 为 `sar+idivl`（有符号），
-    //   用 (int) cast 复现。实测：字段改 int 反而 4 处中转（+4 条，ndiff 6→9）⇒ 保留 unsigned。
-    unsigned int m_data[8];
+    // [2026-09-15 StaticsDiff G/C 轴] 保持 unsigned（Reset/ctor 与 ORIG 的 divl 组一致）。
+    //   SendDBLagStatistics 里 m_data[2]/m_data[6] 两处 ORIG 为 `sar+idivl`（有符号）：
+    //   **`(int)` cast 会插入转换节点** ⇒ `mov mem,%eax; mov %eax,%ebx` 中转（实测 ndiff=6，
+    //   长度 304 vs ORIG 302）；字段整体改 int 又让另外 4 处 unsigned 除法中转（ndiff=9）
+    //   ⇒ 二者不可兼得。**补 int 视图成员**（无转换节点直取 ⇒ `mov mem,%ebx` 直落）：
+    //   微实验 e2/e3 复现 ORIG 形态（`movl 8(%eax),%ebx` + idivl，同 union 内 unsigned
+    //   访问仍直落）✓。
+    union
+    {
+        unsigned int m_data[8];
+        int m_dataInt[8];   // 仅用于 ORIG 的两处有符号除法（同址视图）
+    };
 };
 
 // ---- ValueStatisticData：0x78 ----
