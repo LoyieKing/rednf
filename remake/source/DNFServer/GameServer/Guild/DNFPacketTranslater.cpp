@@ -2297,10 +2297,10 @@ void CPacketTranslater::OnRequestGuildSecede(PacketHeader* pkt)
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0059 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBReplyGuildSecede | 详见 function_reports/guild/_ZN17CPacketTranslater20OnDBReplyGuildSecedeEP12PacketHeader.md
 void CPacketTranslater::OnDBReplyGuildSecede(PacketHeader* pkt)
 {
-    Packet_DB_Reply_Guild_Secede* pb = (Packet_DB_Reply_Guild_Secede*)pkt;
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnRequestGuildSecede : 0 == m_pclApp");
+    Packet_DB_Reply_Guild_Secede* pb = (Packet_DB_Reply_Guild_Secede*)pkt;
     Packet_Guild_Reply_Guild_Secede resp;
     CUser* requester;
     CUserManager* um = &m_pclApp->m_userManager;
@@ -2688,27 +2688,23 @@ void CPacketTranslater::OnGuildMasterDelegateFromWeb(PacketHeader* pkt)
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0096 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnCheckGuildMemberConnectionFromWeb | 详见 function_reports/guild/_ZN17CPacketTranslater35OnCheckGuildMemberConnectionFromWebEP12PacketHeader.md
 void CPacketTranslater::OnCheckGuildMemberConnectionFromWeb(PacketHeader* pkt)
 {
-    Packet_Check_Guild_Member_Connection_From_Web* pb = (Packet_Check_Guild_Member_Connection_From_Web*)pkt;
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnCheckGuildMemberConnectionFromWeb : 0 == m_pclApp");
-    unsigned int guildKey = pb->m_guildKey;
-    unsigned short port = pkt->reversed1;
-    unsigned int ip = pkt->m_connNo;
-    if (guildKey == 0)
+    Packet_Check_Guild_Member_Connection_From_Web* pb = (Packet_Check_Guild_Member_Connection_From_Web*)pkt;
+    if (pb->m_guildKey == 0)
     {
         throw CDNFException(
             "CPacketTranslater::OnCheckGuildMemberConnectionFromWeb : packet->m_uGuildKey == 0");
     }
     {
         Packet_Answer_Guild_Member_Connection_From_Web resp;
-        resp.m_guildKey = guildKey;
-        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
+        resp.m_guildKey = pb->m_guildKey;
+        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey);
         if (guild == 0 || guild->IsSetGuildDBFlag(4) != 1)
         {
-            unsigned short size = (unsigned short)(0 * 5 + 0x10);
-            resp.packetSize = size;
-            if (m_pclApp->Get_UdpHandler()->SendToClient((char*)&resp, (int)size, port, 0, ip) != 1)
+            resp.packetSize = (unsigned short)(0 * 5 + 0x10);
+            if (m_pclApp->Get_UdpHandler()->SendToClient((char*)&resp, (int)resp.packetSize, pkt->reversed1, 0, pkt->m_connNo) != 1)
             {
                 throw CDNFException(strerror(errno));
             }
@@ -2717,9 +2713,8 @@ void CPacketTranslater::OnCheckGuildMemberConnectionFromWeb(PacketHeader* pkt)
         {
             short count = (short)guild->ReplyGuildMembersToWeb(
                 (STGuildMemberWebConnInfo*)((char*)&resp + 0x10));
-            unsigned short size = (unsigned short)(count * 5 + 0x10);
-            resp.packetSize = size;
-            if (m_pclApp->Get_UdpHandler()->SendToClient((char*)&resp, (int)size, port, 0, ip) != 1)
+            resp.packetSize = (unsigned short)(count * 5 + 0x10);
+            if (m_pclApp->Get_UdpHandler()->SendToClient((char*)&resp, (int)resp.packetSize, pkt->reversed1, 0, pkt->m_connNo) != 1)
             {
                 throw CDNFException(strerror(errno));
             }

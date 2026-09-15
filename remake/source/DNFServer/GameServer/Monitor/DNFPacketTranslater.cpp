@@ -437,6 +437,8 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0113 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnLogout | 详见 function_reports/monitor/_ZN17CPacketTranslater8OnLogoutEP12PacketHeader.md
 // [W10-MonitorA 2026-09-15] 315→314：`Packet_Monitor_UDP_Logout* logout = (…*)pkt;` 提到 `if (m_pclApp != 0)` 之前
+// [W11-MonitorPkt 2026-09-15] ✗ 已回退（314→**576** 严重劣化）：内联 4 处 `char* dbidN` + user 改条件内赋值。
+//   ⇒ 「dbid 内联」在 OnLogin/OnEventItemUpdate 有效、在本件**反向** ⇒ 逐件判定的又一实证。
 //   （ORIG 在 m_pclApp 检查前就有 `mov %eax,-0x48(%ebp)`）。补具名 `CLoginLogoutStatistics* stat` 变体 ⇒ 354 劣化已回退。
 //   余差：我方帧大 0x10 且 ORIG 用 `-0x40` 复用 GetLoginLogoutStatistics() 结果（我方内联两次调用）。
 void CPacketTranslater::OnLogout(PacketHeader* pkt)
@@ -3268,7 +3270,9 @@ void CPacketTranslater::onReplyLoadTowerFullRank(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0106 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onRequestCharacTowerUpdateRank | 详见 function_reports/monitor/_ZN17CPacketTranslater30onRequestCharacTowerUpdateRankEP12PacketHeader.md
+// [W11-MonitorPkt 2026-09-15] 42→28：①删 `CUserManager* userMgr` 具名、内联 `(&m_pclApp->m_userManager)`
+//   ⇒ 槽集两侧**完全一致**；②user 改条件内赋值 `if ((user = f()) == 0) { } else { 主体 }`（机理 γ 的 f14 形态
+//   ⇒ 复现 ORIG `sete; test; jne`）。⚠ 反例：恢复 userMgr 具名 ⇒ 立刻回 42。
 void CPacketTranslater::onRequestCharacTowerUpdateRank(PacketHeader* pkt)
 {try
 {
@@ -3277,9 +3281,10 @@ void CPacketTranslater::onRequestCharacTowerUpdateRank(PacketHeader* pkt)
     Packet_Request_Charac_Tower_Update_Ranking* req =
         (Packet_Request_Charac_Tower_Update_Ranking*)pkt;
     CUser* user = 0;
-    CUserManager* userMgr = &m_pclApp->m_userManager;
-    user = userMgr->FindUser_CharNo(req->m_charNo);
-    if (user != 0)
+    if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(req->m_charNo)) == 0)
+    {
+    }
+    else
     {
         // [W7-MonitorBig · 机理 B+K+N] ORIG：esi=m_floor(c)、edi=m_job(b)、ebx=name，
         // m_score(a) 在栈；读取序 a→b→name→c；tower 无具名局部（getTowerRank 返回值

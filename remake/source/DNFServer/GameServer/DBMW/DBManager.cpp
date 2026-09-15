@@ -407,6 +407,28 @@ struct SecretShopStatisticRow
     int m_d4;                // +0x12  (abs 0x22)
 } __attribute__((packed));
 
+// [2026-09-15 差异修复] ORIG 的完整形态是
+//   `lea (%ecx,%eax,1),%eax; add $0x10,%eax; mov 0xe(%eax),...`
+//   ⇒ 索引 `i*0x14` 先与 packet 结合（数组 decay 的 lea），**再**加字段偏移 0x10
+//   —— 只有把「数组起点 0x10」写进结构体、用**数组下标**访问，GCC 才会把 0x10 落成
+//   `add` 而非折进索引。故 RowA 取 sizeof = 0x14（pad2 + 4×int + tail2），
+//   与 d0..d3 的成员偏移 2/6/0xa/0xe 相容。
+struct SecretShopStatisticRowA
+{
+    char m_pad[0x2];         // +0x00
+    int m_d0;                // +0x02  (abs 0x12)
+    int m_d1;                // +0x06  (abs 0x16)
+    int m_d2;                // +0x0a  (abs 0x1a)
+    int m_d3;                // +0x0e  (abs 0x1e)
+    char m_tail[0x2];        // +0x12  ⇒ sizeof = 0x14（= ORIG 步长）
+} __attribute__((packed));
+
+struct SecretShopStatisticRowsView
+{
+    char h[0x10];
+    SecretShopStatisticRowA m_rows[200];   // +0x10（每元素 0x14）
+} __attribute__((packed));
+
 struct FrameLagWriteIndexView
 {
     char h[0xa];
@@ -4996,23 +5018,29 @@ char CDBManager::InsertFrameLagStatistics(
     CDBHandle* h = m_handles[0xf];    // frame_lag db
     if (!h)
         return 0;
-    FrameLagWriteIndexView* v = (FrameLagWriteIndexView*)packet;
+    // [2026-09-15 差异修复] 机理 M/四件套①：ORIG 在 `h` 之后有**写后不读**的具名槽
+    //   （`movl $0x20,-0x28(%ebp)` 全函数仅此一次引用，值 0x20）⇒ 照补。
+    int reservedLen = 0x20;
+    (void)reservedLen;
+    // [2026-09-15 差异修复] 机理④（具名局部要「删」的方向）：ORIG **无** `v` 具名局部
+    //   —— 每处都是 `mov 0xc(%ebp),%eax` 直接从参数位取 packet（我方旧码先
+    //   `mov %eax,-0x20(%ebp)` 存槽再复用 ⇒ 多一个槽 + 帧 0x12c vs ORIG 0x13c）。
     h->set_query(0x4e8c,
                  "inSert into common_index(spec_id,occ_time,server_group,share_rate,crash_village,crash_dungeon,crash_challenge,crash_wararea,crash_fight_village,crash_dead_tower,crash_channel,crash_load,village_to_dungeon_lag,dungeon_to_village_lag) values(%d,from_unixtime(%d),%hhd,%u,%hu,%hu,%hu,%hu,%hu,%hu,%hu,%hu,%hd,%hd)",
-                 v->m_specId,
-                 v->m_occTime,
-                 v->m_serverGroup,
-                 v->m_shareRate,
-                 v->m_crashVillage,
-                 v->m_crashDungeon,
-                 v->m_crashChallenge,
-                 v->m_crashWararea,
-                 v->m_crashFightVillage,
-                 v->m_crashDeadTower,
-                 v->m_crashChannel,
-                 v->m_crashLoad,
-                 v->m_villageToDungeonLag,
-                 v->m_dungeonToVillageLag);
+                 ((FrameLagWriteIndexView*)packet)->m_specId,
+                 ((FrameLagWriteIndexView*)packet)->m_occTime,
+                 ((FrameLagWriteIndexView*)packet)->m_serverGroup,
+                 ((FrameLagWriteIndexView*)packet)->m_shareRate,
+                 ((FrameLagWriteIndexView*)packet)->m_crashVillage,
+                 ((FrameLagWriteIndexView*)packet)->m_crashDungeon,
+                 ((FrameLagWriteIndexView*)packet)->m_crashChallenge,
+                 ((FrameLagWriteIndexView*)packet)->m_crashWararea,
+                 ((FrameLagWriteIndexView*)packet)->m_crashFightVillage,
+                 ((FrameLagWriteIndexView*)packet)->m_crashDeadTower,
+                 ((FrameLagWriteIndexView*)packet)->m_crashChannel,
+                 ((FrameLagWriteIndexView*)packet)->m_crashLoad,
+                 ((FrameLagWriteIndexView*)packet)->m_villageToDungeonLag,
+                 ((FrameLagWriteIndexView*)packet)->m_dungeonToVillageLag);
     r = h->exec(0x4e8c);
     if (!r)
         return 0;
@@ -5046,40 +5074,40 @@ char CDBManager::InsertFrameLagStatistics(
         h->set_query(0x4e8d,
                      "inSert into %s(spec_id,occ_time,server_group,share_rate,win_fps,full_fps,full_win_fps,full_win_nosync_fps,frame1,time1,frame2,time2,frame3,time3,frame4,time4,frame5,time5,frame6,time6) values(%d,from_unixtime(%d),%hhd,%u,%hd,%hd,%hd,%hd,%d,%.3f,%d,%.3f,%d,%.3f,%d,%.3f,%d,%.3f,%d,%.3f)",
                      buf,
-                     v->m_specId,
-                     v->m_occTime,
-                     v->m_serverGroup,
-                     v->m_shareRate,
-                     v->m_kinds[kind].m_winFps,
-                     v->m_kinds[kind].m_fullFps,
-                     v->m_kinds[kind].m_fullWinFps,
-                     v->m_kinds[kind].m_fullWinNosyncFps,
-                     v->m_kinds[kind].m_frame1,
-                     v->m_kinds[kind].m_time1,
-                     v->m_kinds[kind].m_frame2,
-                     v->m_kinds[kind].m_time2,
-                     v->m_kinds[kind].m_frame3,
-                     v->m_kinds[kind].m_time3,
-                     v->m_kinds[kind].m_frame4,
-                     v->m_kinds[kind].m_time4,
-                     v->m_kinds[kind].m_frame5,
-                     v->m_kinds[kind].m_time5,
-                     v->m_kinds[kind].m_frame6,
-                     v->m_kinds[kind].m_time6);
+                     ((FrameLagWriteIndexView*)packet)->m_specId,
+                     ((FrameLagWriteIndexView*)packet)->m_occTime,
+                     ((FrameLagWriteIndexView*)packet)->m_serverGroup,
+                     ((FrameLagWriteIndexView*)packet)->m_shareRate,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_winFps,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_fullFps,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_fullWinFps,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_fullWinNosyncFps,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_frame1,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_time1,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_frame2,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_time2,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_frame3,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_time3,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_frame4,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_time4,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_frame5,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_time5,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_frame6,
+                     ((FrameLagWriteIndexView*)packet)->m_kinds[kind].m_time6);
         r = h->exec(0x4e8d);
         if (!r)
             return 0;
     }
     h->set_query(0x4e8e,
                  "select unique_id from monitoring_spec where spec_id = %d",
-                 v->m_specId);
+                 ((FrameLagWriteIndexView*)packet)->m_specId);
     r = h->exec(0x4e8e);
     if (!r)
         return 0;
     if (h->get_n_rows() != 0)
         return 1;
     Packet_Frame_Lag_Spec_Delete_Notify pkt;
-    pkt.m_specId = v->m_specId;
+    pkt.m_specId = ((FrameLagWriteIndexView*)packet)->m_specId;
     stats->SendToServer((char*)&pkt, pkt.packetSize);
     return 1;
 }
@@ -6838,13 +6866,18 @@ char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
         //   ORIG 的 `lea; add $0x10` 分组无法由 .cpp 层复现（GCC 总把常量折进索引）。
         h->set_query(0x4efc,
                      "upDate log_secret_shop set show_count=show_count+%d,show_charac_count=show_charac_count+%d,buy_count=buy_count+%d,price=price+%d where occ_date=cast(now() as date) and dungeon_idx=%d and npc_idx=%d",
-                     ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d1,
-                     ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d2,
-                     ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d3,
+                     // ✗ 已试并回退：`i[((RowsView*)packet)->m_rows]`（下标前置）与
+                     //   `(*view).m_rows[i]`（点号）**都与 `view->m_rows[i]` 生成同一棵树**
+                     //   （指令、ndiff 一字未变）⇒ ORIG 的「先 `mov -0x1c(%ebp),%edx`（i）
+                     //   后 `mov 0xc(%ebp),%ecx`（packet）」求值顺序不可由 .cpp 控制
+                     //   —— 剩余 20 ndiff 全部来自这一条（级别已 NEAR，长度 211=211）。
+                     ((SecretShopStatisticRowsView*)packet)->m_rows[i].m_d1,
+                     ((SecretShopStatisticRowsView*)packet)->m_rows[i].m_d2,
+                     ((SecretShopStatisticRowsView*)packet)->m_rows[i].m_d3,
                      // d4 例外：ORIG 该处为 `add $0x20,%eax; mov 0x2(%eax)`（= 数组下标形
                      //   `m_items[i].m_data[4]`：base 0x12 + i*0x14 + 0x10）⇒ 保持旧写法。
                      ((SecretShopStatisticView*)packet)->m_items[i].m_data[4],
-                     ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d0,
+                     ((SecretShopStatisticRowsView*)packet)->m_rows[i].m_d0,
                      ((SecretShopStatisticView*)packet)->m_shopIdx);
         if (!h->exec(0x4efc))
         {
@@ -6857,10 +6890,10 @@ char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
                 0x4efb,
                 "inSert into log_secret_shop(occ_date,npc_idx,dungeon_idx,show_count,show_charac_count,buy_count,price) values(cast(now() as date), %d, %d, %d, %d, %d, %d)",
                 ((SecretShopStatisticView*)packet)->m_shopIdx,
-                ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d0,
-                ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d1,
-                ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d2,
-                ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d3,
+                ((SecretShopStatisticRowsView*)packet)->m_rows[i].m_d0,
+                ((SecretShopStatisticRowsView*)packet)->m_rows[i].m_d1,
+                ((SecretShopStatisticRowsView*)packet)->m_rows[i].m_d2,
+                ((SecretShopStatisticRowsView*)packet)->m_rows[i].m_d3,
                 ((SecretShopStatisticView*)packet)->m_items[i].m_data[4]);
             if (!h->exec(0x4efb))
             {
