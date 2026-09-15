@@ -5284,7 +5284,7 @@ char CDBManager::QueryHWspecCreate(
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0035 | dbmw | 286/287 DIFF ndiff=16（W7：opt0 段 get_binary cast→具名直访已消 segs2→1；残余 behavior byte 物化需共享头 STGuildCargoLog.behavior uchar→char，全服务过热未改；char& 局部引用变体劣化已回退）| CDBManager::OnLoadGuildCargoHistory
+// [DNF-IDENTICAL] 2026-09-15 verified AE ndiff=0 286/286（原 DNF-DBM-DIFF-0035 已消除，机理 X：get_binary((char*)&opt0)→&opt0 具名直访；共享头 DNFFunctionLib.h 的 STGuildCargoLog.behavior unsigned char→char 直绑 get_byte(char&) 出 lea）| CDBManager::OnLoadGuildCargoHistory
 char CDBManager::OnLoadGuildCargoHistory(
     unsigned int guildId, Packet_Guild_Load_Guild_Cargo_History& reply)
 {
@@ -5311,7 +5311,7 @@ char CDBManager::OnLoadGuildCargoHistory(
         col = 0;
         if (!h->get_int(col++, *(int*)&reply.m_logs[j].time))
             return 0;
-        if (!h->get_byte(col++, (char&)reply.m_logs[j].behavior))
+        if (!h->get_byte(col++, reply.m_logs[j].behavior))
             return 0;
         if (!h->get_str(col++, reply.m_logs[j].name, 0x15))
             return 0;

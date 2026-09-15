@@ -492,7 +492,7 @@ void CGuildCargo::InsertHistory(ENUM_GUILD_CARGO_BEHAVIOR behavior, int slot, co
     STGuildCargoLog log;
     strncpy(log.name, name, 0x14);
     log.count = count;
-    log.behavior = (unsigned char)behavior;
+    log.behavior = behavior;
     log.param = param;
     // 权威定义（Game/Inven_Item.h）的 RandomOption 无 dword 视图（成员改由
     // m_fields[]/m_seed9/m_fielda/m_seedd 表达），故按 ORIG 0x080a0182 的读取口径

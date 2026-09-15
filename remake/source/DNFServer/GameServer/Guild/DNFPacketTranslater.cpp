@@ -4746,7 +4746,15 @@ void CPacketTranslater::OnGuildCargoHistory(PacketHeader* pkt)
         else
         {
             unsigned char grade = user->GetGuildMemDBInfo()->m_grade;
-            if (grade == 3 || grade == 1 || grade == 2)
+            // [2026-09-15 W7-GuildBig 机理 D] ORIG 三连 je 到 reply、deny 在前 fall-through：
+            //   写成 AND 反向（全不等⇒deny），else=reply
+            if (grade != 3 && grade != 1 && grade != 2)
+            {
+                DNF_LOG_SCOPE_LINE(0x1910,"./log/GuildCargo",
+                    "CPacketTranslater::OnGuildCargoHistory : Access Deny(%d,%d,%d)", pb->m_charNo,
+                    pb->m_guildKey, (unsigned int)grade);
+            }
+            else
             {
                 Packet_Guild_Cargo_History_Response reply;
                 reply.ma = user->GetIdByChannel();
@@ -4754,18 +4762,17 @@ void CPacketTranslater::OnGuildCargoHistory(PacketHeader* pkt)
                 guild->GetGuildCargo()->GetHistory(reply.m_log);
                 user->SendTcpGameserver(&reply);
             }
-            else
-            {
-                DNF_LOG_SCOPE_LINE(0x1910,"./log/GuildCargo",
-                    "CPacketTranslater::OnGuildCargoHistory : Access Deny(%d,%d,%d)", pb->m_charNo,
-                    pb->m_guildKey, (unsigned int)grade);
-            }
         }
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnGuildCargoHistory Exception Break", 0x191e, 0x1923);
 }
 
-// [P-GPT] R1 内联：ORIG 无这些重建期具名局部（guild）——内联后帧/槽与 ORIG 对齐
+// [2026-09-15 W7-GuildBig 机理 K/N/D/T] ORIG 反汇编铁证重构：
+//   槽：pb -0x34(try外) · reply -0x99(ctor 在 m_pclApp 检查后) · um -0x30 · user -0x2c · guild -0x28
+//   · guild 只 FindGuild 一次（Agit/LoadComplete/CheckInsert 复用）
+//   · IsExistGuildAgit()==0 ⇒ b5 早退；IsLoadComplete()==0 ⇒ c3 早退（极性与旧写法相反）
+//   · grade = GetGuildMemDBInfo()->m_grade（movzbl 0x15(%eax)）
+//   · grade 三连 je 到正常路径，deny(0x24) 在前 fall-through
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0078 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildCargoCheckPushItem | 详见 function_reports/guild/_ZN17CPacketTranslater25OnGuildCargoCheckPushItemEP12PacketHeader.md
 void CPacketTranslater::OnGuildCargoCheckPushItem(PacketHeader* pkt)
 {
@@ -4779,8 +4786,7 @@ void CPacketTranslater::OnGuildCargoCheckPushItem(PacketHeader* pkt)
             return;
         }
         Packet_Channel_Check_Guild_Cargo_Push_Item reply;
-        unsigned int charNo = pb->m_charNo;
-        reply.me = charNo;
+        reply.me = pb->m_charNo;
         reply.m13 = pb->m_slot;
         reply.m17 = pb->m_itemId;
         reply.m1b = pb->m_count;
@@ -4788,15 +4794,16 @@ void CPacketTranslater::OnGuildCargoCheckPushItem(PacketHeader* pkt)
         reply.m1f = pb->m_maxStack;
         reply.m25 = pb->m_invenSlot;
         reply.m24 = pb->m_invenType;
-        unsigned int guildKey = pb->m_guildKey;
-        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
+        CUserManager* um = &m_pclApp->m_userManager;
+        CUser* user = um->FindUser_CharNo(pb->m_charNo);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0x194a,"./log/GuildCargo",
                 "CPacketTranslater::OnGuildCargoCheckPushItem : 0 == pclUser");
             return;
         }
-        if (((&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
+        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey);
+        if (guild == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1952,"./log/GuildCargo",
                 "CPacketTranslater::OnGuildCargoCheckPushItem : 0 == pclGuild");
@@ -4806,47 +4813,48 @@ void CPacketTranslater::OnGuildCargoCheckPushItem(PacketHeader* pkt)
         if ((&m_pclApp->m_guildManager)->IsCargoLock())
         {
             DNF_LOG_SCOPE_LINE(0x195c,"./log/GuildCargo",
-                "CPacketTranslater::OnGuildCargoCheckPushItem GUILD CARGO LOCKED!(%d,%d)", charNo,
-                guildKey);
+                "CPacketTranslater::OnGuildCargoCheckPushItem GUILD CARGO LOCKED!(%d,%d)",
+                pb->m_charNo, pb->m_guildKey);
             reply.m12 = 0xcc;
             user->SendTcpGameserver(&reply);
             return;
         }
-        if (((&m_pclApp->m_guildManager)->FindGuild(guildKey))->IsExistGuildAgit() != 1)
+        if (guild->IsExistGuildAgit() == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1967,"./log/GuildCargo",
-                "CPacketTranslater::OnGuildCargoPushItem : (%d,%d) No GuildAgit", charNo, guildKey);
+                "CPacketTranslater::OnGuildCargoPushItem : (%d,%d) No GuildAgit",
+                pb->m_charNo, pb->m_guildKey);
             reply.m12 = 0xb5;
             user->SendTcpGameserver(&reply);
             return;
         }
-        if (!((&m_pclApp->m_guildManager)->FindGuild(guildKey))->GetGuildCargo()->IsLoadComplete())
+        if (guild->GetGuildCargo()->IsLoadComplete() == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1971,"./log/GuildCargo",
-                "CPacketTranslater::OnGuildCargoPushItem : Guild(%d,%d) Not Loaded", charNo,
-                guildKey);
+                "CPacketTranslater::OnGuildCargoPushItem : Guild(%d,%d) Not Loaded",
+                pb->m_charNo, pb->m_guildKey);
             reply.m12 = 0xc3;
             user->SendTcpGameserver(&reply);
             return;
         }
         unsigned char grade = user->GetGuildMemDBInfo()->m_grade;
-        if (grade == 3 || grade == 1 || grade == 2)
+        if (grade != 3 && grade != 1 && grade != 2)
         {
-            int result = ((&m_pclApp->m_guildManager)->FindGuild(guildKey))->GetGuildCargo()->CheckInsertItem(
+            DNF_LOG_SCOPE_LINE(0x197f,"./log/GuildCargo",
+                "CPacketTranslater::OnGuildCargoCheckPushItem : Access Deny(%d,%d,%d)",
+                pb->m_charNo, pb->m_guildKey, (unsigned int)grade);
+            reply.m12 = 0x24;
+            user->SendTcpGameserver(&reply);
+        }
+        else
+        {
+            int result = guild->GetGuildCargo()->CheckInsertItem(
                 pb->m_itemId,
                 pb->m_count,
                 pb->m_slot,
                 pb->m_stackable,
                 pb->m_maxStack);
             reply.m12 = (unsigned char)result;
-            user->SendTcpGameserver(&reply);
-        }
-        else
-        {
-            DNF_LOG_SCOPE_LINE(0x197f,"./log/GuildCargo",
-                "CPacketTranslater::OnGuildCargoCheckPushItem : Access Deny(%d,%d,%d)", charNo,
-                guildKey, (unsigned int)grade);
-            reply.m12 = 0x24;
             user->SendTcpGameserver(&reply);
         }
     }
@@ -4909,7 +4917,7 @@ void CPacketTranslater::OnGuildCargoPushItem(PacketHeader* pkt)
             user->SendTcpGameserver((PacketHeader*)&resp);
             return;
         }
-        if (guild->IsExistGuildAgit() != 1)
+        if (guild->IsExistGuildAgit() == 0)
         {
             DNF_LOG_SCOPE_LINE(0x19ed,"./log/GuildCargo", "CPacketTranslater::OnGuildCargoPushItem : (%d,%d) No GuildAgit",
                 pb->m_charNo, pb->m_guildKey);
@@ -4917,7 +4925,7 @@ void CPacketTranslater::OnGuildCargoPushItem(PacketHeader* pkt)
             user->SendTcpGameserver((PacketHeader*)&resp);
             return;
         }
-        if (!guild->GetGuildCargo()->IsLoadComplete())
+        if (guild->GetGuildCargo()->IsLoadComplete() == 0)
         {
             DNF_LOG_SCOPE_LINE(0x19f7,"./log/GuildCargo", "CPacketTranslater::OnGuildCargoPushItem : Guild(%d,%d) Not Loaded",
                 pb->m_charNo, pb->m_guildKey);

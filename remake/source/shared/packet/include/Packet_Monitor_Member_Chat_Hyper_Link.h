@@ -8,18 +8,18 @@
 #include "PacketHeader.h"
 #include <string.h>
 
+// [W7-MonitorBig · 机理 X] 超链接条目权威类型（0x68）：m_items 必须为真数组，
+// ARRAY_REF decay 生成 `lea`（与 ORIG 一致）；标量 char[]+cast 会生成 add+地址物化。
+struct hyperlink_item_info
+{
+    char m_payload[0x68];
+};
+
 class Packet_Monitor_Member_Chat_Hyper_Link : public PacketHeader {
 public:
     unsigned int m_memberId;        // +0xa  FindUser_CharNo / FindMember
     unsigned char m_itemCount;      // +0xe
-#ifdef MONITOR_HYPERLINK_REAL_TYPE
-    // [W7-MonitorBig · 机理 X] 仅 monitor 消费 TU：元素为真 hyperlink_item_info（0x68），
-    // 实参 decay 生成 `lea 0xf(%eax)`（与 ORIG 一致）；其余服务走默认 char[3][0x68]，
-    // 预处理结果与原先一致，目标码不变。
     hyperlink_item_info m_items[3]; // +0xf
-#else
-    char m_items[3][0x68];          // +0xf
-#endif
     unsigned char m_msgLen;         // +0x147
     char m_msg[0x100];              // +0x148
     Packet_Monitor_Member_Chat_Hyper_Link() : PacketHeader(0x271a, 0x248),

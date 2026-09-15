@@ -285,7 +285,8 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from,
             pkt.m_itemCount = msg.m_linkCount13b;
             for (int i = 0; i < (unsigned char)msg.m_linkCount13b; i++)
             {
-                memcpy(pkt.m_items[i], msg.m_links13c[i], 0x68);
+                // [W7-MonitorBig · 机理 X] m_items 为真 hyperlink_item_info[3] ⇒ 取址
+                memcpy(&pkt.m_items[i], msg.m_links13c[i], 0x68);
             }
             pkt.m_msgLen = (unsigned char)msg.m_textLen14;
             memcpy(pkt.m_msg, msg.m_text18, msg.m_textLen14);

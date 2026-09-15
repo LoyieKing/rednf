@@ -18,12 +18,6 @@
 #include <new>
 #include <string>
 
-// [W7-MonitorBig · 机理 X] 仅本 TU：先带入 stItemLimitEditionItemInfo_t 完整定义
-// （ItemLimitEditionManager.h），再切换 Packet_Item_Limit_Edition_Load_Data_Rpy::m_items
-// 为真 st 数组 ⇒ registItem 实参经 ARRAY_REF decay 生成 `lea 0xf(%eax)`（与 ORIG 一致）。
-// 其余 TU 走 DNFPacketTranslater.h 默认 Rec 分支，目标码不变。
-#define ILE_RPY_REAL_ITEMS 1
-#include "ItemLimitEditionManager.h"
 #include "DNFPacketTranslater.h"
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
@@ -80,7 +74,6 @@
 #include "Packet_Monitor_Notice_Charac_Live_On_Ten_Min.h"
 #include "Packet_Monitor_Notify_New_Mail.h"
 #include "Packet_ChannelType.h"
-#define MONITOR_HYPERLINK_REAL_TYPE
 #include "Packet_Monitor_Member_Chat_Hyper_Link.h"
 #include "Packet_Web_Prohibit_User_Connect.h"
 #include "Packet_Game_Monitor_GM_Village_Attacked.h"

@@ -13,7 +13,7 @@ struct STGuildCargoLog {
     ~STGuildCargoLog();
 #endif
     int time;                 // +0
-    unsigned char behavior;   // +4
+    char behavior;            // +4（ORIG 以 signed char/char 建模：dbmw blob/get_byte(char&) 直绑出 lea；auction 侧独立结构本为 char m_cBehavior）
     char name[0x15];          // +5
     int count;                // +0x1a
     int param;                // +0x1e

@@ -15,6 +15,7 @@
 #include "Arad_BirthdayEvent.h"
 #include "BlackUser.h"
 #include "LoginLogoutStatistics.h"
+#include "ItemLimitEditionManager.h"  // [W7 X] stItemLimitEditionItemInfo_t 完整定义（真数组 m_items）
 
 class BuddyList;
 struct CACHE_CHARACTER_TYPE;
@@ -413,22 +414,11 @@ public:
 class Packet_Item_Limit_Edition_Load_Data_Rpy : public PacketHeader
 {
 public:
-#ifdef ILE_RPY_REAL_ITEMS
-    // [W7-MonitorBig · 机理 X] 仅消费 TU（DNFPacketTranslater.cpp）：元素为真 st 数组，
-    // registItem 实参经 ARRAY_REF decay ⇒ `lea 0xf(%eax)` 融合（与 ORIG 一致）；
-    // 其余 TU 走默认 Rec 分支，目标码不变。
+    // [W7-MonitorBig · 机理 X] m_items 为真 st 数组（0x48 同布局）：
+    // registItem 实参经 ARRAY_REF decay ⇒ `lea 0xf(%eax)` 融合（与 ORIG 一致）。
     signed char m_fullLoad;   // +10
     unsigned int m_count;     // +11
     stItemLimitEditionItemInfo_t m_items[28];  // +15，步长 0x48
-#else
-    signed char m_fullLoad;   // +10
-    unsigned int m_count;     // +11
-    struct __attribute__((packed)) Rec
-    {
-        unsigned int m_ipgno;  // +0
-        char m_rest[0x44];     // +4 .. 0x47
-    } m_items[28];             // +15，步长 0x48
-#endif
 } __attribute__((packed));
 
 class Packet_Item_Limit_Edition_Update : public PacketHeader
@@ -561,11 +551,6 @@ public:
     unsigned char m_expLevel;       // +51
     unsigned int m_uniqCharNo2;     // +52
 } __attribute__((packed));
-
-struct hyperlink_item_info
-{
-    char m_payload[0x68];
-};
 
 class Packet_Monitor_Member_Chat_ToUser_Hyper_Link : public PacketHeader
 {
