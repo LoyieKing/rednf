@@ -5075,18 +5075,24 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
         sender->SendToGameserver((char*)&reply, 0x170);
         return;
     }
-    bool blocked = false;
     if (receiver->IsBlackUser(sender->GetUniqCharNo()) != 0 &&
         m_pclApp->isGM_regFromChannel(sender->GetUniqCharNo()) != 1)
     {
-        blocked = true;
+        reply.m_idByChannel = sender->GetIdByChannel();
+        reply.m_uniqCharNo = sender->GetUniqCharNo();
+        reply.m_type = 2;
+        reply.m_itemCount = chat->m_itemCount;
+        for (int i = 0; i < (int)(unsigned int)(unsigned char)chat->m_itemCount; i++)
+        {
+            memcpy(reply.m_items[i], chat->m_items[i], 0x68);
+        }
+        memcpy(reply.m_name, chat->buddy_n_user_id_what, 0x1d);
+        reply.packetSize = 0x170;
+        sender->SendToGameserver((char*)&reply, 0x170);
+        return;
     }
-    if (!blocked && sender->IsBlackUser(receiver->GetUniqCharNo()) != 0 &&
+    if (sender->IsBlackUser(receiver->GetUniqCharNo()) != 0 &&
         m_pclApp->isGM_regFromChannel(receiver->GetUniqCharNo()) != 1)
-    {
-        blocked = true;
-    }
-    if (blocked)
     {
         reply.m_idByChannel = sender->GetIdByChannel();
         reply.m_uniqCharNo = sender->GetUniqCharNo();
