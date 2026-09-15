@@ -1705,6 +1705,11 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
                 count = 0;
             }
         }
+        // [2026-09-15 W5-GuildRest W2 形式①「负条件包裹」实测 ✗ 已回退]
+        //   本件尾部我方 3 条 `jmp <epilogue>` / ORIG 1 条（jmpD=−2）。试 `if (count == 0) { return; }`
+        //   + 平铺尾块 ⇒ **jmpD=−3、ndiff 28→29、lenD −4→−5（三项同时劣化）** ⇒ 回退。
+        //   保留原 `if (count != 0) { … }` 形（尾部 3 条 jmp 中的 2 条来自**嵌套 BIND_EXPR 出口**，
+        //   非 return 可控 ⇒ 与 Main「形式②」的「函数尾 return + 分支尾 return 重复对」前提不符）。
         if (count != 0)
         {
             pkt2.m_count = (unsigned char)count;

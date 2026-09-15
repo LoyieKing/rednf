@@ -14,6 +14,15 @@
 #include "Packet_Frame_Lag_Statistic_Result_Load_Spec.h"
 #include "Packet_Frame_Lag_Statistic_Result_Reload_Spec.h"
 
+// [2026-09-15 W5 机理 T-march / per-TU 目标特性] 本 TU 的 ORIG 是**按无 CMOV 目标**编译的：
+//   全 ELF 指令统计 ⇒ ORIG `fucomip=0, fucompp=1` 而我方 `fucomip=1, fucompp=0`（同一处，
+//   即 is_valid_statistic_packet 的 `m_f == 0.0` 比较）。探针（同 c6446r 工具链、19 种源码
+//   写法 × 4 后端全部生成 fucomip）确认差异**不出自源码**，而出自 `-march`：
+//     -march=i386/i486/i586 ⇒ `fucompp; fnstsw %ax; sahf`（= ORIG ✓）
+//     -march=i686（默认）    ⇒ `fucomip %st(1),%st; fstp %st(0)`（= 我方）
+//   因 `fucomip/fucomi` 需要 CMOV；本 pragma 等价 per-file `-march=i386`，只影响本 TU。
+#pragma GCC target("arch=i386")
+
 struct PairView { int m_key; int m_f0; char m_rest[0x1c]; };
 struct PktView { char m_pad[0xa]; int m_a; } __attribute__((packed));
 
