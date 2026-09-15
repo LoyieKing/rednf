@@ -852,7 +852,8 @@ public:
     unsigned int m_guildId;  // +0xa
     unsigned int m_mid;      // +0xe（请求 +0x13 回显）
     unsigned int m_characNo; // +0x12
-    unsigned int m_result;   // +0x16（GuildJoin out result；ORIG ctor size 0x1a ⇒ 对象尺寸 0x1a，无尾字段）
+    unsigned int m_result;   // +0x16（GuildJoin out result；ORIG ctor size 0x1a）
+    unsigned short m_tail;   // +0x1a（ORIG 对象占位 0x1c：决定 OnGuildJoin 中 join 的栈起点 -0x9c；2026-09-15 删除实验 ndiff 15→20 ✗ 已回退）
 } __attribute__((packed));
 
 class Packet_Reply_Load_Tower_Full_Rank : public PacketHeader

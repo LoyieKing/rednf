@@ -1149,6 +1149,133 @@ monitor **68** / guild **67** / dbmw **55** —— 经本波证明**源码级可
 3. **跨服务同源第三例攻坚**（`SendPacket` 三服务同形 ⇒ 一次 3 件 ✓）
 4. 对已登记「不可调」的件，在**新机理出现时重估**（本波即有此例：多条旧结论被新机理推翻 ✓）
 
+### 5.20 2026-09-15 第十四轮（多智能体波次 3–6）：机理库扩至 40+ 条 · 六条静默错误纪律 · per-TU `-march` 轴
+
+#### A. 水位（本会话全程）
+
+| 服务 | 会话起点 | **当前** | 目标 ≤9 |
+|---|---|---|---|
+| **statics** | 1106/9 | **1145/6** | **✓** |
+| **auction** | 1210/0 | **1210/0** | **✓** |
+| **point** | 1210/0 | **1210/0** | **✓** |
+| monitor | 2035/69 | **2047/57** | ✗ |
+| guild | 1857/68 | **1883/47** | ✗ |
+| dbmw | 1365/59 | **1377/47** | ✗ |
+
+**起点 311 → 157（翻正 154 件，−50%）** · 达标 3.5/6 · 过期标记 463 → 222
+
+#### B. 方法：多智能体波次（每波 7 代理 · 按 TU 分区互斥）
+
+| 波次 | 翻正 | 要点 |
+|---|---|---|
+| 1（NEAR 攻坚） | +6 | 首次证明「剩余件并非全部 codegen-only」 |
+| 2（扩散） | +4 | 三最大 TU（104 件） |
+| 3 | +11 | 五机理全面应用 |
+| 4 | +7 | P/Q/R/S/T/U/V 七条新机理 |
+| 5 | +11 | **W2（尾部 jmp = 出口数）推翻「不可调族」** |
+| 6 | +3 | `-march` 轴 + 纪律体系成熟 |
+
+**每波流程**：`canon` 归一化（剥 no-op jmp + 跳转目标相对化）→ `segs/jmpD/lenD` 排行 → 优先 `segs ≤ 3` → 按「症状查机理表」匹配 → 只改一处 → 逐条验证 → 六服务核账 → 劣化即回退。
+
+#### C. 机理库（40+ 条，摘要按「症状」索引）
+
+| 症状 | 机理 | 修法 |
+|---|---|---|
+| 两组同尺寸栈块**对调** | A 占位↔具名临时代偿对 | 删占位 **+** 内联具名临时（缺一不可） |
+| **单一寄存器选择**差（结构同） | B `register` / `register T x __asm__("reg")` | **纯 `register` 常为正解**；`__asm__` 绑定在 `-O0` 下多劣化 ✗ |
+| 紧邻两条**字段赋值** LHS/RHS 序差 | C 字段 signedness | 改字段类型（`.cpp` cast 法劣化 ⇒ **只能改头**） |
+| 调用点有 `mov`/`add` 实参准备 | G 局部/字段 signedness | 改类型消除隐式转换 |
+| **唯一 `je` 目标不同**，ORIG 的 `je`/`jne` 同入口 | D 误加 `else`（**语义级**） | 删多余 `else`（保留块作用域） |
+| **ARRAY_REF base/index 序**，无 `add` 生化物 | E 空类→真实字段 / E′ `char[]` 占位→真实标量 | 补真实字段 + .cpp 去 cast |
+| 我方**多** ctor-throw cleanup | EH-1（`throw()`） | 仅「头内 inline/弱成员 + 可判定 nothrow」有效 |
+| 尾部 `jmp`+`nop` 条数差 | **W2 尾部 jmp 条数 = 函数出口（return）条数** | ① 负条件包裹（最优）② 删尾部 return（出口对）③ `then` 尾补 return（`else` 尾无效） |
+| `c++; if (0x5f < c)` → 直接 `jg` | W-A 自增入条件 ⇒ 比较被物化 | `if (++c > 0x5f)` |
+| 比较实参序 | W-B | `end() != it`（非 `it != end()`） |
+| `((PackedView*)getter())->f` 多转换临时 | W-C 视图 cast 递延 | 改具名字段直访 |
+| 位域读取（掩码+`movzbl`） | W-D 本地 packed 位域视图 | `uchar a:5; uchar b:3;` |
+| `((unsigned char*)p)[0x13]` | W-E 字节索引形态 | 保持该写法 |
+| 调用返回后多 `mov %eax,%edx` | **P** 返回类型不匹配 | 改**返回类型** + 去调用点 cast；**反向**：比较处去掉 `(int)` cast 可「加回」中转 |
+| 循环入口缺 `jmp <cond>` | Q `do-while`→`while` | 改 `while`（**反向 while→do-while 三处均劣化** ✗） |
+| store 前后读写同一槽 | R 复合赋值 | `x = x + y` → `x += y` |
+| 数组取址融合 `lea` | S 数组视图（匿名 union + `char[]`） | 去 .cpp 的 cast |
+| 函数开头缺 `movl $0x0,-0xN(%ebp)` | T 零初始化 | 写 `T* p = 0;` |
+| **不明槽**（写后不读） | **X** | 由已知成员写反推对象基址 ⇒ 槽−基址=内偏移 ⇒ 匹配成员则**是成员赋值**；`disp 直落`⇒标量成员，`lea+间接`⇒数组 decay |
+| 我方**多写符号**（零调用、无数据引用） | F 死符号 | 删除 ⇒ 该 TU 的 `_GLOBAL__I_` 改名对齐（**只提 identical，不降非 identical** ✗） |
+| ORIG 每 TU 都有 `_GLOBAL__I_` 桩 | F′ | .cpp 补 `#include <iostream>`（**statics 实测 identical +36** ✓ 同样不降非 identical ✗） |
+
+#### D. **per-TU `-march` 轴（本轮新发现 ✓ 唯一命中 statics）**
+
+**发现**：ORIG 部分 TU 按「**无 CMOV**」目标编译（`fucomip` 需 CMOV ⇒ 老式 `fucompp;fnstsw;sahf` ✓）
+
+**三分法闸门（按符号口径 ✓ 全 ELF 口径不可用）**：
+```bash
+for s in <残差符号表>; do objdump -d --disassemble="$s" <ORIG ELF> | grep -c "cmov\|sahf\|fucom"; done
+```
+| 情形 | 判定 |
+|---|---|
+| 两侧皆 0 | 跳过 ✗（monitor 35 件 · guild 16 件） |
+| **ORIG 0 且我方 > 0 且落在本服务源码符号** | **强靶点** ✓ |
+| ORIG > 我方 | `-march` 无法解释 ✗ |
+| 两侧皆 > 0 但全在第三方库 | 跳过 ✗（dbmw：我方 590 条全在 yaSSL/mysqlclient/zlib/libstdc++ ✓） |
+
+**三档 pragma 规程**：
+① 只写 `arch=`（如 `#pragma GCC target("arch=i386")`）· **禁写 `tune=`**（实测 `tune=i386` ⇒ statics 1145/6 → **1131/20** 掉 14 件 ✗）
+② **只试 `i386` 一档**（最保守档 ⇒ 单调性 ⇒ 无变化则 i486/i586/i686 亦无变化 ✓）
+③ 核**该 TU 全部符号** + 六服务 ⇒ 劣化即回退 ✓
+
+**落地**：`Statics/FrameLagCollector.cpp` ✓ ⇒ `is_valid_statistic_packet` DIFF→**NEAR**（长度 123/123 完全一致 ✓ 浮点比较差异消除 ✓）· 该 TU 25 符号无劣化 ✓ · 六服务零劣化 ✓
+
+#### E. **六条静默错误纪律（本轮从 6 类实测错误中提炼 ✓ 全部有实证）**
+
+| # | 纪律 | 实证 |
+|---|---|---|
+| ⑥ | **新工具必做阳性对照**（known-DIFF 报 0 ⇒ 工具失效、弃用） | `gp_canon.py` 的 `SVC='guild'` 硬编码 ⇒ 跨服务**静默全 0**（12 件全 0 假结果 ✓） |
+| ⑦ | **共享头改/回退必 `rm` 全部依赖 TU 的 `.o`** 再全量重建 | ninja 依赖跟踪不完整 ⇒ 只重编部分 TU ⇒ `.o` 混合态 ⇒ monitor 计数**假崩 2046→1126** ✓ 修正后 2047 ✓ |
+| ⑧ | **读数异常好/坏到不合理 ⇒ 先对照 md5/阳性样本** | 两条假结果均属此类 ✓ |
+| ⑨ | **`/tmp` 中间文件带泳道前缀 + 扫描前做符号存在性校验** | `/tmp/gp_pt_list.txt` 被其它泳道覆盖为 dbmw 符号 ⇒ guild ELF 查之全 MISS ⇒ `segs=0` 假结果 ✓ |
+| ⑩ | **改共享头前必跑「按名访问」核查** | `DNFFunctionLib.h` 的 `STGuildCargoLog` 因 `GuildCargo.cpp:532-535` 按名访问 ⇒ 改之**编译失败** ⇒ 约束 1 正确挡下 ✓ |
+| ⑪ | **`#pragma GCC target` 只写 `arch=`，禁 `tune=`** | `tune=i386` ⇒ statics 掉 14 件 ✗ |
+| ⑫ | **`-march` 闸门用「按残差符号」口径** | 全 ELF 口径 statics 14 / monitor 31 / guild 31 / dbmw 464 ⇒ 绝大多数来自库内联 ⇒ 会误判有靶点 ✓ |
+| — | **派单数字须注明口径名**（cdiff/segs/jmpD/lenD） | 曾有 jmpD/lenD 串列导致误派 ✓ |
+
+#### F. 新增「不可调」族（统一登记，含锚点）
+
+| 族 | 说明 | 锚点 |
+|---|---|---|
+| **TU 级 ODR 冲突** | 同一字段在不同 TU 视角下 signedness/可见性不同 ⇒ **与源码写法无关**（探针证实生成码相同） | `m_level`（guild）· `stTowerRank_t` 析构（dbmw）· `GuildLevelUp` 的 flags |
+| **求值序 / 寄存器生命周期** | 目标寄存器跨调用保活、常量经 callee-saved 寄存器 | `OnRelayServerUserCheck` · `OnHeartBeat` · `OnNoticeCharLiveOnTenMin` |
+| **常量拆分 / 常量归属** | 同一地址的不同立即数拆分；加法树常量归属 | `AddLagStatistics` 残余 · statics 5 件 · dbmw `QuerySubGuildMaster` |
+| **ARRAY_REF 地址编码** | `shl $3`+disp vs `(,%eax,8)` | `OnServerGroupReward` |
+| **栈槽分配顺序** | 声明位置不线性决定；`assign_stack_temp` 复用不可由源码表达 | `CApplication::Load` · `addDB` · `queryTowerFullRank` |
+| **EH landing / 块布局** | landing pad 物理位置、`__cxa_end_catch` 邻域差异、catch 链尾 no-op jmp | `EndEffectTask` · `parsing` · `OnRegisterEventItem` |
+| **GCC 代码共享/块布局** | `std::string` 临时析构内联 vs 共享块 | `OnLogout`（guild） |
+| **变参保活** | `sprintf` 变参 ⇒ 常量经寄存器中转 | guild 多件 |
+| **i386 后端 add/lea alternative** | 需 `op0==op1==目标` | `SetSubGuildMaster` · `ReplyGuildMembersToWeb` |
+| **结构性冲突（不可兼得）** | 类大小 0x248 ↔ `m_i[6][7]` 二维索引（42 元素）；`items` 常量拆分 ↔ `sub` 区零 cast（同址重叠） | statics `init` · `is_valid` · `acc` |
+
+#### G. 工具集（本轮扩展）
+
+| 工具 | 用途 |
+|---|---|
+| `/tmp/gp_canon.py` | canon 归一化（剥 no-op jmp + 目标相对化 + 强归一化）⚠ **SVC 硬编码，跨服务须改** |
+| `/tmp/gp_stats.py` | `cdiff/segs/jmpD/lenD` 排行（主力靶点筛选 ✓） |
+| `/tmp/gp_tailjmp.py` · `/tmp/gp_scan_other.py` | 尾部 jmp / 批量符号扫描 |
+| **`/tmp/W5s_merge.py`** | 在 canon **之前**合并 `add $I,%R` + 紧邻位移（暴露真差异 ✓ 已加 per-register 写失效 ✓） |
+| `/tmp/W5-canon.py` · `/tmp/w5_canon.py` · `/tmp/W5-dbmw-canon.py` | 各泳道 SVC 绑定副本 ✓ |
+| `/tmp/w5_jmpd.py` · `/tmp/w5_pick.py` | W2 出口数扫描 / `segs×jmpD` 排行 |
+| **`local://mechanisms.md`** | 机理速查表（症状索引 + 排除清单 + 范式件 ✓ 119 行） |
+
+#### H. 缺口与后续
+
+monitor **57** / guild **47** / dbmw **47** —— 剩余 151 件经 6 波攻坚后**命中率递减**（波次翻正 11 → 11 → 3 ✓），残余家族已高度集中于上表 F 的**结构性/编译器内部族** ✓
+
+**后续可行方向**：
+1. **机理 X/W-C 在大件上的应用**（`segs 4~40` 段尚未系统过一遍 ✓）
+2. **共享头解禁后的 P/S/X 应用**（已解禁 ✓ 已兑现 2 例 ⇒ `DeleteItem` · `OnPvPChannelUserCount` ✓）
+3. **F/F′ 保真度批量清理**（不降 non-identical ✗ 但提升 identical ✓ statics 已 +36 ✓）
+4. 若目标需要 `≤9`，需**新机理或 ORIG 原始构建信息** ✓
+
+
 ## 6. 复现
 
 ```bash

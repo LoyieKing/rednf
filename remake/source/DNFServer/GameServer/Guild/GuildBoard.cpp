@@ -227,9 +227,9 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0xa5,"./log/GuildBoard", "SEND SUCCESS - CODE TYPE:%u, GUILD:%u, CHARAC:%u, COUNT:%u",
             c, a, b, total, 10);
     }
-    Packet_Guild_Reply_Guild_Board replyR;
     if (remainder != 0)
     {
+        Packet_Guild_Reply_Guild_Board replyR;
         replyR.m_c = (unsigned short)c;
         replyR.m_f = user->GetIdByChannel();
         replyR.m_13 = user->GetUniqCharNo();
