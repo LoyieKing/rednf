@@ -329,8 +329,8 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                         memcpy(&out->m_channelId, &login->m_channelId, 0x29);
                     }
                     CUserManager* userMgr = &m_pclApp->m_userManager;
-                    CUser* user = userMgr->FindUser(login->m_dbid);
-                    if (user == 0)
+                    CUser* user;
+                    if ((user = userMgr->FindUser(login->m_dbid)) == 0)
                     {
                         if (userMgr->FindProhibitUser(login->m_dbid) == 0)
                         {
@@ -452,8 +452,8 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
         {
             ((CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics())->CountNumOfLoginout((ENUM_LOGIN_LOGOUT)6);
         }
-        CUser* user = (&m_pclApp->m_userManager)->FindUser(logout->m_dbid);
-        if (user == 0)
+        CUser* user;
+        if ((user = (&m_pclApp->m_userManager)->FindUser(logout->m_dbid)) == 0)
         {
             char* dbid = NumberToString(logout->m_dbid, 0);
             DNF_LOG_SCOPE_LINE(0x22d,"./log/User", "LOGOUT ERR : User DB ID(%s), F.O.C(%d), Ch(%d)", dbid,
@@ -615,8 +615,8 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
                 ST_MonitorReplyUserInfo* entry = &reply->m_items[i];
                 if (entry->m_dbid != 0)
                 {
-                    CUser* user = userMgr->FindUser(entry->m_dbid);
-                    if (user == 0)
+                    CUser* user;
+                    if ((user = userMgr->FindUser(entry->m_dbid)) == 0)
                     {
                         user = userMgr->CreateUser(
                             entry->m_dbid, entry->m_charNo,
@@ -741,8 +741,8 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
         {
             Packet_Monitor_Char_Info* info = (Packet_Monitor_Char_Info*)pkt;
             CUserManager* userMgr = &m_pclApp->m_userManager;
-            CUser* user = userMgr->FindUser(info->m_dbid);
-            if (user == 0)
+            CUser* user;
+            if ((user = userMgr->FindUser(info->m_dbid)) == 0)
             {
                 char* dbid = NumberToString(info->m_dbid, 0);
                 DNF_LOG_SCOPE_LINE(0x457,"./log/User",
@@ -1452,8 +1452,8 @@ void CPacketTranslater::OnMemberSecede(PacketHeader* pkt)
         CUserManager* userMgr = &m_pclApp->m_userManager;
         CMemberManager* memberMgr = &m_pclApp->m_memberManager;
         unsigned int secederCharNo = secede->m_uniqCharNo;
-        CUser* seceder = userMgr->FindUser_CharNo(secederCharNo);
-        if (seceder != 0)
+        CUser* seceder;
+        if ((seceder = userMgr->FindUser_CharNo(secederCharNo)) != 0)
         {
             CMember* member = memberMgr->FindMember(secederCharNo);
             if (member == 0)

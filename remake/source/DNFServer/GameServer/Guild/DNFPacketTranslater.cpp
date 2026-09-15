@@ -1171,8 +1171,8 @@ void CPacketTranslater::OnSetGuildMemberGradeFromWeb(PacketHeader* pkt)
         guild->SendGuildInfoToMembers(false);
     }
     guild->ChangeUnconnectedGuildMemberGrade(targetCharNo, (int)(char)newGrade);
-    CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(targetCharNo);
-    if (user != 0)
+    CUser* user;
+    if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(targetCharNo)) != 0)
     {
         user->ChangeGuildMemberGrade(newGrade);
         Packet_Monitor_Notify_GuildMemberGrade notify;
@@ -2237,8 +2237,8 @@ void CPacketTranslater::OnRequestGuildSecede(PacketHeader* pkt)
     }
     resp.m_requester = requesterCharNo;
     resp.m_channel = requester->GetIdByChannel();
-    CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
-    if (guild != 0)
+    CGuild* guild;
+    if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) != 0)
     {
         if (guild->IsSetGuildDBFlag(4) != 1)
         {
@@ -2519,8 +2519,8 @@ void CPacketTranslater::OnDBReplyGuildMasterDelegate(PacketHeader* pkt)
             requesterCharNo);
         return;
     }
-    CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
-    if (guild == 0)
+    CGuild* guild;
+    if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
     {
         DNF_LOG_SCOPE_LINE(0xc89,"./log/GuildModify",
             "CPacketTranslater::OnDBReplyGuildMasterDelegate : 0 == pclGuild, Guild Key = %d",
