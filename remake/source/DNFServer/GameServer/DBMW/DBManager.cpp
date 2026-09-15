@@ -40,6 +40,15 @@ struct UpgradeSeparateBits
     unsigned char b2 : 2;
 };
 
+// Packet_DB_Insert_Guild_Cargo_History / DnfItemInfo::m_field5（+0x36）
+// 为位域字节：低 5 bit upgrade、高 3 bit seal_cnt。
+struct ItemField5BitsView
+{
+    char h[0x36];
+    unsigned char upgrade : 5;   // +0x36 低 5 bit
+    unsigned char seal_cnt : 3;  // +0x36 高 3 bit
+} __attribute__((packed));
+
 struct GuildAbilityView
 {
     char h[0x1c];
@@ -115,6 +124,14 @@ struct FatigueBatteryEntry
     int m_fieldA;             // +0
     int m_fieldE;             // +4
 };
+
+// STGuildCargoLog::opt0..opt3（+0x22..+0x2f，共 0xe 字节）的字节数组视图：
+// ORIG 以数组 decay 形态传给 get_binary（取址走 lea，而非标量取址的地址物化）。
+struct GuildCargoLogOptView
+{
+    char h[0x22];
+    char m_opt[0xe];          // +0x22（opt0|opt1|opt2|opt3 字节视图）
+} __attribute__((packed));
 
 struct FatigueBatteryView
 {
@@ -707,11 +724,8 @@ char CDBManager::OnInsertGuildCargoHistory(
         (unsigned char)req->m_item.m_field0, req->m_item.m_field1,
         req->m_item.m_field6, req->m_item.m_fieldA,
         req->m_item.m_fieldC,
-        // +0x36 为位域字节：低 5 bit upgrade、高 3 bit seal_cnt。
-        // ORIG 反汇编 movzbl 0x36(%eax),%eax; shr $0x5,%al 只读 1 字节，
-        // seal_cnt = byte >> 5（0-7）；原写法读 4 字节且 &1 只取 bit5，语义错误。
-        (unsigned char)(req->m_item.m_field5 & 0x1f),
-        (unsigned char)req->m_item.m_field5 / 0x20,
+        (unsigned char)((ItemField5BitsView*)req)->upgrade,
+        (unsigned char)((ItemField5BitsView*)req)->seal_cnt,
         (unsigned char)req->m_item.m_field10, req->m_item.m_field11,
         h->blob_to_str(0, (char*)&req->m_item.m_option, 0xe),
         req->m_item.m_upg.GetUpgradeSeparate());
@@ -4280,10 +4294,10 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
             }
         }
     }
-    if (req->m_characName[0] == 0 || req->m_guildName[0] == 0)
+    if (((unsigned char*)req)[0x13] == 0 || ((unsigned char*)req)[0x38] == 0)
     {
         result = 2;
-        if (req->m_characName[0] == 0)
+        if (((unsigned char*)req)[0x13] == 0)
         {
             CMyFileLog(__FUNCTION__, 0x114f)("./log/TraceGuildErr",
                 "CDBManager::QueryGuildCreate server_group(%d), charac_no(%d) CharacName NULL\n",
@@ -5313,7 +5327,8 @@ char CDBManager::OnLoadGuildCargoHistory(
             return 0;
         if (!h->get_int(col++, *(int*)&reply.m_logs[j].param))
             return 0;
-        if (!h->get_binary(col++, (char*)&reply.m_logs[j].opt0, 0xe))
+        if (!h->get_binary(col++,
+            ((GuildCargoLogOptView*)&reply.m_logs[j])->m_opt, 0xe))
             return 0;
         j++;
     }

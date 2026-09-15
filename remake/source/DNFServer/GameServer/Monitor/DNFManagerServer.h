@@ -245,7 +245,7 @@ public:
     void SetExchageServer(unsigned int ip, short port, int code, bool& result);
     unsigned int GetExchangeServerIp();
     unsigned short GetExchangeServerPort();
-    unsigned int GetExchangeServerChannelNo();
+    int GetExchangeServerChannelNo();
     char m_active;         // +0
     char m_pad1[3];        // +1
     long m_time;           // +4（ORIG 4 字节 signed time_t，比较用 jg/jle）

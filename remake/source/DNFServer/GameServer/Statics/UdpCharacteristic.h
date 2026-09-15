@@ -36,7 +36,12 @@ public:
     short m_ratio1;        // +0x23
     short m_ratio2;        // +0x25
     Item m_items[6];       // +0x27（每项 0x38）
-    char m_tail[4];        // +0x177
+    // [2026-09-15 W5] 原 `char m_tail[4]`：ORIG 在 SaveFrameLagData 里对它做 4 字节
+    //   标量写（`mov -0x30(%ebp),%eax; mov %eax,-0x38(%ebp)`，disp 直落）⇒ 是
+    //   **标量 int 成员**；写成 char[4] 时经 `*(int*)` 走数组 decay ⇒ 生成
+    //   `lea -0x1af(%ebp),%eax; lea 0x177(%eax),%edx; mov (%edx)` 的地址物化 ✗
+    //   大小仍为 4 ⇒ 类大小/布局不变（全库无其它使用点）。
+    int m_tail;            // +0x177
 } __attribute__((packed));
 
 class Packet_Frame_Lag_Statistic_Write_Query : public PacketHeader

@@ -195,6 +195,9 @@ void CVillageAttackedManager::InsertTimer(int startTime, int endTime)
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0045 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::OnSchedule | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager10OnScheduleEv.md
 // 已试（ndiff 23→22，最优 22）：二维声明 [9][2] 已对齐 (3k+c)*8 / (6k+c)*4 两处；
 // 余差含 `[i*3][0]` 的 ORIG「shl $3 + disp(base)」编码（GCC 对此恒选 index 形式）与尾部布局。
+// [W5-MonitorRest] ndiff 22→**14** ✓（长度 183→184）。已落地**机理 K**：删 `tm* t2` 具名新局部、
+//   改为复用 `t` 槽 + 补 ORIG 的 mktime 具名返回 `time_t tt = mktime(t);`（ORIG 末尾 `mov %eax,-0x10(%ebp)`）
+//   ⇒ -0x20/-0x10 两槽与 ORIG 对齐、尾部 6 条差异消失。余 6 条全为上述 ARRAY_REF 编码族（✗ 不可调，见机理库）。
 void CVillageAttackedManager::OnSchedule()
 {
     time_t now = GetNowTime();
@@ -219,12 +222,12 @@ void CVillageAttackedManager::OnSchedule()
                                 village_attacked_scheduler[bestIdx * 3 + 2][0],
                                 village_attacked_scheduler[bestIdx * 3 + 2][1]);
     InsertTimer(bestTime, end);
-    tm* t2 = localtime((time_t*)&end);
-    t2->tm_sec = 0;
-    t2->tm_min = 0;
-    t2->tm_hour = 6;
-    t2->tm_mday = t2->tm_mday + 1;
-    mktime(t2);
+    t = localtime((time_t*)&end);
+    t->tm_sec = 0;
+    t->tm_min = 0;
+    t->tm_hour = 6;
+    t->tm_mday = t->tm_mday + 1;
+    time_t tt = mktime(t);
 }
 
 void CVillageAttackedManager::SetRewardCloseTime(ENUM_VILLAGE_ATTACKED_REWARD rewardType)
@@ -471,6 +474,10 @@ void CVillageAttackedManager::SendMinTime()
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0051 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::OnServerGroupRewardVillageAttacked | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager34OnServerGroupRewardVillageAttackedEv.md
 // 已试（ndiff 10→8，最优 8）：二维声明对齐两处访问；余 1 处同上 shl/base 编码差（试过 3*i、(i*3)、(i*3)+0、char* 算术、取址解引用视图，均生成 index 形式）。
+// [W5-MonitorRest] ndiff 8→**4** ✓（长度仍 193 vs ORIG 194）。新机理：`&times[MAX]` → **`times + MAX`**
+//   （指针算术使 GCC 先 `mov -0x24(%ebp),%eax` 取基址、再算 `MAX*4`、最后 `lea (%eax,%edx,1)` 融合 ⇒
+//   复现 ORIG 的 base-first 求值序）。**该式可套用于同型「地址计算求值序」差异**。
+//   同件再试 2 形均劣化已回退：`*scheduler[k]` 三处解引用（长度 194 对齐但 ndiff→6）。
 void CVillageAttackedManager::OnServerGroupRewardVillageAttacked()
 {
     Packet_DB_VillageAttackedRank pkt;
@@ -484,7 +491,7 @@ void CVillageAttackedManager::OnServerGroupRewardVillageAttacked()
                                    village_attacked_scheduler[i * 3][1],
                                    village_attacked_scheduler[i * 3 + 1][0]);
     }
-    std::sort(&times[0], &times[MAX_SCHEDULER_COUNT], compareTime);
+    std::sort(times, times + MAX_SCHEDULER_COUNT, compareTime);
     pkt.m_time0a = times[0];
     pkt.m_time0b = times[0];
     pkt.m_time1a = times[1];
@@ -502,8 +509,11 @@ void CVillageAttackedManager::ClearDungeonCloseTime()
     m_rewardCloseTime = 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0048 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::UpdateHuntingPoint | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager18UpdateHuntingPointEPP5CUserbPiPj.md
-// 已试（ndiff 8→7→3，长度 158→161 vs ORIG 160）：
+// [DNF-IDENTICAL ✓ 2026-09-15 W5-MonitorRest] **AE** 160/160 ndiff=0（**W2 机理实证**，Main 广播：尾部 jmp 条数 = 函数出口条数）。
+// 落地形态：`if (m_state24 != 1) { return; }` + **裸块**（去 else）+ **删函数末尾 `return;`**
+//   ⇒ 尾部出口 jmp 数 2→1，与 ORIG 相同（本件 jmpD=-1 ⇒ 删 1 条 return ✓）。
+//   ⚠ 与 Main 的「空 then 填 return 不可靠」边界不冲突：本件是**同时删函数尾 return** 才生效（单独填 then 无效）。
+// 历史（ndiff 8→7→3 → 0）：
 // ①末尾 return 补回 SendMinTime 后的 join jmp+nop（落点 A）；
 // ②循环体改为「early-continue + 裸复合块」（落点 D，Main 广播的新可调落点）⇒ 复现了循环体末尾那条 join jmp+nop，为本族第 4 个正例；
 // 余 3 条 = 尾部被 GCC 生成两条相同目标的 jmp（两级嵌套 join 各一条，ORIG 仅一条）；
@@ -513,8 +523,8 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
 {
     if (m_state24 != 1)
     {
+        return;
     }
-    else
     {
         for (int i = 0; i < 4; i++)
         {
@@ -574,8 +584,6 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
         }
     end_loop:;
     }
-    // ORIG 在 if/else 之后、函数块内还有一条 return（生成末尾 jmp+nop 的 join 残留）
-    return;
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0047 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::SendCharacRank | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager14SendCharacRankEv.md

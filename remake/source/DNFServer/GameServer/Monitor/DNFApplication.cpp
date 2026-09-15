@@ -984,7 +984,7 @@ void CApplication::TranslateSignal()
 }
 
 // [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原残差件 AddAccusationCharac 已消除）
-int CApplication::AddAccusationCharac(const std::string& a, const std::string& b, int c,
+char CApplication::AddAccusationCharac(const std::string& a, const std::string& b, int c,
                                       char type)
 {
     std::map<std::string, int>::iterator it = m_map350.find(a);

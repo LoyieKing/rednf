@@ -2301,7 +2301,12 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
         {
             result.m_idByChannel = user->GetIdByChannel();
             memcpy(result.m_name, req->m_name, 0x1d);
-            if (user->GetBlackListSize() < 10)
+            if ((int)user->GetBlackListSize() >= 10)
+            {
+                result.m_result = 4;
+                user->SendToGameserver((char*)&result, result.packetSize);
+            }
+            else
             {
                 CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(req->m_name);
                 if (target != 0)
@@ -2329,11 +2334,6 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
                                            result.packetSize);
                 }
                 m_pclApp->m_serverHandler2->SendToDB(&dbPkt);
-            }
-            else
-            {
-                result.m_result = 4;
-                user->SendToGameserver((char*)&result, result.packetSize);
             }
         }
     }
@@ -2669,10 +2669,11 @@ void CPacketTranslater::OnExchangeServerInfo(PacketHeader* pkt)
         else
         {
             Packet_Exchange_Server_Info* reply = (Packet_Exchange_Server_Info*)pkt;
-            unsigned int channel = reply->m_channel;
+            unsigned int ip = reply->m_ip;
+            int channel = reply->m_channel;
             bool result = false;
             GetInstanceExchangeServer()->SetExchageServer(
-                reply->m_ip, reply->m_port, (int)reply->m_channel, result);
+                reply->m_ip, reply->m_port, reply->m_channel, result);
             if (!result)
             {
                 reply->m_port =
@@ -3258,14 +3259,18 @@ void CPacketTranslater::onRequestCharacTowerUpdateRank(PacketHeader* pkt)
 
     Packet_Request_Charac_Tower_Update_Ranking* req =
         (Packet_Request_Charac_Tower_Update_Ranking*)pkt;
-    CUser* user =
-        (&m_pclApp->m_userManager)->FindUser_CharNo(req->m_charNo);
+    CUser* user = 0;
+    CUserManager* userMgr = &m_pclApp->m_userManager;
+    user = userMgr->FindUser_CharNo(req->m_charNo);
     if (user != 0)
     {
-        unsigned int a = req->m_score;
-        unsigned int b = req->m_job;
-        char* name = user->GetCharName();
         unsigned int c = req->m_floor;
+        register unsigned int b __asm__("edi");
+        register char* name __asm__("ebx");
+        register unsigned int a __asm__("esi");
+        b = req->m_job;
+        name = user->GetCharName();
+        a = req->m_score;
         CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
         tower->registCharacRank(c, name, b, a);
     }
@@ -4224,7 +4229,9 @@ void CPacketTranslater::OnTakeScreenShot(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::OnTakeScreenShot : 0 == m_pclApp");
         }
-        Packet_Monitor_Take_Screen_Shot shotCopy = *(Packet_Monitor_Take_Screen_Shot*)pkt;
+        Packet_Monitor_Take_Screen_Shot* shot =
+            (Packet_Monitor_Take_Screen_Shot*)pkt;
+        Packet_Monitor_Take_Screen_Shot shotCopy = *shot;
         CServerHandler* handler = m_pclApp->m_serverHandler2;
         if (shotCopy.m_channel == 0)
         {
@@ -4399,6 +4406,7 @@ void CPacketTranslater::OnCheckOverlappedAccusation(PacketHeader* pkt)
             memcpy(out, acc, 0x15f);
             tcpGs->SendToGameServer(out);
         }
+        return;
     }
 }
 
@@ -5308,6 +5316,7 @@ void CPacketTranslater::onRequestCharacInfoByCharacName(PacketHeader* pkt)
     if (m_pclApp != 0)
     {
         CUserManager* userMgr = &m_pclApp->m_userManager;
+        CMemberManager* memberMgr = &m_pclApp->m_memberManager;
         Packet_Monitor_Request_Charac_Info* rpkt =
             (Packet_Monitor_Request_Charac_Info*)pkt;
         try
@@ -5347,6 +5356,7 @@ void CPacketTranslater::onRequestCharacInfoByCharacName(PacketHeader* pkt)
                 e.what());
         }
     }
+    return;
 }
 
 void CPacketTranslater::OnWebNoticeInGameAD(PacketHeader* pkt)
@@ -5418,8 +5428,7 @@ void CPacketTranslater::onCollectItems(PacketHeader* pkt)
                     }
                 }
             }
-            ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current +=
-                req->m_itemCount;
+            m_pclApp->getCollectItems()->m_field4 += req->m_itemCount;
         }
     return;
     }

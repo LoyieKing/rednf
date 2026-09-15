@@ -1524,21 +1524,30 @@ void StatisticManager::AddUserCountStatistics(CServerHandler* handler,
 // [DNF-NONIDENTICAL] DNF-STA-DIFF-0002 | statics | 与ORIG差异=DIFF | StatisticManager::AddLagStatistics | 详见 function_reports/statics/_ZN16StatisticManager16AddLagStatisticsEP26Packet_Stat_Lag_Statistics.md
 void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
 {
-    // [2026-09-15 S5] ORIG 含一个声明但从未被引用的 4 字节局部（槽不可见），决定后续变量
-    //   分配起点 ⇒ 缺失时 i 等整体平移。本件最优为单个 4 字节占位（int 与 char[4] 等效；
-    //   两个独立 int → 188、单个 8 字节 → 214、改用 pA/pB 真局部 → 158，均已试并回退）。
-    int reservedSlot;
-    for (int i = 0; i < 8; i++)
+    // [2026-09-15 W5 机理 K] ORIG 在 then 块内**先算两个具名指针局部**再各自间接读出：
+    //   `add $0xb,%eax; mov %eax,-0x3c(%ebp)`（&m_avg）/ `add $0xf,%eax; mov %eax,-0x38(%ebp)`
+    //   （&m_deviation），随后 `mov -0x3c(%ebp),%eax; mov (%eax),%eax; mov %eax,-0x34(%ebp)`
+    //   两对 ⇒ 两个 4 字节指针局部 + i 排在最先（-0x40 最深槽）。原实现基址索引直读
+    //   （`mov 0xb(%eax,%ecx,1),%eax`）⇒ i 只有 -0x38。
+    int i;
+    float* pAvg;
+    float* pDev;
+    for (i = 0; i < 8; i++)
     {
         if (pkt->m_records[i].m_avg.m_int != 0)
         {
-            float avg_f = pkt->m_records[i].m_avg.m_float;
-            float dev_f = pkt->m_records[i].m_deviation;
+            pAvg = (float*)&pkt->m_records[i].m_avg;
+            pDev = (float*)&pkt->m_records[i].m_deviation;
+            float avg_f = *pAvg;
+            float dev_f = *pDev;
             m_modules[i].m_data0 += (int)(long long)avg_f;
             m_modules[i].m_data1 += (int)(long long)dev_f;
-            m_modules[i].m_data2 +=
-                (unsigned int)pkt->m_records[i].m_count;
-            m_modules[i].m_data3 += 1;
+            // [2026-09-15 W5 机理 P/C] ORIG 该处 **无转换临时**：
+            //   `mov (%eax),%esi`（LHS 直落 esi）而 m_data2 是 int ⇒ 显式
+            //   `(unsigned int)` 会让 `int += unsigned` 走「转 unsigned 再加再转回 int」，
+            //   多出一条 `mov %eax,%esi` 搬运。unsigned short 提升到 int 即无转换节点。
+            m_modules[i].m_data2 += pkt->m_records[i].m_count;
+            m_modules[i].m_data3++;
         }
     }
     if (pkt->m_detailCount != 0 &&
@@ -1546,11 +1555,13 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
     {
         for (int j = 0; j < (int)pkt->m_detailCount; j++)
         {
-            // [2026-09-15 机理 O] ORIG 无 key 局部：find 直接吃成员地址
-            //   （`lea 0xc(%eax),%ecx` 直传），我方建 key 局部多一槽 ⇒ 删除并内联。
-            //   [实测] find 亦改显式解引用（消 -0x92 对齐临时）⇒ ndiff 90→106 劣，回退。
+            // [2026-09-15 W5 机理 O→对齐] ORIG 直接吃成员地址（`lea 0xc(%eax),%ecx`）⇒
+            //   key 以**对齐的 ushort 左值**出现。packed 成员直传会把 GCC 逼出
+            //   `movzwl 0xc(%eax),%eax; mov %ax,-0x92(%ebp)` 的 2 字节物化临时，
+            //   该临时又把后续所有 C++ 临时整体压深 2-4 字节（-0x94/-0x88/-0x64 → -0x90/-0x84/-0x60）。
+            //   显式解引用成同型左值后对齐假定回到 2 ⇒ 直传地址。
             std::map<unsigned short, STDungeonLagStatistics>::iterator it =
-                m_dungeonLag.find(pkt->m_details[j].m_key);
+                m_dungeonLag.find(*(unsigned short*)&pkt->m_details[j].m_key);
             float* pA = &pkt->m_details[j].m_a;
             float* pB = &pkt->m_details[j].m_b;
             float a = *pA;

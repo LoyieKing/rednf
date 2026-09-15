@@ -59,7 +59,7 @@ unsigned short CExchangeServer::GetExchangeServerPort()
     return m_port;
 }
 
-unsigned int CExchangeServer::GetExchangeServerChannelNo()
+int CExchangeServer::GetExchangeServerChannelNo()
 {
     return m_code;
 }

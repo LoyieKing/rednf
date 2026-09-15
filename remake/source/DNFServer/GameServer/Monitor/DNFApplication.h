@@ -372,7 +372,7 @@ public:
     void Send_Suspend_Signal(const std::string& file);
     void App_Stop();
     void TranslateSignal();
-    int AddAccusationCharac(const std::string& a, const std::string& b, int c, char type);
+    char AddAccusationCharac(const std::string& a, const std::string& b, int c, char type);
     void ClearAccusationList();
     void Add_GM_id(unsigned int id);
     void Call_DeleteMember(unsigned int key, CUser* user);

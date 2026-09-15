@@ -459,8 +459,16 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
         }
         Packet_Frame_Lag_Statistic_Write_Lag_Index pkt;
         pkt.m_serverGroup = (char)handler->GetServerGroupNo();
+        // [2026-09-15 W5 机理 W3/M 修正] ORIG 在 `time(&t)` 后紧跟
+        //   `mov -0x30(%ebp),%eax; mov %eax,-0x38(%ebp)` —— 该 store 的**目标是
+        //   pkt 对象内的成员**而非新局部：pkt 基址 = -0x38 - 0x177 = -0x1af（与
+        //   ORIG `mov %al,-0x1a5(%ebp)` 即 pkt+0xa 的 m_serverGroup 完全吻合），
+        //   而 Packet_Frame_Lag_Statistic_Write_Lag_Index::m_tail 正好在 +0x177
+        //   ⇒ 这是 `pkt.m_tail` 的 4 字节写入（原先误判为「额外的 time_t 局部」，
+        //   故 tCopy 四形态全部劣化）。
         time_t t;
         time(&t);
+        pkt.m_tail = (int)t;
         std::map<int, FrameLagDataStruct>::iterator it;
         for (it = m_data.begin(); it != m_data.end(); ++it)
         {

@@ -606,6 +606,14 @@ void CGuild::QueryGuild(CServerHandler* handler, unsigned int charNo)
 //   ⇒ 与 §5.19-D「块尾标签次序族」（monitor NoticeMemberLogin_Out）同族，源码层无靶点。
 void CGuild::LoadGuild(STGuildDBInfoOnly& info, char* name)
 {
+    // [2026-09-15 W5-GuildRest W2（尾部 jmp = 出口数）四变体穷举 ⇒ 定案 ✗]
+    //   canon 归一后 **cdiff=0 / jmpD=+1 / lenD=+1**：唯一残差 = ORIG 尾部多一条
+    //   `jmp <epilogue>`+`nop`，其余 110 条逐条相同（高命中区形态 ✓ 但不可达）。
+    //   V1 原形（无 return）⇒ 我方尾部 0 条 jmp；V2 then 块尾补 `return;` ⇒ **生成码一字未变**；
+    //   V3 then 尾 + 函数尾各 `return;` ⇒ 2 条 jmp（jmpD 反号 −1，劣化）；V4 形式①「负条件包裹」
+    //   （`if (!cond) return;` + 裸块，Main 推荐形态）⇒ 113 条：**出口 jmp 位置正确**但多一个
+    //   **landing `nop`**（ORIG 第二测点直落 epilogue，我方落在 nop）⇒ 与既有登记
+    //   「§5.19-D 块尾标签次序族」（monitor NoticeMemberLogin_Out）同族 ⇒ 登记 ✗。
     if ((m_guildDBFlag & 4) == 0 && (m_guildDBFlag & 2) != 0)
     {
         int local18 = m_dbInfo.m_info.m_guildPoint;
@@ -1475,9 +1483,15 @@ void CGuild::ReplyGuildMembers(CUser* user)
             {
                 pkt.m_members[count].f.m_blackUser = 1;
             }
-            count++;
-            if (0x5f < count)
+            // [2026-09-15 W5-GuildRest 机理 W（新增）：**自增入条件 ⇒ 比较被物化**]
+            //   ORIG 该处 `addl $1,-0xc; cmpl $0x5f,-0xc; setg %al; test %al,%al; je <else>`
+            //   = 比较**物化**形态；我方 `count++; if (0x5f < count)` 为直接 `jg`。
+            //   探针实证（c6446r 与 c6 双后端一致）：`if (++c > K)` / `if (K < ++c)` 均产出
+            //   `addl; cmpl; setg %al; test %al,%al; jcc`；而 `c++; if (K < c)` 产出直接 `jg`。
+            //   ORIG 的 then 块自带一次 `++it`（216-218）后再 `jmp <循环尾>`，故两块都要 `++it`。
+            if (++count > 0x5f)
             {
+                ++it;
                 break;
             }
             ++it;
@@ -1487,7 +1501,9 @@ void CGuild::ReplyGuildMembers(CUser* user)
         pkt.m_channel = user->GetIdByChannel();
         pkt.m_charNo = user->GetUniqCharNo();
         user->SendToGameserver((char*)&pkt, pkt.packetSize);
-        if (it != m_members.end())
+        // 机理 W2：ORIG 此处实参序为 `operator!=(tmp_end, it)`（2nd 实参=&it 先备）
+        //   ⇒ 原文写作 `m_members.end() != it`（`!=` 对称，语义等价）
+        if (m_members.end() != it)
         {
             Packet_Monitor_Call_Guild_Members_ToChannel_Next pkt2;
             pkt2.m_guildKey = m_guildKey;
@@ -1514,9 +1530,8 @@ void CGuild::ReplyGuildMembers(CUser* user)
                 {
                     pkt2.m_members[count].f.m_blackUser = 1;
                 }
-                count++;
-                ++it2;
-                if (0x5f < count)
+                // 机理 W（同上）：自增入条件 + 块序位移（ORIG 的 `++it2` 在 if 之后 = je 靶点）
+                if (++count > 0x5f)
                 {
                     pkt2.m_count = (unsigned char)count;
                     pkt2.packetSize = 0x17b7;
@@ -1525,6 +1540,7 @@ void CGuild::ReplyGuildMembers(CUser* user)
                     user->SendToGameserver((char*)&pkt2, pkt2.packetSize);
                     count = 0;
                 }
+                ++it2;
             }
             if (count != 0)
             {
@@ -1582,6 +1598,14 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
 
         pkt.m_members[count].f.m_job = m_dbInfo.m_members[idx].m_job;
         pkt.m_members[count].f.m_growthType = m_dbInfo.m_members[idx].m_growType;
+        // [2026-09-15 W4-GuildRest 登记：**同一字段在多 TU 视角下 signedness 不一致**（新族，待环境）]
+        //   证据 A（本 TU，df_guild_r）：ORIG 此处 `movzwl 0x11(%eax),%ecx` + `mov %cx,…` ⇒ 无转换
+        //     ⇒ 目标字段读作 **unsigned**；
+        //   证据 B（另一 TU，df_game_r `FunctionGuildMember::MakePacketGuildMembersInfo`，**已 identical**）：
+        //     `put_short((int)f.m_level)` 处 `movzwl`+**`movswl`** ⇒ 目标字段读作 **signed**。
+        //   ⇒ 两侧矛盾，且改 `f.m_level`→unsigned short 会**破坏证据 B 的 AE** ⇒ 判定「不改」
+        //     （Main 裁决 2026-09-15）。该族与 `queryTowerFullRank` 的「TU 视角析构可见性」同型
+        //     （TU 级 ODR 违规但真实）⇒ 需**条件编译或 TU 拆分**方能表达 ⇒ 本工具链下无靶点。
         pkt.m_members[count].f.m_level = (short)m_dbInfo.m_members[idx].m_lev;
         memcpy(pkt.m_members[count].f.m_name, m_dbInfo.m_members[idx].m_name, 0x1d);
         pkt.m_members[count].f.m_sex = m_dbInfo.m_members[idx].m_sex;
@@ -1591,17 +1615,19 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
         {
             pkt.m_members[count].f.m_growthType = m->GetGrowthType();
             pkt.m_members[count].f.m_level = (short)m->GetLevel();
-            if (m->GetGameServer() == 0)
-            {
-                DNF_LOG_SCOPE_LINE(0x658,"./log/Except",
-                    "CGuild::ReplyGuildMembers() Guild Key : %d\tGuild Name : %s\tDB Id : %d\tChar Id : %d\n",
-                    GetGuildKey(), GetGuildName(), m->GetDBID(), m_dbInfo.m_members[idx].m_no);
-            }
-            else
+            // 机理 D 变体：ORIG 的 then 块是「非 log」分支（`setne`），日志块在 else。
+            //   我方原为 `== 0` + 反转块序 ⇒ 与 ORIG 的块布局整体对调。
+            if (m->GetGameServer() != 0)
             {
                 pkt.m_members[count].f.m_channel = m->GetGameServer()->GetChannelNo();
                 memcpy(pkt.m_members[count].f.m_guildMemDBInfo, (char*)m->GetGuildMemDBInfo(), 0x14);
                 pkt.m_members[count].f.m_grade = m->GetGuildMemDBInfo()->m_grade;
+            }
+            else
+            {
+                DNF_LOG_SCOPE_LINE(0x658,"./log/Except",
+                    "CGuild::ReplyGuildMembers() Guild Key : %d\tGuild Name : %s\tDB Id : %d\tChar Id : %d\n",
+                    GetGuildKey(), GetGuildName(), m->GetDBID(), m_dbInfo.m_members[idx].m_no);
             }
             if (m->IsBlackUser(user->GetUniqCharNo()) != 0)
             {
@@ -1612,8 +1638,8 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
         {
             memcpy(pkt.m_members[count].f.m_guildMemDBInfo, m_dbInfo.m_members[idx].m_memo, 0x14);
         }
-        count++;
-        if (0x5f < count)
+        // 机理 W：自增入条件 ⇒ 比较物化（`setg %al; test %al,%al`），ORIG 实证同 ReplyGuildMembers
+        if (++count > 0x5f)
         {
             break;
         }
@@ -1642,17 +1668,17 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
             {
                 pkt2.m_members[count].f.m_growthType = m->GetGrowthType();
                 pkt2.m_members[count].f.m_level = (short)m->GetLevel();
-                if (m->GetGameServer() == 0)
-                {
-                    DNF_LOG_SCOPE_LINE(0x695,"./log/Except",
-                        "CGuild::ReplyGuildMembers() Guild Key : %d\tGuild Name : %s\tDB Id : %d\tChar Id : %d\n",
-                        GetGuildKey(), GetGuildName(), m->GetDBID(), m_dbInfo.m_members[i].m_no);
-                }
-                else
+                if (m->GetGameServer() != 0)
                 {
                     pkt2.m_members[count].f.m_channel = m->GetGameServer()->GetChannelNo();
                     memcpy(pkt2.m_members[count].f.m_guildMemDBInfo, (char*)m->GetGuildMemDBInfo(), 0x14);
                     pkt2.m_members[count].f.m_grade = m->GetGuildMemDBInfo()->m_grade;
+                }
+                else
+                {
+                    DNF_LOG_SCOPE_LINE(0x695,"./log/Except",
+                        "CGuild::ReplyGuildMembers() Guild Key : %d\tGuild Name : %s\tDB Id : %d\tChar Id : %d\n",
+                        GetGuildKey(), GetGuildName(), m->GetDBID(), m_dbInfo.m_members[i].m_no);
                 }
                 if (m->IsBlackUser(user->GetUniqCharNo()) != 0)
                 {
@@ -1661,12 +1687,15 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
             }
             else
             {
-                pkt2.m_members[count].f.m_job = 0xff;
+                // [2026-09-15 W5-GuildRest 实证] ORIG 该处两处 byte store 的**记录内偏移**为
+                //   +0x37 / +0x39（= m_channel / m_blackUser），非我方原写的 m_job(+0) / m_sex(+0x38)
+                //   （逐条 `sub $0x1791` vs `sub $0x17c8` 差恰好 0x37、`sub $0x178f` vs `$0x1790` 差 1）
+                //   ⇒ 原文即「未找到成员：channel 置 0xff、清 DB 信息、blackUser 置 0」✓
+                pkt2.m_members[count].f.m_channel = 0xff;
                 memset(pkt2.m_members[count].f.m_guildMemDBInfo, 0, 0x14);
-                pkt2.m_members[count].f.m_sex = 0;
+                pkt2.m_members[count].f.m_blackUser = 0;
             }
-            count++;
-            if (0x5f < count)
+            if (++count > 0x5f)
             {
                 pkt2.m_count = (unsigned char)count;
                 pkt2.packetSize = 0x17b7;

@@ -138,6 +138,10 @@ void CItemLimitEditionMgr::clear()
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0126 | monitor | 与ORIG差异=DIFF | CItemLimitEditionMgr::processScheduledJob | 详见 function_reports/monitor/_ZN20CItemLimitEditionMgr19processScheduledJobEP12CApplicationb.md
+// [W5-MonitorRest] ndiff 69→**63** ✓（长度 194→190，ORIG 183）。已落地**机理 O**：pkt2 段删 `CServerHandler* h`
+//   具名局部、改链式 `app->Get_ServerHandler()->SendToDB(&pkt2);` / `...SendAllTcpGameServer(&pkt2);`
+//   ⇒ ORIG 该两处无 -0xc 槽、`mov %eax,(%esp)` 直接用返回值。
+//   边界：**同一函数内另有一处同形 `h`（pkt 段，SendAllTcpGameServer(&pkt)）不可同样内联** ⇒ 试后 63→**170** 已回退（该处 ORIG 反而有 h）。
 void CItemLimitEditionMgr::processScheduledJob(CApplication* app, bool flag)
 {
     time_t now;
@@ -193,10 +197,8 @@ void CItemLimitEditionMgr::processScheduledJob(CApplication* app, bool flag)
             Packet_Item_Limit_Edition_Update pkt2;
             pkt2.m_serverGroup = (unsigned int)app->Get_ServerGroup();
             makeItemLimitEditionUpdatePacket(pkt2);
-            CServerHandler* h = app->Get_ServerHandler();
-            h->SendToDB(&pkt2);
-            h = app->Get_ServerHandler();
-            h->SendAllTcpGameServer(&pkt2);
+            app->Get_ServerHandler()->SendToDB(&pkt2);
+            app->Get_ServerHandler()->SendAllTcpGameServer(&pkt2);
         }
     }
 }

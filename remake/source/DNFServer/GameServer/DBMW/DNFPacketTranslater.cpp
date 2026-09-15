@@ -351,8 +351,8 @@ void CPacketTranslater::OnGuildJoin(PacketHeader* header)
     {
         Packet_DBMW_Request_Guild_Join* pkt =
             (Packet_DBMW_Request_Guild_Join*)header;
-        if (pkt->m_guildId == 0)
-            return;
+        if (pkt->m_guildId != 0)
+        {
         Packet_DBMW_Save_Guild_Join_Reply reply;
         reply.m_guildId = pkt->m_guildId;
         reply.m_mid = pkt->m_mid;
@@ -388,6 +388,7 @@ void CPacketTranslater::OnGuildJoin(PacketHeader* header)
         CMyFileLog(__FUNCTION__, 0x576)("./log/GuildModify", "::OnGuildJoin g(%d) c(%d) r(%d)",
              pkt->m_guildId, pkt->m_characNo,
              reply.m_result);
+        }
     }
     DNF_CATCH_LOG("./log/Except.log",
                   "CPacketTranslater::OnGuildJoin() Exception Break",
@@ -402,8 +403,8 @@ void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
     {
         Packet_DBMW_Send_Mail_Coin_Guild_Event* pkt =
             (Packet_DBMW_Send_Mail_Coin_Guild_Event*)header;
-        if (pkt->m_guildId == 0)
-            return;
+        if (pkt->m_guildId != 0)
+        {
         if (pkt->m_count < 1 || pkt->m_count > 0x10)
         {
             DNF_LOG_SCOPE_LINE(0x3d4,
@@ -414,7 +415,7 @@ void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
 
             return;
         }
-        int count = pkt->m_count;
+        register int count = pkt->m_count;
         int absCount = count & ~(count >> 31);
         std::vector<int> characNos;
         characNos.clear();
@@ -433,12 +434,13 @@ void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
         {
             Packet_Notify_New_Group_Mail notice;
             notice.m_count =
-                characNos.size() > 0x12b ? 0x12c : characNos.size();
+                (int)characNos.size() > 0x12b ? 0x12c : characNos.size();
             for (int i = 0; i < notice.m_count; i++)
                 notice.m_characNos[i] = characNos.at(i);
-            m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
-                (char*)&notice, notice.packetSize);
+            CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+            gs->SendToServer((char*)&notice, notice.packetSize);
             characNos.clear();
+        }
         }
     }
     DNF_CATCH_LOG("./log/Except.log",
@@ -1993,10 +1995,53 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         int count = 0;
         STGuildBoardDBInfo boards[0x32];
-        Packet_DB_Load_Reply_Guild_Board_Open reply;
-        Packet_DB_Load_Reply_Guild_Board_Open replyR;
-        if (!m_pclApp->m_dbManager.OnLoadGuildBoard(
+        if (m_pclApp->m_dbManager.OnLoadGuildBoard(
                 ((FieldViewP<0xa,int>*)pkt)->v, count, boards))
+        {
+            int pageCount = count / 10;
+            int rem = count % 10;
+            for (int page = 0; page < pageCount; page++)
+            {
+                Packet_DB_Load_Reply_Guild_Board_Open reply;
+                reply.m_count = 0;
+                reply.m_guildId = ((FieldViewP<0xa,int>*)pkt)->v;
+                reply.m_charNo = ((FieldViewP<0xe,int>*)pkt)->v;
+                reply.m_boardCount = 0xa;
+                for (int i = 0; i <= 9; i++)
+                {
+                    char* dst = (char*)&reply + 0x16 + i * 0xa5;
+                    char* src = (char*)boards + (page * 10 + i) * 0xa5;
+                    memcpy(dst, src, 0x78);
+                    *(int*)(dst + 0x78) = *(int*)(src + 0x78);
+                    *(int*)(dst + 0x7c) = *(int*)(src + 0x7c);
+                    *(int*)(dst + 0x88) = *(int*)(src + 0x88);
+                    memcpy(dst + 0x84, src + 0x84, 0x21);
+                }
+                if (page + 1 == pageCount && rem == 0)
+                    reply.m_count = 1;
+                gs->SendToServer((char*)&reply, 0x688);
+            }
+            if (rem != 0)
+            {
+                Packet_DB_Load_Reply_Guild_Board_Open replyR;
+                replyR.m_count = 1;
+                replyR.m_guildId = ((FieldViewP<0xa,int>*)pkt)->v;
+                replyR.m_charNo = ((FieldViewP<0xe,int>*)pkt)->v;
+                replyR.m_boardCount = (char)rem;
+                for (int i = 0; i < rem; i++)
+                {
+                    char* dst = (char*)&replyR + 0x16 + i * 0xa5;
+                    char* src = (char*)boards + (pageCount * 10 + i) * 0xa5;
+                    memcpy(dst, src, 0x78);
+                    *(int*)(dst + 0x78) = *(int*)(src + 0x78);
+                    *(int*)(dst + 0x7c) = *(int*)(src + 0x7c);
+                    *(int*)(dst + 0x88) = *(int*)(src + 0x88);
+                    memcpy(dst + 0x84, src + 0x84, 0x21);
+                }
+                gs->SendToServer((char*)&replyR, 0x688);
+            }
+        }
+        else
         {
             DNF_LOG_SCOPE_LINE(0xf8a,
                 "./log/Except",
@@ -2004,53 +2049,14 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
                 0
             );
 
-            reply.m_result = 1;
-            reply.m_count = 1;
-            reply.m_guildId = ((FieldViewP<0xa,int>*)pkt)->v;
-            reply.m_charNo = ((FieldViewP<0xe,int>*)pkt)->v;
-            reply.m_boardCount = 0;
-            gs->SendToServer((char*)&reply, 0x688);
+            Packet_DB_Load_Reply_Guild_Board_Open replyErr;
+            replyErr.m_result = 1;
+            replyErr.m_count = 1;
+            replyErr.m_guildId = ((FieldViewP<0xa,int>*)pkt)->v;
+            replyErr.m_charNo = ((FieldViewP<0xe,int>*)pkt)->v;
+            replyErr.m_boardCount = 0;
+            gs->SendToServer((char*)&replyErr, 0x688);
             return;
-        }
-        int pageCount = count / 10;
-        int rem = count % 10;
-        for (int page = 0; page < pageCount; page++)
-        {
-            reply.m_count = 0;
-            reply.m_guildId = ((FieldViewP<0xa,int>*)pkt)->v;
-            reply.m_charNo = ((FieldViewP<0xe,int>*)pkt)->v;
-            reply.m_boardCount = 0xa;
-            for (int i = 0; i <= 9; i++)
-            {
-                char* dst = (char*)&reply + 0x16 + i * 0xa5;
-                char* src = (char*)boards + (page * 10 + i) * 0xa5;
-                memcpy(dst, src, 0x78);
-                *(int*)(dst + 0x78) = *(int*)(src + 0x78);
-                *(int*)(dst + 0x7c) = *(int*)(src + 0x7c);
-                *(int*)(dst + 0x88) = *(int*)(src + 0x88);
-                memcpy(dst + 0x84, src + 0x84, 0x21);
-            }
-            if (page + 1 == pageCount && rem == 0)
-                reply.m_count = 1;
-            gs->SendToServer((char*)&reply, 0x688);
-        }
-        if (rem != 0)
-        {
-            replyR.m_count = 1;
-            replyR.m_guildId = ((FieldViewP<0xa,int>*)pkt)->v;
-            replyR.m_charNo = ((FieldViewP<0xe,int>*)pkt)->v;
-            replyR.m_boardCount = (char)rem;
-            for (int i = 0; i < rem; i++)
-            {
-                char* dst = (char*)&replyR + 0x16 + i * 0xa5;
-                char* src = (char*)boards + (pageCount * 10 + i) * 0xa5;
-                memcpy(dst, src, 0x78);
-                *(int*)(dst + 0x78) = *(int*)(src + 0x78);
-                *(int*)(dst + 0x7c) = *(int*)(src + 0x7c);
-                *(int*)(dst + 0x88) = *(int*)(src + 0x88);
-                memcpy(dst + 0x84, src + 0x84, 0x21);
-            }
-            gs->SendToServer((char*)&replyR, 0x688);
         }
     }
     DNF_CATCH_LOG("./log/Except",

@@ -9,8 +9,8 @@
 
 class Packet_Exchange_Server_Info : public PacketHeader {
 public:
-    unsigned int m_channel;         // +0xa  also used as signed code
-    short m_port;                   // +0xe
+    int m_channel;                  // +0xa  also used as signed code
+    unsigned short m_port;          // +0xe
     unsigned int m_ip;              // +0x10
     Packet_Exchange_Server_Info() : PacketHeader(0x9de, 0x14){};
 } __attribute__((packed));

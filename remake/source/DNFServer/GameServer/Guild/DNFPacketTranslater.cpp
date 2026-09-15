@@ -463,6 +463,8 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
                 i++;
             }
         }
+        // [P-Guard] ORIG 尾部多一条 `jmp <epilogue>` ⇒ if 分支末尾早返回（else 为 throw，语义等价）
+        return;
     }
     else
     {
@@ -2945,14 +2947,27 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0xe9f, "./log/BlackList", "CPacketTranslater::OnRegisterToBlackList : 0 == pclUser");
         return;
     }
-    if (!(strcmp(requester->GetCharName(), (pb->m_name)) == 0) && requester->GetBlackListSize() <= 9)
+    // [P-Guard] ORIG 为「条件反转 + 早返回」形态（`sete/setg %al` + `test %al,%al` +
+    //   `jne <epilogue>`）⇒ 拆成两条 guard 子句（顺带产生尾部的多 `jmp` 序列）。
+    if (strcmp(requester->GetCharName(), (pb->m_name)) == 0)
+    {
+        return;
+    }
+    if (requester->GetBlackListSize() > 9)
+    {
+        return;
+    }
     {
         if ((target = (&m_pclApp->m_userManager)->FindUser_CharName((pb->m_name))) != 0)
         {
-            if (requester->RegisterToBlackList(target->GetUniqCharNo(), (pb->m_name)) == 1)
+            // [P-Neg] ORIG 为 `xor $0x1,%eax` 形态 ⇒ callee 返回 bool 且取反的 if-else
+            if (!requester->RegisterToBlackList(target->GetUniqCharNo(), (pb->m_name)))
             {
-                target->GetUniqCharNo();
+                // [P-Guard] ORIG 尾部 3 条 `jmp <epilogue>`（我方 2 条）⇒ 失败路径为**早返回**
+                return;
             }
+            // [P322] ORIG 的 -0x48 槽（dbPkt + 0x2c）接收该返回值 ⇒ 原码写 dbPkt.m2c
+            dbPkt.m2c = target->GetUniqCharNo();
         }
     }
     }
@@ -2995,12 +3010,11 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
             // [P354] ORIG 有 xor $0x1 + jne 物化 ⇒ 否定 callee 的反向 if-else
             if (!requester->DeleteToBlackList(target->GetUniqCharNo()))
             {
+                // [P-Guard] ORIG 尾部多一条 `jmp <epilogue>` ⇒ 失败路径为早返回
+                return;
             }
-            else
-            {
-                // [P322①] ORIG 的 -0x44 槽 = dbPkt(+0x70) + 0x2c ⇒ 原码写 dbPkt.m2c
-                dbPkt.m2c = target->GetUniqCharNo();
-            }
+            // [P322①] ORIG 的 -0x44 槽 = dbPkt(+0x70) + 0x2c ⇒ 原码写 dbPkt.m2c
+            dbPkt.m2c = target->GetUniqCharNo();
         }
     }
     }
@@ -3829,6 +3843,8 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
         if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == pb->m_connNo)
         {
             m_pclApp->Get_ServerHandler()->GetTcpDBServer()->Connected();
+            // [P-Guard] ORIG 尾部多 2 条 `jmp <epilogue>` ⇒ 两个分支各自早返回
+            return;
         }
         else
         {
@@ -3864,6 +3880,7 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
                     tgs->SendToGameServer((char*)view2);
                 }
             }
+            return;
         }
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnInnerPacketLogin Exception Break", 0x1489, 0x148e);
@@ -5447,6 +5464,8 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardWrite(PacketHeader* pkt)
             {
                 guild->GetGuildBoard()->sendGuildBoardData(pb->m_guildId, pb->m_charNo, 0x232e, user);
             }
+            // [P-Guard] ORIG 尾部多一条 `jmp <epilogue>` ⇒ then 分支末尾早返回
+            return;
         }
         else
         {
