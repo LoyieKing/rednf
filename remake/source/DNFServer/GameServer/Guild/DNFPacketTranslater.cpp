@@ -1314,14 +1314,14 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
                         notify.m_charNo = target->GetUniqCharNo();
                         notify.m_channel = target->GetIdByChannel();
                         target->SendToGameserver((char*)&notify, notify.packetSize);
-                        if (target->GetGameServer() == 0)
-                        {
-                            reply.m_a = 3;
-                        }
-                        else
+                        if (target->GetGameServer() != 0)
                         {
                             guild->DBGuildMemberSave(target, target->GetGameServer()->GetGroupNo(),
                                                      m_pclApp->Get_ServerHandler(), 3);
+                        }
+                        else
+                        {
+                            reply.m_a = 3;
                         }
                     }
                 }
