@@ -904,13 +904,13 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
     }
     Packet_Monitor_Other_Channel_Chat_ToUser reply;
     reply.m_senderCharId = (unsigned int)chat->m_chatType;
-    CUser* sender = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->m_characNo);
-    if (sender == 0)
+    CUser* sender;
+    if ((sender = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->m_characNo)) == 0)
     {
         return;
     }
-    CUser* receiver = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->m_recverCharId);
-    if (receiver == 0)
+    CUser* receiver;
+    if ((receiver = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->m_recverCharId)) == 0)
     {
         reply.m_idByChannel = sender->GetIdByChannel();
         reply.m_uniqCharNo = sender->GetUniqCharNo();
@@ -1150,13 +1150,13 @@ void CPacketTranslater::OnRequestMemberEnter(PacketHeader* pkt)
     CMemberManager* memberMgr = &m_pclApp->m_memberManager;
     Packet_Monitor_Request_Member_Enter* req =
         (Packet_Monitor_Request_Member_Enter*)pkt;
-    CUser* requester = userMgr->FindUser_CharNo(req->m_charNo);
-    if (requester == 0)
+    CUser* requester;
+    if ((requester = userMgr->FindUser_CharNo(req->m_charNo)) == 0)
     {
         return;
     }
-    CUser* target = userMgr->FindUser_CharName(req->m_name);
-    if (target == 0)
+    CUser* target;
+    if ((target = userMgr->FindUser_CharName(req->m_name)) == 0)
     {
         SendRequestMemberEnterResult(requester, '1', req->m_name);
         return;
@@ -2164,8 +2164,8 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
         pu->m_bIsConnect = (um->FindUser(dbid) == 0 && um->FindProhibitUser(dbid) == 0) ? 0 : 1;
         if (pu->m_flag == 0)
         {
-            CDNFProhibitUser* p = um->FindProhibitUser(dbid);
-            if (p == 0)
+            CDNFProhibitUser* p;
+            if ((p = um->FindProhibitUser(dbid)) == 0)
             {
                 p = new CDNFProhibitUser;
                 p->SetUserConnectableTime(dbid, (short)pu->m_time, -1, true);
@@ -5052,13 +5052,13 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
     }
     Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link reply;
     reply.m_senderCharId = (unsigned int)chat->m_chatType;
-    CUser* sender = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->m_characNo);
-    if (sender == 0)
+    CUser* sender;
+    if ((sender = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->m_characNo)) == 0)
     {
         return;
     }
-    CUser* receiver = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->m_recverCharId);
-    if (receiver == 0)
+    CUser* receiver;
+    if ((receiver = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->m_recverCharId)) == 0)
     {
         reply.m_idByChannel = sender->GetIdByChannel();
         reply.m_uniqCharNo = sender->GetUniqCharNo();
