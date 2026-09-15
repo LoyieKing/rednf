@@ -4052,7 +4052,7 @@ void CPacketTranslater::OnMonitorFindFactoryHubUser(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnMonitorFindFactoryHubUser : 0 == m_pclApp");
     }
-    CUserManager* userMgr = &m_pclApp->m_userManager;
+    register CUserManager* userMgr = &m_pclApp->m_userManager;   // [W7 X] register：ORIG 该取址为 lea 融合
     Packet_Monitor_Find_Factory_Hub_User* find =
         (Packet_Monitor_Find_Factory_Hub_User*)pkt;
     int targetCharNo = 0;
@@ -5163,7 +5163,7 @@ void CPacketTranslater::onSocialEventRewardItemResponse(PacketHeader* pkt)
         while (i < rpkt->m_count && i < 0x1e)
         {
             m_pclApp->getLimitNpcBuyItemManager()->registItem(
-                *(NpcBuyLimitItem*)&rpkt->m_items[i].m_itemId);
+                rpkt->m_items[i]);
             DNF_LOG_SCOPE_LINE(0x1dd0,"./log/NpcBuyLimitItem", "Load-> itemId: %d, maxCount: %d, sellCount: %d)",
                 rpkt->m_items[i].m_itemId,
                 rpkt->m_items[i].m_maxCount,

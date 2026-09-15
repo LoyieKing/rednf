@@ -16,6 +16,7 @@
 #include "BlackUser.h"
 #include "LoginLogoutStatistics.h"
 #include "ItemLimitEditionManager.h"  // [W7 X] stItemLimitEditionItemInfo_t 完整定义（真数组 m_items）
+#include "LimitNpcBuyItem.h"          // [W7 X] NpcBuyLimitItem 完整定义（真数组 m_items）
 
 class BuddyList;
 struct CACHE_CHARACTER_TYPE;
@@ -1322,12 +1323,9 @@ class Packet_Social_Event_Reward_Item_Response : public PacketHeader
 {
 public:
     unsigned int m_count;  // +10
-    struct __attribute__((packed)) Rec
-    {
-        unsigned int m_itemId;
-        unsigned int m_maxCount;
-        unsigned int m_sellCount;
-    } m_items[30];         // +14，步长 0xc
+    // [W7 X] 真元素类型（原来是 3 个标量的匿名 Rec + 调用点 (NpcBuyLimitItem*) cast：
+    // 后者让取址退化为 `add $0xe,%eax; mov %eax,%ebx`，ORIG 为真数组 decay 的 `lea 0xe(%eax),%ebx`）。
+    NpcBuyLimitItem m_items[30];   // +14，步长 0xc
 } __attribute__((packed));
 
 class Packet_Request_Revenge_Dungeon : public PacketHeader

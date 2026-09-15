@@ -378,12 +378,24 @@ struct AssertManagerWriteElemView
     char m_reason[0xf2];       // +0x114
 } __attribute__((packed));
 
+// [2026-09-15 X 机理修复] ORIG df_dbmw_r `OnSecretShopStatistic` 实证：5 个 SQL 参数的
+//   取址一律为 `lea (%ecx,%eax,1),%eax` + `add $0x10|0x20,%eax` + `mov 0x2|0x6|0xa|0xe(%eax)`
+//   —— 即**元素结构体成员**（元素步长 0x14，元素内字段 +0x2/+0x6/+0xa/+0xe，数组起点 +0x10），
+//   地址 = packet + i*0x14 + 0x12 + 4k。旧写法用扁平 `int m_data[]` + `i*5+k` 索引 ⇒
+//   GCC 生成 `add $0x4|0x8..,%eax` + `mov 0x2(%ecx,%eax,4)`（scaled 寻址），与 ORIG 逐条不同。
+struct SecretShopStatElem
+{
+    unsigned short m_pad0;   // +0（不访问）
+    unsigned int m_v[4];     // +0x2 .. +0x11（第 5 个字段跨入下一元素，见访问点）
+    unsigned short m_pad1;   // +0x12（不访问）
+} __attribute__((packed));   // 20 字节 = 原 m_data 步长 0x14
+
 struct SecretShopStatisticView
 {
     char h[0xa];
-    int m_count;             // +0xa
-    int m_shopIdx;           // +0xe
-    int m_data[0x320];       // +0x12（200 × 5 int，步长 0x14）
+    int m_count;               // +0xa
+    int m_shopIdx;             // +0xe
+    SecretShopStatElem m_items[0x320 / 5];  // +0x10（与旧 m_data[0x320] 覆盖同样范围）
 } __attribute__((packed));
 
 struct FrameLagWriteIndexView

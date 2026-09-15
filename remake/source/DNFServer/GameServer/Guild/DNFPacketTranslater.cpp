@@ -5705,16 +5705,16 @@ void CPacketTranslater::OnGuildApplyOriginalPowerSide(PacketHeader* pkt)
                 "CPacketTranslater::OnGuildApplyOriginalPowerSide : 0 == m_pclApp");
             return;
         }
-        unsigned int charNo = pb->m_charNo;
-        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
+        // [2026-09-15 W7-GuildBig 机理 K/N] ORIG：um 物化为具名槽（add $0x10）；charNo/guildKey 无具名槽直读字段
+        CUserManager* um = &m_pclApp->m_userManager;
+        CUser* user = um->FindUser_CharNo(pb->m_charNo);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1e4e, "./log/Power", "CPacketTranslater::OnGuildApplyOriginalPowerSide : 0 == pclUser");
             return;
         }
-        unsigned int guildKey = pb->m_guildKey;
         CGuild* guild;
-        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1e55, "./log/Power", "CPacketTranslater::OnGuildApplyOriginalPowerSide : 0 == pclGuild");
             return;
@@ -5724,7 +5724,7 @@ void CPacketTranslater::OnGuildApplyOriginalPowerSide(PacketHeader* pkt)
         {
             DNF_LOG_SCOPE_LINE(0x1e5d,"./log/Power",
                 "CPacketTranslater::OnGuildApplyOriginalPowerSide Guild(%d), GuildOrigPowerSide(%d), PacketPowerSide(%d)",
-                guildKey, (unsigned int)guild->GetPowerSide() & 0xff, (unsigned int)side);
+                pb->m_guildKey, (unsigned int)guild->GetPowerSide() & 0xff, (unsigned int)side);
             return;
         }
         unsigned char newSide = side == 3 ? 1 : 2;
@@ -5733,8 +5733,8 @@ void CPacketTranslater::OnGuildApplyOriginalPowerSide(PacketHeader* pkt)
         guild->SendGuildInfoToMembers(false);
         Packet_Guild_Apply_Origial_Power_Side_Reply reply;
         reply.ma = user->GetIdByChannel();
-        reply.me = charNo;
-        reply.m12 = guildKey;
+        reply.me = pb->m_charNo;
+        reply.m12 = pb->m_guildKey;
         reply.m16 = newSide;
         user->SendToGameserver((char*)&reply, 0x17);
     }

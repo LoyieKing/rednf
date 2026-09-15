@@ -240,7 +240,6 @@ struct stUserHuntingPoint;
 
 struct NpcBuyLimitItem
 {
-    NpcBuyLimitItem() { clear(); }   // ORIG W 0x0822b7ee（转调 clear）
     void clear()                     // ORIG W 0x0822b7cc：三字段逐个清零
     {
         m_itemId = 0;
@@ -251,6 +250,12 @@ struct NpcBuyLimitItem
     unsigned int m_maxCount;   // +4
     unsigned int m_sellCount;  // +8
 };
+// [W7 X] 本类型必须是 **POD**（ORIG W 0x0822b7ee 的默认构造在两侧都未 out-of-line 生成，
+// nm 无 _ZN15NpcBuyLimitItem* ⇒ 删类内 ctor 无符号代价，清零点用 clear() 显式完成）。
+// 原因：`Packet_Social_Event_Reward_Item_Response` 把本类型当**真数组元素**
+// （`NpcBuyLimitItem m_items[30]` @+0xe）；只要它是 non-POD，GCC 就报
+// "ignoring packed attribute ... non-POD field" 并把数组挤到 +0x10（布局劣化），
+// 而带 packed 又会让 `map` 路径无法对字段取引用。POD + 外层 packed 同时满足两侧。
 
 #pragma pack(push, 1)
 class LimitNpcBuyItemInfo : public PacketHeader
