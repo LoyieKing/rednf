@@ -1,5 +1,6 @@
 // df_statics_r — DNFManagerServer（ORIG DNFManagerServer.o 拆分）
 #include <stdio.h>
+#include <iostream>
 
 #include "DNFManagerServer.h"
 #include "DNFUdpHandler.h"

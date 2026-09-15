@@ -5,11 +5,10 @@
 #include "StatisticProxy.h"
 #include "PacketHeader.h"
 
-statistc_proxy::StatisticProxy* getStatisticProxy()
-{
-    static statistc_proxy::StatisticProxy statisticProxy;
-    return &statisticProxy;
-}
+// [INFERRED] 定义置于 TU 最前：ORIG 的静态初始化器名锚定 TU 内首个 public 符号
+// （本静态成员），此处保持同序以对齐 ORIG 的 _GLOBAL__I_ 符号名。
+void (*statistc_proxy::StatisticProxy::sendPacketFunctionPointer)(char*) = 0;
+
 PacketInsertUpdate::PacketInsertUpdate()
     : PacketHeader(0x2721, 0x1018)
 {
@@ -28,7 +27,6 @@ PacketInsertUpdate::PacketInsertUpdate()
 }
 namespace statistc_proxy
 {
-void (*StatisticProxy::sendPacketFunctionPointer)(char*) = 0;
 static std::string g_updateCondition;
 
 Field::Field()
@@ -338,4 +336,13 @@ void resetStatisticProxy()
 {
     getStatisticProxy()->resetTable();
 }
+}
+
+// [INFERRED] 定义置于 TU 末：ORIG 的静态初始化器名锚定 TU 内首个带初始化器的
+// 静态实体（StatisticProxy::sendPacketFunctionPointer），此处保持同序以对齐
+// ORIG 的 _GLOBAL__I_ 符号名。
+statistc_proxy::StatisticProxy* getStatisticProxy()
+{
+    static statistc_proxy::StatisticProxy statisticProxy;
+    return &statisticProxy;
 }

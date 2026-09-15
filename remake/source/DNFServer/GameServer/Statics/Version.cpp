@@ -1,7 +1,10 @@
 // df_statics_r — Version（ORIG Version.o 拆分）
 #include <utility>
+#include <iostream>
 
 #include "Version.h"
+
+char SERVER_VERSION[16];
 
 CSourceVersionMgr::CSourceVersionMgr()
     : source_version_list_()

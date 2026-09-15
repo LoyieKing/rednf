@@ -1,5 +1,6 @@
 // df_statics_r — DNFGameServer（ORIG DNFGameServer.o 拆分）
 #include <stdio.h>
+#include <iostream>
 
 #include "DNFGameServer.h"
 #include "DNFUdpHandler.h"

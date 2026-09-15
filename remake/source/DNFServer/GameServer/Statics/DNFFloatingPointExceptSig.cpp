@@ -1,5 +1,6 @@
 // df_statics_r — DNFFloatingPointExceptSig（ORIG DNFFloatingPointExceptSig.o 拆分）
 #include <stdio.h>
+#include <iostream>
 
 #include "DNFFloatingPointExceptSig.h"
 #include "DNFApplication.h"

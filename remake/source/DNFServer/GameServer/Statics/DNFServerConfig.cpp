@@ -1,6 +1,7 @@
 // df_statics_r — DNFServerConfig（ORIG DNFServerConfig.o 拆分）
 #include <stdio.h>
 #include <stdlib.h>
+#include <iostream>
 
 #include "DNFServerConfig.h"
 #include "DNFTableBase.h"

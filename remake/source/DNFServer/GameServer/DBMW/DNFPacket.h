@@ -18,10 +18,10 @@ struct __attribute__((packed)) STGuildJoinInfo
 {
     unsigned char m_serverId;  // +0
     char m_pad1[3];
-    int m_guildId;             // +0x4
+    unsigned int m_guildId;    // +0x4
     unsigned int m_id;         // +0x8
     unsigned int m_mid;        // +0xc（OnGuildJoinByListApprove 直接赋 m_id 参数；GuildJoin 流程未用）
-    int m_characNo;            // +0x10
+    unsigned int m_characNo;   // +0x10
     char m_characName[0x1e];   // +0x14
     unsigned char m_lev;       // +0x32
     unsigned char m_growType;  // +0x33
@@ -734,7 +734,17 @@ public:
 
 class Packet_DBMW_Cube_Statistic : public PacketHeader
 {
-};
+public:
+    int m_count;             // +0xa（条目数）
+    struct CubeEntry
+    {
+        short m_channel;     // +0
+        short m_level;       // +2
+        int m_itemIndex;     // +4
+        int m_itemCount;     // +8
+        unsigned char m_type;// +0xc
+    } __attribute__((packed)) m_entries[1];  // +0xe，步长 0xd
+} __attribute__((packed));
 
 class Packet_DBMW_DeathTower_Statistic_Playdata_Job : public PacketHeader
 {
@@ -761,7 +771,16 @@ class Packet_Avater_Disjoint_Statistic_DB : public PacketHeader
 
 class Packet_DBMW_DeathTower_Statistic_Playdata_Party : public PacketHeader
 {
-};
+public:
+    int m_count;             // +0xa（条目数）
+    struct PartyEntry
+    {
+        signed char m_type;  // +0
+        signed char m_field1;// +1
+        int m_value;         // +2
+        int m_field6;        // +6
+    } __attribute__((packed)) m_entries[1];  // +0xe，步长 0xa
+} __attribute__((packed));
 
 class Packet_Req_Ontime_Event_Idx_Update : public PacketHeader
 {
@@ -834,6 +853,7 @@ public:
     unsigned int m_mid;      // +0xe（请求 +0x13 回显）
     unsigned int m_characNo; // +0x12
     unsigned int m_result;   // +0x16（GuildJoin out result；ORIG ctor size 0x1a）
+    unsigned short m_tail;   // +0x1a（ORIG 对象占位 0x1c：决定 OnGuildJoin 中 join 的栈起点 -0x9c）
 } __attribute__((packed));
 
 class Packet_Reply_Load_Tower_Full_Rank : public PacketHeader

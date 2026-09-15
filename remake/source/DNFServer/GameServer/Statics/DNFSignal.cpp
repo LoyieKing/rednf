@@ -2,17 +2,18 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/resource.h>
+#include <iostream>
 
 #include "DNFSignal.h"
 #include "DNFPacketTracer.h"
 #include "DNFApplication.h"
 
-CSignal::~CSignal()
-{
-}
 void CSignal::attachApp(CApplication* app)
 {
     m_app = app;
+}
+CSignal::~CSignal()
+{
 }
 void CSignal::dump_core_file()
 {

@@ -1,5 +1,6 @@
 // df_statics_r — Scheduler（ORIG Scheduler.o 拆分）
 #include <time.h>
+#include <iostream>
 
 #include "Scheduler.h"
 

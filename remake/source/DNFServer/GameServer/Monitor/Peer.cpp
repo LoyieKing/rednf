@@ -313,7 +313,7 @@ bool CPeer::parsing(int recvLen)
 LAB_51773:
         if (0 < (int)totalLen)
         {
-            if (0x1800 < totalLen)
+            if (totalLen > 0x1800u)
             {
                 // ORIG：try 包日志块，catch 是 printf("[PARSING EXCEPTION]...")+return 0；
                 // memmove 在 try 外。

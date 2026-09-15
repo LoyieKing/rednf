@@ -69,18 +69,6 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-void CAppInit::Init(CApplication* app, int argc, char** argv)
-{
-}
-
-void CAppInit::Load(CApplication* app, int argc, char** argv)
-{
-}
-
-void CAppInit::Free(CApplication* app)
-{
-}
-
 CAppStartInit::CAppStartInit()
 {
 }

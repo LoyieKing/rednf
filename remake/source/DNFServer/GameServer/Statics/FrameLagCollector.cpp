@@ -16,23 +16,6 @@
 
 struct PairView { int m_key; int m_f0; char m_rest[0x1c]; };
 struct PktView { char m_pad[0xa]; int m_a; } __attribute__((packed));
-struct FrameLagPktHeader
-{
-    char m_pad0[0xa];           // +0x00 PacketHeader
-    int m_min;                  // +0x0a
-    char m_field_e;             // +0x0e
-    char m_field_f;             // +0x0f
-    char m_pad10[0x2];          // +0x10
-    unsigned short m_field_12;  // +0x12
-    unsigned short m_field_14;  // +0x14
-    unsigned short m_field_16;  // +0x16
-    unsigned short m_field_18;  // +0x18
-    char m_field_1a;            // +0x1a
-    unsigned int m_directx;     // +0x1b
-    char m_module;              // +0x1f
-    short m_sum1;               // +0x20
-    short m_sum2;               // +0x22
-} __attribute__((packed));
 
 // FrameLag spec 包（Load/Reload）命名成员视图：每个视图只含一个数组，
 // 数组基址对齐 ORIG 反汇编的 displacement（mov 0xNN(%reg,%idx,N)），
@@ -63,50 +46,9 @@ struct FrameLagModifyTimeInt
     int m_modifyTime[6];    // +0x2b
 } __attribute__((packed));
 
-// FrameLag Statistic_Add 包：每 0x38 字节一个 item，v0..v3 位于 item 内 +0x24..0x2a；
-// 用 (char*)pkt + i*0x38 + 0x20 的基址 + item 内 +4..0xa 成员，复现 ORIG 的
-// add $0x20 + movzwl 0x4(%eax) 拆分形态。
-struct FrameLagAddItem
-{
-    char m_pad[4];      // +0x00
-    short m_v0;         // +0x04
-    short m_v1;         // +0x06
-    short m_v2;         // +0x08
-    short m_v3;         // +0x0a
-    char m_rest[0x2c];  // 使 sizeof 恰为 0x38（与 ORIG 的 item 步长一致）
-} __attribute__((packed));
-struct FrameLagAddItems { char m_pad[0x20]; FrameLagAddItem m_items[6]; } __attribute__((packed));
 
-// FrameLag Statistic_Add 包：+0xc 起 8 字节步长的子项（int + float），
-// 复现 ORIG 的 mov 0xc(%ecx,%eax,8) / mov 0x10(%ecx,%eax,8) 形态。
-struct FrameLagAddSub
-{
-    char m_pad[0xc];       // +0x00
-    // 三维拆分（末维为 1）：索引仍等价于 i*7 + (j+4)，但让 GCC 用
-    //   独立下标展开（base 提前、j 进寄存器、末尾 add $0x4），对齐 ORIG。
-    struct FrameLagAddSubItem { int m_i; float m_f; } m_sub[6][7][1];  // +0x0c，步长 8
-} __attribute__((packed));
 
-// FrameLag Statistic_Add 包尾：+0x174 起 char[6] + short[6]（used memory 上报），
-// 复现 ORIG 的 movzbl 0x174(%edx,%eax,1) 与 add $0xb8 + movzwl 0xa(%eax,%edx,2)。
-struct FrameLagMemView
-{
-    char m_pad[0x174];  // +0x00
-    char m_used[6];     // +0x174
-    short m_val[6];     // +0x17a
-} __attribute__((packed));
 
-// accFrameLagStruct 的 FrameLag item：+0..0x6 四个 short，+0x8 起 8 字节步长的
-// int+float 子项（与 is_valid_statistic_packet 的 +0x20/+0xc 视图不同，按 ORIG 反汇编单独建模）。
-struct FrameLagAccItem
-{
-    short m_v0;         // +0x00
-    short m_v1;         // +0x02
-    short m_v2;         // +0x04
-    short m_v3;         // +0x06
-    struct Sub { int m_i; float m_f; } m_sub[6];  // +0x08，步长 8
-    char m_rest[0x28];  // 补齐至 0x60（访问一律走 char* + i*0x38，不依赖本结构步长）
-} __attribute__((packed));
 
 int FrameLagCollector::GetCollectInterval()
 {
@@ -241,11 +183,11 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
         return 4;
     }
     m_field6c++;
-    m_directx.add_cnt(((FrameLagPktHeader*)pkt)->m_directx);
+    m_directx.add_cnt(pkt->m_layout.u_main.m_directx);
     for (i = 0; i < 6; i++)
     {
-        m_memory[i].SetUsedMemory((char)((FrameLagMemView*)pkt)->m_used[i],
-                                  ((FrameLagMemView*)pkt)->m_val[i]);
+        m_memory[i].SetUsedMemory((char)pkt->m_used[i],
+                                  pkt->m_val[i]);
     }
     std::map<int, MonitoringSpecCase>::iterator it;
     std::map<int, FrameLagDataStruct>::iterator fd;
@@ -253,64 +195,71 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
     for (; it != m_monitor.end(); ++it)
     {
         match = 1;
-        if ((int)match == 1)
+        // [2026-09-15 载入形态] ORIG 为 `movzbl -0xd(%ebp),%eax; cmp $0x1,%eax`（388），
+        //   `if (match == 1)` 被 GCC 折叠成 `cmpb`（我方 387 = 长度差 1 的唯一来源）。
+        //   微实验（4.4.6 -m32 -O0）穷举 30 形（unsigned/signed char · bool · int · short ·
+        //   volatile · 各类显式 cast 与提升写法）：唯 `switch (match) { case 1: … }` 复现
+        //   movzbl+cmpl ⇒ 用 switch（单 case 不生成跳转表，长度差消除 387→388、ndiff 59→4）。
+        switch (match)
         {
+        case 1:
             if (!(it->second.m_cpuVendor == -1 ||
-                  it->second.m_cpuVendor == ((FrameLagPktHeader*)pkt)->m_field_f))
+                  it->second.m_cpuVendor == pkt->m_layout.u_main.m_field_f))
             {
                 match = 0;
                 goto MATCH_DONE;
             }
             if (!(it->second.m_cpuProcessorNum == -1 ||
-                  it->second.m_cpuProcessorNum == ((FrameLagPktHeader*)pkt)->m_field_e))
+                  it->second.m_cpuProcessorNum == pkt->m_layout.u_main.m_field_e))
             {
                 match = 0;
                 goto MATCH_DONE;
             }
             if (!(it->second.m_aboveCpuClock == -1 ||
-                  it->second.m_aboveCpuClock <= ((FrameLagPktHeader*)pkt)->m_min))
+                  it->second.m_aboveCpuClock <= pkt->m_layout.u_main.m_min))
             {
                 match = 0;
                 goto MATCH_DONE;
             }
             if (!(it->second.m_belowCpuClock == -1 ||
-                  it->second.m_belowCpuClock > ((FrameLagPktHeader*)pkt)->m_min))
+                  it->second.m_belowCpuClock > pkt->m_layout.u_main.m_min))
             {
                 match = 0;
                 goto MATCH_DONE;
             }
             if (!(it->second.m_ram == (unsigned short)-1 ||
-                  it->second.m_ram == ((FrameLagPktHeader*)pkt)->m_field_18))
+                  it->second.m_ram == pkt->m_layout.u_main.m_field_18))
             {
                 match = 0;
                 goto MATCH_DONE;
             }
             if (!(it->second.m_videocardVendor == -1 ||
                   it->second.m_videocardVendor ==
-                      ((FrameLagPktHeader*)pkt)->m_field_12))
+                      pkt->m_layout.u_main.m_field_12))
             {
                 match = 0;
                 goto MATCH_DONE;
             }
             if (!(it->second.m_videocardDevice == -1 ||
                   it->second.m_videocardDevice ==
-                      ((FrameLagPktHeader*)pkt)->m_field_14))
+                      pkt->m_layout.u_main.m_field_14))
             {
                 match = 0;
                 goto MATCH_DONE;
             }
             if (!(it->second.m_videocardTextureMem == (unsigned short)-1 ||
-                  it->second.m_videocardTextureMem == ((FrameLagPktHeader*)pkt)->m_field_16))
+                  it->second.m_videocardTextureMem == pkt->m_layout.u_main.m_field_16))
             {
                 match = 0;
                 goto MATCH_DONE;
             }
             if (!(it->second.m_osVersion == -1 ||
-                  it->second.m_osVersion == ((FrameLagPktHeader*)pkt)->m_field_1a))
+                  it->second.m_osVersion == pkt->m_layout.u_main.m_field_1a))
             {
                 match = 0;
                 goto MATCH_DONE;
             }
+            break;
         }
     MATCH_DONE:
         if (match)
@@ -319,15 +268,15 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
             if (fd != m_data.end())
             {
                 fd->second.m0 += 1;
-                if (-1 < (char)((FrameLagPktHeader*)pkt)->m_module &&
-                    (char)((FrameLagPktHeader*)pkt)->m_module < 8)
+                if (-1 < (char)pkt->m_layout.u_main.m_module &&
+                    (char)pkt->m_layout.u_main.m_module < 8)
                 {
-                    fd->second.m_b[((char)((FrameLagPktHeader*)pkt)->m_module)] += 1;
+                    fd->second.m_b[((char)pkt->m_layout.u_main.m_module)] += 1;
                 }
-                if (-1 < ((FrameLagPktHeader*)pkt)->m_sum1)
+                if (-1 < pkt->m_layout.u_main.m_items[0].m_s0)
                 {
-                    fd->second.m_c[1] += (int)((FrameLagPktHeader*)pkt)->m_sum1;
-                    fd->second.m_c[2] += (int)((FrameLagPktHeader*)pkt)->m_sum2;
+                    fd->second.m_c[1] += (int)pkt->m_layout.u_main.m_items[0].m_s0;
+                    fd->second.m_c[2] += (int)pkt->m_layout.u_main.m_items[0].m_s1;
                     fd->second.m_c[0] += 1;
                 }
                 accFrameLagStruct(fd->second, (FrameLagStruct*)((char*)pkt + 0x24));
@@ -614,22 +563,24 @@ bool FrameLagCollector::is_valid_statistic_packet(Packet_Frame_Lag_Statistic_Add
     //   声明时被排成 -0x8/-0x4）。
     int i;
     int j;
-    if ((char)((FrameLagPktHeader*)pkt)->m_module < 0 ||
-        8 < (char)((FrameLagPktHeader*)pkt)->m_module)
+    // [2026-09-15 StaticsDiff 机理 E] 零 cast 直访（原先走视图 cast ⇒ base-先载入，
+    //   与 ORIG 的 index-先相反）。字段布局见 shared/packet/include/Packet_Frame_Lag_Statistic_Add.h。
+    if ((char)pkt->m_layout.u_main.m_module < 0 ||
+        8 < (char)pkt->m_layout.u_main.m_module)
     {
         return false;
     }
     for (i = 0; i < 6; i++)
     {
-        if (((FrameLagAddItems*)pkt)->m_items[i].m_v0 < 0) return 0;
-        if (((FrameLagAddItems*)pkt)->m_items[i].m_v1 < 0) return 0;
-        if (((FrameLagAddItems*)pkt)->m_items[i].m_v2 < 0) return 0;
-        if (((FrameLagAddItems*)pkt)->m_items[i].m_v3 < 0) return 0;
+        if (pkt->m_layout.u_main.m_items[i].m_v0 < 0) return 0;
+        if (pkt->m_layout.u_main.m_items[i].m_v1 < 0) return 0;
+        if (pkt->m_layout.u_main.m_items[i].m_v2 < 0) return 0;
+        if (pkt->m_layout.u_main.m_items[i].m_v3 < 0) return 0;
         for (j = 0; j < 6; j++)
         {
-            if (99999 < ((FrameLagAddSub*)pkt)->m_sub[i][j][4].m_i) return 0;
-            if (((FrameLagAddSub*)pkt)->m_sub[i][j][4].m_f == 0.0 &&
-                0 < ((FrameLagAddSub*)pkt)->m_sub[i][j][4].m_i) return 0;
+            if (99999 < pkt->m_layout.u_sub.m_sub[i][j][4].m_i) return 0;
+            if (pkt->m_layout.u_sub.m_sub[i][j][4].m_f == 0.0 &&
+                0 < pkt->m_layout.u_sub.m_sub[i][j][4].m_i) return 0;
         }
     }
     return 1;
@@ -637,33 +588,35 @@ bool FrameLagCollector::is_valid_statistic_packet(Packet_Frame_Lag_Statistic_Add
 // [DNF-NONIDENTICAL] DNF-STA-DIFF-0019 | statics | 与ORIG差异=DIFF | FrameLagCollector::accFrameLagStruct | 详见 function_reports/statics/_ZN17FrameLagCollector17accFrameLagStructERNS_18FrameLagDataStructEP14FrameLagStruct.md
 void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStruct* pkt)
 {
-    // [2026-09-15 实验] j 提升到函数作用域（i 仍在 for 内）使 ORIG 的寄存器
-    //   分配形态部分复现：ndiff 312→260（ORIG 用 ebx/esi/edi 承载 i/j/data）。
+    // [2026-09-15 机理 E] FrameLagStruct 补真实字段后零 cast 直访 ⇒ 长度差消除
+    //   （367→356）、ndiff 186→108。
+    //   [实测] 再把 i 提到函数作用域（i 先声明）⇒ 112，劣化 ⇒ 维持 j 在函数作用域、
+    //   i 在 for 内（108）。
     int j;
     for (int i = 0; i < 6; i++)
     {
-        if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v0)
+        if (0 < pkt[i].m_v0)
         {
             data.m_d[i] +=
-                (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v0;
+                (int)pkt[i].m_v0;
             ++data.m_h[i][0];
         }
-        if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v1)
+        if (0 < pkt[i].m_v1)
         {
             data.m_e[i] +=
-                (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v1;
+                (int)pkt[i].m_v1;
             ++data.m_h[i][1];
         }
-        if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v2)
+        if (0 < pkt[i].m_v2)
         {
             data.m_f[i] +=
-                (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v2;
+                (int)pkt[i].m_v2;
             ++data.m_h[i][2];
         }
-        if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v3)
+        if (0 < pkt[i].m_v3)
         {
             data.m_g[i] +=
-                (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v3;
+                (int)pkt[i].m_v3;
             ++data.m_h[i][3];
         }
         for (j = 0; j < 6; j++)
@@ -675,9 +628,9 @@ void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStru
                 (float)(unsigned int)data.m_a[i] *
                 data.m_i[i][j].s.m_f;
             data.m_i[i][j].s.m_i +=
-                ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_sub[j].m_i;
+                pkt[i].m_sub[j].m_i;
             data.m_i[i][j].s.m_f +=
-                ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_sub[j].m_f;
+                pkt[i].m_sub[j].m_f;
             data.m_i[i][j].s.m_i /=
                 data.m_a[i] + 1U;
             data.m_i[i][j].s.m_f /=

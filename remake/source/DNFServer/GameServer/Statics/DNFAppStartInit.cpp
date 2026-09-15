@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <unistd.h>
+#include <iostream>
 
 #include "DNFAppStartInit.h"
 #include "DNFApplication.h"
@@ -14,6 +15,9 @@
 #include "DNFServerConfig.h"
 #include "DNFTableBase.h"
 
+CAppStartInit::CAppStartInit()
+{
+}
 void CommonTime::SetCurTime()
 {
     time_t t;
@@ -25,9 +29,6 @@ void CommonTime::SetCurTime()
     m_time[3] = (char)pt->tm_hour;
     m_time[4] = (char)pt->tm_min;
     m_time[5] = (char)pt->tm_wday;
-}
-CAppStartInit::CAppStartInit()
-{
 }
 CAppStartInit::~CAppStartInit()
 {

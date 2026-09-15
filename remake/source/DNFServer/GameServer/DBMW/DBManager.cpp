@@ -317,20 +317,6 @@ struct HWspecView
     } __attribute__((packed)) m_entries[1];  // +0xf，步长 0xe
 } __attribute__((packed));
 
-struct CubeStatisticView
-{
-    char h[0xa];
-    int m_count;             // +0xa
-    struct CubeEntry
-    {
-        short m_channel;     // +0
-        short m_level;       // +2
-        int m_itemIndex;     // +4
-        int m_itemCount;     // +8
-        unsigned char m_type;// +0xc
-    } __attribute__((packed)) m_entries[1];  // +0xe，步长 0xd
-} __attribute__((packed));
-
 struct DeathTowerPlaydataJobView
 {
     char h[0xa];
@@ -344,19 +330,6 @@ struct DeathTowerPlaydataJobView
         int m_avg;           // +8
         int m_count;         // +0xc
     } __attribute__((packed)) m_entries[1];  // +0xe，步长 0x10
-} __attribute__((packed));
-
-struct DeathTowerPlaydataPartyView
-{
-    char h[0xa];
-    int m_count;             // +0xa
-    struct PartyEntry
-    {
-        signed char m_type;  // +0
-        signed char m_field1;// +1
-        int m_value;         // +2
-        int m_field6;        // +6
-    } __attribute__((packed)) m_entries[1];  // +0xe，步长 0xa
 } __attribute__((packed));
 
 struct AvaterDisjointPair
@@ -537,7 +510,7 @@ bool CDBManager::SendGuildLetter(int serverId, unsigned int guildId, char* msg)
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0014 | dbmw | 与ORIG差异=DIFF | CDBManager::OnWriteGuildBoard | 详见 function_reports/dbmw/_ZN10CDBManager17OnWriteGuildBoardEP40Packet_DB_Load_Request_Guild_Board_WriteP18STGuildBoardDBInfo.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0014 已消除）| dbmw | CDBManager::OnWriteGuildBoard
 bool CDBManager::OnWriteGuildBoard(
     Packet_DB_Load_Request_Guild_Board_Write* req, STGuildBoardDBInfo* info)
 {
@@ -3098,7 +3071,7 @@ char CDBManager::SaveMemberDelete(unsigned int characNo, unsigned int masterNo,
         return 0;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0041 | dbmw | 与ORIG差异=DIFF | CDBManager::OnGuildJoinByListApprove | 详见 function_reports/dbmw/_ZN10CDBManager24OnGuildJoinByListApproveEjcjjR15STGuildJoinInfoRj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0041 已消除）| dbmw | CDBManager::OnGuildJoinByListApprove
 bool CDBManager::OnGuildJoinByListApprove(unsigned int guildId,
                                           char serverId,
                                           unsigned int m_id,
@@ -5650,7 +5623,7 @@ char CDBManager::OnSaveAssertManagerInfoWrite(
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0043 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryCubeStatisticCreate | 详见 function_reports/dbmw/_ZN10CDBManager24QueryCubeStatisticCreateEP26Packet_DBMW_Cube_Statistic.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0043 已消除）| dbmw | CDBManager::QueryCubeStatisticCreate
 char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
 {
     time_t now = time(0);
@@ -5658,7 +5631,7 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
     if (!h)
         return 0;
     int count = 0;
-    count = ((CubeStatisticView*)packet)->m_count;
+    count = packet->m_count;
     CMyFileLog(__FUNCTION__, 0x1872)("./log/statistic",
          "CDBManager::QueryCubeStatisticCreate : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n", count);
     char buf[0x800] = {0};
@@ -5668,20 +5641,20 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
         if (str.size() != 0)
         {
             sprintf(buf, ",(now(),%d,%d,%d,%d,%d)",
-                    ((CubeStatisticView*)packet)->m_entries[i].m_channel,
-                    ((CubeStatisticView*)packet)->m_entries[i].m_level,
-                    ((CubeStatisticView*)packet)->m_entries[i].m_itemIndex,
-                    ((CubeStatisticView*)packet)->m_entries[i].m_type,
-                    ((CubeStatisticView*)packet)->m_entries[i].m_itemCount);
+                    packet->m_entries[i].m_channel,
+                    packet->m_entries[i].m_level,
+                    packet->m_entries[i].m_itemIndex,
+                    packet->m_entries[i].m_type,
+                    packet->m_entries[i].m_itemCount);
         }
         else
         {
             sprintf(buf, "(now(),%d,%d,%d,%d,%d)",
-                    ((CubeStatisticView*)packet)->m_entries[i].m_channel,
-                    ((CubeStatisticView*)packet)->m_entries[i].m_level,
-                    ((CubeStatisticView*)packet)->m_entries[i].m_itemIndex,
-                    ((CubeStatisticView*)packet)->m_entries[i].m_type,
-                    ((CubeStatisticView*)packet)->m_entries[i].m_itemCount);
+                    packet->m_entries[i].m_channel,
+                    packet->m_entries[i].m_level,
+                    packet->m_entries[i].m_itemIndex,
+                    packet->m_entries[i].m_type,
+                    packet->m_entries[i].m_itemCount);
         }
         if (str.length() + 0x800 > 0x6000)
         {
@@ -5712,7 +5685,7 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0045 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveUnchangableGuildInfo | 详见 function_reports/dbmw/_ZN10CDBManager24SaveUnchangableGuildInfoEP33Packet_UnChangable_GuildInfo_Save.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0045 已消除）| dbmw | CDBManager::SaveUnchangableGuildInfo
 char CDBManager::SaveUnchangableGuildInfo(
     Packet_UnChangable_GuildInfo_Save* packet)
 {
@@ -5769,7 +5742,7 @@ char CDBManager::SaveUnchangableGuildInfo(
             return 0;
         }
     }
-    else
+    // ORIG 形态：本块无 else 守卫（被调 0x4e84 与 0x4e87 的跳转均汇入本块入口）
     {
         if (!h->set_query(0x4e84,
                           "upDate guild_member set charac_name='%s' where guild_id=%d and charac_no=%d",
@@ -6214,7 +6187,7 @@ bool CDBManager::UpdateDisjointAvatarStatistic(
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0066 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate | 详见 function_reports/dbmw/_ZN10CDBManager43QueryDeathTowerPlayDataPartyStatisticCreateEP47Packet_DBMW_DeathTower_Statistic_Playdata_Party.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0066 已消除）| dbmw | CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate
 char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
     Packet_DBMW_DeathTower_Statistic_Playdata_Party* packet)
 {
@@ -6223,7 +6196,7 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
     if (!h)
         return 0;
     int count = 0;
-    count = ((DeathTowerPlaydataPartyView*)packet)->m_count;
+    count = packet->m_count;
     CMyFileLog(__FUNCTION__, 0x17f7)("./log/statistic",
          "Packet_DBMW_DeathTower_Statistic_Playdata_Party : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
          count);
@@ -6234,18 +6207,18 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
         if (str.size() != 0)
         {
             sprintf(buf, ",(now(),%d,%d,%d,%d)",
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_type,
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_field1,
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_value,
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_field6);
+                    packet->m_entries[i].m_type,
+                    packet->m_entries[i].m_field1,
+                    packet->m_entries[i].m_value,
+                    packet->m_entries[i].m_field6);
         }
         else
         {
             sprintf(buf, "(now(),%d,%d,%d,%d)",
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_type,
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_field1,
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_value,
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_field6);
+                    packet->m_entries[i].m_type,
+                    packet->m_entries[i].m_field1,
+                    packet->m_entries[i].m_value,
+                    packet->m_entries[i].m_field6);
         }
         str += buf;
     }
@@ -6265,18 +6238,18 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
         if (str.size() != 0)
         {
             sprintf(buf, ",(now(),%d,%d,%d,%d)",
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_type,
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_field1,
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_value,
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_field6);
+                    packet->m_entries[j].m_type,
+                    packet->m_entries[j].m_field1,
+                    packet->m_entries[j].m_value,
+                    packet->m_entries[j].m_field6);
         }
         else
         {
             sprintf(buf, "(now(),%d,%d,%d,%d)",
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_type,
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_field1,
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_value,
-                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_field6);
+                    packet->m_entries[j].m_type,
+                    packet->m_entries[j].m_field1,
+                    packet->m_entries[j].m_value,
+                    packet->m_entries[j].m_field6);
         }
         str += buf;
     }

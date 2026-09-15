@@ -305,6 +305,9 @@ struct STDungeonLagStatistics
     STDungeonLagStatistics();
     ~STDungeonLagStatistics() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
+    // [2026-09-15 StaticsDiff G/C 轴] 保持 unsigned（Reset/ctor 与 ORIG 的 divl 组一致）；
+    //   SendDBLagStatistics 里 m_data[2]/m_data[6] 两处 ORIG 为 `sar+idivl`（有符号），
+    //   用 (int) cast 复现。实测：字段改 int 反而 4 处中转（+4 条，ndiff 6→9）⇒ 保留 unsigned。
     unsigned int m_data[8];
 };
 

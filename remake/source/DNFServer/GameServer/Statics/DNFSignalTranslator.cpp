@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <string.h>
+#include <iostream>
 
 #include "DNFSignalTranslator.h"
 #include "DNFTerminateSig.h"

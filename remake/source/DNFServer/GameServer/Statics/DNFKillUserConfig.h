@@ -23,12 +23,10 @@ struct ST_KillUSRConfig
 class CKillUSRConfig : private CTableBase
 {
 public:
-    CKillUSRConfig();
     virtual ~CKillUSRConfig();
     virtual void Load_Table(const std::string& path);
     virtual bool Parse_Table(char* line, int idx);
     void Clear_Table();
-    std::vector<ST_KillUSRConfig*>* GetInfo() const;
     std::vector<ST_KillUSRConfig*> m_infos;  // +4
 };
 

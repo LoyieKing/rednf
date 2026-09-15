@@ -3,27 +3,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <iostream>
 
 #include "DNFTableBase.h"
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
 
-CDNFException::CDNFException(const std::string& msg)
-    : std::exception(), m_msg(msg)
-{
-}
-const char* CDNFException::what() const throw()
-{
-    register const char* msg = m_msg.c_str();
-    DNF_LOG_SCOPE_LINE(0x1a, "./log/Except", "%s", msg);
-    return m_msg.c_str();
-}
-CDNFException::~CDNFException() throw()
-{
-}
-CTableBase::~CTableBase()
-{
-}
 int CTableBase::Load_Txt_Table_Data(const char* path, int maxCount)
 {
     int count = 0;
@@ -53,6 +38,22 @@ int CTableBase::Load_Txt_Table_Data(const char* path, int maxCount)
         fclose(f);
     }
     return count;
+}
+CDNFException::CDNFException(const std::string& msg)
+    : std::exception(), m_msg(msg)
+{
+}
+const char* CDNFException::what() const throw()
+{
+    register const char* msg = m_msg.c_str();
+    DNF_LOG_SCOPE_LINE(0x1a, "./log/Except", "%s", msg);
+    return m_msg.c_str();
+}
+CDNFException::~CDNFException() throw()
+{
+}
+CTableBase::~CTableBase()
+{
 }
 CTableBase::CTableBase()
 {

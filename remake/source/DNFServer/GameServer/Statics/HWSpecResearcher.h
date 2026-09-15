@@ -18,7 +18,6 @@ struct HWSpec
 struct ErrorValue
 {
     ErrorValue();
-    ErrorValue(unsigned short value, unsigned int param);
     unsigned short m_errorLine;  // +0（log_packet_dispatcher_error_line.error_line，0xffff 默认）
     unsigned int m_errorCode;    // +4（log_packet_dispatcher_error_line，0xffffffff 默认）
 };

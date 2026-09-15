@@ -78,11 +78,6 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-void CScheduler::SetSpecificDayScheduleHour(int day, int hour)
-{
-    m_table[day].m_hour = (char)hour;
-}
-
 CScheduler::CScheduler()
 {
     m_day = 0xff;

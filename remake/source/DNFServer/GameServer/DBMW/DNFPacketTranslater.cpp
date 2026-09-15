@@ -223,7 +223,6 @@ void CPacketTranslater::OnGuildMasterDelegate(PacketHeader* header)
         m_pclApp->m_dbManager.QueryGuildMemberGradeByName(
             pkt->m_serverId, pkt->m_guildId, pkt->m_name,
             grade, *(unsigned int*)((char*)&reply + 0x12), result);
-        resultCode = 0;
         if (grade == 2)
         {
             if (reply.m_newMasterNo == 0 || result == 0)
@@ -243,6 +242,10 @@ void CPacketTranslater::OnGuildMasterDelegate(PacketHeader* header)
                 );
 
                 resultCode = 2;
+            }
+            else
+            {
+                resultCode = 0;
             }
         }
         else
@@ -429,9 +432,9 @@ void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
         else if (characNos.size() > 0)
         {
             Packet_Notify_New_Group_Mail notice;
-            int n = characNos.size() > 0x12b ? 0x12c : characNos.size();
-            notice.m_count = n;
-            for (int i = 0; i < n; i++)
+            notice.m_count =
+                characNos.size() > 0x12b ? 0x12c : characNos.size();
+            for (int i = 0; i < notice.m_count; i++)
                 notice.m_characNos[i] = characNos.at(i);
             m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
                 (char*)&notice, notice.packetSize);
@@ -449,14 +452,14 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardWrite(PacketHeader* header)
         return;
     try
     {
-        Packet_DB_Load_Request_Guild_Board_Write_View* pkt =
-            (Packet_DB_Load_Request_Guild_Board_Write_View*)header;
+        Packet_DB_Load_Request_Guild_Board_Write* pkt =
+            (Packet_DB_Load_Request_Guild_Board_Write*)header;
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         int unused = 0;
         (void)unused;
         STGuildBoardDBInfo info;
         if (m_pclApp->m_dbManager.OnWriteGuildBoard(
-                (Packet_DB_Load_Request_Guild_Board_Write*)pkt, &info))
+                pkt, &info))
         {
             Packet_DB_Load_Reply_Guild_Board_Write reply;
             reply.m_guildId = pkt->m_guildId;
@@ -973,11 +976,9 @@ void CPacketTranslater::OnSavePowerWarBonusPoint(PacketHeader* header)
         if (pkt->m_count > 0)
         {
             Packet_Notify_New_Group_Mail notice;
-            int n = pkt->m_count;
-            if (n > 0x12c)
-                n = 0x12c;
-            notice.m_count = n;
-            for (int i = 0; i < n; i++)
+            notice.m_count =
+                pkt->m_count > 0x12c ? 0x12c : pkt->m_count;
+            for (int i = 0; i < notice.m_count; i++)
                 notice.m_characNos[i] = pkt->m_entries[i].m_characNo;
             CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
             gs->SendToServer((char*)&notice, notice.packetSize);
@@ -1365,13 +1366,13 @@ void CPacketTranslater::onStartGameEventFromServer(PacketHeader* header)
         if (tcp)
         {
             char* buf = (char*)tcp->makePacketHeader(0x27fb, 0x1a);
-            char* sendBuf = buf;
-            (void)sendBuf;
-            *(int*)(buf + 0xa) = pkt->m_eventType;
-            *(int*)(buf + 0xe) = pkt->m_eventFlag;
-            *(int*)(buf + 0x12) = pkt->m_serverId;
-            *(int*)(buf + 0x16) = pkt->m_parameter1;
-            tcp->SendToServer(buf);
+            Packet_StartGameEventFromServer* sendBuf =
+                (Packet_StartGameEventFromServer*)buf;
+            sendBuf->m_eventType = pkt->m_eventType;
+            sendBuf->m_eventFlag = pkt->m_eventFlag;
+            sendBuf->m_serverId = pkt->m_serverId;
+            sendBuf->m_parameter1 = pkt->m_parameter1;
+            tcp->SendToServer((char*)sendBuf);
         }
         else
         {
@@ -1409,12 +1410,12 @@ void CPacketTranslater::onEndGameEventFromServer(PacketHeader* header)
         if (tcp)
         {
             char* buf = (char*)tcp->makePacketHeader(0x27fc, 0x16);
-            char* sendBuf = buf;
-            (void)sendBuf;
-            *(int*)(buf + 0xa) = pkt->m_eventType;
-            *(int*)(buf + 0x12) = pkt->m_endTime;
-            *(int*)(buf + 0xe) = pkt->m_serverId;
-            tcp->SendToServer(buf);
+            Packet_StopGameEventFromServer* sendBuf =
+                (Packet_StopGameEventFromServer*)buf;
+            sendBuf->m_eventType = pkt->m_eventType;
+            sendBuf->m_endTime = pkt->m_endTime;
+            sendBuf->m_serverId = pkt->m_serverId;
+            tcp->SendToServer((char*)sendBuf);
         }
         else
         {
@@ -1532,16 +1533,15 @@ void CPacketTranslater::OnDBMWVillageAttackRank(PacketHeader* header)
 {
     if (!m_pclApp)
         return;
-    // ORIG 存在一个声明但从未被引用的 4 字节局部，其槽位决定后续变量起点；
-    // 缺失会使 flag/a/b 整体上移 4 字节（-0x25 vs -0x29），勿删。
-    int reservedSlot;
     try
     {
         bool flag = false;
         int a = 0;
         int b = 0;
+        Packet_DB_VillageAttackedRank* pkt =
+            (Packet_DB_VillageAttackedRank*)header;
         if (!m_pclApp->m_dbManager.GetVillageAttackedRank(
-                (Packet_DB_VillageAttackedRank*)header, flag, a, b))
+                pkt, flag, a, b))
         {
             DNF_LOG_SCOPE_LINE(0xd5a,
                 "./log/GuildEvent",
@@ -2172,20 +2172,18 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
         if (!vec1.empty())
         {
             int size = vec1.size();
-            int srcIdx = 0;
             int batch = 0;
+            int srcIdx = 0;
             while (srcIdx < size)
             {
                 Packet_Response_IPCounterList reply;
                 int count = 0;
                 while (count <= 0x95 && srcIdx < size)
                 {
-                    (*(st_ip_counter_list*)&reply.m_rest[count * 0x14])
-                        .CopyStruct(vec1[srcIdx]);
-                    srcIdx++;
-                    count++;
+                    (*(st_ip_counter_list*)&reply.m_rest[count++ * 0x14])
+                        .CopyStruct(vec1[srcIdx++]);
                 }
-                reply.m_count = (char)count;
+                reply.m_count = count;
                 if (batch == 0)
                     reply.m_batchFlag = 0;
                 else if (srcIdx >= size)
@@ -2213,20 +2211,18 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
         if (!vec2.empty() && pkt->m_fullListFlag != 0)
         {
             int size = vec2.size();
-            int srcIdx = 0;
             int batch = 0;
+            int srcIdx = 0;
             while (srcIdx < size)
             {
                 Packet_Response_D_IPCounterList reply;
                 int count = 0;
                 while (count <= 0x95 && srcIdx < size)
                 {
-                    (*(st_full_ip_counter_list*)&reply.m_rest[count * 0x18])
-                        .CopyStruct(vec2[srcIdx]);
-                    srcIdx++;
-                    count++;
+                    (*(st_full_ip_counter_list*)&reply.m_rest[count++ * 0x18])
+                        .CopyStruct(vec2[srcIdx++]);
                 }
-                reply.m_count = (char)count;
+                reply.m_count = count;
                 if (batch == 0)
                     reply.m_batchFlag = 0;
                 else if (srcIdx >= size)
@@ -2331,6 +2327,10 @@ void CPacketTranslater::OnRequestARSInfo(PacketHeader* header)
         return;
     try
     {
+        // ORIG 在该 TU 中存在一个「赋值后未被读取」的指针局部（槽位 -0x24），
+        // 其存在决定 vector 起点（-0x58）；缺失会让浅区整体上移 4 字节。
+        Packet_Set_ARS_Info* pkt = (Packet_Set_ARS_Info*)header;
+        (void)pkt;
         if (!m_pclApp->m_dbManager.QueryLoadARSInfo(list))
         {
             DNF_LOG_SCOPE_LINE(0xdf6,
@@ -2344,20 +2344,18 @@ void CPacketTranslater::OnRequestARSInfo(PacketHeader* header)
         if (!list.empty())
         {
             int size = list.size();
-            int srcIdx = 0;
             int batch = 0;
+            int srcIdx = 0;
             while (srcIdx < size)
             {
                 Packet_Set_ARS_Info reply;
                 int count = 0;
                 while (count <= 0x63 && srcIdx < size)
                 {
-                    (*(st_ars_info_list*)&reply.m_rest[count * 0xc])
-                        .CopyStruct(list[srcIdx]);
-                    srcIdx++;
-                    count++;
+                    (*(st_ars_info_list*)&reply.m_rest[count++ * 0xc])
+                        .CopyStruct(list[srcIdx++]);
                 }
-                reply.m_count = (char)count;
+                reply.m_count = count;
                 if (batch == 0)
                     reply.m_statsType = 0;
                 else if (srcIdx < size)

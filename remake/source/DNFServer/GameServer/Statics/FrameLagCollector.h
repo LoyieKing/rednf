@@ -6,7 +6,25 @@
 #include "PacketHeader.h"
 
 class CServerHandler;
-class FrameLagStruct;
+// [2026-09-15 机理 E] 原为空类（仅前向声明）⇒ .cpp 只能用 FrameLagAccItem 视图 cast，
+//   而 cast 会强制 base 先载入（ORIG 为 index 先、base 末尾 add 融入）。
+//   逐项镜像视图：+0..+6 四个 short，+0x8 起 6 个 {int,float}（步长 8）⇒ sizeof = 0x38
+//   （与 ORIG `pkt + i*0x38` 的步长一致）。
+class FrameLagStruct
+{
+public:
+    struct Sub
+    {
+        int m_i;     // +0x00
+        float m_f;   // +0x04
+    } __attribute__((packed));
+
+    short m_v0;      // +0x00
+    short m_v1;      // +0x02
+    short m_v2;      // +0x04
+    short m_v3;      // +0x06
+    Sub m_sub[6];    // +0x08，步长 8
+} __attribute__((packed));
 class Packet_Frame_Lag_Statistic_Add;
 class Packet_Frame_Lag_Collect_Interval_Check : public PacketHeader
 {
@@ -72,8 +90,14 @@ public:
         // ORIG 的 m_i 基址 = 0x100、容量 41 个 Pair（0x100 + 41*8 = 0x248 = ORIG 的
         //   rep movsl 146-ints 锚定值）。两侧不可兼得：要复现 ORIG 的**二维展开**
         //   （内层 j 走 %ebx）就必须让类型真为二维，而 41 是质数无法分解 ⇒ 实测取舍：
-        //   二维 [6][7] 从 0xf8（本声明，init 2 / Save 44 / acc 196）
-        //   vs 一维 [41] 从 0x100（init 44 / Save 167 / acc 278，全量退化）。
+        //   二维 [6][7] 从 0xf8（本声明，init 2 / Save 63 / acc 186）
+        //   vs 一维 [41] 从 0x100（init 49 / Save 188 / acc 285）
+        //   vs 二维视图 cast（init 25 / Save 74 / acc 318）⇒ 均劣于基线。
+        //   注：+0x100 的同址 disp 编码（ORIG `add $0x1e`+disp 0x10）在可得后端下
+        //   一律折成 `add/lea $0x20`+disp 0x0（4.4.6-3 / 4.4.4-13 / 4.4.7-23）
+        //   或 disp 0x100 不拆（4.1.2-52）⇒ 属编译器常量拆分轴。
+        //   [2026-09-15 StaticsDiff 复测] 在 0xf8 补 8 字节成员使 m_i 落到 0x100：
+        //   init 2→4、acc 186→198、服务 identical 1142→1140（11 非 identical）⇒ **劣化，已回退**。
         Pair m_i[6][7];      // +0xf8（类大小保持 0x248）
     };
     class MonitoringSpecCase

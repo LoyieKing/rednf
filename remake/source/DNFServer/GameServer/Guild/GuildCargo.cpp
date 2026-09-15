@@ -267,6 +267,10 @@ int CGuildCargo::CheckInsertItem(int itemId, int count, int slot, unsigned char 
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-NEAR-0001 | guild | 与ORIG差异=NEAR | CGuildCargo::DeleteItem | 详见 function_reports/guild/_ZN11CGuildCargo10DeleteItemER11DnfItemInfoiihii.md
+// [机理 C · 待环境] 本件差异 = `m_addInfo` signedness 决定 LHS/RHS 载入序；
+// 沙箱实证：改 Game/DnfItemInfo.h 的 m_addInfo → int 可令本件 NEAR→AE identical（164/164 ndiff 0）。
+// 阻断原因：跨服务头 ⇒ game InterDispatcher.cpp.o md5 变化（2ec9edcf→deeb80d0）且 game 不可重链 ⇒ 无法验证 ⇒ 按闸门维持回退。
+// 若将来 game 可重链 ⇒ 本件 + 同族件应优先重估。
 // [GuildA 2026-09-15 实证但受阻塞，未落盘] P2 判据（赋值目标 signedness 决定 LHS/RHS 载入序）：
 //   本件 ELF 口径残差仅 2 行、纯载入序交换（ORIG `mov 0xc(%ebp),%eax`(info/LHS) 先于
 //   `mov 0x1c(%ebp),%edx`(b/RHS)；我方相反），对应源码 `info.m_addInfo = (int)b;`。
@@ -279,6 +283,13 @@ int CGuildCargo::CheckInsertItem(int itemId, int count, int slot, unsigned char 
 //   ⇒ 按 Main 裁决维持回退（`unsigned int`），待未来有 game 可验证环境时可直接复用本证据。
 //   其它已试形态（均 2–3，无改善）：去 `(int)` cast、`(int)(int)b`、
 //   `*(int*)((char*)&info + 6) = b;`。
+//   [NEAR-Guild 2026-09-15 追加 2 形态（本 TU 内、零跨服务面），均劣化 ⇒ 已回退]
+//   V1 `(int&)info.m_addInfo = b;` ⇒ 目标降级为无 disp 的间接写：`add $0x6,%eax` + `(%eax)`
+//      （165 条、ndiff 9）✗
+//   V2 `*(int*)(&info.m_addInfo) = b;` ⇒ 同上形态（165 条、ndiff 9）✗
+//   ⇒ 目标类型变 signed 才能复现 ORIG 的 LHS-first，而**任何指针/引用视图都会丢 disp 寻址**
+//     ⇒ 唯一有效路径 = 改 `Game/DnfItemInfo.h` 字段为 int（已由 GuildA 沙箱证明 NEAR→AE，
+//     受 game 不可重链阻塞，见上）⇒ 本 TU 内无靶点 ✓
 int CGuildCargo::DeleteItem(DnfItemInfo& info, int slot, int count, unsigned char a, int b, int c)
 {
     if (!IsValidSlot(slot))
@@ -500,6 +511,15 @@ void CGuildCargo::InsertHistory(ENUM_GUILD_CARGO_BEHAVIOR behavior, int slot, co
     //   已试形态（均 ≥8，无一改善）：present 指针 register 形（8，保留）/ C 风格 cast（8）/
     //   `unsigned int*` + o[0..2] + *(unsigned short*)(o+3)（12）/ const 引用形 o.optN（24）/
     //   去 register（24）。
+    //   [NEAR-Guild 2026-09-15 追加 3 形态，均劣化 ⇒ 已回退，全部读数取自链接后 ELF]
+    //   V1 `*(OptionDwordView*)(void*)&log.opt0 = *(const OptionDwordView*)option;`（结构体整体赋值）
+    //      ⇒ GCC 走 memcpy 路径：先生成 -0x44 临时对象（82 条、ndiff 10）✗
+    //   V2 `memcpy(&log.opt0, option, 0xe);` ⇒ 直出 `call memcpy@plt`（GCC -O0 不内联常量拷贝，78 条、ndiff 10）✗
+    //   V3 `register const OptionDwordView* o __asm__("eax")`（邻件 GuildMemLogout 的成功手法）
+    //      ⇒ **基址正确落 %eax、值走 %edx**，但每条访问多一条 `mov %eax,%edx`（83 条、ndiff 7）✗
+    //      ⇒ 与 ORIG「形参单次载入 %eax + 4 次同基址 disp 访问」仅差该 3 条 ⇒ ORIG 形态
+    //        只能由「LHS 是**真实结构体成员**的整体赋值」产生（需给 STGuildCargoLog 增一个 14 字节
+    //        视图成员，位于 GuildCargo.h ⇒ **出本泳道白名单**）⇒ 本 TU 内无靶点 ✓
     register const OptionDwordView* o = reinterpret_cast<const OptionDwordView*>(option);
     log.opt0 = o->opt0;
     log.opt1 = o->opt1;

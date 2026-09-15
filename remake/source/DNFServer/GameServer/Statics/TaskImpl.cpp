@@ -1,5 +1,6 @@
 // df_statics_r — TaskImpl（ORIG TaskImpl.o 拆分）
 #include <stdlib.h>
+#include <iostream>
 
 
 

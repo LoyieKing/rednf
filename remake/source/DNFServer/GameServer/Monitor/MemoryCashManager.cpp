@@ -129,8 +129,13 @@ char CMemoryCashManager::QueryCashMemoryMember(CUser* user)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0120 | monitor | 与ORIG差异=DIFF | CMemoryCashManager::QueryCashMemoryBuddyInfo | 详见 function_reports/monitor/_ZN18CMemoryCashManager24QueryCashMemoryBuddyInfoEP5CUser.md
-// [P-DIFF] 180/180 ndiff=7（原 12）。已落地：charNo 声明为 int（ORIG 的寄存器映射 ebx/esi 需此类型组合）。
-//   余差 = 循环尾 1 条 jmp（ORIG 有）+ 该 jmp 引起的跳转编号。
+// [P-DIFF] 180/180 ndiff=**4**（原 12 → 7 → 4）。已落地：
+//   ① charNo 声明为 int（ORIG 的寄存器映射 ebx/esi 需此类型组合）；
+//   ② **机理 B 显式寄存器绑定**：`register unsigned int uniqNo __asm__("ebx")` ⇒ uniqNo 落 %ebx 与 ORIG 一致（ndiff 7→4，长度 180 不变）。
+//   边界实证（同一件三变体）：只绑 charNo→%esi ⇒ 180→**184**、ndiff **61**（帧 -0xa8→-0xb8 整体劣化）；
+//     两个都绑 ⇒ 180→182、ndiff 13 ⇒ **仅在 uniqNo 单点绑定有效**，charNo 必须留给 GCC 自由分配。
+//   余差 = 循环尾 1 条 jmp（ORIG 有）+ charNo 载入多一条中转（ORIG `mov 0x22(%eax),%esi` 一条；
+//     我方 `mov 0x22(%eax),%eax; mov %eax,%esi` 两条）。
 bool CMemoryCashManager::QueryCashMemoryBuddyInfo(CUser* user)
 {
     if (m_cashObjects.empty())
@@ -161,7 +166,7 @@ bool CMemoryCashManager::QueryCashMemoryBuddyInfo(CUser* user)
                     strncpy((char*)buddies[i]->getBuddyDBInfo(), name.c_str(), 0x1d);
                 }
                 user->AddBuddyFromCash(buddies[i]);
-                register unsigned int uniqNo = user->GetUniqCharNo();
+                register unsigned int uniqNo __asm__("ebx") = user->GetUniqCharNo();
                 register int charNo =
                     ((STBuddyDBInfo*)buddies[i]->getBuddyDBInfo())->m_characNo;
                 m_app->Get_BuddyRegisterManager()->addBuddyRegister(charNo, uniqNo);
@@ -187,6 +192,8 @@ bool CMemoryCashManager::QueryCashMemoryBuddyInfo(CUser* user)
 //      原被我方误放在 `if (obj != 0)` **块内**，ORIG 是 `if` **之后**的公共代码（ORIG `je <#147>` 指向该公共块、
 //      我方曾指 `return 0`）⇒ 移出后 ndiff 5→4。**这是行为差异，非 RA 差异**。
 //   余差 1 处 = 实参求值序（ORIG 先 `mov key,%eax` 再 `lea &name`；我方相反）；已试 `const key`/`int key` 无效。
+//   2026-09-15 追加（机理 B 边界）：显式绑定不适用 —— `register unsigned int key __asm__("eax")` ⇒ 长度 173→**171**、
+//     ndiff 4→**45**（eax 被占用引发全函数分配劣化，已回退）⇒ 该件仅剩「实参求值序 + %edx/%eax 选择」轴，无源码可调面。
 //   反例（切勿批量套用 D 形态）：QueryCashMemoryMember（→191/16）与 BuddyInfo（→181/14）均劣化，已回退。
 bool CMemoryCashManager::QueryCashMemoryBlackList(CUser* user)
 {
@@ -318,17 +325,16 @@ bool CMemoryCashManager::IsRightObject(CUser* user, CMember* member, bool& flag1
     return ret;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0121 | monitor | 与ORIG差异=NEAR | CMemoryCashManager::InsertCashMemorySetCharacterObject | 详见 function_reports/monitor/_ZN18CMemoryCashManager34InsertCashMemorySetCharacterObjectEP5CUserP7CMemberRbS4_.md
-// [P-DIFF] 137/137 ndiff=10。已落地：IsRightObject 返回类型 bool（调用点 sete→test，30→20）、
-//   正向 if 包裹 + `!r.second` 双 return（ORIG 的 xor $0x1 形态，20→10）。
-//   余差 = buddies 数组槽偏移 8（ORIG -0xc0；我方 -0xc8）。
-//   S5 占位实测（同位置 = 最外层首部、local 之前）：char[8] → ndiff 10→**4**（最优，保留）；
-//   int×1 → 18、int×2 → 10、int 在 local 之后 → 10、char[4] → 4（同 char[8]，但按 P7 差 8 用 8 字节）；
-//   已试不利：`int n` 内联（→29）、占位放 buddies 之后（→10）。
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0121 已消除）| CMemoryCashManager::InsertCashMemorySetCharacterObject
+// [P-NOTE] 137/137 ndiff=0（mdiff_ta STRICT）。翻正 = 两处联动，缺一即 NEAR：
+//   ① 删去重建期多加的 `char reservedSlot[8]` 占位（该占位只在「具名 r」前提下才把 local/obj 推低 8）；
+//   ② `std::pair<map::iterator,bool> r = insert(...); if (!r.second)` 就地内联为 `if (!insert(...).second)`
+//      ⇒ 具名局部 r 消失，两个 8 字节标量块（r 块 ↔ local/obj 块）的栈分配次序与 ORIG 一致。
+//   对照实测：只删占位 → 10；只内联 r（留占位）→ 10；两者同时 → 0。
+//   前轮基础修复仍有效：IsRightObject 返回类型 bool（调用点 sete→test）、正向 if 包裹 + `!r.second` 双 return（xor $0x1 形态）。
 int CMemoryCashManager::InsertCashMemorySetCharacterObject(CUser* user, CMember* member,
                                                            bool& flag1, bool& flag2)
 {
-    char reservedSlot[8];
     bool local = false;
     if (IsRightObject(user, member, flag1, flag2, local))
     {
@@ -349,9 +355,7 @@ int CMemoryCashManager::InsertCashMemorySetCharacterObject(CUser* user, CMember*
             obj->SetBuddysObject(buddies, n);
             incBuddyCashCnt();
         }
-        std::pair<std::map<unsigned int, CCashObject*>::iterator, bool> r =
-            m_cashObjects.insert(std::make_pair(user->GetDBID(), obj));
-        if (!r.second)
+        if (!m_cashObjects.insert(std::make_pair(user->GetDBID(), obj)).second)
         {
             delete obj;
             return 0;

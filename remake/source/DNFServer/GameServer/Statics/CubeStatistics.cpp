@@ -1,6 +1,7 @@
 // df_statics_r — CubeStatistics（ORIG CubeStatistics.o 拆分）
 #include <stdio.h>
 #include <string.h>
+#include <iostream>
 
 #include "CubeStatistics.h"
 #include "DNFServerHandler.h"

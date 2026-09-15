@@ -23,6 +23,13 @@
 #include "DNFFunctionLib.h"
 #include "DNFMember.h"
 #include "Packet_GM_Request_Mid.h"
+// [SharedHdr-Monitor 2026-09-15 · Main 裁决(b)] 机理 E′ 的类型提供点（**仅本 TU**）：
+//   先带入 STPvPChannelInfo 定义并置 PVPINFO_REAL_SLOTS，使 Packet_PvPChannelInfo::m_channels
+//   在本 TU 内为真实元素类型 STPvPChannelInfo[0x17e]（0x17e0 字节，布局不变）；
+//   其余 TU 走该头默认 char[0x17e0] 分支 ⇒ 目标码逐字节不变（game 两个消费 TU 已 cmp 验证）。
+//   移除本两行（并恢复默认分支）前，须先确认 STPvPChannelInfo 在共享层的归属。
+#define PVPINFO_REAL_SLOTS 1
+#include "DNFChannelWaitingUser.h"
 #include "Packet_PvPChannelInfo.h"
 #include "Packet_PvPChannelUserCount.h"
 #include "Packet_Item_Limit_Edition_Sell_Start.h"
@@ -1885,19 +1892,16 @@ onend:
 void CPacketTranslater::OnCharacterDelete(PacketHeader* pkt)
 {try
 {
-    int reservedSlot;   // S5: ORIG 含未引用 4 字节占位（槽组整体浅 4）
-
-
     if (m_pclApp == 0)
     {
         throw CDNFException("CPacketTranslater::OnCharacterDelete : 0 == m_pclApp");
     }
+    Packet_Monitor_Charac_Delete* del = (Packet_Monitor_Charac_Delete*)pkt;
     CServerHandler* handler = m_pclApp->m_serverHandler2;
     if (handler != 0)
     {
-        Packet_Monitor_Charac_Delete* del = (Packet_Monitor_Charac_Delete*)pkt;
-        (&m_pclApp->m_userManager)
-            ->DeleteBlackUserOnCharacDelete(del->m_charNo);
+        CUserManager* userMgr = &m_pclApp->m_userManager;
+        userMgr->DeleteBlackUserOnCharacDelete(del->m_charNo);
         Packet_DB_Member_Delete_As_Charac_Delete dbPkt;
         dbPkt.m_charNo = del->m_charNo;
         handler->SendToDB(&dbPkt);
@@ -2066,7 +2070,7 @@ void CPacketTranslater::OnRelayServerUserCheck(PacketHeader* pkt)
     p = (Packet_Relay_Server_User_Check*)pkt;
     CUserManager* userMgr = &m_pclApp->m_userManager;
     CUser* user = userMgr->FindUser(p->m_dbid);
-    unsigned int channel = (unsigned int)(unsigned char)p->m_channel;
+    int channel = (int)(unsigned char)p->m_channel;
     if (user == 0)
     {
         p->m_channel = 0;
@@ -2133,6 +2137,8 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
         }
         Packet_Web_Prohibit_User_Connect* pu = (Packet_Web_Prohibit_User_Connect*)pkt;
         unsigned int dbid = (unsigned int)pu->m_id;
+        // [SharedHdr-Monitor 2026-09-15] 机理 A/K：ORIG 有贯穿式具名临时（userManager 指针，槽 -0x24）
+        CUserManager* um = &m_pclApp->m_userManager;
         exchange_server::CACHE_CHARACTER_TYPE cacheType;
         if (exchange_server::GetInstanceCacheCharacterMgr()->GetCacheCharacter(dbid,
                                                                                &cacheType) != 0)
@@ -2141,17 +2147,17 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
                 NumberToString(dbid, 0),
                 cacheType.m_field0, cacheType.m_field4);
         }
-        bool notPresent =
-            (&m_pclApp->m_userManager)->FindUser(dbid) == 0 && (&m_pclApp->m_userManager)->FindProhibitUser(dbid) == 0;
-        pu->m_bIsConnect = notPresent ? 0 : 1;
+        // [SharedHdr-Monitor 2026-09-15] 机理 K：ORIG 无 notPresent 具名局部（bool 会占一个槽 +
+        //   使三元走 `mov $0/$1,%eax` 物化路径；ORIG 是两个分支各自 movb 直写 m_bIsConnect）。
+        pu->m_bIsConnect = (um->FindUser(dbid) == 0 && um->FindProhibitUser(dbid) == 0) ? 0 : 1;
         if (pu->m_flag == 0)
         {
-            CDNFProhibitUser* p = (&m_pclApp->m_userManager)->FindProhibitUser(dbid);
+            CDNFProhibitUser* p = um->FindProhibitUser(dbid);
             if (p == 0)
             {
                 p = new CDNFProhibitUser;
                 p->SetUserConnectableTime(dbid, (short)pu->m_time, -1, true);
-                if ((&m_pclApp->m_userManager)->InsertProhibitUser(dbid, p) != 1)
+                if (um->InsertProhibitUser(dbid, p) != 1)
                 {
                     DNF_LOG_SCOPE_LINE(0x922,"./log/ProhibitUser",
                         "[INSERT_ERR] CPacketTranslater::OnNoticeProhibitConnectUser m_id : "
@@ -2193,7 +2199,7 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
         }
         else
         {
-            if ((&m_pclApp->m_userManager)->DeleteProhibitUser(dbid, -1) != 1)
+            if (um->DeleteProhibitUser(dbid, -1) != 1)
             {
                 DNF_LOG_SCOPE_LINE(0x8ef,"./log/ProhibitUser",
                     "[DELETE_ERR] CPacketTranslater::OnNoticeProhibitConnectUser m_id : %s, "
@@ -3642,7 +3648,7 @@ void CPacketTranslater::OnPvPChannelUserCount(PacketHeader* pkt)
                 reply.m_uid = cnt->m_uid;
                 reply.m_schoolNo = cnt->m_schoolNo;
                 reply.m_count = 0xff;
-                user->GetChannelUserCount((STPvPChannelInfo*)reply.m_channels, reply.m_count);
+                user->GetChannelUserCount(reply.m_channels, reply.m_count);
                 reply.packetSize =
                     (unsigned short)((unsigned int)reply.m_count * 0x10 + 0x18);
                 user->SendTcpGameserver(&reply);
@@ -4102,24 +4108,24 @@ void CPacketTranslater::OnSetCleanPadPoint(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::OnSetCleanPadPoint : 0 == m_pclApp");
         }
-        int charNo = 0;
+        unsigned int charNo = 0;
         Packet_Request_Set_CleanPad_Point* req = (Packet_Request_Set_CleanPad_Point*)pkt;
         // [推断] ORIG 0x808bc48 段 setne/test/je = 赋值内嵌条件物化（P352）
         CUser* user;
         if ((user = m_pclApp->m_userManager.FindUser(req->m_dbid)) != 0)
         {
-            charNo = (int)user->GetUniqCharNo();
+            charNo = user->GetUniqCharNo();
         }
         else
         {
-            charNo = -1;
+            charNo = (unsigned int)-1;
         }
         if (charNo != 0)
         {
             CUser* target = 0;
             Packet_Set_CleanPad_Point reply;
             // [推断] ORIG 0x808bfbc 段 setne/test/je = 赋值内嵌条件物化（P352）
-            if ((target = m_pclApp->m_userManager.FindUser_CharNo((unsigned int)charNo)) != 0)
+            if ((target = m_pclApp->m_userManager.FindUser_CharNo(charNo)) != 0)
             {
                 reply.m_idByChannel = target->GetIdByChannel();
                 reply.m_point = req->m_point;
@@ -4781,23 +4787,22 @@ void CPacketTranslater::OnMonitorPunishCancel(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::OnMonitorPunishCancel : 0 == m_pclApp");
         }
+        unsigned int charNo = 0;
         Packet_Punish_Cancel* in = (Packet_Punish_Cancel*)pkt;
-        Packet_Punish_Cancel reply;
-        int charNo = 0;
         CUser* user;
         if ((user = (&m_pclApp->m_userManager)->FindUser(in->m_idByChannel)) != 0)
         {
-            charNo = (int)user->GetUniqCharNo();
+            charNo = user->GetUniqCharNo();
         }
         else
         {
-            charNo = -1;
+            charNo = (unsigned int)-1;
         }
         if (charNo != 0)
         {
-            CUser* target = (&m_pclApp->m_userManager)
-                                ->FindUser_CharNo((unsigned int)charNo);
-            if (target != 0)
+            CUser* target = 0;
+            Packet_Punish_Cancel reply;
+            if ((target = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo)) != 0)
             {
                 reply.m_idByChannel = target->GetIdByChannel();
                 reply.m_type = in->m_type;
@@ -4860,16 +4865,16 @@ void CPacketTranslater::OnMonitorSecuServiceConnWeb(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::OnMonitorSecuServiceConnWeb : 0 == m_pclApp");
         }
-        int charNo = 0;
+        unsigned int charNo = 0;
         Packet_SecuService_Connect_Web* in = (Packet_SecuService_Connect_Web*)pkt;
         CUser* user;
         if ((user = (&m_pclApp->m_userManager)->FindUser(in->m_idByChannel)) != 0)
         {
-            charNo = (int)user->GetUniqCharNo();
+            charNo = user->GetUniqCharNo();
         }
         else
         {
-            charNo = -1;
+            charNo = (unsigned int)-1;
         }
         if (charNo != 0)
         {

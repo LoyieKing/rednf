@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <iostream>
 
 #include "DNFApplication.h"
 #include "DNFAppStartInit.h"
@@ -26,6 +27,11 @@
 #include "Packet_Monitor_Event_Start.h"
 #include "Packet_Monitor_Event_End.h"
 
+CApplication* CApplicationInstance()
+{
+    static CApplication instance;
+    return &instance;
+}
 void CAppBase::Create(int argc, char** argv)
 {
     Init(argc, argv);
@@ -34,11 +40,6 @@ void CAppBase::Create(int argc, char** argv)
 void CAppBase::Clear()
 {
     Free();
-}
-CApplication* CApplicationInstance()
-{
-    static CApplication instance;
-    return &instance;
 }
 CApplication::CApplication()
     : m_loaded(0), m_reserved1(0), m_appInit(0), m_appConfig(0), m_serverConfig(0),

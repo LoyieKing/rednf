@@ -69,21 +69,6 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-void CAppLoadChecker::AddLoad(int n)
-{
-    m_udpRecvLevel = (char)n;
-}
-
-void CAppLoadChecker::AddLoadTotal(int n)
-{
-    m_tcpSendLevel = (char)n;
-}
-
-int CAppLoadChecker::IsLoadComplete()
-{
-    return m_tcpRecvLast != 0;
-}
-
 CAppLoadChecker* CAppLoadCheckerInstance()
 {
     static CAppLoadChecker instance;

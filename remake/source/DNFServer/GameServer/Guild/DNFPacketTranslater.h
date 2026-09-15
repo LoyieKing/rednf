@@ -636,9 +636,16 @@ class Packet_Notice_DB_Guild_War_End : public PacketHeader {
 public:
     Packet_Notice_DB_Guild_War_End();
     unsigned char m_group;            // +0xa
-    char m_fieldB[0x28];              // +0xb
-    char m_field33[0x28];             // +0x33
-    char m_field5b[0x14];             // +0x5b
+    // [P-E] GetGuildWarInfo(unsigned int*, unsigned int*, unsigned short*) 的
+    // 三个出参槽原本以 char 数组占位 ⇒ 调用点只能走 `(char*)&dbPkt + K` 指针算术，
+    // 生成 lea 融合 + 寄存器保活；ORIG 为标量成员取址（lea base; add $K; 逐条 store）。
+    // 补真实标量字段（布局逐项不变：0xb/0x33/0x5b，总长 0x6f 不变）。
+    unsigned int m_field0xb;          // +0xb
+    char m_field0xf[0x24];            // +0xf
+    unsigned int m_field0x33;         // +0x33
+    char m_field0x37[0x24];           // +0x37
+    unsigned short m_field0x5b;       // +0x5b
+    char m_field0x5d[0x12];           // +0x5d
 };
 
 // from GuildPackets.h

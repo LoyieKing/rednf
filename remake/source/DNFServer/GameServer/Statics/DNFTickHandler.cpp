@@ -1,6 +1,7 @@
 // df_statics_r — DNFTickHandler（ORIG DNFTickHandler.o 拆分）
 #include <stdio.h>
 #include <sys/times.h>
+#include <iostream>
 
 #include "DNFTickHandler.h"
 #include "DNFApplication.h"

@@ -9,8 +9,3 @@ ErrorValue::ErrorValue()
     m_errorLine = 0xffff;
     m_errorCode = 0xffffffff;
 }
-ErrorValue::ErrorValue(unsigned short value, unsigned int param)
-{
-    m_errorLine = value;
-    m_errorCode = param;
-}

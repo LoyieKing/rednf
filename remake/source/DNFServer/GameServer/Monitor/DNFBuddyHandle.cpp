@@ -296,14 +296,12 @@ int CBuddyHandle::add(std::string name, STBuddyDBInfo& info)
     try
     {
         buddy = new CBuddy(info);
-        std::pair<std::map<std::string, CBuddy*>::iterator, bool> r =
-            m_buddies.insert(std::make_pair(name, buddy));
-        if (!r.second)
+        if (m_buddies.insert(std::make_pair(name, buddy)).second)
         {
-            delete buddy;
-            return 0;
+            return 1;
         }
-        return 1;
+        delete buddy;
+        return 0;
     }
     catch (...)
     {

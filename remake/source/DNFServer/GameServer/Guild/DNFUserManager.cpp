@@ -78,10 +78,6 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-void CUserManager::Process()
-{
-}
-
 CUserManager::CUserManager()
 {
     m_app = 0;

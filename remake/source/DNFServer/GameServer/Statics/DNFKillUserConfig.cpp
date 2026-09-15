@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <iostream>
 
 #include "DNFKillUserConfig.h"
 #include "DNFTableBase.h"
@@ -69,10 +70,4 @@ ST_KillUSRConfig::ST_KillUSRConfig()
     m_field2 = 0;
     m_field3 = 0;
 }
-CKillUSRConfig::CKillUSRConfig()
-{
-}
-std::vector<ST_KillUSRConfig*>* CKillUSRConfig::GetInfo() const
-{
-    return const_cast<std::vector<ST_KillUSRConfig*>*>(&m_infos);
-}
+

@@ -1,11 +1,16 @@
 // df_statics_r — GMAccounts（ORIG GMAccounts.o 拆分）
 #include <stdio.h>
 #include <string.h>
+#include <iostream>
 
 #include "GMAccounts.h"
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
 
+int WongWork::CGMAccounts::loadGMAccounts(const char* path)
+{
+    return 1;
+}
 Packet_DBMW_Dungeon_Statistic_Party::Packet_DBMW_Dungeon_Statistic_Party()
     : PacketHeader(0xc36, 0x177e)
 {
@@ -537,11 +542,6 @@ void CGMAccounts::AppendGM_Sys(unsigned int id, char flag)
     m_gmList.push_back(info);
     register char* mid = NumberToString(id, 0);
     DNF_LOG_SCOPE_LINE(0xcd, "./log/Init", "GM List Add mid:%s", mid);
-}
-
-int CGMAccounts::loadGMAccounts(const char* path)
-{
-    return 1;
 }
 
 bool CGMAccounts::isGM(unsigned int id)

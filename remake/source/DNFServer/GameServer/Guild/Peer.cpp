@@ -268,9 +268,10 @@ int CPeer::recv_packet()
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0108 | guild | 与ORIG差异=DIFF | CPeer::parsing | 详见 function_reports/guild/_ZN5CPeer7parsingEi.md
 bool CPeer::parsing(int len)
 {
+    int qsize;
     PacketHeader hdr(0, 0);
-    int size = 10;
     int parsinglength = m_remainLen + len;
+    int size = 10;
     if (parsinglength <= 9)
     {
         m_remainLen = m_remainLen + len;
@@ -308,7 +309,7 @@ parsing_loop:
         {
             CGuard<CMutex> guard((CMutex*)m_qLock);
             ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->push(buf);
-            int qsize = (int)((std::queue<CTcpRecvBuffer*>*)m_recvQ)->size();
+            qsize = (int)((std::queue<CTcpRecvBuffer*>*)m_recvQ)->size();
         }
         parsinglength -= packetSize;
         m_buf += packetSize;

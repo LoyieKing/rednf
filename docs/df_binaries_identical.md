@@ -974,18 +974,6 @@ monitor **69** / guild **68** / dbmw **59** —— 剩余 **197 件**经 **28 �
 
 **语义条款证据**：`仅ORIG` 无缺失函数实现 + **6 类真实语义修复已落盘**（(a2) 5 例 · R6 载荷 5 处 · cast 级 1 · 取模形态 1 · packed 1 · 重建遗漏 1）。
 
-## 6. 复现
-
-```bash
-# 13 服务（不含 game）
-python3 source/toolchain/gen_report_manifest.py \
-  --services auction bridge channel community coserver dbmw \
-             guild manager monitor point relay statics stun
-
-# game（权威口径）
-python3 source/toolchain/compare_game_full.py
-```
-
 ### 5.16 2026-09-15 语义等价性验证（针对 205 件非 identical 件）
 
 **方法**：对六服务的全部 205 件非 identical 件，逐件提取两侧函数体，比对三类**非地址特征**：
@@ -1078,3 +1066,97 @@ python3 source/toolchain/compare_game_full.py
 
 **⇒ 定案**：该 `jmp`+`nop` **非任何源级 return/块结构可调** ✓（5 变体穷尽 ✓）⇒ 确认为 **GCC EH 区域布局的产物** ✗ 勿再投入 ✓
 **处置**：全部回退（`diff -q` 逐字节一致 ✓）· 六服务读数不变 ✓
+
+### 5.19 2026-09-15 第十三轮（多智能体攻坚波）：五条新机理 · 累计翻正 112 件
+
+#### A. 水位
+
+| 服务 | identical | 非identical | 目标 ≤9 |
+|---|---|---|---|
+| statics | 1106 | **9** | ✓ |
+| auction | 1210 | **0** | ✓ |
+| point | 1210 | **0** | ✓ |
+| monitor | 2036 | **68** | ✗ |
+| guild | 1858 | **67** | ✗ |
+| dbmw | 1369 | **55** | ✗ |
+
+起点 311 → **199**（累计翻正 **112 件**，−36%）。本轮（第六至十三轮）中，**本波单波翻正 6 件**（monitor +1 · guild +1 · dbmw +4）。
+
+**关键转折**：此前 §5.15-F 判定「剩余件全部归因于编译器内部行为、零可攻靶点」——**该结论被本波推翻** ✓。以「逐件微观 diff → 反推源码形态 → 试 ≤3 变体」的方法（NEAR 件优先），6 件被翻正，并产出**五条此前未被识别的源码级机理**。
+
+#### B. 五条新机理（全部多次实证 + 边界明确）
+
+| # | 机理 | 症状（指令级） | 修法 | 实证 |
+|---|---|---|---|---|
+| **A** | **占位 ↔ 具名临时 代偿对** | **两个同尺寸栈块「对调」**（非整体平移） | **删 `reservedSlot`/占位 + 内联具名临时**（如 `std::pair r = f(); if (!r.second)` → `if (!f().second)`）—— **缺一不可** | **2 例**：monitor `InsertCashMemorySetCharacterObject` **STRICT** ✓ · `CApplication::Load` ndiff **27→6** ✓ |
+| **B** | **显式寄存器绑定** | **单一寄存器选择差异**（指令结构完全相同） | `register <类型> <变量> __asm__("<reg>") = <初值>;` | **2 例**：guild `GuildMemLogout` **AE** ✓ · monitor `QueryCashMemoryBuddyInfo` ndiff **7→4** ✓ |
+| **C** | **字段 signedness 决定载入序** | **紧邻两条字段赋值的 LHS/RHS 载入序差** | **改字段类型**（有转换 ⇒ 先载 RHS；无转换 ⇒ 先载 LHS） | **3 例**：dbmw `DBMW/DNFPacket.h` 2 字段 ⇒ `OnGuildJoinByListApprove` **AE** ✓ + `SaveUnchangableGuildInfo` **AE** ✓（连带）+ `OnGuildJoin` **212→211** ✓ |
+| **D** | **误加 `else`**（**语义级 ⚠**） | **唯一一条 `je` 目标不同**，且 ORIG 的 `je` 与相邻 `jne` **汇入同一入口** | **删我方多余的 `else`**（保留块作用域） | **1 例**：dbmw `SaveUnchangableGuildInfo` **AE** ✓ |
+| **E** | **空类 → 真实字段** | **ARRAY_REF base/index 载入序**（我方 base 先 / ORIG index 先），两侧指令数相同、**无 `add` 生化物** | 给**空 packet 类**补与 .cpp 视图**逐项同布局**的真实字段 + .cpp 删 cast 直访 + 删废弃视图（clean cutover） | **2 例**：dbmw `QueryCubeStatisticCreate` **AE** ✓ · `QueryDeathTowerPlaydataPartyStatisticCreate` **AE** ✓ |
+
+**各机理的排除边界（同样重要 ✓）**：
+
+| 机理 | 排除条件（反例锚点） |
+|---|---|
+| **A** | 两个同尺寸块对调，**但函数内既无占位数组、也无具名临时对象** ⇒ 由 GCC 临时槽分配器决定 ⇒ **源码层无靶点** ✗（锚点：guild `AddGuildFund` · dbmw `insertHolePunchingResult` · monitor `CTcpNetSystem::SendPacket`） |
+| **B** | 绑到**会被复用的寄存器**（`esi`/`eax`）⇒ **反向劣化** ✗（monitor `QueryCashMemoryBuddyInfo` V1: 7→13；V3: 7→61）；仅当该寄存器在 ORIG 中**确为该变量独占**时有效 ✓ |
+| **C** | `.cpp` 内写 `*(unsigned int*)&field = ...` ⇒ 转换消除但丢掉 disp 融合寻址 ⇒ 多出 `add $0x4` ⇒ **劣化** ✗（408→410，两个独立泳道逐字一致）；⇒ **只能改头** ✓。**跨服务头**（`Game/` `source/shared/**`）⇒ game 不可重链 ⇒ **只登记「待环境」** ⚠（锚点：guild `GuildCargo::DeleteItem`，沙箱实证可 NEAR→AE ✓） |
+| **D** | 若 `je` 目标差异**不在「与 `jne` 同入口」形态**上 ⇒ 属其它族 ✗ |
+| **E** | 需先 grep 确认**无 `sizeof`/指针步进**依赖 ✓（两例均 0 命中 ✓）；若视图与类**无法用同一套字段表达**（packed 与对齐冲突）⇒ 不可行 ✗ |
+
+#### C. 两项附加发现
+
+**C-1｜`误加 else` 是语义级缺陷 ⚠**：`SaveUnchangableGuildInfo` 的 ORIG 源码**无 `else`** ⇒ then 块成功出口与条件为假出口**汇入同一点** ⇒ 被调语句块**无条件执行**（会长改名场景**两条 SQL 都发**）；我方重建时误加 `else` ⇒ then 成功后**直接 return 1** ⇒ **执行路径不同** ✗ ⇒ 已修正 ✓
+**⇒ 该形态应全库复扫**（症状：唯一一条 `je` 目标不同且 ORIG 的 `je`/`jne` 同入口 ✓）
+
+**C-2｜空类迫使 cast ⇒ 决定 C1 展开序**：`Packet_DBMW_*` 系列在头里若为**空类**，.cpp 只能用视图 cast ⇒ **必然 base 先** ✗ ⇒ 补真实字段后可直访 ⇒ **index 先** ✓
+**⇒ 已证 14 种 .cpp-only 写法全部无法等效**（cast 表达式 / 双 cast / 解引用 / 引用 cast / 具名指针 / const 指针 / 成员指针 / 指针算术 / 3 种派生视图 ✓）⇒ **必须改头** ✓
+
+#### D. 已确认为「不可调」的本轮取证（附实测）
+
+| 件 | 结论 | 证据 |
+|---|---|---|
+| monitor `NoticeMemberLogin_Out` · `NoticeChatMsgToMemberMembers` | **块尾标签次序族** | 剥目标 + 地址归一化后 **ndiff=0** ✓ |
+| statics `FrameLagDataStruct::init` | **编译器常量拆分轴** | 4 后端探针（4.4.6-3 基线 / 4.4.4-13 / 4.4.7-23 / 4.1.2-52）**全部不匹配** ORIG 的 `(imm, disp)` 拆分 ✓ + **结构性约束**：ORIG `PushMonitoringSpecData` 的 `rep movsl $0x92`（146 ints = **0x248** = 现 `sizeof`）**当前 identical** ⇒ 改为 42 元素（0x250）会破坏它 ⇒ 不可兼得 ✓ |
+| monitor `CUserManager::AddSchoolNo` | **BIND_EXPR 声明序族** | 两侧帧同为 0xfc、长度 259/259、归一化后 residual diff=0 ✓ |
+| dbmw `insertHolePunchingResult` | **栈布局/帧分配族** | 87 条**逐条相同**，仅帧 0x9c vs 0x6c + 5 槽偏移 ✓；探针穷举 3 后端 × 8 声明位 + 未使用变量/`(void)`/`sizeof` 使用/派生视图 ⇒ **无法复现浅池 0xc** ✓ |
+| monitor `CApplication::Load` 残余 6 条 | **栈块顺序族** | ORIG 侧 `pkt2(10B)→pkt3(4B)→now(4B)→pt(44B)` 地址**完全连续**；我方 `now/pt` 属 try 块直接变量 ⇒ 按 GCC BIND_EXPR 批处理规则先分配 ⇒ 下推 4 字节 ✓（L5 方向对但引发别处回退 ⇒ 保留 L4） |
+
+#### E. 新测得的知识资产
+
+**GCC 4.4 `-O0` 栈槽分配规则（3 个探针实测 ✓）**：
+> 各 **`BIND_EXPR` 的 vars 按声明序「一次性」加入**，**外层块先于嵌套块**；地址**自高向低**（先加入者得较高地址 ⇒ 偏移绝对值较小）✓
+> 探针：① `Big o1 / {Sm o2} / Big o3 / Sm o4` ⇒ `o1=-0x1c, o3=-0x30, o4=-0x34, o2=-0x38` · ② `f1(x=-12, p1=-16 匿名块, q1=-20 if块)` vs `f2(x=-12, q1=-16 函数体, p1=-20)` · ③ `SendPacket` 结构精确复现（`G g=-0x28, It it=-0x2c`）
+> 工具链：`source/toolchain/cmake/dnf_monitor_cxx.sh`（cc1plus 4.4.6，与 monitor 构建同源）
+
+**跨服务同源第三例（可一次解 3 件 ✓）**：`CTcpNetSystem::SendPacket` 在 **monitor / guild / dbmw 三服务均为 NEAR ndiff=6 且逐条同形**（ORIG 槽位亦一致 ✓）⇒ 若攻破可一次翻正 3 件 ✓（注：源码注释中「guild 已 identical」的旧说法**不成立** ✓ 已更正）
+
+#### F. 方法论要点（本波验证有效 ✓）
+
+1. **NEAR 优先**：与 ORIG 仅差 1-2 条的件最易反推源码形态 ✓
+2. **逐条全对照**（而非统计口径）：把两侧函数体**逐条列出**并标注唯一差异位置 ⇒ 直接指向源码语句 ✓
+3. **先验证前提再试形**：`NEAR 攻坚` 中多次出现「3 个候选形态前提不成立（类型无继承/无转换 ✓）⇒ 一次编译都不浪费」✓
+4. **`/tmp` 全隔离预编译**：改头前在 `/tmp` 建全套副本预编译并做**全 TU 函数级指纹**（617 函数中仅目标变化 ✓）⇒ 零风险验证 ✓
+5. **变体上限 + 劣化即回退**：每件 ≤3 形态（结构性机理可放宽到 4-5 并说明 ✓），全部劣化形态**逐字节回退** ✓
+6. **并发写者串行化**：同一文件多泳道时按时间点交棒（`16:23:41` 起 A 停写、B 接手 ✓），并在报告中标明 ✓
+
+#### G. 缺口与后续
+
+monitor **68** / guild **67** / dbmw **55** —— 经本波证明**源码级可调面仍未穷尽** ✓
+**后续方向（按优先级）**：
+1. **机理 D/E 全库复扫**（两者均为**语义/结构级** ✓ 且症状可指令级识别 ✓）
+2. **机理 A/B/C 全库复扫**（含非 NEAR 长件 ✓ 本波扩散波正在执行 ✓）
+3. **跨服务同源第三例攻坚**（`SendPacket` 三服务同形 ⇒ 一次 3 件 ✓）
+4. 对已登记「不可调」的件，在**新机理出现时重估**（本波即有此例：多条旧结论被新机理推翻 ✓）
+
+## 6. 复现
+
+```bash
+# 13 服务（不含 game）
+python3 source/toolchain/gen_report_manifest.py \
+  --services auction bridge channel community coserver dbmw \
+             guild manager monitor point relay statics stun
+
+# game（权威口径）
+python3 source/toolchain/compare_game_full.py
+```

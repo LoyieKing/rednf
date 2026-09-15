@@ -1,5 +1,6 @@
 // df_statics_r — DNFSegmentationFaultSig（ORIG DNFSegmentationFaultSig.o 拆分）
 #include <stdio.h>
+#include <iostream>
 
 #include "DNFSegmentationFaultSig.h"
 #include "DNFApplication.h"

@@ -26,10 +26,8 @@ public:
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);
+    static MemPool<CUdpRecvBuffer> m_RecvBufferMemPool_;  // 池静态成员（容量 10000）
     char m_data[0x1804];
 };
-
-// CUdpRecvBuffer 池静态成员（容量 10000）
-extern MemPool<CUdpRecvBuffer> m_RecvBufferMemPool_;
 
 #endif // DNF_UDP_RECV_BUFFER_H_

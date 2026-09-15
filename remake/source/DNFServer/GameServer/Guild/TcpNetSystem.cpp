@@ -80,10 +80,6 @@
 #include "SystemTimeHandler.h"
 #include "WebEvent.h"
 
-void CTcpNetSystem::Process()
-{
-}
-
 // ORIG 反汇编实测 TcpSendBuffer 头部字段（id@0/size@2/pad@4/ip@6），
 // 与 Manager DNFPacketBuffer.h 的 CTcpSendBuffer 布局一致；仅本 TU 使用，
 // 避免改动共享 DNFPacketBuffer.h 影响其它 TU 的 m_data 基址。
@@ -296,19 +292,10 @@ int CTcpNetSystem::WaitForEvent()
     return m_tcpHandler->WaitForEvent();
 }
 
-void* CTcpNetSystem::Acquire_TcpSendBuffer(unsigned int size)
-{
-    return 0;
-}
-
 void* CTcpNetSystem::Acquire_TcpSendBuffer()
 {
     CGuard<CMutex> g(&m_mutex100);
     return CTcpSendBuffer::operator new(0x1804);
-}
-
-void CTcpNetSystem::PushTcpSendPacketQ(PacketHeader* pkt)
-{
 }
 
 void CTcpNetSystem::PushTcpSendPacketQ(char* buf)

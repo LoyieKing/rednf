@@ -7,7 +7,7 @@
 
 template<class T>
 void* MemPool<T>::headOfFreeList_ = 0;
-MemPool<CUdpRecvBuffer> m_RecvBufferMemPool_(10000);
+MemPool<CUdpRecvBuffer> CUdpRecvBuffer::m_RecvBufferMemPool_(10000);
 template<class T>
 MemPool<T>::MemPool(unsigned int count)
     : m_classSize(0x1804), m_count(count)
@@ -94,13 +94,13 @@ void MemPool<T>::free(void* p, unsigned int size)
 }
 void* CUdpRecvBuffer::operator new(unsigned int size)
 {
-    return m_RecvBufferMemPool_.alloc();
+    return CUdpRecvBuffer::m_RecvBufferMemPool_.alloc();
 }
 void CUdpRecvBuffer::operator delete(void* p)
 {
-    m_RecvBufferMemPool_.free(p);
+    CUdpRecvBuffer::m_RecvBufferMemPool_.free(p);
 }
 void CUdpRecvBuffer::operator delete(void* p, unsigned int size)
 {
-    m_RecvBufferMemPool_.free(p, size);
+    CUdpRecvBuffer::m_RecvBufferMemPool_.free(p, size);
 }

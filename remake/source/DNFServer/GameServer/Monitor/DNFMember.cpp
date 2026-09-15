@@ -81,8 +81,10 @@ void CMember::QueryMember(CServerHandler* handler)
 
 unsigned int* CMember::GetMemberDBInfoW() { return (unsigned int*)&m_dbInfo; }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0137 | monitor | 与ORIG差异=DIFF | CMember::NoticeMemberLogin_Out | 详见 function_reports/monitor/_ZN7CMember21NoticeMemberLogin_OutEP5CUserc.md
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0137 | monitor | 与ORIG差异=NEAR | CMember::NoticeMemberLogin_Out | 详见 function_reports/monitor/_ZN7CMember21NoticeMemberLogin_OutEP5CUserc.md
 // 残差 ndiff=2：仅「外层 if 真分支」与「m_flag 假分支」两个块尾 goto 标签互换（指令数 224/224 已一致）。
+// 2026-09-15 NEAR-MonitorB 复验：mdiff_ta=NEAR/2 且差异 100% 为 jne/je 的 <#221>↔<#222> 目标编号互换；
+//   剥目标+地址归一化后 ndiff=0 ⇒ 确认为第 4 类族（块尾标签次序），非源码可控，勿再投入。
 // 已试：条件物化方向（&& 物化 / || 空-then-else）、member 赋值内联、循环复用同一 member、return 位置 4 种
 // （else 块内 / 函数尾 / 真分支内 / 双 return）——最优为当前「else 块内末尾 return」（ndiff 84→2）。
 void CMember::NoticeMemberLogin_Out(CUser* user, char flag)
@@ -273,8 +275,10 @@ void CMember::NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0138 | monitor | 与ORIG差异=DIFF | CMember::NoticeChatMsgToMemberMembers | 详见 function_reports/monitor/_ZN7CMember28NoticeChatMsgToMemberMembersEPciP5CUser.md
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0138 | monitor | 与ORIG差异=NEAR | CMember::NoticeChatMsgToMemberMembers | 详见 function_reports/monitor/_ZN7CMember28NoticeChatMsgToMemberMembersEPciP5CUser.md
 // 残差 ndiff=2：仅 len 层与 m_flag 层的块尾 goto 标签互换（指令数 137/137 已一致）。
+// 2026-09-15 NEAR-MonitorB 复验：mdiff_ta=NEAR/2 且差异 100% 为 jg/je 的 <#133>↔<#135> 目标编号互换；
+//   剥目标+地址归一化后 ndiff=0 ⇒ 同第 4 类族（块尾标签次序），非源码可控，勿再投入。
 // 已试：&& 物化 → 三层嵌套 if、IsEmpty()==0 → if(IsEmpty()){}else{}、return 位置 5 种（len 块内 / m_flag 块内 /
 // body 内 / 函数尾 / else 分支 / 早退形态 if(len>=0x100)return）——最优为当前「len 块内末尾 return」（ndiff 57→2）。
 void CMember::NoticeChatMsgToMemberMembers(char* msg, int len, CUser* user)

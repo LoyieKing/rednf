@@ -1,5 +1,6 @@
 // df_statics_r — DNFStatisticServerMain（ORIG DNFStatisticServerMain.o 拆分）
 #include <stdio.h>
+#include <iostream>
 
 #include "DNFApplication.h"
 

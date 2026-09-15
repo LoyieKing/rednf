@@ -1,10 +1,20 @@
 // df_statics_r — DNFDBServer（ORIG DNFDBServer.o 拆分）
 #include <stdio.h>
 #include <string.h>
+#include <iostream>
 
 #include "DNFDBServer.h"
 #include "DNFUdpHandler.h"
 
+CDBServer::CDBServer() : m_id(0xff)
+{
+    m_port = 0;
+    m_connectFlag = 0;
+    m_heartBeatCount = 0x14;
+    m_heartBeatOver = 0;
+    m_reserved = 0;
+    m_udp = 0;
+}
 STSpecCount::STSpecCount()
     : m_total(0)
 {
@@ -33,15 +43,6 @@ STErrorStatic::STErrorStatic(const ErrorValue& value)
 {
     m_errorLine = value.m_errorLine;
     m_errorCode = value.m_errorCode;
-}
-CDBServer::CDBServer() : m_id(0xff)
-{
-    m_port = 0;
-    m_connectFlag = 0;
-    m_heartBeatCount = 0x14;
-    m_heartBeatOver = 0;
-    m_reserved = 0;
-    m_udp = 0;
 }
 CDBServer::~CDBServer()
 {

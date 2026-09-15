@@ -1600,10 +1600,12 @@ void StatisticManager::SendDBLagStatistics(CServerHandler* handler, char* timeSt
             snprintf(pkt.m_query, 0x400,
                 "inSert into lag_stat_module (occ_time, server_id, module, average, deviation, count) values ('%s', %d, %d, %d, %d, %d)",
                 timeStr, handler->GetServerGroupNo() & 0xff, i,
-                // [2026-09-15 R6-4 新轴 sar/idiv] ORIG 这三处除法全为 `sar $0x1f; idivl`（**有符号**除法），
-                //   原 (unsigned int) cast 让 GCC 生成 `div`（无符号）⇒ 删 cast 恢复有符号除法，与 ORIG 语义一致。
-                m_modules[i].m_data0 / m_modules[i].m_data3,
-                m_modules[i].m_data1 / m_modules[i].m_data3,
+                // [2026-09-15 StaticsDiff G/C 轴] ORIG 三处除法**并非同一 signedness**（R6-4 按第一处误推为
+                //   全 signed）。注意 snprintf 实参在 gcc 中是**从右往左求值** ⇒ 反汇编出现次序为
+                //   m_data2(0x8073598: sar+idivl = signed) / m_data1(0x80735d1: divl = unsigned) /
+                //   m_data0(0x8073606: divl = unsigned)。gm 三字段均为 int ⇒ 两端按 (unsigned int) 转。
+                (unsigned int)m_modules[i].m_data0 / m_modules[i].m_data3,
+                (unsigned int)m_modules[i].m_data1 / m_modules[i].m_data3,
                 m_modules[i].m_data2 / m_modules[i].m_data3);
             DNF_LOG_SCOPE_LINE(0x6a1, "./log/LagStatistics", "%s", pkt.m_query);
             handler->SendToDB((PacketHeader*)&pkt);
@@ -1622,10 +1624,13 @@ void StatisticManager::SendDBLagStatistics(CServerHandler* handler, char* timeSt
             timeStr, handler->GetServerGroupNo() & 0xff, it->first,
             (unsigned int)it->second.m_data[0] / (unsigned int)it->second.m_data[3],
             (unsigned int)it->second.m_data[1] / (unsigned int)it->second.m_data[3],
-            it->second.m_data[2] / it->second.m_data[3],
+            // [2026-09-15 StaticsDiff G/C 轴] ORIG 0x80737fc/0x8073864 = `sar+idivl`（有符号）
+            //   ⇒ 这两处需 (int) 转换（字段是 unsigned int，无 cast 会退化成 divl）。
+            //   残余 2 条差：ORIG `mov mem,%ebx` 直落 vs 我方 `mov mem,%eax; mov %eax,%ebx` 中转。
+            (int)it->second.m_data[2] / (int)it->second.m_data[3],
             (unsigned int)it->second.m_data[4] / (unsigned int)it->second.m_data[7],
             (unsigned int)it->second.m_data[5] / (unsigned int)it->second.m_data[7],
-            it->second.m_data[6] / it->second.m_data[7]);
+            (int)it->second.m_data[6] / (int)it->second.m_data[7]);
         DNF_LOG_SCOPE_LINE(0x6b8, "./log/LagStatistics", "%s", pkt.m_query);
         handler->SendToDB((PacketHeader*)&pkt);
     }

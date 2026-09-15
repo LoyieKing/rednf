@@ -275,13 +275,16 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0098 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnLogout | 详见 function_reports/guild/_ZN17CPacketTranslater8OnLogoutEP12PacketHeader.md
 void CPacketTranslater::OnLogout(PacketHeader* pkt)
 {
+    // [P-Decl] ORIG 槽序 user(-0x2c 最深) → pb(-0x28) → um(-0x24 最浅)
+    // ⇒ 声明序 = user、pb、um（GCC O0：先声明者占更深槽）；赋值点不变。
+    CUser* user;
     Packet_Monitor_UDP_Logout* pb = (Packet_Monitor_UDP_Logout*)pkt;
+    CUserManager* um;
     try
     {
         if (m_pclApp != 0)
         {
-            CUserManager* um = &m_pclApp->m_userManager;
-            CUser* user;
+            um = &m_pclApp->m_userManager;
             if ((user = um->FindUser(pb->m_dbid)) == 0)
             {
             }
@@ -1431,11 +1434,10 @@ void CPacketTranslater::OnNoticeGuildWarEnd(PacketHeader* pkt)
     unsigned char group = m_pclApp->Get_ServerGroup();
     Packet_Notice_DB_Guild_War_End dbPkt;
     dbPkt.m_group = group;
-    // [P350] ORIG 三实参均为 `add $K` 两步形（非成员视图的 lea 单条）；残余仅实参装载
-    // 时刻（ORIG 逐条 store，4.4 延迟到寄存器后统一 store）= P75/N 族。
-    war->GetGuildWarInfo((unsigned int*)((char*)&dbPkt + 0xb),
-                         (unsigned int*)((char*)&dbPkt + 0x33),
-                         (unsigned short*)((char*)&dbPkt + 0x5b));
+    // [P-E] ORIG 三实参均为 `lea base,%eax; add $K,%eax; mov %eax,N(%esp)`（逐条 store）。
+    // 实测（e5.cpp）：**标量成员取址** `&db.p` 才走该路径；数组成员/`(char*)&db + K`
+    // 都退化为 `lea K(%edx),%ecx` 融合 + 寄存器保活 ⇒ 头内补标量字段后直取地址。
+    war->GetGuildWarInfo(&dbPkt.m_field0xb, &dbPkt.m_field0x33, &dbPkt.m_field0x5b);
     m_pclApp->m_serverHandler->SendToDB(&dbPkt);
     Packet_Monitor_Event_End monPkt;
     monPkt.m_eventType = 9;
@@ -2916,6 +2918,10 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
 {
     try
     {
+    // [P-Decl] ORIG 槽序：target(-0x18 最深) → requester(-0x14) → pb(-0x10 最浅)
+    // ⇒ 声明序 target、requester、pb（赋值点不变）。
+    CUser* target;
+    CUser* requester;
     Packet_Register_To_BlackList* pb = (Packet_Register_To_BlackList*)pkt;
     if (m_pclApp == 0)
     {
@@ -2925,7 +2931,9 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
     Packet_DBMW_Register_To_BlackList dbPkt;
     dbPkt.m_dbid = pb->m_dbid;
     memcpy(dbPkt.m_name, pb->m_name, 0x1d);
-    CUser* requester = (&m_pclApp->m_userManager)->FindUser(pb->m_dbid);
+    requester = (&m_pclApp->m_userManager)->FindUser(pb->m_dbid);
+    // [P-Not✗] ORIG 该处为 `cmpl; sete %al; test %al,%al; je`（bool 物化）；已试 `!requester`
+    // 无变化（GCC 4.4 对 `!ptr` 与 `ptr == 0` 同路径）⇒ 残余属条件物化族，保留原形。
     if (requester == 0)
     {
         DNF_LOG_SCOPE_LINE(0xe9f, "./log/BlackList", "CPacketTranslater::OnRegisterToBlackList : 0 == pclUser");
@@ -2933,7 +2941,7 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
     }
     if (strcmp(requester->GetCharName(), (pb->m_name)) != 0 && requester->GetBlackListSize() < 10)
     {
-        CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName((pb->m_name));
+        target = (&m_pclApp->m_userManager)->FindUser_CharName((pb->m_name));
         if (target != 0)
         {
             if (requester->RegisterToBlackList(target->GetUniqCharNo(), (pb->m_name)) == 1)
@@ -3568,48 +3576,50 @@ void CPacketTranslater::OnPacketJoinPower(PacketHeader* pkt)
         reply.m_a = 0;
         reply.m_12 = req->m_charNo;
         reply.m_16 = req->m_powerSide;
-        if (m_pclApp != 0)
+        // [P-D3] ORIG = 卫语句正向式：`jne` 跳过整个 if 体、体内 log 后 `jmp <函数尾>`（= return）；
+        // 我方写成 `if (m_pclApp != 0) {正文} else {log}` ⇒ `je` 直落函数尾且槽位整体加深 0x14。
+        if (m_pclApp == 0)
         {
-            unsigned int charNo = req->m_charNo;
-            CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
-            if (user == 0)
-            {
-                DNF_LOG_SCOPE_LINE(0x123d, "./log/Power", "CPacketTranslater::OnPacketJoinPower : 0 == pclRequestUser");
-                return;
-            }
-            reply.m_e = user->GetIdByChannel();
-            unsigned int guildKey = req->m_guildKey;
-            CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
-            if (guildKey == 0 || guild == 0)
-            {
-                DNF_LOG_SCOPE_LINE(0x1244, "./log/Power", "CPacketTranslater::OnPacketJoinPower : 0 == pclGuild");
-                reply.m_a = 100;
-                user->SendToGameserver((char*)&reply, reply.packetSize);
-                return;
-            }
-            if (guild->IsSubGuildMaster(charNo) == 1 || guild->IsGuildMaster(charNo) == 1)
-            {
-                unsigned char side = req->m_powerSide == 1 ? 3 : 4;
-                guild->SetPowerSide(side);
-                guild->IncPowerJoinCount();
-                CServerInterface* gs = user->GetGameServer();
-                guild->DBGuildSave(gs->GetGroupNo(), m_pclApp->Get_ServerHandler(), 0);
-                reply.m_16 = side;
-                user->SendToGameserver((char*)&reply, reply.packetSize);
-                guild->SendGuildInfoToMembers(false);
-            }
-            else
-            {
-                DNF_LOG_SCOPE_LINE(0x124f,"./log/Power",
-                    "CPacketTranslater::OnPacketJoinPower : %d is not guild master or sub master(g:%d)",
-                    charNo, guildKey);
-                reply.m_a = 0x56;
-                user->SendToGameserver((char*)&reply, reply.packetSize);
-            }
+            DNF_LOG_SCOPE_LINE(0x1237, "./log/Power", "CPacketTranslater::OnPacketJoinPower : 0 == m_pclApp");
+            return;
+        }
+        // [P-K✗] 已试内联 charNo/guildKey（删具名局部）：槽上移 8 但 ndiff 161→181（重复求值
+        // `req->m_guildKey` 三次使指令数 244→246）⇒ 反劣，保留具名局部原形。
+        unsigned int charNo = req->m_charNo;
+        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
+        if (user == 0)
+        {
+            DNF_LOG_SCOPE_LINE(0x123d, "./log/Power", "CPacketTranslater::OnPacketJoinPower : 0 == pclRequestUser");
+            return;
+        }
+        reply.m_e = user->GetIdByChannel();
+        unsigned int guildKey = req->m_guildKey;
+        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
+        if (guildKey == 0 || guild == 0)
+        {
+            DNF_LOG_SCOPE_LINE(0x1244, "./log/Power", "CPacketTranslater::OnPacketJoinPower : 0 == pclGuild");
+            reply.m_a = 100;
+            user->SendToGameserver((char*)&reply, reply.packetSize);
+            return;
+        }
+        if (guild->IsSubGuildMaster(charNo) == 1 || guild->IsGuildMaster(charNo) == 1)
+        {
+            unsigned char side = req->m_powerSide == 1 ? 3 : 4;
+            guild->SetPowerSide(side);
+            guild->IncPowerJoinCount();
+            CServerInterface* gs = user->GetGameServer();
+            guild->DBGuildSave(gs->GetGroupNo(), m_pclApp->Get_ServerHandler(), 0);
+            reply.m_16 = side;
+            user->SendToGameserver((char*)&reply, reply.packetSize);
+            guild->SendGuildInfoToMembers(false);
         }
         else
         {
-            DNF_LOG_SCOPE_LINE(0x1237, "./log/Power", "CPacketTranslater::OnPacketJoinPower : 0 == m_pclApp");
+            DNF_LOG_SCOPE_LINE(0x124f,"./log/Power",
+                "CPacketTranslater::OnPacketJoinPower : %d is not guild master or sub master(g:%d)",
+                charNo, guildKey);
+            reply.m_a = 0x56;
+            user->SendToGameserver((char*)&reply, reply.packetSize);
         }
     }
     catch (CDNFException& e)
@@ -3842,9 +3852,11 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
                     if (buf2 != 0)
                     {
                         view2 = (InnerLoginReplyView*)buf2;
-                        view2->m_fieldA = 0xcb;
-                        tgs->SendToGameServer((char*)view2);
                     }
+                    // [P-D2] ORIG：`if (buf2 != 0)` 仅包住 `view2 = buf2`（je 落到
+                    // 后续**无条件**代码）；整块外裹会让 je 直落函数尾 ⇒ 已放宽。
+                    view2->m_fieldA = 0xcb;
+                    tgs->SendToGameServer((char*)view2);
                 }
             }
         }
@@ -3891,11 +3903,13 @@ void CPacketTranslater::OnChangeGuildName(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x14dc, "./log/Except", "CPacketTranslater::OnChangeGuildName : 0 == m_pclApp");
         return;
     }
+    // [P-Decl] ORIG 槽序：user 深(-0x28) 而 pb 浅(-0x20) ⇒ user 声明在 pb 之前。
+    CUser* user;
+    CGuild* guild;
     Packet_Change_Guild_Name* pb = (Packet_Change_Guild_Name*)pkt;
     Packet_Reply_Change_Guild_Name reply;
     reply.m_charNo = pb->m_charNo;
     memcpy(reply.m_name, pb->m_name, 0x16);
-    CUser* user;
     if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(
              pb->m_charNo)) == 0)
     {
@@ -3903,7 +3917,7 @@ void CPacketTranslater::OnChangeGuildName(PacketHeader* pkt)
         return;
     }
     reply.m_12 = user->GetIdByChannel();
-    CGuild* guild = 0;
+    // [P-Decl] ORIG 无 `guild = 0` 初始化指令（声明即用）⇒ 去掉零填（短路分支直接 return）。
     if (pb->m_guildKey == 0 ||
         (guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
     {
@@ -3933,6 +3947,9 @@ void CPacketTranslater::OnChangeGuildName(PacketHeader* pkt)
         // [P-GPT] ORIG 为零填内联形态（lea + `rep stos %eax`，无 memset 调用）⇒ 用初始化式声明；
         //          改前 ndiff=225、帧 0x190，改后帧 0x19c 与 ORIG 一致
         char mailContent[0x100] = {0};
+        // [P-A✗] 变参实参：ORIG 为 `lea 0x12(%eax),%edx`（独立寄存器 + 统一 store），
+        // 我方为 `add $0x12,%eax` + 立即 store；已试显式 `&pb->m_name[0]` 无变化 ⇒
+        // 属变参实参保活策略（codegen-only 族），保留数组 decay 原形。
         sprintf(mailContent, LETTER_TEXT + 0xff,
                 pb->m_name);
         SendPacketGuildMail(user->GetGameServer()->GetGroupNo(),
@@ -4039,23 +4056,27 @@ void CPacketTranslater::OnChangeGuildNameFromWeb(PacketHeader* pkt)
                 "CPacketTranslater::OnChangeGuildNameFromWeb : 0 == m_pclApp");
             return;
         }
-        unsigned int guildKey = ((Packet_Change_Guild_Name_From_Web*)pkt)->m_guildKey;
-        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
-        if (guildKey == 0 || guild == 0)
+        // [P-Decl/P352] ORIG：pb 变量占 -0x10（`mov 0x8(%ebp),%eax; mov %eax,-0x10`），
+        // 且 `guildKey == 0` 时**不调用** FindGuild（短路物化）⇒ 具名 pb + 内嵌赋值，
+        // 去掉重建期的 guildKey 具名变量（ORIG 两处都直取 pb->m_guildKey）。
+        CGuild* guild;
+        Packet_Change_Guild_Name_From_Web* pb = (Packet_Change_Guild_Name_From_Web*)pkt;
+        if (pb->m_guildKey == 0 ||
+            (guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x15a5,"./log/GuildModify",
                 "CPacketTranslater::OnChangeGuildNameFromWeb : 0 == pclGuild");
             return;
         }
-        if (guild->IsSubGuildMaster((((Packet_Change_Guild_Name_From_Web*)pkt)->m_charNo)) == 0 && guild->IsGuildMaster((((Packet_Change_Guild_Name_From_Web*)pkt)->m_charNo)) == 0)
+        if (guild->IsSubGuildMaster((pb->m_charNo)) == 0 && guild->IsGuildMaster((pb->m_charNo)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x15ab,"./log/GuildModify",
                 "CPacketTranslater::OnChangeGuildNameFromWeb : %d is not guild master or sub master(g:%d)",
-                (((Packet_Change_Guild_Name_From_Web*)pkt)->m_charNo), guildKey);
+                (pb->m_charNo), (pb->m_guildKey));
         }
         else
         {
-            guild->ChangeGuildName(((Packet_Change_Guild_Name_From_Web*)pkt)->m_name, 0);
+            guild->ChangeGuildName(pb->m_name, 0);
             guild->SendGuildInfoToMembers(false);
         }
     }
@@ -4065,7 +4086,6 @@ void CPacketTranslater::OnChangeGuildNameFromWeb(PacketHeader* pkt)
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0095 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnInCreaseDecreasePowerWarPoint | 详见 function_reports/guild/_ZN17CPacketTranslater31OnInCreaseDecreasePowerWarPointEP12PacketHeader.md
 void CPacketTranslater::OnInCreaseDecreasePowerWarPoint(PacketHeader* pkt)
 {
-    Packet_Guild_Increase_Decrease_Power_War_Point* pb = (Packet_Guild_Increase_Decrease_Power_War_Point*)pkt;
     try
     {
         if (m_pclApp == 0)
@@ -4074,8 +4094,14 @@ void CPacketTranslater::OnInCreaseDecreasePowerWarPoint(PacketHeader* pkt)
                 "CPacketTranslater::OnInCreaseDecreasePowerWarPoint : 0 == m_pclApp");
             return;
         }
-        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild((pb->m_guildKey));
-        if ((pb->m_guildKey) == 0 || guild == 0)
+        // [P-Decl] ORIG：pb 的赋值（浅槽 -0x10）落在 m_pclApp 检查**之后**，guild 占深槽
+        // -0x14 ⇒ 声明序 guild 先、pb 后（赋值仍在首次使用处）。
+        CGuild* guild;
+        Packet_Guild_Increase_Decrease_Power_War_Point* pb = (Packet_Guild_Increase_Decrease_Power_War_Point*)pkt;
+        // [P352] ORIG 有 cmpl/jne + mov $0x1/mov $0x0 物化段，且 guildKey==0 时**不调用**
+        // FindGuild（短路）⇒ 赋值内嵌于 || 的第二个操作数（同 OnDeleteToBlackList 配方）。
+        if ((pb->m_guildKey) == 0 ||
+            (guild = (&m_pclApp->m_guildManager)->FindGuild((pb->m_guildKey))) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x15db,"./log/Power",
                 "CPacketTranslater::OnInCreaseDecreasePowerWarPoint : 0 == pclGuild");
@@ -4095,7 +4121,10 @@ void CPacketTranslater::OnInCreaseDecreasePowerWarPoint(PacketHeader* pkt)
         }
         else
         {
-            guild->SubPowerWarPoint(((unsigned int)(pb->m_point) ^ (((unsigned int)(pb->m_point)) >> 0x1f)) - (((unsigned int)(pb->m_point)) >> 0x1f));
+            // [P-abs] ORIG 该分支为 4 条 `mov %eax,%edx; sar $0x1f,%edx; xor %edx,%eax;
+            // sub %edx,%eax`（单次加载 + 算术右移的无分支绝对值）⇒ 手写三段式会重复加载
+            // 三次（9 条）且用 shr 错形态；改用 `__builtin_abs` 让 GCC 走同一展开。
+            guild->SubPowerWarPoint((unsigned int)__builtin_abs(pb->m_point));
         }
         guild->SendGuildInfoToMembers(false);
     }
@@ -5698,9 +5727,10 @@ void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
     info->m_field1 = pb->m_channel;
     info->m_field2 = pb->m_type;
     info->m_port = pb->m_port;
-    // [P350] ORIG 第二实参取址 = `add $0xd,%eax; mov %eax,%edx`；char*/P319 整型加法
-    // 两形均试（后者反劣 3→6，已回滚），本处残余属装载序轴
-    strncpy(info->m_name, pb->m_name, 0x10);
+    // [P-lea] 实测（c6446r -O0）：数组 decay `pb->m_name` ⇒ `lea 0xd(%eax),%edx`（融合）；
+    // ORIG 为 `add $0xd,%eax; mov %eax,%edx`（两步形）⇒ 两侧实参表达式须走**整型**
+    // 加法（`(char*)((unsigned int)p + k)`）才与 ORIG 逐条对齐（实验 e2.cpp 四形验证）。
+    strncpy((char*)((unsigned int)info + 3), (char*)((unsigned int)pb + 0xd), 0x10);
     CTcpGameServer* tgs = m_pclApp->Get_ServerHandler()->GetTcpGameServer(pb->m_connNo);
     if (tgs == 0)
     {
@@ -5708,24 +5738,25 @@ void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
     }
     DNF_LOG_SCOPE_LINE(0x1ec6,"./log/GameServer", "Get Packet - OnGameServerRegist from Channel:%d",
         (unsigned int)(unsigned char)info->m_field1);
+    // [P-D2] ORIG：`== 0` 判定 + je 直落**函数尾**，无 else 块（then 块本身即函数尾 ⇒
+    // 只余 then 块收尾 1 条 jmp）。写成「空 if + else{return;} + 正文」会多出一条
+    // return 的 jmp（我方 156 vs ORIG 155）⇒ 一并收进 if 体内，语义等价。
     if (tgs->GetChannelNo() == 0)
     {
-    }
-    else
-    {
-        return;
-    }
-    char* reply = tgs->makePacketHeader(0x1f42, 0xc);
-    char* dummy = 0;
-    struct GameServerRegistReplyView
-    {
-        char m_pad[0xa];
-        char m_fieldA;   // +0xa
-        char m_fieldB;   // +0xb
-    };
-    if (reply != 0)
-    {
-        dummy = reply;
+        char* reply = tgs->makePacketHeader(0x1f42, 0xc);
+        char* dummy = 0;
+        struct GameServerRegistReplyView
+        {
+            char m_pad[0xa];
+            char m_fieldA;   // +0xa
+            char m_fieldB;   // +0xb
+        };
+        if (reply != 0)
+        {
+            dummy = reply;
+        }
+        // [P-D] ORIG：`if (reply != 0)` 仅包住 `dummy = reply`（je 跳过 2 条后即汇入
+        // 后续无条件代码）；整块外裹会让 je 直落函数尾 ⇒ 多余 if 作用域，已放宽。
         if (!m_pclApp->Get_ServerHandler()->RegistGameServer(info))
         {
             ((GameServerRegistReplyView*)dummy)->m_fieldB = 1;
@@ -6148,9 +6179,9 @@ Packet_Web_Notify_Message_To_Guild::Packet_Web_Notify_Message_To_Guild()
 Packet_Notice_DB_Guild_War_End::Packet_Notice_DB_Guild_War_End()
     : PacketHeader(0x412, 0x6f)
 {
-    memset(m_fieldB, 0, 0x28);
-    memset(m_field33, 0, 0x28);
-    memset(m_field5b, 0, 0x14);
+    memset(&m_field0xb, 0, 0x28);
+    memset(&m_field0x33, 0, 0x28);
+    memset(&m_field0x5b, 0, 0x14);
 }
 
 Packet_Channel_Delete_Guild_Agit::Packet_Channel_Delete_Guild_Agit()

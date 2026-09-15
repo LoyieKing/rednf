@@ -2,6 +2,7 @@
 #include <queue>
 #include <stdio.h>
 #include <string.h>
+#include <iostream>
 
 #include "DNFNetworkThread.h"
 #include "DNFThreadInterface.h"

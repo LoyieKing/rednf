@@ -284,11 +284,14 @@ void CApplication::Init(int argc, char** argv)
 //   _ZdlPv 清理块，16→13 与 ORIG 一致）；`(int)CTask_ChristmasEvent::getEventEndTime()`（setae→setge）；
 //   TowerOfDespairReloadAPC_Task* 具名局部 reloadTask；DNFApplication.h 的 m_udpThread 改基类指针
 //   CThreadInterface*（ORIG new 赋值处有 `mov %ebx,%eax; mov %eax,%edx` 指针调整）；
-//   try 首行补一个未引用的 `int reservedSlot;`（S5：ORIG 有此不可见占位，决定后续槽分配起点；
-//   放别处或换 char[4] 均劣化）。
 //   另去掉 Mgr/Db 两个 TCP 配置块的 `{}`（S1：块层级进槽分配，去掉后 -0x20..-0x38 区对齐，77→53→27）。
-//   余差 ndiff=27（orig/ours 均为 1110 条、帧同为 0x18c）：pt 区(-0xc0..-0xe8)、pkt1 区(-0x15c..-0x16b)、
-//   -0xae..-0xb8 区均**深 4**（占位引起的反向偏移，去掉占位则这些区对齐但浅区回退 ⇒ 66）。
+//   2026-09-15 MonitorA（机理 A「占位↔具名临时代偿对」命中 ⇒ ndiff 27→6）：
+//   删去 try 首未引用的 `int reservedSlot;` 占位，**同时**把 `bool schedule` 内联为字面量临时
+//   （`setSchedule(false)`，并删去其包裹块）—— 二者是代偿对，缺一不可。
+//   实测：只删占位=66；只内联（保留占位）=89；保留占位且把 bool 提到 try 首=76、提到 mgr 块前=55（均劣化）。
+//   本改动使 bool、now/pt、pkt1 三区**全部对齐**；余差 ndiff=6：仅 pkt2(-0xae→-0xb2) 与 pkt3(-0xb8→-0xbc)
+//   两槽深 4（orig/ours 均 1110 条、帧同为 0x18c）。
+//   归一化验证（槽偏移+跳转/调用目标+数据地址全掩码）：residual=0 ⇒ 纯槽编号差异。
 //   三连分诊（2026-09-15）：ORIG/我方槽集 46/46 相同、长度 1110/1110 相同、帧同为 0x18c
 //   ⇒ **排除「重建遗漏」族**，余差是单纯的整体槽偏移。
 //   已试无效（勿重复）：now/pt 四种声明位置（block 版 139）；占位换位置（外层/try 首/pt 之后/末位，非 try 首均 77）；
@@ -297,7 +300,6 @@ void CApplication::Load(int argc, char** argv)
 {
     try
     {
-        int reservedSlot;
         m_memoryCash = new CMemoryCashManager;
         m_memoryCash->Init(this);
         m_userManager.Init(this);
@@ -445,10 +447,7 @@ void CApplication::Load(int argc, char** argv)
         m_towerRank->processReloadRanking(m_serverHandler2, true, 5);
 
         m_accusationMgr = new init_accusation::CInitAccusationListMgr(*this);
-        {
-            bool schedule = false;
-            ((init_accusation::CInitAccusationListMgr*)m_accusationMgr)->setSchedule(schedule);
-        }
+        ((init_accusation::CInitAccusationListMgr*)m_accusationMgr)->setSchedule(false);
 
         m_loginLogoutStats = new CLoginLogoutStatistics(*this);
         {

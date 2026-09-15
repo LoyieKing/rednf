@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <queue>
+#include <iostream>
 
 #include "DNFPacketDecoder.h"
 #include "DNFApplication.h"

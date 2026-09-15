@@ -1,6 +1,7 @@
 // df_statics_r — DNFPacketTracer（ORIG DNFPacketTracer.o 拆分）
 #include <stdio.h>
 #include <time.h>
+#include <iostream>
 
 #include "DNFPacketTracer.h"
 #include "DNFFileLog.h"

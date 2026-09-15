@@ -1,16 +1,11 @@
 // df_statics_r — DNFUser1Sig（ORIG DNFUser1Sig.o 拆分）
 #include <stdio.h>
+#include <iostream>
 
 #include "DNFUser1Sig.h"
 #include "DNFApplication.h"
 #include "DNFFileLog.h"
 
-CUser1Sig::CUser1Sig() throw()
-{
-}
-CUser2Sig::CUser2Sig() throw()
-{
-}
 void CUser1Sig::handle(int sig)
 {
     DNF_LOG_SCOPE_LINE(0x13, "./log/Signal", "CUser1Sig::handle( int sig )");
@@ -18,6 +13,12 @@ void CUser1Sig::handle(int sig)
     {
         m_app->SendTestPacket_2();
     }
+}
+CUser1Sig::CUser1Sig() throw()
+{
+}
+CUser2Sig::CUser2Sig() throw()
+{
 }
 void CUser2Sig::handle(int sig)
 {

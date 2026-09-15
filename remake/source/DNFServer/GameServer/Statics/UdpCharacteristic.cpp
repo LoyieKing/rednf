@@ -1,5 +1,6 @@
 // df_statics_r — UdpCharacteristic（ORIG UdpCharacteristic.o 拆分）
 #include <stdio.h>
+#include <iostream>
 
 #include "UdpCharacteristic.h"
 #include "DNFServerHandler.h"
@@ -11,6 +12,19 @@ struct UdpPingPacketView
     unsigned short m_fieldA;
     unsigned short m_fieldB;
 };
+UdpCharacteristic::UdpCharacteristic()
+{
+    m_successPartyTry = 0;
+    m_totalPartyTry = 0;
+    m_dungeonBadPing = 0;
+    m_dungeonTotal = 0;
+    m_pvpBadPing = 0;
+    m_pvpTotal = 0;
+    m_fairPvpBadPing = 0;
+    m_fairPvpTotal = 0;
+    m_successDungeonClear = 0;
+    m_totalDungeonClear = 0;
+}
 Packet_Frame_Lag_Statistic_Reload_Spec::Packet_Frame_Lag_Statistic_Reload_Spec()
     : PacketHeader(0xc29, 0xf)
 {
@@ -26,19 +40,6 @@ Packet_Frame_Lag_Statistic_Write_Query::Packet_Frame_Lag_Statistic_Write_Query()
 Packet_Frame_Lag_Used_Memory_Write_Query::Packet_Frame_Lag_Used_Memory_Write_Query()
     : PacketHeader(0xc30, 0x40a)
 {
-}
-UdpCharacteristic::UdpCharacteristic()
-{
-    m_successPartyTry = 0;
-    m_totalPartyTry = 0;
-    m_dungeonBadPing = 0;
-    m_dungeonTotal = 0;
-    m_pvpBadPing = 0;
-    m_pvpTotal = 0;
-    m_fairPvpBadPing = 0;
-    m_fairPvpTotal = 0;
-    m_successDungeonClear = 0;
-    m_totalDungeonClear = 0;
 }
 UdpCharacteristic::~UdpCharacteristic()
 {

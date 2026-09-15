@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <iostream>
 #define THROW_IF_NO_APP(msg) \
     if (m_pclApp == 0) \
     { \
@@ -9,6 +10,7 @@
     }
 
 #include "DNFPacketTranslater.h"
+CApplication* CPacketTranslater::m_pclApp = 0;
 #include "DNFApplication.h"
 #include "DNFServerHandler.h"
 #include "Statistics.h"
@@ -1035,4 +1037,3 @@ Packet_GameServer2Statisctics2DBServer::Packet_GameServer2Statisctics2DBServer()
     memset(m_nationCode, 0, sizeof(m_nationCode));
     memset(m_peerAddress, 0, sizeof(m_peerAddress));
 }
-CApplication* CPacketTranslater::m_pclApp = 0;

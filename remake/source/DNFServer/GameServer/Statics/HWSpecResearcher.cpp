@@ -1,6 +1,7 @@
 // df_statics_r — HWSpecResearcher（ORIG HWSpecResearcher.o 拆分）
 #include <stdio.h>
 #include <string.h>
+#include <iostream>
 
 #include "HWSpecResearcher.h"
 #include "DNFDBServer.h"

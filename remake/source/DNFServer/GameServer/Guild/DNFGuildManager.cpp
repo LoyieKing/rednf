@@ -347,7 +347,10 @@ CGuild* CGuildManager::GuildMemLogin(unsigned int guildKey, CUser* user)
     return guild;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0014 | guild | 与ORIG差异=DIFF | CGuildManager::GuildMemLogout | 详见 function_reports/guild/_ZN13CGuildManager14GuildMemLogoutEjP5CUser.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0014 已消除）| guild | CGuildManager::GuildMemLogout
+//   修复（NEAR-Guild 泳道）：唯一残差 = bool 物化的寄存器选择（ORIG `sete %al; test %al,%al`
+//   vs 我方 `sete %bl; test %bl,%bl`）⇒ `register bool bNull` 后补**显式寄存器绑定**
+//   `__asm__("al")` ⇒ mdiff_ta 254/254 **AE identical**、ELF ndiff 2→0 ✓（长度 254 两侧一致）
 void CGuildManager::GuildMemLogout(unsigned int guildKey, CUser* user)
 {
     if (user == 0 || m_app == 0)
@@ -360,7 +363,9 @@ void CGuildManager::GuildMemLogout(unsigned int guildKey, CUser* user)
         throw CDNFException("CGuildManager::GuildMemLogout()\t0 == dwGuildKey\n");
     }
     CGuild* guild = FindGuild(guildKey);
-    register bool bNull = (guild == 0);
+    // [2026-09-15 NEAR-Guild 已落盘] ORIG 的 bool 物化落在 %al（`sete %al; test %al,%al`），
+    //   而裸 `register bool` 被 GCC 选中 %bl ⇒ **显式寄存器绑定**复现 ORIG（ndiff=0）✓
+    register bool bNull __asm__("al") = (guild == 0);
     if (bNull)
     {
         return;

@@ -2412,6 +2412,12 @@ void CGuild::AddGuildFund(unsigned int fund)
                 *fundPtr = 0x1312d00;
             }
         }
+        // [2026-09-15 NEAR-Guild 复验] 唯一差异 = 两处 `CMyFileLog` **表达式临时**的栈槽互换
+        //   （ORIG then→-0x28 / else→-0x30；我方反之）。两侧帧 0x5c、槽集合、指令数全同。
+        //   本轮追加 2 形态（均**逐条无变化**，已回退）：V1 裸块包住 then 的 log 语句 ·
+        //   V2 裸块包住 else 的 log 语句 ⇒ 确认 **块层次/释放时机不是该槽序的自变量**；
+        //   叠加前泳道「交换 fundPtr/levelPtr 声明次序 ⇒ 4→15」⇒ 共 3 形态全负。
+        //   ⇒ 定案：**GCC -O0 临时槽分配器内部顺序**（codegen-only），本 TU 无靶点 ✓
         DNF_LOG_SCOPE_LINE(0xb0a,"./log/GuildFund",
             "CPacketTranslater::AddGuildFund() : GUILD_ID (%u), GUILD_FUND (%u), GOLD (%u)\n",
             GetGuildKey(), m_dbInfo.m_info.m_guildFund, fund);

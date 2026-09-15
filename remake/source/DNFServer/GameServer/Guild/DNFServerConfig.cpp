@@ -69,11 +69,6 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-ST_ServerInfo* CServerConfig::GetServerInfo()
-{
-    return m_info;
-}
-
 bool CServerConfig::Parse_Table(char* line, int idx)
 {
     if (*line == '#')

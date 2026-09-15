@@ -1,5 +1,6 @@
 // df_statics_r — DNFThreadInterface（ORIG DNFThreadInterface.o 拆分）
 #include <stdio.h>
+#include <iostream>
 
 #include "DNFThreadInterface.h"
 

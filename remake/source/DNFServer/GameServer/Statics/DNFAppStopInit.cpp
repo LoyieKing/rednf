@@ -1,5 +1,6 @@
 // df_statics_r — DNFAppStopInit（ORIG DNFAppStopInit.o 拆分）
 #include <stdio.h>
+#include <iostream>
 
 #include "DNFAppStopInit.h"
 #include "DNFApplication.h"
