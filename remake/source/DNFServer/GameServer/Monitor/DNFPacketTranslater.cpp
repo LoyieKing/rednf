@@ -885,8 +885,9 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
         (unsigned char)chat->m_buddyNameLen < 0x1e)
     {
         CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(chat->buddy_n_user_id_what);
+        bool foundTarget = target != 0;
         chat->m_recverCharId =
-            target != 0 ? (int)target->GetUniqCharNo() : (int)0xffffffff;
+            foundTarget ? (int)target->GetUniqCharNo() : (int)0xffffffff;
     }
     if (chat->m_characNo == 0 ||
         chat->m_recverCharId == 0 ||
@@ -5034,8 +5035,9 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
         (unsigned char)chat->m_buddyNameLen < 0x1e)
     {
         CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(chat->buddy_n_user_id_what);
+        bool foundTarget = target != 0;
         chat->m_recverCharId =
-            target != 0 ? (int)target->GetUniqCharNo() : (int)0xffffffff;
+            foundTarget ? (int)target->GetUniqCharNo() : (int)0xffffffff;
     }
     if (chat->m_characNo == 0 ||
         chat->m_recverCharId == 0 ||
