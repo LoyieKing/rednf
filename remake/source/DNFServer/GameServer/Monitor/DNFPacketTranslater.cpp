@@ -1265,11 +1265,11 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
         CMemberManager* memberMgr = &m_pclApp->m_memberManager;
         Packet_Monitor_Member_Enter_Reply* reply =
             (Packet_Monitor_Member_Enter_Reply*)pkt;
-        CUser* requester = userMgr->FindUser_CharNo(reply->m_charNo);
-        if (requester != 0)
+        CUser* requester = 0;
+        if ((requester = userMgr->FindUser_CharNo(reply->m_charNo)) != 0)
         {
-            CUser* responser = userMgr->FindUser_CharNo(requester->GetMemberEnterCallerId());
-            if (responser != 0)
+            CUser* responser = 0;
+            if ((responser = userMgr->FindUser_CharNo(requester->GetMemberEnterCallerId())) != 0)
             {
                 if (responser->IsAbleToRegisterMember() != 1 ||
                     requester->IsAbleToRegisterMember() != 1)
