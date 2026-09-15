@@ -1371,7 +1371,7 @@ class Packet_Guild_Load_Guild_Cargo_History : public PacketHeader
 public:
     Packet_Guild_Load_Guild_Cargo_History();
     int m_guildId;                   // +0xa
-    int m_count;                     // +0xe（OnLoadGuildCargoHistory 行数）
+    unsigned int m_count;            // +0xe（OnLoadGuildCargoHistory 行数）
     STGuildCargoLog m_logs[50];      // +0x12（50 × 0x30 = 0x960，总大小 0x972）
 } __attribute__((packed));
 

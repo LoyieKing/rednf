@@ -1807,7 +1807,7 @@ void CPacketTranslater::OnUpdateChangableCharInfo(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0062 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnLogoutComplete | 详见 function_reports/monitor/_ZN17CPacketTranslater16OnLogoutCompleteEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0062 已消除；K 声明序 complete→userMgr + O 删 ok/dbid 局部 + 块序 if(!f())）
 void CPacketTranslater::OnLogoutComplete(PacketHeader* pkt)
 {try
 {
@@ -1817,23 +1817,24 @@ void CPacketTranslater::OnLogoutComplete(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnLogoutComplete : 0 == m_pclApp");
     }
-    CUserManager* userMgr = &m_pclApp->m_userManager;
-    Packet_Monitor_UDP_Logout_Complete* complete =
-        (Packet_Monitor_UDP_Logout_Complete*)pkt;
-    char ok = userMgr->DeleteProhibitUser(complete->m_dbid,
-                                          (char)complete->m_channel);
-    if (ok == 1)
     {
-        char* dbid = NumberToString(complete->m_dbid, 0);
-        DNF_LOG_SCOPE_LINE(0x8a5,"./log/User", "[LOGOUT COMPLETE] m_id : %s\tchannel No : %d\n", dbid,
-            (unsigned int)(unsigned char)complete->m_channel);
-    }
-    else
-    {
-        char* dbid = NumberToString(complete->m_dbid, 0);
-        DNF_LOG_SCOPE_LINE(0x8a1,"./log/User",
-            "[DELETE_ERR_] CPacketTranslater::OnLogoutComplete m_id : %s\tChannel No : %d\n",
-            dbid, (unsigned int)(unsigned char)complete->m_channel);
+        Packet_Monitor_UDP_Logout_Complete* complete =
+            (Packet_Monitor_UDP_Logout_Complete*)pkt;
+        CUserManager* userMgr = &m_pclApp->m_userManager;
+        if (!userMgr->DeleteProhibitUser(complete->m_dbid,
+                                         (char)complete->m_channel))
+        {
+            DNF_LOG_SCOPE_LINE(0x8a1,"./log/User",
+                "[DELETE_ERR_] CPacketTranslater::OnLogoutComplete m_id : %s\tChannel No : %d\n",
+                NumberToString(complete->m_dbid, 0),
+                (unsigned int)(unsigned char)complete->m_channel);
+        }
+        else
+        {
+            DNF_LOG_SCOPE_LINE(0x8a5,"./log/User", "[LOGOUT COMPLETE] m_id : %s\tchannel No : %d\n",
+                NumberToString(complete->m_dbid, 0),
+                (unsigned int)(unsigned char)complete->m_channel);
+        }
     }
 
 
@@ -3320,6 +3321,7 @@ void CPacketTranslater::onWebReqReloadAutoPunishRule(PacketHeader* pkt)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0069 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnInnerPacketLogin | 详见 function_reports/monitor/_ZN17CPacketTranslater18OnInnerPacketLoginEP12PacketHeader.md
+// [本波已修] K：补 `PacketHeader* lpkt` 具名局部（-0x24 槽）+ P：去比较处 `(int)` cast ⇒ 231/230（余 tcp 槽偏移 4）
 void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
 {
     try
@@ -3330,19 +3332,20 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
         }
         else
         {
-            if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == (int)pkt->m_connNo)
+            PacketHeader* lpkt = (PacketHeader*)pkt;
+            if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == lpkt->m_connNo)
             {
                 m_pclApp->Get_ServerHandler()->GetTcpDBServer()->Connected();
             }
             else
             {
-                if (m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->GetSock() == (int)pkt->m_connNo)
+                if (m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->GetSock() == lpkt->m_connNo)
                 {
                     m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->Connected(m_pclApp->Get_ServerGroup());
                 }
                 else
                 {
-                    CTcpGameServer* tcp = m_pclApp->Get_ServerHandler()->CreateTcpGameServer(pkt->m_connNo);
+                    CTcpGameServer* tcp = m_pclApp->Get_ServerHandler()->CreateTcpGameServer(lpkt->m_connNo);
                     if (tcp != 0)
                     {
                         char* buf = tcp->makePacketHeader(8000, 0xc);
@@ -3389,7 +3392,7 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0073 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnInnerPacketLogout | 详见 function_reports/monitor/_ZN17CPacketTranslater19OnInnerPacketLogoutEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0073 已消除；P 族：GetSock() 为 int，去比较处 `(int)` cast 恢复 int==unsigned 转换）| 详见 function_reports/monitor/_ZN17CPacketTranslater19OnInnerPacketLogoutEP12PacketHeader.md
 void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
 {
     try
@@ -3401,13 +3404,13 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
         else
         {
             PacketHeader* lpkt = pkt;
-            if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == (int)lpkt->m_connNo)
+            if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == lpkt->m_connNo)
             {
                 m_pclApp->Get_ServerHandler()->GetTcpDBServer()->DisConnected();
             }
             else
             {
-                if (m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->GetSock() == (int)lpkt->m_connNo)
+                if (m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->GetSock() == lpkt->m_connNo)
                 {
                     m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->DisConnected();
                 }
@@ -4375,6 +4378,7 @@ void CPacketTranslater::OnWebRequestARSInfo(PacketHeader* pkt)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0094 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnCheckOverlappedAccusation | 详见 function_reports/monitor/_ZN17CPacketTranslater27OnCheckOverlappedAccusationEP12PacketHeader.md
+// [本波已修] G：`m_type` int→unsigned int ⇒ 消除调用点 `mov %eax,%ebx` 中转 ⇒ 128/128（余 1 条返回临时）
 void CPacketTranslater::OnCheckOverlappedAccusation(PacketHeader* pkt)
 {
     Packet_Check_Overlapped_Accusation* acc =
@@ -4399,6 +4403,7 @@ void CPacketTranslater::OnCheckOverlappedAccusation(PacketHeader* pkt)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0068 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnGameServerRegist | 详见 function_reports/monitor/_ZN17CPacketTranslater18OnGameServerRegistEP12PacketHeader.md
+// [本波已修] H：strncpy 源实参改整型加法 `(char*)((unsigned int)regist + 0xd)` ⇒ `add $0xd` 形态对齐
 void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
 {
     Packet_Game_Server_Regist* regist = (Packet_Game_Server_Regist*)pkt;
@@ -4407,7 +4412,7 @@ void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
     info->m_group = regist->m_channel;
     info->m_type = regist->m_type;
     info->m_port = regist->m_port;
-    strncpy(info->m_name, regist->m_name, 0x10);
+    strncpy(info->m_name, (char*)((unsigned int)regist + 0xd), 0x10);
     unsigned int sock = regist->m_connNo;
     CTcpGameServer* tcp =
         (CTcpGameServer*)m_pclApp->Get_ServerHandler()->GetTcpGameServer(sock);
@@ -5295,10 +5300,11 @@ void CPacketTranslater::onSocialEventRewardItemUpdate(PacketHeader* pkt)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0108 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onRequestCharacInfoByCharacName | 详见 function_reports/monitor/_ZN17CPacketTranslater31onRequestCharacInfoByCharacNameEP12PacketHeader.md
+// [本波已修] 补 `CUser* requester = 0; CUser* target = 0;` 零初始化 ⇒ 172/168（余槽 4 + 一具名指针局部）
 void CPacketTranslater::onRequestCharacInfoByCharacName(PacketHeader* pkt)
 {
-    CUser* requester;
-    CUser* target;
+    CUser* requester = 0;
+    CUser* target = 0;
     if (m_pclApp != 0)
     {
         CUserManager* userMgr = &m_pclApp->m_userManager;
@@ -5513,6 +5519,7 @@ void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* pkt)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0093 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnWebEmergencyPatchMessage | 详见 function_reports/monitor/_ZN17CPacketTranslater26OnWebEmergencyPatchMessageEP12PacketHeader.md
+// [本波已修] J：偏移写改具名类型成员 `((Packet_Web_Emergency_Patch_Message*)out)->m_channels[0]` ⇒ 207/207 + `mov %dl,0xa(%eax)` 对齐
 void CPacketTranslater::OnWebEmergencyPatchMessage(PacketHeader* pkt)
 {
     try
@@ -5536,7 +5543,7 @@ void CPacketTranslater::OnWebEmergencyPatchMessage(PacketHeader* pkt)
                     if (buf != 0)
                     {
                         char* out = buf;
-                        *(char*)(out + 10) = (char)rpkt->m_len;
+                        ((Packet_Web_Emergency_Patch_Message*)out)->m_channels[0] = (char)rpkt->m_len;
                         memset(out + 0xb, 0, 0xff);
                         memcpy(out + 0xb, rpkt->m_text, (unsigned int)rpkt->m_len);
                         tcp->SendToGameServer(out);

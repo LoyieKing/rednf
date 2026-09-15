@@ -80,14 +80,25 @@ public:
     struct __attribute__((packed)) TodayMemberBlock
     {
         unsigned int m_charNo;    // +0
-        unsigned int m_name0;     // +4
-        unsigned int m_name1;
-        unsigned int m_name2;
-        unsigned int m_name3;
-        unsigned int m_name4;
-        unsigned int m_name5;
-        unsigned int m_name6;
-        unsigned int m_name7;     // +0x20
+        // [2026-09-15 W4-GuildRest 机理 P] ORIG 同一地址两种取址形：
+        //   memset(&m_name0,…) ⇒ `add $0x66f0,%eax`（标量取址）；
+        //   strncpy(名字缓冲,…) ⇒ `lea 0x66f0(%eax),%edx`（数组取址融合）。
+        //   ⇒ ORIG 的 strncpy 目标表达式是**数组**（无 cast），补 char 数组视图以去 cast。
+        union
+        {
+            struct
+            {
+                unsigned int m_name0;     // +4
+                unsigned int m_name1;
+                unsigned int m_name2;
+                unsigned int m_name3;
+                unsigned int m_name4;
+                unsigned int m_name5;
+                unsigned int m_name6;
+                unsigned int m_name7;     // +0x20
+            };
+            char m_nameBytes[0x20];       // +4..+0x23（名字缓冲 0x1d）
+        };
         unsigned short m_field24; // +0x24
         unsigned char m_field26;  // +0x26
     };

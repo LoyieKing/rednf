@@ -113,6 +113,7 @@ void CUdpNetworkThread::dispatch(void* param)
             }
             else
             {
+                unsigned int qsize;
                 PacketHeader* p = (PacketHeader*)buf;
                 if (p->packetSize != len)
                 {
@@ -147,8 +148,7 @@ void CUdpNetworkThread::dispatch(void* param)
                             {
                                 CGuard<CMutex> g((CMutex*)m_lock);
                                 ((std::queue<CUdpRecvBuffer*>*)m_queue)->push(buf);
-                                unsigned int qsize =
-                                    ((std::queue<CUdpRecvBuffer*>*)m_queue)->size();
+                                qsize = ((std::queue<CUdpRecvBuffer*>*)m_queue)->size();
                             }
                         }
                     }

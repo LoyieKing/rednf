@@ -411,6 +411,9 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
     // [P-GPT] 无具名 mid 局部：ORIG 直接把 NumberToString() 结果作为 log 实参 ⇒ 本函数少 1 槽、帧 0x8c→0x7c
     // [P-GPT] gs 提升到 pb 之前：ORIG 槽序为 pb(-0x30) 浅于 gs(-0x38)
     CGameServer* gs;
+    // [P-A/N] ORIG 分配序（深→浅）：gs(-0x38) tgs(-0x34) pb(-0x30) um(-0x2c) user(-0x28) i(-0x24)
+    // ⇒ 声明序 tgs 在 pb 之前（赋值留在原处）
+    CTcpGameServer* tgs;
     Packet_Monitor_UDP_Reply_UserInfo* pb = (Packet_Monitor_UDP_Reply_UserInfo*)pkt;
     {
         DNF_LOG_SCOPE_LINE(0x150,"./log/Reboot", "[GAME SERVER] Channel No : %d\n",
@@ -422,18 +425,20 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::OnReplyUserInfo : pclGameServer == 0");
         }
-        CTcpGameServer* tgs = m_pclApp->FindTcpGameServer(pb->m_connNo);
-        if (tgs == 0)
+        // [P352] ORIG 该处 = cmpl/sete/test/jne 物化 ⇒ 一句写内嵌赋值
+        if ((tgs = m_pclApp->FindTcpGameServer(pb->m_connNo)) == 0)
         {
         }
         else
         {
             CUserManager* um = &m_pclApp->m_userManager;
+            // [P-N] ORIG 槽序：user(-0x28 更深, 先声明) 先于 i(-0x24 更浅) ⇒ user 声明提至循环外
+            CUser* user;
             int i = 0;
             while (i < (int)(unsigned char)pb->m_count)
             {
-                CUser* user = um->FindUser(pb->m_items[i].m_dbid);
-                if (user != 0)
+                // [P352] ORIG 该处 = cmpl/setne/test/je 物化 ⇒ 一句写内嵌赋值
+                if ((user = um->FindUser(pb->m_items[i].m_dbid)) != 0)
                 {
                     DNF_LOG_SCOPE_LINE(0x166, "./log/Except", "CPacketTranslater::OnReplyUserInfo() : %s\n",
                         NumberToString(pb->m_items[i].m_dbid, 0));
@@ -916,11 +921,10 @@ void CPacketTranslater::OnNoticeGuildChatMsgHyperLink(PacketHeader* pkt)
     Packet_Monitor_Guild_Chat_Hyper_Link* pb = (Packet_Monitor_Guild_Chat_Hyper_Link*)pkt;
     if (pb->m_charNo != 0 && pb->m_guildKey != 0 && pb->m_msgLen != 0)
     {
-        user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo);
-        if (user != 0)
+        // [P352] ORIG 两处检查均带 `cmpl/setne/test/je` 物化 ⇒ 一句写内嵌赋值（同 ReplyUserInfo 实证）
+        if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo)) != 0)
         {
-            guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey);
-            if (guild != 0)
+            if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) != 0)
             {
                 guild->NoticeChatMsgToGuildMembersHyperLink(
                     pb->m_charNo, pb->m_msg, pb->m_msgLen,
@@ -953,11 +957,10 @@ void CPacketTranslater::OnIncreaseGuildExp(PacketHeader* pkt)
     {
     THROW_IF_NO_APP("CPacketTranslater::OnIncreaseGuildExp : 0 == m_pclApp")
     Packet_Monitor_Increase_Guild_Exp* pb = (Packet_Monitor_Increase_Guild_Exp*)pkt;
-    if (pb->m_guildKey == 0)
+    // [P-D/块序] ORIG 为 `je <#173>`（非 throw 路径 fallthrough、throw 在后方）⇒ 写成
+    //   `if (key != 0) { 主体 } else { throw }`（原 `if (key==0) throw;` 会让 throw 落在 fallthrough）。
+    if (pb->m_guildKey != 0)
     {
-        throw CDNFException(
-            "CPacketTranslater::OnIncreaseGuildExp : packet->m_uCharID && packet->m_uGuildKey && packet->m_msgLen");
-    }
     CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey);
     if (guild != 0)
     {
@@ -998,6 +1001,12 @@ void CPacketTranslater::OnIncreaseGuildExp(PacketHeader* pkt)
                  "OnIncreaseGuildExp : guild key(%d), curr guild exp(%d),lev(%d), next guild exp(%d), exp lev(%d)",
                  pb->m_guildKey, oldExp, level, oldExp + addExp, expLevel);
         }
+    }
+    }
+    else
+    {
+        throw CDNFException(
+            "CPacketTranslater::OnIncreaseGuildExp : packet->m_uCharID && packet->m_uGuildKey && packet->m_msgLen");
     }
     }
     catch (CDNFException& e)
@@ -5262,39 +5271,43 @@ void CPacketTranslater::OnGuildRequestGuildBoardOpen(PacketHeader* pkt)
                 "CPacketTranslater::OnGuildRequestGuildBoardOpen : 0 == pclGuild");
             return;
         }
-        if (guild->GetGuildBoard()->isWebGuildBoardAction() == 0 &&
-            pb->m_boardType == 0 &&
-            guild->GetGuildBoard()->getGuildBoardDBLoadState() != 0)
+        // [P-D/块序] ORIG 控制流：条件 ① = (isWeb==0 && boardType==0 && state != 0)
+        //   ① 假（ORIG 89 `je <#201>`）→ 末尾 sendGuildBoardData 块；① 真 → 内层 ②③。
+        //   ⇒ 源码为 `if (!①) { sendGuildBoardData } else { ②… ③… }`：我方原为
+        //   ① 正面 + `return;`（块序相反）⇒ 取反并重排（② 为 ORIG 中的恒假冗余检查，照留）。
+        if (!(guild->GetGuildBoard()->isWebGuildBoardAction() == 0 &&
+              pb->m_boardType == 0 &&
+              guild->GetGuildBoard()->getGuildBoardDBLoadState() != 0))
         {
-            guild->GetGuildBoard()->sendGuildBoardData(
-                pb->m_guildKey,
-                pb->m_charNo,
-                0x232a, user);
-            return;
-        }
-        if (guild->GetGuildBoard()->getGuildBoardDBLoadState() == 0)
-        {
-            Packet_DB_Load_Request_Guild_Board_Open dbPkt;
-            dbPkt.m_guildKey = pb->m_guildKey;
-            dbPkt.m_charNo = pb->m_charNo;
-            m_pclApp->Get_ServerHandler()->SendToDB(&dbPkt);
-            guild->GetGuildBoard()->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)1);
-            return;
-        }
-        if (guild->GetGuildBoard()->isWebGuildBoardAction() == 0 &&
-            pb->m_boardType == 0)
-        {
-            return;
-        }
-        guild->GetGuildBoard()->setWebGuildBoardAction(false);
-        if (guild->GetGuildBoard()->getGuildBoardDBLoadState() == 2 &&
-            guild->GetGuildBoard()->isGuildBoardDBAccess() != 0)
-        {
-            Packet_DB_Load_Request_Guild_Board_Open dbPkt;
-            dbPkt.m_guildKey = pb->m_guildKey;
-            dbPkt.m_charNo = pb->m_charNo;
-            m_pclApp->Get_ServerHandler()->SendToDB(&dbPkt);
-            guild->GetGuildBoard()->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)1);
+            if (guild->GetGuildBoard()->getGuildBoardDBLoadState() == 0)
+            {
+                Packet_DB_Load_Request_Guild_Board_Open dbPkt;
+                dbPkt.m_guildKey = pb->m_guildKey;
+                dbPkt.m_charNo = pb->m_charNo;
+                m_pclApp->Get_ServerHandler()->SendToDB(&dbPkt);
+                guild->GetGuildBoard()->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)1);
+            }
+            else if (!(guild->GetGuildBoard()->isWebGuildBoardAction() == 0 &&
+                       pb->m_boardType == 0))
+            {
+                guild->GetGuildBoard()->setWebGuildBoardAction(false);
+                if (guild->GetGuildBoard()->getGuildBoardDBLoadState() == 2 &&
+                    guild->GetGuildBoard()->isGuildBoardDBAccess() != 0)
+                {
+                    Packet_DB_Load_Request_Guild_Board_Open dbPkt;
+                    dbPkt.m_guildKey = pb->m_guildKey;
+                    dbPkt.m_charNo = pb->m_charNo;
+                    m_pclApp->Get_ServerHandler()->SendToDB(&dbPkt);
+                    guild->GetGuildBoard()->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)1);
+                }
+                else
+                {
+                    guild->GetGuildBoard()->sendGuildBoardData(
+                        pb->m_guildKey,
+                        pb->m_charNo,
+                        0x232a, user);
+                }
+            }
         }
         else
         {

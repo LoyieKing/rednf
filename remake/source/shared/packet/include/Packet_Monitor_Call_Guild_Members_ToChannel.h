@@ -16,18 +16,27 @@ struct ST_Guild_Mem_Info
     union {
         char m_data[0x3f];
         struct __attribute__((packed)) {
-            char m_job;                    // +0（df_guild_r ReplyGuildMembers: rec[0] = m->GetJob()）
-            char m_growthType;             // +1（rec[1] = m->GetGrowthType()）
+            // [2026-09-15 W4-GuildRest 机理 C/P，Main 授权] 源侧（STGuildMemberProxy::m_job/
+            //   m_growType/m_sex/m_grade、CUser::GetJob/GetGrowthType/GetSex、
+            //   CServerInterface::GetChannelNo）**全为 unsigned char** ⇒ 此处声明 char 会引入
+            //   隐式 signedness 转换，令 GCC 在每处赋值多生成一条中转 `mov`（ReplyGuildAllMembers
+            //   累计 ndiff 227）。同宽同偏移 ⇒ 布局/大小中性。
+            unsigned char m_job;           // +0（df_guild_r ReplyGuildMembers: rec[0] = m->GetJob()）
+            unsigned char m_growthType;    // +1（rec[1] = m->GetGrowthType()）
             short m_level;                 // +2（signed：MakePacketGuildMembersInfo movzwl+movswl 0x84ca43d、LogMakeGuildMembersInfo movzwl+cwtl 0x84ca5d1 实证；P11）
             char m_name[0x1d];             // +4..+0x20（memcpy(rec+4, m->GetCharName(), 0x1d)）
             char m_pad21;                  // +0x21
             char m_guildMemDBInfo[0x14];   // +0x22..+0x35（memcpy(rec+0x22, m->GetGuildMemDBInfo(), 0x14)）
             char m_pad36;                  // +0x36
-            char m_channel;                // +0x37（rec[0x37] = m->GetGameServer()->GetChannelNo()）
-            char m_sex;                    // +0x38（rec[0x38] = m->GetSex()）
+            unsigned char m_channel;       // +0x37（rec[0x37] = m->GetGameServer()->GetChannelNo()）
+            unsigned char m_sex;           // +0x38（rec[0x38] = m->GetSex()）
             char m_blackUser;              // +0x39（rec[0x39] = m->IsBlackUser()?1:0）
-            char m_grade;                  // +0x3a（rec[0x3a] = m->GetGuildMemDBInfo()->m_grade）
-            unsigned int m_pad3b;          // +0x3b..+0x3e（ctor 清零，发送端不写）
+            unsigned char m_grade;         // +0x3a（rec[0x3a] = m->GetGuildMemDBInfo()->m_grade）
+            // [2026-09-15 W4-GuildRest 机理 C/P，Main 裁决①] 源 `STGuildMemberProxy::m_lastPlayTime`
+            //   是 **int**（DNFGuild.h:88）⇒ 此处声明 unsigned int 会引入转换临时（每处多一条 mov）。
+            //   改回 int（同宽同偏移）。Game 侧读法 `curSec(ll) < f.m_pad3b` 提升为 long long ⇒ 语义中性，
+            //   且 game 不重链 ⇒ 产物不变。
+            int m_pad3b;                   // +0x3b..+0x3e（ctor 清零；发送端 = m_lastPlayTime）
         } f;
     };
 };

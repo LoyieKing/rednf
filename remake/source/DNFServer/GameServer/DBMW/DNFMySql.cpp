@@ -413,6 +413,6 @@ bool CMySql::init()
     m_port = 0xcea;
     return 1;
 }
-int CMySql::get_n_rows() { return m_nRows; }
+unsigned int CMySql::get_n_rows() { return m_nRows; }
 int CMySql::get_n_fields() { return m_nFields; }
 char CMySql::ping() { return mysql_ping(m_mysql); }

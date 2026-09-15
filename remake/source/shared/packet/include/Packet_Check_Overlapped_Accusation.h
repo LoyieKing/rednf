@@ -11,7 +11,8 @@ public:
     unsigned int m_uid;             // +0xa（CUser::GetUID；ORIG ctor = 0xffffffff；
                                     //        monitor OnCheckOverlappedAccusation 按连接号读取该值）
     int m_characNo;                 // +0xe（CUserCharacInfo::getCurCharacNo）
-    int m_type;                     // +0x12（举报类型；isNeedTypeForChattingMsg；ORIG ctor = 4）
+    unsigned int m_type;            // +0x12（举报类型；isNeedTypeForChattingMsg；ORIG ctor = 4；
+                                    //        ORIG 调用点先 mov 到 eax 再转 ebx ⇒ unsigned→int 转换）
     unsigned int m_serverGroup;     // +0x16（CEnvironment::get_server_group / CUser::GetServerGroup）
     unsigned int m_reportedServerGroup; // +0x1a（client 字节 <0x65；0=视为同服）
     int m_accId;                    // +0x1e（CUser::get_acc_id）

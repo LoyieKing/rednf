@@ -37,7 +37,7 @@ public:
     virtual bool get_int(int col, unsigned long long& v) = 0;
     virtual bool get_uint(int col, unsigned long long& v) = 0;
     virtual int get_n_fields() = 0;
-    virtual int get_n_rows() = 0;
+    virtual unsigned int get_n_rows() = 0;
     virtual void clear_result_set() = 0;
     virtual unsigned long long getAffectedRowCount() = 0;
     virtual char* escape_string(char* dst, char const* src) = 0;
@@ -82,7 +82,7 @@ public:
     bool get_int(int col, unsigned long long& v);
     bool get_uint(int col, unsigned long long& v);
     const char* get_quest_str() const;  // 虚（虚表 vptr+0x7c，返回 m_query）
-    int get_n_rows();   // 虚（虚表 vptr+0x5c）
+    unsigned int get_n_rows();   // 虚（虚表 vptr+0x5c）
     int get_n_fields(); // 虚（虚表 vptr+0x58）
     unsigned long long getAffectedRowCount();
     char* escape_string(char* dst, char const* src);

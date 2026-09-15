@@ -7091,60 +7091,70 @@ bool CDBManager::QueryGuildSkill(unsigned char serverGroup,
     return 1;
 }
 // [DNF-NONIDENTICAL] DNF-DBM-DIFF-0109 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnChangeUnconnectedGuildMemberGrade | 详见 function_reports/dbmw/_ZN17CPacketTranslater35OnChangeUnconnectedGuildMemberGradeEP12PacketHeader.md
+struct UnconnectedGradeHeaderView
+{
+    char m_pad[0xa];
+    unsigned char m_serverGroup; // +0xa
+    unsigned int m_guildId;      // +0xb
+    int m_characNo;              // +0xf
+    unsigned char m_flag;        // +0x13
+    char m_name[0x1e];           // +0x14
+    unsigned char m_result;      // +0x32
+} __attribute__((packed));
+
 void CPacketTranslater::OnChangeUnconnectedGuildMemberGrade(PacketHeader* header)
 {
     if (!m_pclApp)
         return;
     try
     {
-        char* h = (char*)header;
+        UnconnectedGradeHeaderView* h = (UnconnectedGradeHeaderView*)header;
         Packet_DB_Monitor_Change_Unconnected_GuildMember_Grade pkt;
-        if (*(int*)(h + 0xb) != 0)
+        if (h->m_guildId != 0)
         {
-            memcpy(pkt.m_name, h + 0x14, 0x1d);
-            pkt.m_guildId = *(int*)(h + 0xb);
-            pkt.m_result = *(unsigned char*)(h + 0x32);
-            pkt.m_characNo = *(int*)(h + 0xf);
+            memcpy(pkt.m_name, (char*)h + 0x14, 0x1d);
+            pkt.m_guildId = h->m_guildId;
+            pkt.m_result = h->m_result;
+            pkt.m_characNo = h->m_characNo;
         }
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         unsigned int result = 0;
-        unsigned int grade = pkt.m_grade;
         if (!m_pclApp->m_dbManager.QueryGuildMemberGradeByName(
-                *(unsigned char*)(h + 0xa), *(unsigned int*)(h + 0xb),
-                h + 0x14, pkt.m_grade,
-                *(unsigned int*)&pkt.m_newGrade, result))
+                h->m_serverGroup, h->m_guildId,
+                (char*)h + 0x14, pkt.m_grade,
+                *(unsigned int*)((char*)&pkt + 0x32), result))
         {
             pkt.m_result = 0xff;
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             return;
         }
-        if (grade == 1)
+        if (pkt.m_grade == 1)
         {
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             return;
         }
-        if ((grade == 2 || pkt.m_newGrade == 2) &&
-            *(unsigned char*)(h + 0x13) != 1)
+        if ((pkt.m_grade == 2 || pkt.m_newGrade == 2) &&
+            h->m_flag != 1)
         {
             pkt.m_result = 0xfe;
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             return;
         }
-        if (pkt.m_newGrade == grade)
+        if (pkt.m_newGrade == pkt.m_grade)
         {
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             return;
         }
         if (m_pclApp->m_dbManager.ChangeGuildMemberGrade(
-                *(unsigned char*)(h + 0xa), *(unsigned int*)(h + 0xb),
-                *(unsigned char*)(h + 0x32), h + 0x14))
+                h->m_serverGroup, h->m_guildId,
+                h->m_result, (char*)h + 0x14))
         {
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             CMyFileLog(__FUNCTION__, 0x495)("./log/GuildModify",
                 "::OnChangeUnconnectedGuildMemberGrade GRADE_CHANGE Guild(%d) UnConnected Name(%s) Grade(%d) Prev(%d)",
-                *(unsigned int*)(h + 0xb), h + 0x14,
-                *(unsigned char*)(h + 0x32),
-                grade);
+                h->m_guildId, (char*)h + 0x14,
+                h->m_result,
+                pkt.m_grade);
         }
     }
     DNF_CATCH_LOG("./log/Except.log",

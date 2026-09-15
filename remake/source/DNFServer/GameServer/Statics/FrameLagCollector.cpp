@@ -592,8 +592,11 @@ void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStru
     //   （367→356）、ndiff 186→108。
     //   [实测] i 提到函数作用域（i 先声明）+ j 移入内层 for ⇒ 112（劣于 108）⇒ 维持
     //   j 在函数作用域、i 在 for 内（108）。
+    // [2026-09-15 机理 N] ORIG 槽深：i=-0x18（42 次引用）、j=-0x14（17 次）⇒ i 先声明占更深槽。
+    //   [实测] 只换乘法顺序不重排声明 ⇒ ndiff 76；N + 换序 ⇒ 17（最优）。
+    int i;
     int j;
-    for (int i = 0; i < 6; i++)
+    for (i = 0; i < 6; i++)
     {
         if (0 < pkt[i].m_v0)
         {
@@ -622,11 +625,11 @@ void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStru
         for (j = 0; j < 6; j++)
         {
             data.m_i[i][j].s.m_i =
-                data.m_a[i] *
-                data.m_i[i][j].s.m_i;
+                data.m_i[i][j].s.m_i *
+                data.m_a[i];
             data.m_i[i][j].s.m_f =
-                (float)(unsigned int)data.m_a[i] *
-                data.m_i[i][j].s.m_f;
+                data.m_i[i][j].s.m_f *
+                (float)(unsigned int)data.m_a[i];
             data.m_i[i][j].s.m_i +=
                 pkt[i].m_sub[j].m_i;
             data.m_i[i][j].s.m_f +=

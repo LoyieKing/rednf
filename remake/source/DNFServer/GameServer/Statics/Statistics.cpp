@@ -1532,12 +1532,6 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
     {
         if (pkt->m_records[i].m_avg.m_int != 0)
         {
-            // [2026-09-15 P183/P332] ORIG 帧 sub $0xd0（我方 $0xe0，多 4 个具名局部）
-            //   ⇒ 删掉为取 float 准备的具名指针，右值直用。
-            //   [2026-09-15 机理 M 复测] 但 ORIG 反汇编**确有**两个具名指针槽
-            //   （`add 0xc(%ebp),%eax; add $0xb,%eax; mov %eax,-0x3c(%ebp)` + `-0x38`）
-            //   ⇒ 恢复 pAvg/pDev 真局部实测 ndiff 100→174（劣化，已回退；与 details 段
-            //   槽位分配冲突）。
             float avg_f = pkt->m_records[i].m_avg.m_float;
             float dev_f = pkt->m_records[i].m_deviation;
             m_modules[i].m_data0 += (int)(long long)avg_f;
@@ -1552,9 +1546,11 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
     {
         for (int j = 0; j < (int)pkt->m_detailCount; j++)
         {
-            unsigned short key = pkt->m_details[j].m_key;
+            // [2026-09-15 机理 O] ORIG 无 key 局部：find 直接吃成员地址
+            //   （`lea 0xc(%eax),%ecx` 直传），我方建 key 局部多一槽 ⇒ 删除并内联。
+            //   [实测] find 亦改显式解引用（消 -0x92 对齐临时）⇒ ndiff 90→106 劣，回退。
             std::map<unsigned short, STDungeonLagStatistics>::iterator it =
-                m_dungeonLag.find(key);
+                m_dungeonLag.find(pkt->m_details[j].m_key);
             float* pA = &pkt->m_details[j].m_a;
             float* pB = &pkt->m_details[j].m_b;
             float a = *pA;
@@ -1574,7 +1570,11 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
                 v.m_data[5] = (int)(long long)d;
                 v.m_data[6] = (unsigned int)pkt->m_details[j].m_cntB;
                 v.m_data[7] = 1;
-                m_dungeonLag.insert(std::make_pair(key, v));
+                // [2026-09-15 机理 O] ORIG 直传成员地址作 `unsigned short&`
+                //   （`lea 0xc(%eax),%ecx; call make_pair<IRtR22...>`）；packed
+                //   成员无法直接绑定非 const 引用 ⇒ 显式解引用出同型左值。
+                m_dungeonLag.insert(std::make_pair(
+                    *(unsigned short*)&pkt->m_details[j].m_key, v));
             }
             else
             {

@@ -976,8 +976,10 @@ void CPacketTranslater::OnSavePowerWarBonusPoint(PacketHeader* header)
         if (pkt->m_count > 0)
         {
             Packet_Notify_New_Group_Mail notice;
-            notice.m_count =
-                pkt->m_count > 0x12c ? 0x12c : pkt->m_count;
+            register int count = pkt->m_count;
+            if (count > 0x12c)
+                count = 0x12c;
+            notice.m_count = count;
             for (int i = 0; i < notice.m_count; i++)
                 notice.m_characNos[i] = pkt->m_entries[i].m_characNo;
             CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
@@ -1252,27 +1254,28 @@ void CPacketTranslater::OnRequestApproveJoinGuild(PacketHeader* header)
         Packet_DBMW_Request_Approve_Join_Guild* pkt =
             (Packet_DBMW_Request_Approve_Join_Guild*)header;
         Packet_DB_Response_Approve_Join_Guild reply;
+        CGuildServer* gs;
         reply.m_guildId = pkt->m_guildId;
         reply.m_id = pkt->m_id;
         reply.m_characNo = pkt->m_characNo;
         if (!m_pclApp->m_dbManager.OnGuildJoinByListApprove(
                 pkt->m_guildId, pkt->m_serverId,
                 pkt->m_id, pkt->m_characNo,
-                reply.m_joinInfo,
-                (unsigned int&)reply.m_result))
+                *(STGuildJoinInfo*)((char*)&reply + 0x1a),
+                *(unsigned int*)((char*)&reply + 0xa)))
         {
             if (reply.m_result == 0)
                 reply.m_result = 1;
             DNF_LOG_SCOPE_LINE(0x52a,
                 "./log/GuildModify",
-                "OnGuildJoin Err(g:%d,c:%d,r:%d) : return false", pkt->m_guildId, pkt->m_characNo,
+                "OnGuildJoin Err(g:%d,c:%d,r:%d)", reply.m_guildId, reply.m_characNo,
                 reply.m_result
             );
         }
-        m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
-            (char*)&reply, reply.packetSize);
+        gs = m_pclApp->m_serverHandler->GetGuildServer();
+        gs->SendToServer((char*)&reply, reply.packetSize);
         CMyFileLog(__FUNCTION__, 0x530)("./log/GuildModify", "::OnGuildJoin g(%d) c(%d) r(%d)",
-             pkt->m_guildId, pkt->m_characNo, reply.m_result);
+             reply.m_guildId, reply.m_characNo, reply.m_result);
     }
     DNF_CATCH_LOG("./log/Except.log",
                   "CPacketTranslater::OnGuildJoin() Exception Break",
@@ -2811,37 +2814,34 @@ void CPacketTranslater::OnTcpServerLogin(PacketHeader* header)
         if (!m_pclApp)
             return;
         Packet_Tcp_Server_Login* pkt = (Packet_Tcp_Server_Login*)header;
-        register unsigned char idx = pkt->m_idx;
-        register int port = (int)pkt->m_connNo;
-        CServerHandler* handler = m_pclApp->Get_ServerHandler();
-        if (handler->GetTcpServer(idx))
+        if (m_pclApp->Get_ServerHandler()->GetTcpServer(pkt->m_idx))
         {
             DNF_LOG_SCOPE_LINE(0xc44,
                 "./log/TcpServer",
                 "CPacketTranslater::OnTcpServerLogin Duplicate Server Instance(TYPE:%d, sock:%d)",
-                idx, port
+                pkt->m_idx, pkt->m_connNo
             );
 
             return;
         }
-        handler = m_pclApp->Get_ServerHandler();
-        CTcpServer* ret = handler->CreateTcpServer(idx, port);
+        CTcpServer* ret =
+            m_pclApp->Get_ServerHandler()->CreateTcpServer(pkt->m_idx, pkt->m_connNo);
         if (ret == 0)
         {
             DNF_LOG_SCOPE_LINE(0xc4d,
                 "./log/TcpServer",
                 "CPacketTranslater::OnTcpServerLogin CreateTcpServer fail(TYPE:%d, sock:%d)\n",
-                idx, port
+                pkt->m_idx, pkt->m_connNo
             );
 
             return;
         }
-        printf("CPacketTranslater::OnTcpServerLogin(TYPE:%d, sock:%d)\n", idx,
-               port);
+        printf("CPacketTranslater::OnTcpServerLogin(TYPE:%d, sock:%d)\n",
+               pkt->m_idx, pkt->m_connNo);
         DNF_LOG_SCOPE_LINE(0xc5b,
             "./log/TcpServer",
-            "CPacketTranslater::OnTcpServerLogin(TYPE:%d, sock:%d)", idx,
-            port
+            "CPacketTranslater::OnTcpServerLogin(TYPE:%d, sock:%d)", pkt->m_idx,
+            pkt->m_connNo
         );
 
     }

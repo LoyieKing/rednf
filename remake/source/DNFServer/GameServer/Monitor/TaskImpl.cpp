@@ -102,7 +102,7 @@ int CTask_ChristmasEvent::DecideEventTime()
     return result;
 }
 
-unsigned int CTask_ChristmasEvent::getEventStartTime() { return 0x47698650; }
+int CTask_ChristmasEvent::getEventStartTime() { return 0x47698650; }
 
 unsigned int CTask_ChristmasEvent::getEventEndTime() { return 0x47726c70; }
 
@@ -116,7 +116,7 @@ unsigned int CTask_ChristmasEvent::MakeEventStartTick(int param_1)
     // signed 比较（ORIG setg）⇒ 与 getEventStartTime() 的 unsigned 返回需显式 int 化；
     // 余下 ndiff=6：比较处多一条 `mov %eax,%edx` 中转 + 循环退出少一条 `jmp`。
     // 已试：`(time_t)`/无 cast、返回类型改 time_t（6→8）、goto 形式循环（181 条更差）。
-    if ((int)now < (int)getEventStartTime())
+    if (now < getEventStartTime())
     {
         tm t = nowTm;
         t.tm_hour = 0;
@@ -128,7 +128,7 @@ unsigned int CTask_ChristmasEvent::MakeEventStartTick(int param_1)
     if (param_1 == 0 && eventHour < nowTm.tm_hour + 1)
     {
         int n = 0;
-        do
+        while (n < 3)
         {
             eventHour = DecideEventTime();
             if (!(eventHour < nowTm.tm_hour + 1))
@@ -136,14 +136,14 @@ unsigned int CTask_ChristmasEvent::MakeEventStartTick(int param_1)
                 break;
             }
             n++;
-        } while (n < 3);
+        }
         if (n == 3)
         {
             eventHour = (nowTm.tm_hour + eventHour + 1) % 25;
         }
     }
     tm t2 = nowTm;
-    t2.tm_mday = nowTm.tm_mday + param_1;
+    t2.tm_mday += param_1;
     t2.tm_hour = eventHour - 1;
     t2.tm_min = 0;
     t2.tm_sec = 0;

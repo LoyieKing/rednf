@@ -344,13 +344,7 @@ parsing_after_header_size_log:
     // ORIG +0x39f：上面两个 break 分支真正落地的地方（跳过 0xf8 日志块）。
     if (parsinglength > 0)
     {
-        if ((unsigned int)parsinglength <= 0x1800)
-        {
-            memmove(m_data, m_buf, parsinglength);
-            m_remainLen = parsinglength;
-            m_buf = m_data + parsinglength;
-        }
-        else
+        if ((unsigned int)parsinglength > 0x1800)
         {
             // ORIG：try 包日志块（CMyFileLog 构造/调用），catch 是
             // printf("[PARSING EXCEPTION] memmove...") + return 0。
@@ -366,6 +360,12 @@ parsing_after_header_size_log:
                 return 0;
             }
             return 0;
+        }
+        else
+        {
+            memmove(m_data, m_buf, parsinglength);
+            m_remainLen = parsinglength;
+            m_buf = m_data + parsinglength;
         }
     }
     return 1;

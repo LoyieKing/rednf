@@ -245,7 +245,7 @@ public:
     ~CTask_ChristmasEvent();
     void _DoExecute();
     static int DecideEventTime();
-    static unsigned int getEventStartTime();
+    static int getEventStartTime();
     static unsigned int getEventEndTime();
     static unsigned int MakeEventStartTick(int flag);
 };

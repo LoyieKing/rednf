@@ -1601,7 +1601,7 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
             {
                 pkt.m_members[count].f.m_channel = m->GetGameServer()->GetChannelNo();
                 memcpy(pkt.m_members[count].f.m_guildMemDBInfo, (char*)m->GetGuildMemDBInfo(), 0x14);
-                pkt.m_members[count].f.m_grade = (char)m->GetGuildMemDBInfo()->m_grade;
+                pkt.m_members[count].f.m_grade = m->GetGuildMemDBInfo()->m_grade;
             }
             if (m->IsBlackUser(user->GetUniqCharNo()) != 0)
             {
@@ -1652,7 +1652,7 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
                 {
                     pkt2.m_members[count].f.m_channel = m->GetGameServer()->GetChannelNo();
                     memcpy(pkt2.m_members[count].f.m_guildMemDBInfo, (char*)m->GetGuildMemDBInfo(), 0x14);
-                    pkt2.m_members[count].f.m_grade = (char)m->GetGuildMemDBInfo()->m_grade;
+                    pkt2.m_members[count].f.m_grade = m->GetGuildMemDBInfo()->m_grade;
                 }
                 if (m->IsBlackUser(user->GetUniqCharNo()) != 0)
                 {
@@ -1661,7 +1661,7 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
             }
             else
             {
-                pkt2.m_members[count].f.m_job = (char)0xff;
+                pkt2.m_members[count].f.m_job = 0xff;
                 memset(pkt2.m_members[count].f.m_guildMemDBInfo, 0, 0x14);
                 pkt2.m_members[count].f.m_sex = 0;
             }
@@ -2149,8 +2149,9 @@ bool CGuild::ChangeGuildMemberCharName(unsigned int charNo, char* name)
         if (m_board.m_today.m_charNo == charNo)
         {
             memset(&m_board.m_today.m_name0, 0, 0x1e);
-            // （`m_name0` 是 unsigned int ⇒ 该 cast 必需；试过去掉会编译失败，已回退）
-            strncpy((char*)&m_board.m_today.m_name0, name, 0x1d);
+            // [2026-09-15 W4-GuildRest 机理 P] 名字缓冲改用数组视图（GuildBoard.h union）：
+            //   ORIG 此处为数组取址融合 `lea 0x66f0(%eax),%edx`，原 `(char*)&m_name0` 生成 `add`。
+            strncpy(m_board.m_today.m_nameBytes, name, 0x1d);
             result = true;
             NotifyAllTodayGuildMember();
         }
