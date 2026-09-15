@@ -4097,9 +4097,10 @@ void CPacketTranslater::OnMonitorFindFactoryHubUser(PacketHeader* pkt)
         (unsigned char)find->m_nameLen < 0x1e)
     {
         CUser* target;
-        targetCharNo =
-            (target = (&m_pclApp->m_userManager)->FindUser_CharName(find->m_name)) != 0
-                ? (int)target->GetUniqCharNo() : -1;
+        bool foundTarget;
+        foundTarget =
+            (target = (&m_pclApp->m_userManager)->FindUser_CharName(find->m_name)) != 0;
+        targetCharNo = foundTarget ? (int)target->GetUniqCharNo() : -1;
     }
     if (targetCharNo != 0)
     {
