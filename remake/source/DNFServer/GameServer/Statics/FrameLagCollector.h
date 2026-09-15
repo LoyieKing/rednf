@@ -4,6 +4,7 @@
 #include <map>
 
 #include "PacketHeader.h"
+#include "UdpCharacteristic.h"   // FrameLagPairUnion（m_i 元素与 pkt Item::m_pair 共用真类型）
 
 class CServerHandler;
 // [2026-09-15 机理 E] 原为空类（仅前向声明）⇒ .cpp 只能用 FrameLagAccItem 视图 cast，
@@ -80,15 +81,7 @@ public:
         int m_f[6];          // +0x68
         int m_g[6];          // +0x80
         int m_h[6][4];       // +0x98
-        union Pair
-        {
-            struct
-            {
-                int m_i;         // +0
-                float m_f;       // +4
-            } s;
-            int m_words[2];      // 用于按 ORIG 的 int 位模式读写
-        };
+        typedef ::FrameLagPairUnion Pair;   // 与 Item::m_pair 元素同型（整体赋值可直访）
         // ORIG 的 m_i 有效区 = 0x100..0x248（41 格；ORIG 类大小 0x248 由
         //   `rep movsl 146`（=0x248）与 `_Rb_tree_node` 的 new 尺寸 0x25c
         //   （16 hdr + 4 key + 0x248）双重锚定），而 [6][7] 声明只能从 0xf8 起

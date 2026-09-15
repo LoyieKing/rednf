@@ -301,21 +301,21 @@ void CPowerWarGuildInfo::DeleteDBSavePowerWarPoint(STDBSavePowerWarPoint* p)
 // ⇒ 登记为「比较形式 + 赋值载入序」族（第二处属 P2 目标字段 signedness 轴，但 m_b 在 DBMW 共享头，改动需广播+核 dbmw/game，暂不动）。
 void CPowerWarGuildInfo::MakePacketDBPowerWarPoint(Packet_DB_Save_Power_War_Point_Reward* pkt)
 {
-    size_t n = m_vec2.size();
-    int count = 0;
+    int n = (int)m_vec2.size();
+    unsigned int count = 0;
     int i = 0;
     if (n != 0)
     {
         std::vector<STDBSavePowerWarPoint*>::iterator it = m_vec2.begin();
-        if (n > 0xfa)
+        if ((unsigned int)n > 0xfa)
             count = 0xfa;
         else
-            count = (int)n;
+            count = (unsigned int)n;
         struct OutEntry { unsigned int m_guild; unsigned int m_point; };
         OutEntry* out = (OutEntry*)((char*)pkt + 0xf);
         while (it != m_vec2.end())
         {
-            if (count < i)
+            if ((int)count < i)
                 break;
             STDBSavePowerWarPoint* p = *it;
             out[i].m_guild = p->m_field[0];
@@ -326,7 +326,7 @@ void CPowerWarGuildInfo::MakePacketDBPowerWarPoint(Packet_DB_Save_Power_War_Poin
             it = m_vec2.erase(it);
             i++;
         }
-        pkt->m_b = (unsigned int)count;
+        pkt->m_b = count;
     }
 }
 

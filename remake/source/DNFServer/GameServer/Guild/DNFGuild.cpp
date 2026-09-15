@@ -1606,7 +1606,7 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
         //   ⇒ 两侧矛盾，且改 `f.m_level`→unsigned short 会**破坏证据 B 的 AE** ⇒ 判定「不改」
         //     （Main 裁决 2026-09-15）。该族与 `queryTowerFullRank` 的「TU 视角析构可见性」同型
         //     （TU 级 ODR 违规但真实）⇒ 需**条件编译或 TU 拆分**方能表达 ⇒ 本工具链下无靶点。
-        pkt.m_members[count].f.m_level = (short)m_dbInfo.m_members[idx].m_lev;
+        pkt.m_members[count].f.m_level = m_dbInfo.m_members[idx].m_levSigned;
         memcpy(pkt.m_members[count].f.m_name, m_dbInfo.m_members[idx].m_name, 0x1d);
         pkt.m_members[count].f.m_sex = m_dbInfo.m_members[idx].m_sex;
         pkt.m_members[count].f.m_grade = m_dbInfo.m_members[idx].m_grade;
@@ -1659,7 +1659,7 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
 
             pkt2.m_members[count].f.m_job = m_dbInfo.m_members[i].m_job;
             pkt2.m_members[count].f.m_growthType = m_dbInfo.m_members[i].m_growType;
-            pkt2.m_members[count].f.m_level = (short)m_dbInfo.m_members[i].m_lev;
+            pkt2.m_members[count].f.m_level = m_dbInfo.m_members[i].m_levSigned;
             memcpy(pkt2.m_members[count].f.m_name, m_dbInfo.m_members[i].m_name, 0x1d);
             pkt2.m_members[count].f.m_sex = m_dbInfo.m_members[i].m_sex;
             pkt2.m_members[count].f.m_grade = m_dbInfo.m_members[i].m_grade;

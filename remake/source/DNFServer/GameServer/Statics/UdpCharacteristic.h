@@ -11,6 +11,20 @@ class Packet_Party_Result_Statistic;
 class Packet_Abnormal_Exit_Statistic;
 
 // ---- FrameLag 专用包（0xc29-0xc30 族，UdpCharacteristic 使用）----
+// [2026-09-15 W10-Static] m_i 元素与 Item::m_pair 元素的**共用真类型**：
+//   原先两处各写一份等价布局（FrameLagDataStruct::Pair vs Item::LagPair），
+//   类型不同 ⇒ .cpp 只能 `*reinterpret_cast<const LagPair*>(&data.m_i[k][j])`
+//   整体赋值（取址 ⇒ GCC 物化指针 + 间接读，多 lea/add 且少两条直接寻址）。
+//   统一为同一类型后可直接整体赋值 ⇒ 复现 ORIG 的
+//   `mov 0x18(%ecx,%eax,8),%edx; mov 0x14(%ecx,%eax,8),%eax`。
+struct FrameLagPairUnion
+{
+    union
+    {
+        struct { int m_i; float m_f; } s;
+        int m_words[2];
+    };
+};
 #pragma pack(push, 1)
 class Packet_Frame_Lag_Statistic_Reload_Spec : public PacketHeader
 {
@@ -26,17 +40,18 @@ public:
     Packet_Frame_Lag_Statistic_Write_Lag_Index();
     struct Item
     {
-        short m_s[4];      // +0x00（相对 item 基址）
+        // [2026-09-15 W10-Static 机理 W-A] 原 `short m_s[4]`：数组下标形被 4.4 折进
+        //   索引常量锚（`sub $0x175-2i; disp 0x7`，每字段换锚），ORIG 恒锚
+        //   （`sub $0x177`）+ disp 递增（0x9/0xb/0xd/0xf）⇒ 独立标量成员
+        //   （布局/sizeof item 0x38 不变）。
+        short m_s0;        // +0x00（相对 item 基址）
+        short m_s1;        // +0x02
+        short m_s2;        // +0x04
+        short m_s3;        // +0x06
         // [2026-09-15 W7] 原 `int m_pair[6][2]`：逐 int 赋值使 SaveFrameLagData
         //   每条语句重算一次 `it->second`（ORIG 内层循环每轮仅一次 operator*）。
         //   同 8 字节结构整体赋值 ⇒ 布局不变（packed，0x30 字节）。
-        // [2026-09-15 W10-Static 实测否决] 拆成逐字段真类型赋值（两读两写）
-        //   会使每字段各自重算一次 `it->second`（2× ptEv + 2× 索引）⇒ 438→451 ✗
-        //   维持整体赋值（一次地址物化 + 间接读）。
-        struct LagPair
-        {
-            int m_words[2];
-        } __attribute__((packed));
+        typedef ::FrameLagPairUnion LagPair;   // 与 FrameLagDataStruct::m_i 元素同型
         LagPair m_pair[6];  // +0x08（0x30 字节，布局同 int[6][2]）
     };
     char m_serverGroup;    // +0xa

@@ -26,7 +26,7 @@ public:
     unsigned int m_tcpPort; // +0x54
     char m_dbmwType;        // +0x58
     char m_pad59[3];
-    int m_serverGroup;      // +0x5c
+    unsigned int m_serverGroup; // +0x5c（ORIG 无符号：atoi 后隐式转换产生 edx 物化形态）
     STDBConnInfo m_dbConnInfo[0x11];  // +0x60（每项 0x168）
 };
 

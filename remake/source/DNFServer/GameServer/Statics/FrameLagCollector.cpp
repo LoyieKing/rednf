@@ -507,36 +507,36 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
             int k;
             for (k = 0; k < 6; k++)
             {
-                pkt.m_items[k].m_s[0] = 0;
-                pkt.m_items[k].m_s[1] = 0;
-                pkt.m_items[k].m_s[2] = 0;
-                pkt.m_items[k].m_s[3] = 0;
+                pkt.m_items[k].m_s0 = 0;
+                pkt.m_items[k].m_s1 = 0;
+                pkt.m_items[k].m_s2 = 0;
+                pkt.m_items[k].m_s3 = 0;
                 if (0 < it->second.m_h[k][0])
                 {
-                    pkt.m_items[k].m_s[0] =
+                    pkt.m_items[k].m_s0 =
                         (short)(it->second.m_d[k] / it->second.m_h[k][0]);
                 }
                 if (0 < it->second.m_h[k][1])
                 {
-                    pkt.m_items[k].m_s[1] =
+                    pkt.m_items[k].m_s1 =
                         (short)(it->second.m_e[k] / it->second.m_h[k][1]);
                 }
                 if (0 < it->second.m_h[k][2])
                 {
-                    pkt.m_items[k].m_s[2] =
+                    pkt.m_items[k].m_s2 =
                         (short)(it->second.m_f[k] / it->second.m_h[k][2]);
                 }
                 if (0 < it->second.m_h[k][3])
                 {
-                    pkt.m_items[k].m_s[3] =
+                    pkt.m_items[k].m_s3 =
                         (short)(it->second.m_g[k] / it->second.m_h[k][3]);
                 }
                 int j;
                 for (j = 0; j < 6; j++)
                 {
-                    pkt.m_items[k].m_pair[j] =
-                        *reinterpret_cast<const Packet_Frame_Lag_Statistic_Write_Lag_Index::Item::LagPair*>(
-                            &it->second.m_i[k][j]);
+                    // [2026-09-15 W10-Static] 同类型整体赋值（共用 FrameLagPairUnion）
+                    //   ⇒ 复现 ORIG 的两次直接成员寻址、去指针物化。
+                    pkt.m_items[k].m_pair[j] = it->second.m_i[k][j];
                 }
             }
             handler->SendToDB((PacketHeader*)&pkt);

@@ -290,25 +290,28 @@ void CPacketTranslater::SendRequestMemberDeleteResult(CUser* user, unsigned char
     user->SendTcpGameserver(&pkt);
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0112 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnLogin | 详见 function_reports/monitor/_ZN17CPacketTranslater7OnLoginEP12PacketHeader.md
+// [W11-MonitorPkt 2026-09-15] 419→267：①4 处 `char* dbid` 具名内联进 log 实参；②`login` 声明提到函数最前
+//   （m_pclApp 检查之前 —— ORIG 先存槽）；③`int channel` 具名内联；④tcpGs/gs 两处改「条件内赋值」
+//   `if ((x = f()) == 0)`（ORIG 有 `sete; test; jne` ⇒ 比较物化）。余差：我方顶层多 4 字节槽 + register 差异。
 void CPacketTranslater::OnLogin(PacketHeader* pkt)
 {
+    Packet_Monitor_UDP_Login* login = (Packet_Monitor_UDP_Login*)pkt;
     if (m_pclApp != 0)
     {
         try
         {
-            Packet_Monitor_UDP_Login* login = (Packet_Monitor_UDP_Login*)pkt;
-            int channel = (int)(unsigned int)(unsigned char)login->m_channel;
-            CTcpGameServer* tcpGs =
-                (CTcpGameServer*)m_pclApp->FindTcpGameServer(login->m_connNo);
-            if (tcpGs != 0)
+            CTcpGameServer* tcpGs;
+            if ((tcpGs = (CTcpGameServer*)m_pclApp->FindTcpGameServer(login->m_connNo)) == 0)
             {
-                CServerInterface* gs =
-                    (CServerInterface*)m_pclApp->FindGameServer((int)channel);
-                if (gs == 0)
+            }
+            else
+            {
+                CServerInterface* gs;
+                if ((gs = (CServerInterface*)m_pclApp->FindGameServer(
+                        (int)(unsigned int)(unsigned char)login->m_channel)) == 0)
                 {
-                    char* dbid = NumberToString(login->m_dbid, 0);
-                    DNF_LOG_SCOPE_LINE(0x129,"./log/Channel", "Not Found M_ID(%s) Channel No(%d)", dbid,
+                    DNF_LOG_SCOPE_LINE(0x129,"./log/Channel", "Not Found M_ID(%s) Channel No(%d)",
+                        NumberToString(login->m_dbid, 0),
                         (unsigned int)(unsigned char)login->m_channel);
                 }
                 else
@@ -340,10 +343,10 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                             user->SetSsn(login->m_ssn);
                             user->SetTcpGameServer(tcpGs);
                             out->m_sex = 1;
-                            char* dbid = NumberToString(login->m_dbid, 0);
                             DNF_LOG_SCOPE_LINE(0x1a5, "./log/User",
                                  "Current user count : %d\tConnected User DB ID : %s\n",
-                                 userMgr->Size(), dbid);
+                                 userMgr->Size(),
+                                 NumberToString(login->m_dbid, 0));
                             CLoginLogoutStatistics* stats2 =
                                 (CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics();
                             if (stats2 != 0)
@@ -369,9 +372,9 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                                 out->m_sex = 3;
                             }
                             unsigned int ch = gs->GetChannelNo();
-                            char* dbid = NumberToString(login->m_dbid, 0);
                             DNF_LOG_SCOPE_LINE(400,"./log/User",
-                                "PROHIBIT USER CONNECTED : m_ID(%s)\tChannel(%d)\n", dbid,
+                                "PROHIBIT USER CONNECTED : m_ID(%s)\tChannel(%d)\n",
+                                NumberToString(login->m_dbid, 0),
                                 ch & 0xff);
                         }
                     }
@@ -390,12 +393,11 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                             }
                         }
                         unsigned int ch = gs->GetChannelNo();
-                        char* dbid = NumberToString(login->m_dbid, 1);
-                        char* oldDbid = NumberToString(user->GetDBID(), 0);
                         DNF_LOG_SCOPE_LINE(0x17a,"./log/User",
                             "DOUBLE CONNECTED : Already User DB ID(%s)\tCurrent Connect User "
                             "DB ID(%s)\tChannel(%d)\n",
-                            oldDbid, dbid, ch & 0xff);
+                            NumberToString(user->GetDBID(), 0),
+                            NumberToString(login->m_dbid, 1), ch & 0xff);
                         if (out != 0)
                         {
                             out->m_sex = 2;
@@ -434,13 +436,16 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0113 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnLogout | 详见 function_reports/monitor/_ZN17CPacketTranslater8OnLogoutEP12PacketHeader.md
+// [W10-MonitorA 2026-09-15] 315→314：`Packet_Monitor_UDP_Logout* logout = (…*)pkt;` 提到 `if (m_pclApp != 0)` 之前
+//   （ORIG 在 m_pclApp 检查前就有 `mov %eax,-0x48(%ebp)`）。补具名 `CLoginLogoutStatistics* stat` 变体 ⇒ 354 劣化已回退。
+//   余差：我方帧大 0x10 且 ORIG 用 `-0x40` 复用 GetLoginLogoutStatistics() 结果（我方内联两次调用）。
 void CPacketTranslater::OnLogout(PacketHeader* pkt)
 {
+    Packet_Monitor_UDP_Logout* logout = (Packet_Monitor_UDP_Logout*)pkt;
     if (m_pclApp != 0)
     {
     try
     {
-        Packet_Monitor_UDP_Logout* logout = (Packet_Monitor_UDP_Logout*)pkt;
         if (((CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics()) != 0 && logout->m_foc == 0)
         {
             ((CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics())->CountNumOfLoginout((ENUM_LOGIN_LOGOUT)6);
@@ -661,7 +666,8 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0053 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnHeartBeat | 详见 function_reports/monitor/_ZN17CPacketTranslater11OnHeartBeatEP12PacketHeader.md
+// [W11-MonitorPkt 2026-09-15] 17→12：`CServerInterface* gs;` → `CGameServer* gs;`（GetGameServer 的真实返回类型）
+//   ⇒ 调用点隐式 upcast 触发实参 precompute（与 OnRelayServerUserCheck 同族）。余差：尾部 EH landing `jmp` 条数（ORIG 4 vs 我方 2）。
 void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
 {
     Packet_Monitor_UDP_HeartBeat* p = (Packet_Monitor_UDP_HeartBeat*)pkt;
@@ -691,7 +697,7 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
                         handler->SetConnectFlag(channel, true);
                         Packet_Tcp_Server_Connect pkt2;
                         pkt2.m_channel = 0xc9;
-                        CServerInterface* gs;
+                        CGameServer* gs;
                         if ((gs = handler->GetGameServer((unsigned int)channel)) != 0)
                         {
                             gs->SendToServer((char*)&pkt2, 0xb);
@@ -1019,21 +1025,26 @@ void CPacketTranslater::OnCeraUpdate(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0067 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnEventItemUpdate | 详见 function_reports/monitor/_ZN17CPacketTranslater17OnEventItemUpdateEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 W11-MonitorPkt verified ndiff=0 AE（原 DNF-MON-DIFF-0067 已消除）
+//   W10：105→40（内联两处 `char* dbid` 具名）。W11：40→0 = ①`void* gs = 0` + 调用点 `((CServerInterface*)gs)->…`
+//   （FindGameServer/GetGameServer 返回 void* ⇒ 调用点转换触发实参 precompute，ORIG 形态：先 load 全部实参再 store）；
+//   ②删 `unsigned char channel` 具名，log 实参内联 `(unsigned int)(unsigned char)((CServerInterface*)gs)->GetChannelNo()`；
+//   ③`SendToServer((char*)item, 0x22)` 用 item（ORIG 读 item 槽）而非 pkt。
+//   ⚠ 历史：`gs` 单独提到 `user` 之前 ⇒ 45 劣化（必须与 ② 同批次）；单独加 `(CServerInterface*)gs` cast 无效。
 void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
 {
     try
     {
         Packet_Event_Item_Update* item = (Packet_Event_Item_Update*)pkt;
+        void* gs = 0;
         CUser* user =
             (&m_pclApp->m_userManager)->FindUser(item->m_dbid);
-        CServerInterface* gs = 0;
         if (user == 0)
         {
             for (int i = 0; i < 0xff; i++)
             {
-                gs = (CServerInterface*)m_pclApp->FindGameServer(i);
-                if (gs != 0 && gs->IsConnected() != 0)
+                gs = m_pclApp->FindGameServer(i);
+                if (gs != 0 && ((CServerInterface*)gs)->IsConnected() != 0)
                 {
                     break;
                 }
@@ -1052,19 +1063,18 @@ void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
         }
         else
         {
-            gs = (CServerInterface*)user->GetGameServer();
+            gs = user->GetGameServer();
         }
-        unsigned char channel = gs->GetChannelNo();
         DNF_LOG_SCOPE_LINE(0x4b7,"./log/User",
             "Event User DB ID : %s [EventType: %d][CharacNo: %d][ItemID: %d][Stack: "
             "%d][TableID: %d][Channel No: %d]\n",
             NumberToString(item->m_dbid, 0), item->m_eventType,
             item->m_charNo, item->m_itemId,
             item->m_stack, item->m_tableId,
-            (unsigned int)channel);
+            (unsigned int)(unsigned char)((CServerInterface*)gs)->GetChannelNo());
         if (gs != 0)
         {
-            gs->SendToServer((char*)pkt, 0x22);
+            ((CServerInterface*)gs)->SendToServer((char*)item, 0x22);
         }
     }
     catch (CDNFException& e)
@@ -1688,7 +1698,8 @@ void CPacketTranslater::OnNoticeMemberChatMsg(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0058 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnPayTaxToUpper | 详见 function_reports/monitor/_ZN17CPacketTranslater15OnPayTaxToUpperEP12PacketHeader.md
+// [W11-MonitorPkt 2026-09-15] 137→133：member/upperUser/payUser 三处改条件内赋值 ⇒ 补齐 ORIG 的 3 条 `sete`。
+//   ⚠ 已回退变体（均劣化）：删未用 `CMemberManager* memberMgr`、内联 `userMgr` ⇒ 槽虽更接近但 ndiff →164。
 void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
 {
     try
@@ -1698,10 +1709,10 @@ void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
             throw CDNFException("CPacketTranslater::OnPayTaxToUpper : 0 == m_pclApp");
         }
         Packet_Monitor_Member_Pay_Tax* tax = (Packet_Monitor_Member_Pay_Tax*)pkt;
-        CMember* member = (&m_pclApp->m_memberManager)->FindMember(tax->m_charNo);
+        CMember* member;
         CUserManager* userMgr = &m_pclApp->m_userManager;
         CMemberManager* memberMgr = &m_pclApp->m_memberManager;
-        if (member == 0)
+        if ((member = (&m_pclApp->m_memberManager)->FindMember(tax->m_charNo)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x842,"./log/Except",
                 "[MEMBER] CPacketTranslater::OnPayTaxToUpper : pclMember == 0!\tchar id(%d)\t"
@@ -1711,8 +1722,8 @@ void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
         }
         else
         {
-            CUser* upperUser = userMgr->FindUser_CharNo(member->GetUpperMember_CharId());
-            if (upperUser == 0)
+            CUser* upperUser;
+            if ((upperUser = userMgr->FindUser_CharNo(member->GetUpperMember_CharId())) == 0)
             {
                 DNF_LOG_SCOPE_LINE(0x849,"./log/Member",
                     "CPacketTranslater::OnPayTaxToUpper : pclUpperUser == 0!, Maybe, upper "
@@ -1721,8 +1732,8 @@ void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
             }
             else
             {
-                CUser* payUser = userMgr->FindUser_CharNo(tax->m_charNo);
-                if (payUser == 0)
+                CUser* payUser;
+                if ((payUser = userMgr->FindUser_CharNo(tax->m_charNo)) == 0)
                 {
                     DNF_LOG_SCOPE_LINE(0x84f,"./log/Except",
                         "[MEMBER] CPacketTranslater::OnPayTaxToUpper : pclPayUser == 0!\tchar "
@@ -2058,7 +2069,9 @@ void CPacketTranslater::OnNoticeMessage(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0085 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnRelayServerUserCheck | 详见 function_reports/monitor/_ZN17CPacketTranslater22OnRelayServerUserCheckEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 W11-MonitorPkt verified ndiff=0 AE（原 DNF-MON-DIFF-0085 已消除）
+//   修法：`void* gs = m_pclApp->FindGameServer(channel)` + 调用点 `((CServerInterface*)gs)->SendToServer(...)`
+//   ⇒ 调用点 this 的 NOP 转换触发 GCC 实参 precompute（ORIG：先 load 全部实参再 store）。FindGameServer 返回 void*。
 void CPacketTranslater::OnRelayServerUserCheck(PacketHeader* pkt)
 {try
 {
@@ -2077,13 +2090,12 @@ void CPacketTranslater::OnRelayServerUserCheck(PacketHeader* pkt)
     {
         p->m_channel = 1;
     }
-    CServerInterface* gs =
-        (CServerInterface*)m_pclApp->FindGameServer(channel);
+    void* gs = m_pclApp->FindGameServer(channel);
     if (gs == 0)
     {
         throw CDNFException(strerror(errno));
     }
-    gs->SendToServer((char*)p, 0xf);
+    ((CServerInterface*)gs)->SendToServer((char*)p, 0xf);
 
 
     }
@@ -2264,7 +2276,8 @@ void CPacketTranslater::OnRegisterGM_mid(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0082 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnRegisterToBlackList | 详见 function_reports/monitor/_ZN17CPacketTranslater21OnRegisterToBlackListEP12PacketHeader.md
+// [W11-MonitorPkt 2026-09-15] 47→38：`user` / `target` 两处改条件内赋值 ⇒ 复现 ORIG 的 `sete/setne` 比较物化。
+//   余差：ORIG `req` 槽 -0x14 vs 我方 -0x1c（槽集相同、映射错位 ⇒ 待用「声明序⇄赋值位置解耦」）。
 void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
 {try
 {
@@ -2281,8 +2294,8 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
         Packet_Register_To_BlackList_RESULT result;
         dbPkt.m_charNo = req->m_dbid;
         memcpy(dbPkt.m_name, req->m_name, 0x1d);
-        CUser* user = (&m_pclApp->m_userManager)->FindUser(req->m_dbid);
-        if (user == 0)
+        CUser* user;
+        if ((user = (&m_pclApp->m_userManager)->FindUser(req->m_dbid)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0xc50, "./log/BlackList", "CPacketTranslater::OnRegisterToBlackList : 0 == pclUser");
         }
@@ -2305,8 +2318,8 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
             }
             else
             {
-                CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(req->m_name);
-                if (target != 0)
+                CUser* target;
+                if ((target = (&m_pclApp->m_userManager)->FindUser_CharName(req->m_name)) != 0)
                 {
                     result.m_charNo = target->GetUniqCharNo();
                     WongWork::CGMAccounts* gm = (WongWork::CGMAccounts*)m_pclApp->GetGMAccounts();
@@ -4060,7 +4073,9 @@ void CPacketTranslater::onItemLimitEditionBuyableRequest(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0095 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnMonitorFindFactoryHubUser | 详见 function_reports/monitor/_ZN17CPacketTranslater27OnMonitorFindFactoryHubUserEP12PacketHeader.md
+// [W11-MonitorPkt 2026-09-15] 120→111：①三处条件内赋值（`if ((p = f()) op 0)`）复现 ORIG `sete/setne`；
+//   ②`int targetCharNo` 声明提到 `find` 之前（ORIG 槽序 targetCharNo 深于 find）；③删 `register CUserManager* userMgr`、
+//   内联 `(&m_pclApp->m_userManager)`（ORIG 无该槽且无 lea 融合）。余差：跳转索引位移 + EH 尾部。
 void CPacketTranslater::OnMonitorFindFactoryHubUser(PacketHeader* pkt)
 {try
 {
@@ -4070,24 +4085,25 @@ void CPacketTranslater::OnMonitorFindFactoryHubUser(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnMonitorFindFactoryHubUser : 0 == m_pclApp");
     }
-    register CUserManager* userMgr = &m_pclApp->m_userManager;   // [W7 X] register：ORIG 该取址为 lea 融合
+    int targetCharNo = 0;
     Packet_Monitor_Find_Factory_Hub_User* find =
         (Packet_Monitor_Find_Factory_Hub_User*)pkt;
-    int targetCharNo = 0;
     if (find->m_nameLen != 0 &&
         (unsigned char)find->m_nameLen < 0x1e)
     {
-        CUser* target = userMgr->FindUser_CharName(find->m_name);
-        targetCharNo = target != 0 ? (int)target->GetUniqCharNo() : -1;
+        CUser* target;
+        targetCharNo =
+            (target = (&m_pclApp->m_userManager)->FindUser_CharName(find->m_name)) != 0
+                ? (int)target->GetUniqCharNo() : -1;
     }
     if (targetCharNo != 0)
     {
-        CUser* userA = userMgr->FindUser_CharNo(find->m_charNo);
-        if (userA != 0)
+        CUser* userA;
+        if ((userA = (&m_pclApp->m_userManager)->FindUser_CharNo(find->m_charNo)) != 0)
         {
             Packet_Notice_Find_Factory_Hub_User reply;
-            CUser* userB = userMgr->FindUser_CharNo((unsigned int)targetCharNo);
-            if (userB == 0)
+            CUser* userB;
+            if ((userB = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)targetCharNo)) == 0)
             {
                 reply.m_idByChannel = userA->GetIdByChannel();
                 reply.m_found = 0;

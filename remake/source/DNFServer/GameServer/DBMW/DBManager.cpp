@@ -391,6 +391,22 @@ struct SecretShopStatisticView
     SecretShopStatisticElem m_items[200];   // +0x12（每元素 0x14）
 } __attribute__((packed));
 
+// [2026-09-15 差异修复] ORIG df_dbmw_r 实证：元素成员的取址为
+//   `lea (%ecx,%eax,1),%eax; add $0x10,%eax; mov 0x6/0xa/0xe(%eax),...`
+//   ⇒ 数组起点 0x10 + 元素内成员偏移 2/6/0xa/0xe/0x12（步长 0x14 由**手写指针加法**
+//   给出，而非 `sizeof(Elem)`——ORIG 的 i*0x14 与成员偏移不构成合法结构体布局）。
+//   旧转写用数组下标（`m_items[i].m_data[k]`）⇒ GCC 用 `add $0x1c/0x18,%eax; mov 0x2(%eax)`
+//   的**另一种 (add 常量, disp) 分解**，地址虽相同但指令形态不同。
+struct SecretShopStatisticRow
+{
+    char m_pad[0x2];         // +0x00
+    int m_d0;                // +0x02  (abs 0x12)
+    int m_d1;                // +0x06  (abs 0x16)
+    int m_d2;                // +0x0a  (abs 0x1a)
+    int m_d3;                // +0x0e  (abs 0x1e)
+    int m_d4;                // +0x12  (abs 0x22)
+} __attribute__((packed));
+
 struct FrameLagWriteIndexView
 {
     char h[0xa];
@@ -494,6 +510,11 @@ bool CDBManager::SendGuildLetter(int serverId, unsigned int guildId, char* msg)
     ok = h->exec(0x4e39);
     if (!ok)
         return 0;
+    // [2026-09-15 差异修复] 机理 A（同尺寸槽对调）：ORIG 槽序（浅→深）为
+    //   CMyFileLog(-0x34) → characNo(-0x38) → now(-0x3c) → letterNo(-0x40) → subject(-0x5e)，
+    //   即 characNo 分配**早于** now、letterNo 分配**早于** subject ⇒ 二者声明在 for 之外
+    //   （旧码在 for 内声明 ⇒ 我方 now(-0x38)/characNo(-0x3c) 与 ORIG 对调）。
+    unsigned int characNo;
     int n = h->get_n_rows();
     time_t now = time(0);
     struct tm* lt = localtime(&now);
@@ -501,21 +522,23 @@ bool CDBManager::SendGuildLetter(int serverId, unsigned int guildId, char* msg)
     lt->tm_min = 0;
     lt->tm_sec = 0;
     long expiry = mktime(lt);
+    int letterNo;
     for (int i = 0; i < n; i++)
     {
         ok = h->fetch();
         if (!ok)
             return 0;
-        unsigned int characNo = 0;
+        // [2026-09-15 差异修复] ORIG 实证无 characNo/letterNo 的零初始化
+        //   （216 vs 218 的全部差值 ⇒ 源码为「声明而不初始化」）。
         ok = h->get_uint(0, characNo);
         if (!ok)
             return 0;
         char subject[0x1e] = {0};
-        {
-            std::string s = g_ServerString_.GetServerString(0x431, 0);
-            strncpy(subject, s.c_str(), 0x1d);
-        }   // ORIG: string 在 strncpy 之后立即析构（call 序列 ~string 先于 InsertLetter）
-        int letterNo = 0;
+        // [2026-09-15 差异修复] 机理 F2：ORIG 的 string 槽与该 if 块回收区**复用**
+        //   （ORIG `lea -0x2c(%ebp)` 落在 CMyFileLog 的 -0x34..-0x29 区间内），
+        //   我方具名对象却独占最深槽 -0x60 ⇒ 改**不具名临时**（析构点仍在该语句末，
+        //   与 ORIG call 序列一致）。
+        strncpy(subject, g_ServerString_.GetServerString(0x431, 0).c_str(), 0x1d);
         if (!InsertLetter(characNo, 0, subject, msg, letterNo, expiry))
         {
             CMyFileLog(__FUNCTION__, 0x80d)("./log/Postal", "InsertLetter Err");
@@ -1593,6 +1616,10 @@ char CDBManager::QueryHellPartyStatisticItemCreate(
             *(signed char*)((char*)packet + i * 0x24 + 0x14),
             *(signed char*)((char*)packet + i * 0x24 + 0x15),
             *(int*)((char*)packet + i * 0x24 + 0x16),
+            // ✗ 已试并回退：`((int*)((char*)packet + 0x1a))[i*9 + k]`（int 数组视图）
+            //   与旧 `*(int*)((char*)packet + i*0x24 + 0x1a + k*4)` **生成完全相同的代码**
+            //   （GCC 把 0x1a 与 k*4 合并进 `add $0x1a+k*4`）⇒ ORIG 的
+            //   `lea; add $k*4; mov 0x1a(%eax)` 分组（disp=0x1a）无法由 .cpp 复现。
             *(int*)((char*)packet + i * 0x24 + 0x1e),
             *(int*)((char*)packet + i * 0x24 + 0x22),
             *(int*)((char*)packet + i * 0x24 + 0x26),
@@ -1867,6 +1894,10 @@ bool CDBManager::insertHolePunchingResult(
     CDBHandle* h = m_handles[0xf];  // frame_lag db
     if (!h)
         return 0;
+    // ✗ 已试并回退：照 ORIG 补两个具名槽（`int fieldA = ...->m_fieldA;` 与
+    //   `char* pRestF = (char*)packet + 0x25;`）⇒ 长度仍 87=87 但 mdiff 级别由
+    //   **NEAR 掉到 DIFF**（ndiff 16→35）✗ ⇒ 本件是**帧大小族**（0x6c vs ORIG 0x9c），
+    //   单靠补具名局部无法补齐 0x30 的帧差，反而打乱已有对齐。
     inserted = h->set_query(0x4f60,
                                  "inSert into p2p_connect_success_rate  (server_group, connected_type, required_time, check_time, nation_code, peer_address, occ_date) values (%d, %d, %d, %d, '%s', '%s', now())",
                                  ((HolePunchingResultView*)packet)->m_fieldA,
@@ -4492,6 +4523,9 @@ bool CDBManager::onItemLimitEditionUpdateData(
     time_t now = time(0);
     for (int i = 0; i < packet->m_count; i++)
     {
+        // ✗ 已试并回退：`((char*)packet + i*9)[0x1a]`、`*(((char*)packet+i*9)+0x16)` 与
+        //   原下标形**生成完全相同的代码**（GCC 把常量折进索引）⇒ 该「lea;add」分组差异
+        //   不可由 .cpp 层改写消除（需类型级成员偏移才能分开）。
         if (((char*)packet)[i * 9 + 0x1a] != 0)
         {
             h->set_query(0x4ec8,
@@ -5053,6 +5087,9 @@ char CDBManager::InsertFrameLagStatistics(
 char CDBManager::QueryFirstLoadSpecDb(Packet_Frame_Lag_Statistic_Load_Spec* req,
                                       CStatisticsServer* stats)
 {
+    // ✗ 已试并回退：在函数首补一个 4 字节「写后不读」局部（机理 M）**无效**——
+    //   GCC 未把该槽放在首个变量之前，反而把帧从 0x118 撑到 0x128，h 仍在 -0x1c ✗。
+    //   ⇒ 本件的「整体深 4 字节」不是缺变量，而是**分配顺序**差（两侧帧大小本就相同）。
     bool ok;
     CDBHandle* h = m_handles[0xf];    // frame_lag db
     if (!h)
@@ -5128,7 +5165,12 @@ bool CDBManager::QueryTodayGuildMember(unsigned int guildId,
 {
     CDBHandle* h = m_handles[8];    // guild db
     time_t now = time(0);
-    unsigned int i = 0;
+    // [2026-09-15 差异修复] 机理 M/四件套①：ORIG 在 `now` 之后有一个**写后不读**的
+    //   具名槽（`movl $0x0,-0x14(%ebp)` 全函数仅此一次引用）⇒ 照补一个初值 0 的局部；
+    //   而真正的循环计数器 `i` 在 ORIG 里位于 **-0xc**（`addl $0x1,-0xc` / `cmp -0xc`）
+    //   ⇒ `unsigned int i = 0;` 声明在 **while 之前**（旧转写反之：i 占 -0x14）。
+    unsigned int reservedSlot = 0;
+    (void)reservedSlot;
     struct tm* lt = localtime(&now);
     (void)lt;
     reply.m_guildId = guildId;
@@ -5140,29 +5182,37 @@ bool CDBManager::QueryTodayGuildMember(unsigned int guildId,
         return 0;
     if (!h->exec(0x4f05))
         return 0;
+    // [2026-09-15 差异修复] ORIG 实证三处：
+    //   (a) `-0xc(%ebp)` 在 ORIG 里是**循环计数器 i**（`movl $0x0` 于 while 前、
+    //       `addl $0x1` 于循环尾、`cmp -0xc(%ebp),%eax`）⇒ `unsigned int i = 0;`
+    //       声明在 **while 之前**（旧转写放在函数首 ⇒ i 占别的槽、-0xc 被 p 抢走）。
+    //   (b) 循环体缓冲为**非 4 字节对齐**的 0x27 字节（ORIG `lea -0x4f(%ebp)`；
+    //       旧转写 `unsigned int member[0xa]` 对齐 4 ⇒ 落 -0x50）。
+    //   (c) ORIG 无 `p` 变量（成员访问直接 memcpy/cast 形，无 -0xc 的 load）；
+    //       旧转写的具名 `STTodayGuildMember* p` 多出「p = &member」与 8 次 load ✗。
+    //   (d) `-0xc(%ebp)` 即循环计数器 `i`（`addl $0x1,-0xc` 于循环尾）⇒ 见上方说明。
+    unsigned int i = 0;
     while (i < (unsigned int)h->get_n_rows())
     {
-        unsigned int member[0xa];
-        STTodayGuildMember* p =
-            reinterpret_cast<STTodayGuildMember*>(member);
+        char member[0x27];
         memset(member, 0, 0x27);
         if (!h->fetch())
             return 0;
-        if (!h->get_uint(0, *(unsigned int*)&p->m_characNo))
+        if (!h->get_uint(0, *(unsigned int*)&((STTodayGuildMember*)member)->m_characNo))
             return 0;
-        if (!h->get_str(1, p->m_name, 0x1d))
+        if (!h->get_str(1, ((STTodayGuildMember*)member)->m_name, 0x1d))
             return 0;
-        if (!h->get_byte(2, *(char*)&p->m_grade))
+        if (!h->get_byte(2, *(char*)&((STTodayGuildMember*)member)->m_grade))
             return 0;
-        if (!h->get_byte(3, *(char*)&p->m_job))
+        if (!h->get_byte(3, *(char*)&((STTodayGuildMember*)member)->m_job))
             return 0;
-        if (!h->get_byte(4, *(char*)&p->m_growType))
+        if (!h->get_byte(4, *(char*)&((STTodayGuildMember*)member)->m_growType))
             return 0;
-        if (!h->get_byte(5, *(char*)&p->m_sex))
+        if (!h->get_byte(5, *(char*)&((STTodayGuildMember*)member)->m_sex))
             return 0;
-        if (!h->get_byte(6, *(char*)&p->m_lev))
+        if (!h->get_byte(6, *(char*)&((STTodayGuildMember*)member)->m_lev))
             return 0;
-        vec.push_back(*p);
+        vec.push_back(*(STTodayGuildMember*)member);
         i++;
     }
     if (vec.size() <= 0x13)
@@ -5570,6 +5620,9 @@ char CDBManager::OnSaveAssertManagerInfoWrite(
         char buf3[0x100];
         memset(buf1, 0, 0x400);
         memset(buf2, 0, 0x100);
+        // ✗ 已试并回退：`(unsigned int)packet + i*0x206`（整数形）反而生成
+        //   `mov %eax,%edx; mov 0xc(%ebp),%eax; lea (%edx,%eax,1)`（3 条）> 指针形 2 条，
+        //   ORIG 的单条 `add 0xc(%ebp),%eax` 不可由 .cpp 复现（与「整数形已排除」一致）。
         if (strlen(((AssertManagerWriteElemView*)((char*)packet +
                 i * 0x206))->m_fileName) > 0xfe ||
             ((AssertManagerWriteElemView*)((char*)packet +
@@ -6064,7 +6117,10 @@ bool CDBManager::queryTowerFullRank(unsigned int towerIndex,
                                     unsigned int limit)
 {
     CDBHandle* h = m_handles[2];    // game db
-    for (unsigned int rank = 1; rank <= 4; rank++)
+    // [2026-09-15 差异修复] ORIG 循环条件为 `mov -0x14(%ebp),%eax; cmp $0x4,%eax; setbe`：
+    //   先载入再比较 ⇒ 该处存在一次 no-op 转换临时（比较处带 cast）。rank 声明为 int、
+    //   比较处 cast 成 unsigned ⇒ 同时命中「先载入」与 `setbe`（无符号）两特征。
+    for (int rank = 1; (unsigned int)rank <= 4; rank++)
     {
         bool ok = false;
         if (limit <= 5)
@@ -6092,8 +6148,13 @@ bool CDBManager::queryTowerFullRank(unsigned int towerIndex,
         int i = 0;
         while (i < (int)h->get_n_rows())
         {
+            // [2026-09-15 差异修复] ORIG df_dbmw_r 实证：`h->fetch()` 失败路径为
+            //   `xor $1; test %al,%al; jne <rank++>`（= `break`，跳出内层 while 后
+            //   直接执行外层 for 的 rank++），**不是** `return 0`（旧转写多出
+            //   `mov $0x0,%eax; jmp <epilogue>` 三条）。其余 4 处取字段失败仍为 return 0
+            //   （ORIG 该 4 处均有 `mov $0x0,%eax; jmp <epilogue>` ✓ 逐处核对）。
             if (!h->fetch())
-                return 0;
+                break;
             // [2026-09-15 差异修复] ORIG df_dbmw_r 实证：本循环**不含 stTowerRank_t 自动对象**
             //   —— ORIG 无 `stTowerRank_t::~stTowerRank_t()` 调用、无 _Unwind_Resume（181 条，
             //   失败路径一律 `mov $0x0,%eax; jmp <epilogue>`，6 处）。旧转写声明具名对象 ⇒
@@ -6772,13 +6833,18 @@ char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
     CDBHandle* h = m_handles[4];    // log db
     for (int i = 0; i < ((SecretShopStatisticView*)packet)->m_count; i++)
     {
+        // ✗ 已试并回退：`register char* rowBase = (char*)packet + i*0x14;` 承接中间指针
+        //   ⇒ GCC 对该 register 变量做 CSE，函数从 211 条掉到 168 条（ndiff 36→91）✗。
+        //   ORIG 的 `lea; add $0x10` 分组无法由 .cpp 层复现（GCC 总把常量折进索引）。
         h->set_query(0x4efc,
                      "upDate log_secret_shop set show_count=show_count+%d,show_charac_count=show_charac_count+%d,buy_count=buy_count+%d,price=price+%d where occ_date=cast(now() as date) and dungeon_idx=%d and npc_idx=%d",
-                     ((SecretShopStatisticView*)packet)->m_items[i].m_data[1],
-                     ((SecretShopStatisticView*)packet)->m_items[i].m_data[2],
-                     ((SecretShopStatisticView*)packet)->m_items[i].m_data[3],
+                     ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d1,
+                     ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d2,
+                     ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d3,
+                     // d4 例外：ORIG 该处为 `add $0x20,%eax; mov 0x2(%eax)`（= 数组下标形
+                     //   `m_items[i].m_data[4]`：base 0x12 + i*0x14 + 0x10）⇒ 保持旧写法。
                      ((SecretShopStatisticView*)packet)->m_items[i].m_data[4],
-                     ((SecretShopStatisticView*)packet)->m_items[i].m_data[0],
+                     ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d0,
                      ((SecretShopStatisticView*)packet)->m_shopIdx);
         if (!h->exec(0x4efc))
         {
@@ -6791,10 +6857,10 @@ char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
                 0x4efb,
                 "inSert into log_secret_shop(occ_date,npc_idx,dungeon_idx,show_count,show_charac_count,buy_count,price) values(cast(now() as date), %d, %d, %d, %d, %d, %d)",
                 ((SecretShopStatisticView*)packet)->m_shopIdx,
-                ((SecretShopStatisticView*)packet)->m_items[i].m_data[0],
-                ((SecretShopStatisticView*)packet)->m_items[i].m_data[1],
-                ((SecretShopStatisticView*)packet)->m_items[i].m_data[2],
-                ((SecretShopStatisticView*)packet)->m_items[i].m_data[3],
+                ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d0,
+                ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d1,
+                ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d2,
+                ((SecretShopStatisticRow*)((char*)packet + i * 0x14 + 0x10))->m_d3,
                 ((SecretShopStatisticView*)packet)->m_items[i].m_data[4]);
             if (!h->exec(0x4efb))
             {

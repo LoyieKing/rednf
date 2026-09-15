@@ -473,18 +473,18 @@ void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
             pkt.m_elem[idx].m_success =
                 ((const STPartyStatisticKeyView*)&it->first)->m_success;
             pkt.m_elem[idx].m_partyUserCount = it->first.m_partyUserCount;
-            pkt.m_elem[idx].m_data[0] = it->second.m_data[0];
-            pkt.m_elem[idx].m_data[1] = it->second.m_data[1];
-            pkt.m_elem[idx].m_data[2] = it->second.m_data[2];
-            pkt.m_elem[idx].m_data[3] = it->second.m_data[3];
-            pkt.m_elem[idx].m_data[4] = it->second.m_data[4];
-            pkt.m_elem[idx].m_data[5] = it->second.m_data[5];
-            pkt.m_elem[idx].m_data[6] = it->second.m_data[6];
-            pkt.m_elem[idx].m_data[7] = it->second.m_data[7];
-            pkt.m_elem[idx].m_data[8] = it->second.m_data[8];
-            pkt.m_elem[idx].m_data[9] = it->second.m_data[9];
-            pkt.m_elem[idx].m_data[10] = it->second.m_data[10];
-            pkt.m_elem[idx].m_data[11] = it->second.m_data[11];
+            pkt.m_elem[idx].m_data0  = it->second.m_data[0];
+            pkt.m_elem[idx].m_data1  = it->second.m_data[1];
+            pkt.m_elem[idx].m_data2  = it->second.m_data[2];
+            pkt.m_elem[idx].m_data3  = it->second.m_data[3];
+            pkt.m_elem[idx].m_data4  = it->second.m_data[4];
+            pkt.m_elem[idx].m_data5  = it->second.m_data[5];
+            pkt.m_elem[idx].m_data6  = it->second.m_data[6];
+            pkt.m_elem[idx].m_data7  = it->second.m_data[7];
+            pkt.m_elem[idx].m_data8  = it->second.m_data[8];
+            pkt.m_elem[idx].m_data9  = it->second.m_data[9];
+            pkt.m_elem[idx].m_data10 = it->second.m_data[10];
+            pkt.m_elem[idx].m_data11 = it->second.m_data[11];
             if (0x63U < (++idx))
             {
                 pkt.m_count = 100;
@@ -1809,15 +1809,22 @@ void StatisticManager::AddSecretShopStatistic(Packet_Secret_Shop_Statistic* pkt)
             m_secretShop[pkt->m_shopIdx].find(pkt->m_items[i].m_data[0]);
         if (it != m_secretShop[pkt->m_shopIdx].end())
         {
-            it->second.m_data[3] += pkt->m_items[i].m_data[3];
-            it->second.m_data[1] += pkt->m_items[i].m_data[1];
-            it->second.m_data[2] += pkt->m_items[i].m_data[2];
-            it->second.m_data[4] += pkt->m_items[i].m_data[4];
+            // [W11-Statics] 读点走 union 的具名标量视图（复现 ORIG 的
+            //   `add $0x10; mov 0xe(%eax)` 锚+disp 形态）；写点保持数组视图
+            //   （packed 字段无法绑定 int&，数组元素可以）。
+            it->second.m_data[3] += pkt->m_items[i].m_buyCount;
+            it->second.m_data[1] += pkt->m_items[i].m_showCount;
+            it->second.m_data[2] += pkt->m_items[i].m_showCharacCount;
+            it->second.m_data[4] += pkt->m_items[i].m_price;
         }
         else
         {
+            // [W11-Statics] ORIG 调 `pair<int,SECRET_SHOP_STATISTIC_DATA>::C1IRiRS0_E`
+            //   （显式 pair 构造，第一实参 int& = &m_items[i].m_data[0]），
+            //   而非 `std::make_pair`（我方多一层调用 + 多 2 条准备指令）。
             m_secretShop[pkt->m_shopIdx].insert(
-                std::make_pair(pkt->m_items[i].m_data[0], pkt->m_items[i]));
+                std::pair<int, SECRET_SHOP_STATISTIC_DATA>(
+                    pkt->m_items[i].m_data[0], pkt->m_items[i]));
         }
     }
 }

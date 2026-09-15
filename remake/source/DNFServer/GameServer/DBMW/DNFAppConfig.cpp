@@ -76,9 +76,9 @@ bool CAppConfig::DecryptValue(const char* value, char* dst)
 }
 #define DBMW_PARSE_PWD(i, keyname) \
     else if (strcmp(key, keyname) == 0) { \
-        char b1[0x40] = {0}; char b2[0x40] = {0}; \
-        if (!DNFFLib::Hex2Binary(value, (unsigned char*)b2, 0x18)) return 0; \
-        m_cipher.Decrypt(b2, b1, 0x18); \
+        char b1[0x40] = {0}; unsigned char b2[0x40] = {0}; \
+        if (!DNFFLib::Hex2Binary(value, b2, 0x18)) return 0; \
+        m_cipher.Decrypt((const char*)b2, b1, 0x18); \
         memcpy(m_dbConnInfo[i].m_pass, b1, strlen(b1)); }
 
 // [DNF-NONIDENTICAL] DNF-DBM-DIFF-0002 | dbmw | 与ORIG差异=DIFF | CAppConfig::Parse_Table | 详见 function_reports/dbmw/_ZN10CAppConfig11Parse_TableEPci.md

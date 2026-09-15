@@ -385,7 +385,27 @@ struct stCreateEmblemStatistic
 struct SECRET_SHOP_STATISTIC_DATA
 {
     SECRET_SHOP_STATISTIC_DATA();
-    int m_data[5];
+    // [W11-Statics 机理·union 视图] AddSecretShopStatistic 的 ORIG 读点形态为
+    //   `add $0x10,%eax; mov 0xe(%eax),%eax`（锚恒定 0x10 + disp 随字段递增
+    //   0x6/0xa/0xe），而我方 `int m_data[5]` + `m_data[k]` 会把 4k 折进锚
+    //   （`add $0x1c; mov 0x2(%eax)`）。探针实证：同一 packed+ctor 类型下，
+    //   **具名标量成员**给出 ORIG 形态，数组下标形不给。
+    //   两侧需求相反（读点要标量、map 累加点要 `m_data[k] +=`，而 packed 字段
+    //   不能绑定 int&）⇒ 用匿名 union 同时暴露两种视图：布局不变（sizeof 0x14、
+    //   各字段 +0x0/+0x4/+0x8/+0xc/+0x10，探针 offsetof 实证）。
+    //   字段语义 = DB log_secret_shop 列。
+    union
+    {
+        struct
+        {
+            int m_dungeonIdx;       // +0x0（map 键）
+            int m_showCount;        // +0x4
+            int m_showCharacCount;  // +0x8
+            int m_buyCount;         // +0xc
+            int m_price;            // +0x10
+        };
+        int m_data[5];
+    };
 } __attribute__((packed));
 
 // ---- GoldCardEventStatistic：0x9 ----
@@ -435,7 +455,22 @@ struct STPartyStatisticWire
     unsigned char m_balkunParty;       // +9（log_dungeon_party.balkun_party）
     unsigned char m_success;           // +a（log_dungeon_party.success）
     char m_partyUserCount;             // +b（log_dungeon_party.party_user_count）
-    int m_data[12];            // +c
+    // [2026-09-15 W10-Static 机理 W-A] 原 `int m_data[12]`：数组下标形会被 4.4 折进
+    //   索引常量锚点（每字段换锚：`sub $0x1782/0x177e/0x1776/...` + disp 恒 0x1a），
+    //   而 ORIG 锚恒定（`sub $0x177a`）+ disp 递增（0xe/0x12/0x16/...）⇒ 独立标量成员
+    //   （同 STPartyJobWireItem 的 m_data0/m_data1 先例，布局/sizeof 0x3c 不变）。
+    int m_data0;               // +0xc
+    int m_data1;               // +0x10
+    int m_data2;               // +0x14
+    int m_data3;               // +0x18
+    int m_data4;               // +0x1c
+    int m_data5;               // +0x20
+    int m_data6;               // +0x24
+    int m_data7;               // +0x28
+    int m_data8;               // +0x2c
+    int m_data9;               // +0x30
+    int m_data10;              // +0x34
+    int m_data11;              // +0x38
 };
 
 class Packet_Goldcard_Event_Statistic_STD : public PacketHeader

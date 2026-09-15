@@ -81,7 +81,15 @@ struct __attribute__((packed)) STGuildMemberProxy
     char m_name[0x1e];      // +4（charac_name，SQL get_str 0x1d）
     unsigned char m_job;    // +0x22（SQL job）
     unsigned char m_growType;// +0x23（SQL grow_type）
-    unsigned short m_lev;   // +0x24（SQL lev）
+    // +0x24 SQL lev。ORIG 在 ReplyGuildAllMembers 的两处 `f.m_level = ...m_lev` 无
+    //   signedness 转换（`movzwl 0x11(%eax),%ecx` 直落目标，无 eax 中转）⇒ 该处 ORIG 视 m_lev 为
+    //   **short**；而 AddGuildMember/LoadGuildOneMemberProxy 的 `m_lev = GetLevel()` 无转换
+    //   （两函数 identical）⇒ 又要求 m_lev 为 unsigned。故以**同槽有符号视图**表达（布局中性）。
+    union
+    {
+    unsigned short m_lev;   // +0x24（SQL lev，写侧/GetLevel 同型）
+    short m_levSigned;      // +0x24（读侧：ReplyGuildAllMembers 直写 f.m_level，无转换）
+    };
     unsigned char m_sex;    // +0x26（SQL sex）
     unsigned char m_grade;  // +0x27（SQL grade）
     int m_lastPlayTime;     // +0x28（SQL unix_timestamp(last_play_time)）
