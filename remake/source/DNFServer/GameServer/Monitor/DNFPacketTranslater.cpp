@@ -597,10 +597,9 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::OnReplyUserInfo : m_pclApp == 0");
         }
-        CGameServer* gs =
-            (CGameServer*)m_pclApp->FindGameServer(
-                (int)(unsigned char)reply->m_channel);
-        if (gs == 0)
+        CGameServer* gs;
+        if ((gs = (CGameServer*)m_pclApp->FindGameServer(
+                (int)(unsigned char)reply->m_channel)) == 0)
         {
             throw CDNFException("CPacketTranslater::OnReplyUserInfo : pclGameServer == 0");
         }
