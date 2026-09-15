@@ -125,14 +125,6 @@ struct FatigueBatteryEntry
     int m_fieldE;             // +4
 };
 
-// STGuildCargoLog::opt0..opt3（+0x22..+0x2f，共 0xe 字节）的字节数组视图：
-// ORIG 以数组 decay 形态传给 get_binary（取址走 lea，而非标量取址的地址物化）。
-struct GuildCargoLogOptView
-{
-    char h[0x22];
-    char m_opt[0xe];          // +0x22（opt0|opt1|opt2|opt3 字节视图）
-} __attribute__((packed));
-
 struct FatigueBatteryView
 {
     char h[0xa];
@@ -5327,8 +5319,7 @@ char CDBManager::OnLoadGuildCargoHistory(
             return 0;
         if (!h->get_int(col++, *(int*)&reply.m_logs[j].param))
             return 0;
-        if (!h->get_binary(col++,
-            ((GuildCargoLogOptView*)&reply.m_logs[j])->m_opt, 0xe))
+        if (!h->get_binary(col++, (char*)&reply.m_logs[j].opt0, 0xe))
             return 0;
         j++;
     }
