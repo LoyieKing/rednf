@@ -64,18 +64,22 @@ void CItemLimitEditionMgr::makeItemLimitEditionSellStartPacket(
     pkt.m_count = idx;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-NEAR-0011 | monitor | 与ORIG差异=NEAR | CItemLimitEditionMgr::registItem | 详见 function_reports/monitor/_ZN20CItemLimitEditionMgr10registItemERK28stItemLimitEditionItemInfo_t.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0 STRICT | CItemLimitEditionMgr::registItem（原 DNF-MON-NEAR-0011 已消除）
 void CItemLimitEditionMgr::registItem(const stItemLimitEditionItemInfo_t& info)
 {
-    std::map<unsigned int, CItemLimitEdition*>::iterator found =
-        m_items.find(*(unsigned int*)&info);
-    if (found == m_items.end() && m_items.size() > 0x1b)
     {
-        return;
+        // 该内层块为 ORIG 槽位所需（S1：作用域深度决定栈槽）；去掉块后 found 槽由
+        // -0x3c 变为 -0x30，本件退回 NEAR(ndiff=10)。
+        const std::map<unsigned int, CItemLimitEdition*>::iterator found =
+            m_items.find(*(unsigned int*)&info);
+        if (found == m_items.end() && m_items.size() > 0x1b)
+        {
+            return;
+        }
     }
     CItemLimitEdition* item = new CItemLimitEdition(info);
-    unsigned int ipgno = item->getIPGNO();
-    std::map<unsigned int, CItemLimitEdition*>::iterator it = m_items.find(ipgno);
+    const std::map<unsigned int, CItemLimitEdition*>::iterator it =
+        m_items.find(item->getIPGNO());
     if (it != m_items.end())
     {
         register CItemLimitEdition* old = it->second;
@@ -117,7 +121,7 @@ CItemLimitEdition* CItemLimitEditionMgr::getItemInfo(unsigned int ipgno) const
     return it->second;
 }
 
-char CItemLimitEditionMgr::isEmpty() const
+bool CItemLimitEditionMgr::isEmpty() const
 {
     return (char)m_items.empty();
 }
@@ -136,7 +140,6 @@ void CItemLimitEditionMgr::clear()
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0126 | monitor | 与ORIG差异=DIFF | CItemLimitEditionMgr::processScheduledJob | 详见 function_reports/monitor/_ZN20CItemLimitEditionMgr19processScheduledJobEP12CApplicationb.md
 void CItemLimitEditionMgr::processScheduledJob(CApplication* app, bool flag)
 {
-    Packet_Item_Limit_Edition_Update pkt2;
     time_t now;
     if (m_items.empty())
     {
@@ -150,24 +153,30 @@ void CItemLimitEditionMgr::processScheduledJob(CApplication* app, bool flag)
     {
         m_lastTime = now;
         Packet_Item_Limit_Edition_Sell_end pkt;
-        unsigned int expired[30];
-        unsigned int count = 0;
-        for (std::map<unsigned int, CItemLimitEdition*>::const_iterator it = m_items.begin();
-             it != m_items.end(); ++it)
+        // ORIG 直接用包字段作计数器（pkt ctor 已把整包清零）：-0x9c 即 pkt+0xe(m_sellEndNum)，
+        // 无独立 count 局部、无 `= 0` 初始化指令。
+        // ORIG 在循环前缓存 end()（call 序 begin→C1→end→C1，本 TU 其它函数同形）；
+        // 写成条件内调用 m_items.end() 会让 end()/const_iterator 转换的调用序后移。
+        // 已试零变化的形态：直接初始化 `it(m_items.begin())`、以及 `it`/`endIt` 分句声明后再 for
+        // （两者 TU 级与 ELF 级 ndiff 均恒为 57/69）⇒ 残留的 3 个迭代器临时槽属 gcc 对
+        // 「iterator → const_iterator 用户转换」的展开路径差异，非源码可调。
+        for (std::map<unsigned int, CItemLimitEdition*>::const_iterator it = m_items.begin(),
+                 endIt = m_items.end(); it != endIt; ++it)
         {
             if ((int)it->second->getSellEndTime() < (int)now)
             {
-                expired[count] = it->second->getIPGNO();
-                count++;
+                pkt.m_ipgNo[pkt.m_sellEndNum] = it->second->getIPGNO();
+                pkt.m_sellEndNum++;
             }
         }
-        if (count != 0)
+        if (pkt.m_sellEndNum != 0)
         {
             CServerHandler* h = app->Get_ServerHandler();
             h->SendAllTcpGameServer(&pkt);
-            for (unsigned int i = 0; i < count; i++)
+            for (unsigned int i = 0; i < pkt.m_sellEndNum; i++)
             {
-                std::map<unsigned int, CItemLimitEdition*>::iterator f = m_items.find(expired[i]);
+                std::map<unsigned int, CItemLimitEdition*>::iterator f =
+                    m_items.find(pkt.m_ipgNo[i]);
                 if (f != m_items.end())
                 {
                     CItemLimitEdition* item = f->second;
@@ -181,6 +190,7 @@ void CItemLimitEditionMgr::processScheduledJob(CApplication* app, bool flag)
         }
         if (!m_items.empty())
         {
+            Packet_Item_Limit_Edition_Update pkt2;
             pkt2.m_serverGroup = (unsigned int)app->Get_ServerGroup();
             makeItemLimitEditionUpdatePacket(pkt2);
             CServerHandler* h = app->Get_ServerHandler();
@@ -215,6 +225,14 @@ char CItemLimitEdition::isSellComplete() const
 // [DNF-NONIDENTICAL] DNF-MON-NEAR-0013 | monitor | 与ORIG差异=NEAR | CItemLimitEdition::makeItemInfo | 详见 function_reports/monitor/_ZNK17CItemLimitEdition12makeItemInfoER28stItemLimitEditionItemInfo_t.md
 void CItemLimitEdition::makeItemInfo(stItemLimitEditionItemInfo_t& info) const
 {
+    // 残差说明（标记见函数上方 DNF-MON-NEAR-0013；本件仍在 `compare_svc_full --non-id` 清单内）：
+    // mdiff_ta 报 ndiff=2 = 唯一 1 组载入序互换。
+    // 与 ORIG 仅差块拷贝的两条参数载入次序（ORIG 先 dst 0xc(%ebp) 后 src 0x8(%ebp)），其余 23 条逐条相同。
+    // 已试 6 形态无效：memcpy 显式 · __builtin_memcpy · *(T*)&info = *(const T*)this（含等价嵌套）·
+    //   引用绑定中转（帧 +4）· 内层块作用域 · 两层 cast 书写/嵌套变体。
+    // 不可试 3 形态（前提不成立）：info = *this / static_cast<const T&>(*this) / const T& src = *this
+    //   —— class CItemLimitEdition 无基类，与 stItemLimitEditionItemInfo_t 为布局镜像的独立类型 ⇒ 无隐式转换。
+    // 结论：gcc block-move 求值序族，合法写法唯一、载入序由编译器决定 ⇒ 不可调 ✗ 勿重试。
     info = *((const stItemLimitEditionItemInfo_t*)this);
     info.m_sellNum = getSellNum();
 }

@@ -157,16 +157,19 @@ dnf_service(auction
         "${SERVERCOMMON}/CFileLogWriterBase.cpp|-fno-exceptions"
         "${AUCTIONSRC}/HandlerFor_GA_.cpp|-DSTATISTICS_STDATA_57"
         "${AUCTIONSRC}/HandlerFor_GP_JPN.cpp|-DSTATISTICS_STDATA_57"
+        # ServerLib 的 DBDispatcher 在 game 与 auction/point 里 ORIG 形态不同
+        # （game 无 INTERNALMSG_SERVICE_UNAVAILABLE ctor，auction/point 有）
+        "${COMMON}/DBDispatcher.cpp|-DDNF_SERVERLIB_AUCTION_SHAPE"
     # MySQL Connector/C 6.0.2 静态库（ORIG df_auction_r：T mysql_ = 110、U mysql_ = 0）。
     # libstdc++ 保持动态（ORIG df_auction_r 的 NEEDED 含 libstdc++.so.6），
     # 与 df_manager_r 的写法不同：manager 静态链 libstdc++。
     LIBS
         ${MYSQLCLIENT_A}
-        # [2026-09-14] 改用 c6root 驱动（--sysroot -nostdlib）后 C++ 运行时不再由宿主
-        #   驱动隐式带上 ⇒ 显式列出静态 libstdc++/libgcc；zlib 也必须放在对象之后。
-        ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a
+        # [2026-09-15] ORIG df_auction_r 的 NEEDED 含 libstdc++.so.6（动态）；原先误链静态
+        #   libstdc++.a 会多带 eh_globals.o 的 __thread ⇒ .tbss 0x3c218 vs ORIG 0x3c210，
+        #   全体 TLS local-exec 常量位移 −8 = 87 件假 NEAR。改回动态 .so（实测 88→1）。
+        ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.so
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libgcc_eh.a
-        ${DF_C5R52I}/usr/lib/gcc/i386-redhat-linux/4.1.1/libstdc++.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
         ${DF_ZLIB32}/lib/libz.a

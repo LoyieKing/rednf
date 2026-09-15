@@ -105,7 +105,7 @@ unsigned int CUser::GetIdByChannel() { return m_idByChannel; }
 
 char* CUser::GetCharName() { return m_dataC2; }
 
-char CUser::IsBlackUser(unsigned int key)
+bool CUser::IsBlackUser(unsigned int key)
 {
     if (m_blackList.empty())
     {
@@ -165,7 +165,7 @@ void CUser::SetChannelUserCount(int a, int b, int c, int d)
     m_channelInfoMap.insert(std::make_pair(a, ChannelInfo(b, c, d)));
 }
 
-char CUser::IsCompleteChannelUserCount()
+bool CUser::IsCompleteChannelUserCount()
 {
     return (m_channelCount != 0 && (int)m_channelInfoMap.size() == m_channelCount) ? 1 : 0;
 }
@@ -187,7 +187,7 @@ void CUser::GetChannelUserCount(STPvPChannelInfo* out, unsigned char& count)
     count = (unsigned char)idx;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0133 | monitor | 与ORIG差异=DIFF | CUser::MemberEnterProcess | 详见 function_reports/monitor/_ZN5CUser18MemberEnterProcessEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0133 已消除）
 void CUser::MemberEnterProcess()
 {
     if (m_memberEnterCallerId == 0)
@@ -195,12 +195,12 @@ void CUser::MemberEnterProcess()
         return;
     }
     m_memberEnterCount--;
-    if (m_memberEnterCount <= 0)
+    while (m_memberEnterCount <= 0)
     {
         m_memberEnterCallerId = 0;
         m_memberEnterCount = 0;
+        return;
     }
-    return;
 }
 
 void CUser::SetBuddyCharName(int dbid, const std::string& name)
@@ -261,7 +261,10 @@ char CUser::DelBuddy(char* name)
 
 void CUser::RegisterToCashBlackList(std::map<unsigned int, CBlackUser*>& map)
 {
-    if (!map.empty())
+    if (map.empty())
+    {
+    }
+    else
     {
         m_blackList.clear();
         for (std::map<unsigned int, CBlackUser*>::iterator it = map.begin();
@@ -270,6 +273,7 @@ void CUser::RegisterToCashBlackList(std::map<unsigned int, CBlackUser*>& map)
             m_blackList.insert(std::make_pair(it->first, it->second));
         }
     }
+    return;
 }
 
 void CUser::SetBlackListDBFlag(unsigned short flag) { m_blackListDBFlag |= flag; }
@@ -501,7 +505,7 @@ unsigned int CUser::GetBlackListSize()
     return (unsigned int)m_blackList.size();
 }
 
-char CUser::RegisterToBlackList(unsigned int charNo, char* name)
+bool CUser::RegisterToBlackList(unsigned int charNo, char* name)
 {
     if (name == 0 || charNo == 0)
     {
@@ -520,7 +524,7 @@ char CUser::RegisterToBlackList(unsigned int charNo, char* name, unsigned int ti
     return m_blackList.insert(std::make_pair(charNo, user)).second;
 }
 
-int CUser::DeleteToBlackList(unsigned int charNo)
+bool CUser::DeleteToBlackList(unsigned int charNo)
 {
     if (m_blackList.empty())
     {
@@ -553,7 +557,7 @@ unsigned int CUser::GetMemberEnterCallerId()
     return m_memberEnterCallerId;
 }
 
-char CUser::CheckPrevCallMemberEnter()
+bool CUser::CheckPrevCallMemberEnter()
 {
     if (m_memberEnterCount < 1)
     {
@@ -572,7 +576,7 @@ void CUser::ResetRequestMemberEnter()
     m_memberEnterCount = 0;
 }
 
-char CUser::RecordCallMemberEnter(unsigned int callerId, unsigned short count)
+bool CUser::RecordCallMemberEnter(unsigned int callerId, unsigned short count)
 {
     if (m_memberEnterCount != 0) return 0;
     m_memberEnterCallerId = callerId;

@@ -70,6 +70,7 @@ int CAppStartInit::Init_Daemon(int argc, char** argv)
 bool CAppStartInit::Save_pid(const std::string& name)
 {
     std::string path = "./pid/" + name + ".pid";
+    ssize_t n;
     int fd = open(path.c_str(), 0x42, 0x1a4);
     if (fd < 0)
     {
@@ -78,7 +79,7 @@ bool CAppStartInit::Save_pid(const std::string& name)
     char buf[1024];
     memset(buf, 0, 0x400);
     sprintf(buf, "%ld\n", (long)getpid());
-    ssize_t n = write(fd, buf, strlen(buf));
+    n = write(fd, buf, strlen(buf));
     if (n < 0)
     {
         close(fd);

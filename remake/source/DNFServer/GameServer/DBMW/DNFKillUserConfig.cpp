@@ -29,15 +29,16 @@ CKillUSRConfig::~CKillUSRConfig()
 {
     Clear_Table();
 }
-int CKillUSRConfig::Load_Table(const std::string& fileName)
+void CKillUSRConfig::Load_Table(const std::string& fileName)
 {
     int n = Load_Txt_Table_Data(fileName.c_str(), 0x64);
-    if (n > 0 && n <= 0x64)
-        return n;
-    CMyFileLog log("Load_Table", 0x5b);
-    log("./log/TableError", "Kill USR Config Table - ReturnCode = %d\n", n);
-    throw CDNFException(
-        std::string("CKillUSRConfig::Load_Setup_Table() Exception break!"));
+    if (n <= 0 || n > 0x64)
+    {
+        CMyFileLog log("Load_Table", 0x5b);
+        log("./log/TableError", "Kill USR Config Table - ReturnCode = %d\n", n);
+        throw CDNFException(
+            std::string("CKillUSRConfig::Load_Setup_Table() Exception break!"));
+    }
 }
 bool CKillUSRConfig::Parse_Table(char* data, int size)
 {

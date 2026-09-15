@@ -387,6 +387,15 @@ struct StatCompatibilityView
     unsigned char m_osBit;    // +0x1d
 } __attribute__((packed));
 
+struct AssertManagerWriteElemView
+{
+    char m_pad[0xe];           // +0x000
+    char m_fileName[0x100];    // +0x00e
+    unsigned short m_fileLine; // +0x10e
+    int m_cnt;                 // +0x110
+    char m_reason[0xf2];       // +0x114
+} __attribute__((packed));
+
 struct SecretShopStatisticView
 {
     char h[0xa];
@@ -434,7 +443,7 @@ struct FrameLagWriteIndexView
 } __attribute__((packed));
 
 // ---- CGuildManager / WongWork ----
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0018 | dbmw | 与ORIG差异=DIFF | CDBManager::GuildMasterDelegate | 详见 function_reports/dbmw/_ZN10CDBManager19GuildMasterDelegateEijjjjPc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0018 已消除）| CDBManager::GuildMasterDelegate
 bool CDBManager::GuildMasterDelegate(int serverId,
                                      unsigned int guildId,
                                      unsigned int oldMasterNo,
@@ -448,8 +457,7 @@ bool CDBManager::GuildMasterDelegate(int serverId,
     (void)unused;
     if (newMasterName[0] == 0)
     {
-        CMyFileLog log(__FUNCTION__, 0x10b3);
-        log("./log/TraceGuildErr",
+        CMyFileLog(__FUNCTION__, 0x10b3)("./log/TraceGuildErr",
             "CDBManager::GuildMasterDelegate server_group(%d), guild(%d), charac_no(%d)\n",
             serverId, guildId, newMasterNo);
         return 0;
@@ -465,22 +473,18 @@ bool CDBManager::GuildMasterDelegate(int serverId,
                       NumberToString(newMasterMId, 0), newMasterNo,
                       newMasterName, guildId, serverId))
     {
-        char* midStr = NumberToString(newMasterMId, 0);
-        CMyFileLog log(__FUNCTION__, 0x10da);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x10da)("./log/DBQueryErr",
             "CDBManager::GuildMasterDelegate() set : upDate guild_info set master_id=%s, master_no=%d, master_name='%s' where guild_id = %d and server_id= %d",
-            midStr, newMasterNo, newMasterName,
+            NumberToString(newMasterMId, 0), newMasterNo, newMasterName,
             guildId, serverId);
         return 0;
     }
     ok = h->exec(0x4e6a);
     if (!ok)
     {
-        char* midStr = NumberToString(newMasterMId, 0);
-        CMyFileLog log(__FUNCTION__, 0x10e7);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x10e7)("./log/DBQueryErr",
             "CDBManager::GuildMasterDelegate() exec : upDate guild_info set master_id=%s, master_no=%d, master_name='%s' where guild_id = %d and server_id= %d",
-            midStr, newMasterNo, newMasterName,
+            NumberToString(newMasterMId, 0), newMasterNo, newMasterName,
             guildId, serverId);
         return 0;
     }
@@ -495,8 +499,7 @@ bool CDBManager::SendGuildLetter(int serverId, unsigned int guildId, char* msg)
                       "seLect charac_no from guild_member where guild_id = %d and server_id = %d and member_flag = 1",
                       guildId, serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0x7d3);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x7d3)("./log/DBQueryErr",
             "CDBManager::AwardGuildTitleByMail() select charac_no from guild_member where server_id = %d and guild_id = %d and member_flag = 1\n",
             serverId, guildId);
         return 0;
@@ -521,13 +524,14 @@ bool CDBManager::SendGuildLetter(int serverId, unsigned int guildId, char* msg)
         if (!ok)
             return 0;
         char subject[0x1e] = {0};
-        std::string s = g_ServerString_.GetServerString(0x431, 0);
-        strncpy(subject, s.c_str(), 0x1d);
+        {
+            std::string s = g_ServerString_.GetServerString(0x431, 0);
+            strncpy(subject, s.c_str(), 0x1d);
+        }   // ORIG: string 在 strncpy 之后立即析构（call 序列 ~string 先于 InsertLetter）
         int letterNo = 0;
         if (!InsertLetter(characNo, 0, subject, msg, letterNo, expiry))
         {
-            CMyFileLog log(__FUNCTION__, 0x80d);
-            log("./log/Postal", "InsertLetter Err");
+            CMyFileLog(__FUNCTION__, 0x80d)("./log/Postal", "InsertLetter Err");
             return 0;
         }
     }
@@ -537,6 +541,7 @@ bool CDBManager::SendGuildLetter(int serverId, unsigned int guildId, char* msg)
 bool CDBManager::OnWriteGuildBoard(
     Packet_DB_Load_Request_Guild_Board_Write* req, STGuildBoardDBInfo* info)
 {
+    bool ret;
     CDBHandle* h = m_handles[5];    // web db
     if (req->m_id == 0)
         memset(req->m_info.m_member.m_name, 0, 0x1e);
@@ -547,11 +552,10 @@ bool CDBManager::OnWriteGuildBoard(
                  req->m_characNo, req->m_info.m_member.m_name,
                  h->blob_to_str(0, req->m_info.m_pre, 0x78),
                  req->m_info.m_member.m_job, req->m_info.m_member.m_field1);
-    bool ret = h->exec(0x4f08);
+    ret = h->exec(0x4f08);
     if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x22fc);
-        log("./log/DBQueryErr", "OnWriteGuildBoard Query Error");
+        CMyFileLog(__FUNCTION__, 0x22fc)("./log/DBQueryErr", "OnWriteGuildBoard Query Error");
         return 0;
     }
     h->set_query(0x4f07,
@@ -559,8 +563,7 @@ bool CDBManager::OnWriteGuildBoard(
     ret = h->exec(0x4f07);
     if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x2306);
-        log("./log/DBQueryErr", "OnWriteGuildBoard Query Error");
+        CMyFileLog(__FUNCTION__, 0x2306)("./log/DBQueryErr", "OnWriteGuildBoard Query Error");
         return 0;
     }
     if (!h->fetch())
@@ -576,10 +579,12 @@ bool CDBManager::OnWriteGuildBoard(
     else
     {
         info->m_characNo = req->m_characNo;
-        info->m_member.m_job = req->m_info.m_member.m_job;
-        memcpy(info->m_member.m_name, req->m_info.m_member.m_name, 0x1e);
-        memcpy(info, req->m_info.m_pre, 0x78);
     }
+    // ORIG 语义：以下三句为**无条件公共代码**（ORIG 反汇编 mov_id==0 分支尾 `jmp <公共块>`）；
+    // 重建期误置于 else 内 ⇒ 修正为无条件执行。
+    info->m_member.m_job = req->m_info.m_member.m_job;
+    memcpy((char*)info->m_member.m_name, (char*)req->m_info.m_member.m_name, 0x1e);
+    memcpy((char*)info, (char*)req->m_info.m_pre, 0x78);
     return 1;
 }
 bool CDBManager::OnWriteWebGuildBoard(
@@ -594,8 +599,7 @@ bool CDBManager::OnWriteWebGuildBoard(
     ret = h->exec(0x4f07);
     if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x2329);
-        log("./log/DBQueryErr", "OnWriteWebGuildBoard Query Error");
+        CMyFileLog(__FUNCTION__, 0x2329)("./log/DBQueryErr", "OnWriteWebGuildBoard Query Error");
         return 0;
     }
     if (!h->fetch())
@@ -622,13 +626,12 @@ bool CDBManager::OnDeleteGuildBoard(unsigned int no)
     ret = h->exec(0x4f09);
     if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x235b);
-        log("./log/DBQueryErr", "OnDeleteGuildBoard Query Error");
+        CMyFileLog(__FUNCTION__, 0x235b)("./log/DBQueryErr", "OnDeleteGuildBoard Query Error");
         return 0;
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0004 | dbmw | 与ORIG差异=NEAR | CDBManager::OnLoadGuildAgit | 详见 function_reports/dbmw/_ZN10CDBManager15OnLoadGuildAgitEP25Packet_DB_Load_Guild_AgitR28Packet_Guild_Load_Guild_Agit.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-NEAR-0004 已消除）| CDBManager::OnLoadGuildAgit
 bool CDBManager::OnLoadGuildAgit(Packet_DB_Load_Guild_Agit* req,
                                  Packet_Guild_Load_Guild_Agit& reply)
 {
@@ -640,22 +643,21 @@ bool CDBManager::OnLoadGuildAgit(Packet_DB_Load_Guild_Agit* req,
     r = h->exec(0x4eb5);
     if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x19c3);
-        log("./log/DBQueryErr", "OnLoadGuildAgit Query Error\n");
+        CMyFileLog(__FUNCTION__, 0x19c3)("./log/DBQueryErr",
+                                         "OnLoadGuildAgit Query Error\n");
         return 0;
     }
     r = h->fetch();
     if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x19cb);
-        log("./log/DBQueryErr", "OnLoadGuildAgit Fetch Error\n");
+        CMyFileLog(__FUNCTION__, 0x19cb)("./log/DBQueryErr",
+                                         "OnLoadGuildAgit Fetch Error\n");
         return 0;
     }
     r = h->get_ubyte(0, *(unsigned char*)((char*)&reply + 0xe));
     if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x19d3);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x19d3)("./log/DBQueryErr",
             "OnLoadGuildAgit get_ubyte(0, reply.m_stGuildAgitInfo.m_ucUpgrade) Error\n");
         return 0;
     }
@@ -672,8 +674,7 @@ char CDBManager::OnLoadGuildCargo(unsigned int guildId,
     r = h->exec(0x4ed7);
     if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x1b35);
-        log("./log/DBQueryErr", "OnLoadGuildCargo Query Error");
+        CMyFileLog(__FUNCTION__, 0x1b35)("./log/DBQueryErr", "OnLoadGuildCargo Query Error");
         return 0;
     }
     if (!h->fetch())
@@ -736,7 +737,7 @@ char CDBManager::OnInsertGuildCargoHistory(
         // +0x36 为位域字节：低 5 bit upgrade、高 3 bit seal_cnt。
         // ORIG 反汇编 movzbl 0x36(%eax),%eax; shr $0x5,%al 只读 1 字节，
         // seal_cnt = byte >> 5（0-7）；原写法读 4 字节且 &1 只取 bit5，语义错误。
-        (unsigned char)req->m_item.m_field5 & 0x1f,
+        (unsigned char)(req->m_item.m_field5 & 0x1f),
         (unsigned char)req->m_item.m_field5 / 0x20,
         (unsigned char)req->m_item.m_field10, req->m_item.m_field11,
         h->blob_to_str(0, (char*)&req->m_item.m_option, 0xe),
@@ -744,8 +745,7 @@ char CDBManager::OnInsertGuildCargoHistory(
     r = h->exec(0x4ed9);
     if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x1bd3);
-        log("./log/DBQueryErr", "OnInsertGuildCargoHistory Query Error");
+        CMyFileLog(__FUNCTION__, 0x1bd3)("./log/DBQueryErr", "OnInsertGuildCargoHistory Query Error");
         return 0;
     }
     return 1;
@@ -796,45 +796,47 @@ bool CDBManager::QueryBlackList(unsigned int m_id, STBlackUserDBType* list)
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0007 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveGuildSkill | 详见 function_reports/dbmw/_ZN10CDBManager14SaveGuildSkillEhjR17STGuildDBInfoOnly.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0007 已消除）| CDBManager::SaveGuildSkill
 char CDBManager::SaveGuildSkill(unsigned char serverGroup,
                                 unsigned int guildId,
                                 STGuildDBInfoOnly& info)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     h->set_query(0x4e55,
                  "upDate guild_skill set remain_sp = %d, used_sp = %d, skill_slot = '%s' where guild_id = %d",
                  info.m_guildSkillPoint,
                  (unsigned char)info.m_skillLearnCnt,
                  h->blob_to_str(0, (char*)&info + 0x45,
-                                (unsigned char)info.m_skillLearnCnt * 5),
+                                (unsigned char)info.m_skillLearnCnt * 5u),
                  guildId);
-    if (h->exec(0x4e55) != 1 || h->getAffectedRowCount() == 0)
+    r = h->exec(0x4e55);
+    if (!r || h->getAffectedRowCount() == 0)
     {
         h->set_query(0x4e59,
                      "inSert into guild_skill set guild_id= %d, remain_sp = %d, used_sp = %d, skill_slot = '%s'",
                      guildId, info.m_guildSkillPoint,
                      (unsigned char)info.m_skillLearnCnt,
                      h->blob_to_str(0, (char*)&info + 0x45,
-                                    (unsigned char)info.m_skillLearnCnt * 5));
-        h->exec(0x4e59);
+                                    (unsigned char)info.m_skillLearnCnt * 5u));
+        r = h->exec(0x4e59);
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0009 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveGuildMember | 详见 function_reports/dbmw/_ZN10CDBManager15SaveGuildMemberEhjR18STGuildMemerDBInfojh.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0009 已消除）| CDBManager::SaveGuildMember
 char CDBManager::SaveGuildMember(unsigned char serverGroup,
                                  unsigned int guildId,
                                  STGuildMemerDBInfo& info,
                                  unsigned int flag, unsigned char type)
 {
+    bool updated;
     CDBHandle* h = m_handles[8];    // guild db
     if (type <= 2)
     {
         h->set_query(0x4e30,
                      "upDate guild_member set member_point=%d, last_play_time =  now() where guild_id = %d and server_id = %d and charac_no = %d",
                      info.m_memberPoint, guildId, serverGroup, flag);
-        CMyFileLog log(__FUNCTION__, 0x2ba);
-        log("./log/GuildModify",
+        CMyFileLog(__FUNCTION__, 0x2ba)("./log/GuildModify",
             "CDBManager::SaveGuildMember(SAVE_LOGOUT flag(%d), grade(%d), guildMemPoint(%d), g(%d), s(%d), c(%d))",
             type, (unsigned char)info.m_grade,
             info.m_memberPoint, guildId, serverGroup, flag);
@@ -846,27 +848,27 @@ char CDBManager::SaveGuildMember(unsigned char serverGroup,
                      info.m_memberPoint,
                      (unsigned char)info.m_grade, guildId,
                      serverGroup, flag);
-        CMyFileLog log(__FUNCTION__, 0x2c5);
-        log("./log/GuildModify",
+        CMyFileLog(__FUNCTION__, 0x2c5)("./log/GuildModify",
             "CDBManager::SaveGuildMember(GRADE_CHANGE flag(%d), grade(%d), g(%d), s(%d), c(%d))",
             type, (unsigned char)info.m_grade, guildId, serverGroup,
             flag);
     }
     else
     {
-        CMyFileLog log(__FUNCTION__, 0x2c9);
-        log("./log/GuildModify",
+        CMyFileLog(__FUNCTION__, 0x2c9)("./log/GuildModify",
             "CDBManager::SaveGuildMember ERR(save_flag err(%d))", type);
     }
-    if (!h->exec(0x4e30))
+    updated = h->exec(0x4e30);
+    if (!updated)
         return 0;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0031 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveGuildWarPointList | 详见 function_reports/dbmw/_ZN10CDBManager21SaveGuildWarPointListEiPjS0_.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0031 已消除）| CDBManager::SaveGuildWarPointList
 bool CDBManager::SaveGuildWarPointList(int serverId,
                                        unsigned int* guildIds,
                                        unsigned int* points)
 {
+    bool updated;
     if (guildIds == 0 || points == 0)
         return 0;
     CDBHandle* h = m_handles[8];    // guild db
@@ -878,22 +880,21 @@ bool CDBManager::SaveGuildWarPointList(int serverId,
                           "upDate guild_info set guild_war_point = %d where server_id = %d and expire_flag = 0 and guild_id = %d",
                           points[i], serverId, guildIds[i]))
         {
-            CMyFileLog log(__FUNCTION__, 0x9b7);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x9b7)("./log/DBQueryErr",
                 "CDBManager::SaveGuildWarPointList() update guild_info set guild_war_point = %d where server_id = %d and expire_flag = 0 and guild_id = %d",
                 points[i], serverId, guildIds[i]);
             return 0;
         }
-        if (!h->exec(0x4e3c))
+        updated = h->exec(0x4e3c);
+        if (!updated)
             return 0;
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0042 | dbmw | 与ORIG差异=DIFF | CDBManager::OnSavePowerWarBonusPoint | 详见 function_reports/dbmw/_ZN10CDBManager24OnSavePowerWarBonusPointEP36Packet_DB_Save_Power_War_Bonus_Point.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0042 已消除）| CDBManager::OnSavePowerWarBonusPoint
 bool CDBManager::OnSavePowerWarBonusPoint(
     Packet_DB_Save_Power_War_Bonus_Point* packet)
 {
-    bool ok;
     CDBHandle* h = m_handles[3];    // game db
     time_t now = time(0);
     struct tm* lt = localtime(&now);
@@ -903,19 +904,18 @@ bool CDBManager::OnSavePowerWarBonusPoint(
     long occTime = mktime(lt);
     std::string name("\xbc\xbc\xb7\xc2\xc0\xfc \xc6\xf7\xc0\xce\xc6\xae");
     int itemId = 0x4df;
+    (void)itemId;
     for (int i = 0; i < packet->m_count; i++)
     {
         h->set_query(0x4ef7,
                      "inSert into postal (occ_time, send_charac_no, receive_charac_no, seal_flag, item_id, add_info, endurance, upgrade, gold, send_charac_name) values (from_unixtime(%d), %d, %d, %d, %d, %d, %d, %d, %d,'%s')",
-                     occTime, 0, packet->m_entries[i].m_characNo, 0, itemId,
+                     occTime, 0, packet->m_entries[i].m_characNo, 0, 0x4df,
                      packet->m_entries[i].m_addInfo, 1, 0, 0, name.c_str());
-        ok = h->exec(0x4ef7);
-        if (!ok)
+        if (!h->exec(0x4ef7))
         {
-            CMyFileLog log(__FUNCTION__, 0x2172);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x2172)("./log/DBQueryErr",
                 "CDBManager::OnSavePowerWarBonusPoint() : insert into postal (occ_time, send_charac_no, receive_charac_no, seal_flag, item_id, add_info, endurance, upgrade, gold, send_charac_name ) values ( from_unixtime( now() ), %d, %d, %d, %d, %d, %d, %d, %d,'%s')\n",
-                0, packet->m_entries[i].m_characNo, 0, itemId,
+                0, packet->m_entries[i].m_characNo, 0, 0x4df,
                 packet->m_entries[i].m_addInfo, 1, 0, 0, name.c_str());
             return 0;
         }
@@ -951,21 +951,21 @@ char CDBManager::SavePowerWarPoint(Packet_DB_Save_Power_War_Point* packet)
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0053 | dbmw | 与ORIG差异=DIFF | CDBManager::OnSavePowerWarStatueRanker | 详见 function_reports/dbmw/_ZN10CDBManager26OnSavePowerWarStatueRankerEP38Packet_DB_Save_Power_War_Statue_Ranker.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0053 已消除）| CDBManager::OnSavePowerWarStatueRanker
 char CDBManager::OnSavePowerWarStatueRanker(
     Packet_DB_Save_Power_War_Statue_Ranker* packet)
 {
+    bool ret;
     CDBHandle* h = m_handles[8];    // guild db
     CDBHandle* h2 = m_handles[6];   // sso db
     unsigned char serverId = ((PowerWarStatueRankerView*)packet)->m_serverId;
     h2->set_query(0x4ecc,
                   "deLete from event_server_message where server_info = %d and message_index in (1, 2, 3)",
                   serverId);
-    bool ret = h2->exec(0x4ecc);
+    ret = h2->exec(0x4ecc);
     if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x1943);
-        log("./log/DBQueryErr", "deLete_power_war_statue_message Query Error\n");
+        CMyFileLog(__FUNCTION__, 0x1943)("./log/DBQueryErr", "deLete_power_war_statue_message Query Error\n");
     }
     h->set_query(0x4ead,
                  "upDate power_war_statue_ranker set first_ranker=%d, second_ranker=%d, third_ranker=%d where server_id=%d",
@@ -980,43 +980,42 @@ char CDBManager::OnSavePowerWarStatueRanker(
                      ((PowerWarStatueRankerView*)packet)->m_firstRanker,
                      ((PowerWarStatueRankerView*)packet)->m_secondRanker,
                      ((PowerWarStatueRankerView*)packet)->m_thirdRanker, serverId);
-        if (!h->exec(0x4eac))
+        ret = h->exec(0x4eac);
+        if (!ret)
         {
-            CMyFileLog log(__FUNCTION__, 0x195a);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x195a)("./log/DBQueryErr",
                 "inSert_into_power_war_statue_ranker Query Error\n");
             return 0;
         }
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0010 | dbmw | 与ORIG差异=NEAR | CDBManager::OnSavePowerWarPointReward | 详见 function_reports/dbmw/_ZN10CDBManager25OnSavePowerWarPointRewardEP37Packet_DB_Save_Power_War_Point_Reward.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-NEAR-0010 已消除）| CDBManager::OnSavePowerWarPointReward
 bool CDBManager::OnSavePowerWarPointReward(
     Packet_DB_Save_Power_War_Point_Reward* packet)
 {
     bool ret;
     CDBHandle* h = m_handles[8];    // guild db
-    unsigned char serverId = ((PowerWarPointRewardView*)packet)->m_serverId;
-    int count = ((PowerWarPointRewardView*)packet)->m_count;
+    unsigned char serverId = packet->m_a;
+    int count = packet->m_b;
     for (int i = 0; i < count; i++)
     {
-        int p1 = ((PowerWarPointRewardView*)packet)->m_entries[i].m_guildId;
-        int p2 = ((PowerWarPointRewardView*)packet)->m_entries[i].m_point;
+        int p1 = packet->m_points[i].m_guildId;
+        int p2 = packet->m_points[i].m_point;
         h->set_query(0x4eab,
                      "upDate guild_info set power_war_point=power_war_point+%d where guild_id=%d and server_id=%d and expire_flag=0",
                      p2, p1, serverId);
         ret = h->exec(0x4eab);
         if (!ret)
         {
-            CMyFileLog log(__FUNCTION__, 0x192b);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x192b)("./log/DBQueryErr",
                 "upDate_into_guild_info_power_war_point Query Error\n");
             return 0;
         }
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0002 | dbmw | 与ORIG差异=NEAR | CDBManager::InsertMail | 详见 function_reports/dbmw/_ZN10CDBManager10InsertMailEjPcS0_jjii.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-NEAR-0002 已消除）| CDBManager::InsertMail
 bool CDBManager::InsertMail(unsigned int characNo, char* subject,
                             char* content, unsigned int hE,
                             unsigned int h12, int h16, int h17)
@@ -1030,20 +1029,20 @@ bool CDBManager::InsertMail(unsigned int characNo, char* subject,
     int letterNo = 0;
     if (!InsertLetter(characNo, 0, subject, content, letterNo, occTime))
     {
-        CMyFileLog log(__FUNCTION__, 0x1d9e);
-        log("./log/Postal", "InsertLetter Err, %s(%s)", content, (char*)hE);
+        CMyFileLog(__FUNCTION__, 0x1d9e)("./log/Postal",
+            "InsertLetter Err, %s(%s)", subject, content);
         return 0;
     }
     if (!InsertPostal(characNo, 0, 0, hE, h16, h12, 0, subject, occTime,
                       letterNo))
     {
-        CMyFileLog log(__FUNCTION__, 0x1da4);
-        log("./log/Postal", "InsertPostal Err, %s(%s)", content, (char*)hE);
+        CMyFileLog(__FUNCTION__, 0x1da4)("./log/Postal",
+            "InsertPostal Err, %s(%s)", subject, content);
         return 0;
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0027 | dbmw | 与ORIG差异=DIFF | CDBManager::OnLoadPeriodicMessage | 详见 function_reports/dbmw/_ZN10CDBManager21OnLoadPeriodicMessageEP28Packet_Load_Periodic_MessageP38Packet_Result_Loading_Periodic_Message.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0027 已消除）| CDBManager::OnLoadPeriodicMessage
 bool CDBManager::OnLoadPeriodicMessage(
     Packet_Load_Periodic_Message* req,
     Packet_Result_Loading_Periodic_Message* reply)
@@ -1053,8 +1052,7 @@ bool CDBManager::OnLoadPeriodicMessage(
                  "seLect message, start_h, end_h from dnf_game_message where occ_date=cast(now() as date) and display_type=1");
     if (!h->exec(0x4f04))
     {
-        CMyFileLog log(__FUNCTION__, 0x2247);
-        log("./log/DBQueryErr", "CDBManager::OnLoadPeriodicMessage() seLect Error");
+        CMyFileLog(__FUNCTION__, 0x2247)("./log/DBQueryErr", "CDBManager::OnLoadPeriodicMessage() seLect Error");
         return 0;
     }
     if (h->get_n_rows() == 0)
@@ -1066,35 +1064,27 @@ bool CDBManager::OnLoadPeriodicMessage(
     }
     if (!h->fetch())
     {
-        CMyFileLog log(__FUNCTION__, 0x2256);
-        log("./log/DBQueryErr", "CDBManager::OnLoadPeriodicMessage() fetch Error");
+        CMyFileLog(__FUNCTION__, 0x2256)("./log/DBQueryErr", "CDBManager::OnLoadPeriodicMessage() fetch Error");
         return 0;
     }
     if (!h->get_str(0, reply->m_message, 0x200))
     {
-        CMyFileLog log(__FUNCTION__, 0x226c);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x226c)("./log/DBQueryErr",
             "CDBManager::OnLoadPeriodicMessage() get_str Error");
         return 0;
     }
-    int startH;
-    if (!h->get_int(1, startH))
+    if (!h->get_int(1, *(int*)&reply->m_startHour))
     {
-        CMyFileLog log(__FUNCTION__, 0x2273);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2273)("./log/DBQueryErr",
             "CDBManager::OnLoadPeriodicMessage() get_int for start_h Error");
         return 0;
     }
-    reply->m_startHour = startH;
-    int endH;
-    if (!h->get_int(2, endH))
+    if (!h->get_int(2, *(int*)&reply->m_endHour))
     {
-        CMyFileLog log(__FUNCTION__, 0x2279);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2279)("./log/DBQueryErr",
             "CDBManager::OnLoadPeriodicMessage() get_int for end_h Error");
         return 0;
     }
-    reply->m_endHour = endH;
     return 1;
 }
 bool CDBManager::QueryGuildMember(unsigned char serverId,
@@ -1107,8 +1097,7 @@ bool CDBManager::QueryGuildMember(unsigned char serverId,
                       "seLect guild_id, memo, grade, member_point from guild_member where charac_no = %d and server_id = %d and member_flag = 1",
                       guildId, serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0x180);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x180)("./log/DBQueryErr",
             "CDBManager::QueryGuildMember() Exception Break\n");
         reply.m_flag = 0;
         return 0;
@@ -1152,15 +1141,14 @@ bool CDBManager::QueryGuildMember(unsigned char serverId,
     reply.m_flag = 1;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0007 | dbmw | 与ORIG差异=NEAR | CDBManager::OnSavePowerWarUserRank | 详见 function_reports/dbmw/_ZN10CDBManager22OnSavePowerWarUserRankEP34Packet_DB_Save_Power_War_User_Rank.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-NEAR-0007 已消除）| CDBManager::OnSavePowerWarUserRank
 char CDBManager::OnSavePowerWarUserRank(
     Packet_DB_Save_Power_War_User_Rank* packet)
 {
     bool ok;
     CDBHandle* h = m_handles[8];    // guild db
-    unsigned char serverId = ((PowerWarUserRankView*)packet)->m_serverId;
-    if (((PowerWarUserRankView*)packet)->m_flagA != 0 &&
-        ((PowerWarUserRankView*)packet)->m_side == 1)
+    unsigned char serverId = packet->m_b;
+    if (packet->m_a != 0 && packet->m_c == 1)
     {
         h->set_query(0x4ea7,
                      "deLete from power_war_user_rank where server_id=%d",
@@ -1168,41 +1156,38 @@ char CDBManager::OnSavePowerWarUserRank(
         ok = h->exec(0x4ea7);
         if (!ok)
         {
-            CMyFileLog log(__FUNCTION__, 0x18bf);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x18bf)("./log/DBQueryErr",
                 "deLete_from_power_war_user_rank Query Error\n");
             return 0;
         }
     }
-    int count = ((PowerWarUserRankView*)packet)->m_count;
-    int startIdx = ((PowerWarUserRankView*)packet)->m_startIdx;
+    int count = packet->m_e;
+    int startIdx = packet->m_d;
     for (int i = 0; i < count; i++)
     {
-        int p1 = ((PowerWarUserRankView*)packet)->m_entries[i].m_characNo;
-        int p2 = ((PowerWarUserRankView*)packet)->m_entries[i].m_point;
+        int p1 = packet->m_ranks[i].m_characNo;
+        int p2 = packet->m_ranks[i].m_point;
         h->set_query(0x4ea8,
                      "inSert into power_war_user_rank set server_id=%d, rank=%d, charac_no=%d, power_war_point=%d, power_side=%d",
-                     serverId, startIdx + i, p1, p2,
-                     ((PowerWarUserRankView*)packet)->m_side);
+                     serverId, startIdx + i, p1, p2, packet->m_c);
         ok = h->exec(0x4ea8);
         if (!ok)
         {
-            CMyFileLog log(__FUNCTION__, 0x18d8);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x18d8)("./log/DBQueryErr",
                 "inSert_into_power_war_user_rank Query Error\n");
             return 0;
         }
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0008 | dbmw | 与ORIG差异=NEAR | CDBManager::OnSavePowerWarGuildRank | 详见 function_reports/dbmw/_ZN10CDBManager23OnSavePowerWarGuildRankEP35Packet_DB_Save_Power_War_Guild_Rank.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-NEAR-0008 已消除）| CDBManager::OnSavePowerWarGuildRank
 char CDBManager::OnSavePowerWarGuildRank(
     Packet_DB_Save_Power_War_Guild_Rank* packet)
 {
     bool ok;
     CDBHandle* h = m_handles[8];    // guild db
-    unsigned char serverId = ((PowerWarGuildRankView*)packet)->m_serverId;
-    if (((PowerWarGuildRankView*)packet)->m_side == 1)
+    unsigned char serverId = packet->m_a;
+    if (packet->m_b == 1)
     {
         h->set_query(0x4ea9,
                      "deLete from power_war_guild_rank where server_id=%d",
@@ -1210,26 +1195,23 @@ char CDBManager::OnSavePowerWarGuildRank(
         ok = h->exec(0x4ea9);
         if (!ok)
         {
-            CMyFileLog log(__FUNCTION__, 0x18f4);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x18f4)("./log/DBQueryErr",
                 "deLete_from_power_war_guild_rank Query Error\n");
             return 0;
         }
     }
-    int count = ((PowerWarGuildRankView*)packet)->m_count;
+    int count = packet->m_c;
     for (int i = 0; i < count; i++)
     {
-        int g1 = ((PowerWarGuildRankView*)packet)->m_entries[i].m_guildId;
-        int g2 = ((PowerWarGuildRankView*)packet)->m_entries[i].m_point;
+        int g1 = packet->m_ranks[i].m_guildId;
+        int g2 = packet->m_ranks[i].m_point;
         h->set_query(0x4eaa,
                      "inSert into power_war_guild_rank set server_id=%d, rank=%d, guild_id=%d, power_war_point=%d, power_side=%d",
-                     serverId, i, g1, g2,
-                     ((PowerWarGuildRankView*)packet)->m_side);
+                     serverId, i, g1, g2, packet->m_b);
         ok = h->exec(0x4eaa);
         if (!ok)
         {
-            CMyFileLog log(__FUNCTION__, 0x190c);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x190c)("./log/DBQueryErr",
                 "inSert_into_power_war_guild_rank Query Error\n");
             return 0;
         }
@@ -1268,8 +1250,7 @@ bool CDBManager::DelBuddy(unsigned int m_id, unsigned int characNo)
                       "deLete from charac_friends where charac_no = %d and friend_no = %d",
                       m_id, characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0xc0a);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xc0a)("./log/DBQueryErr",
             "deLete from charac_friends where charac_no = %d and friend_no = %d",
             m_id, characNo);
         return 0;
@@ -1279,7 +1260,7 @@ bool CDBManager::DelBuddy(unsigned int m_id, unsigned int characNo)
         return 0;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0032 | dbmw | 与ORIG差异=DIFF | CDBManager::insertServerGameEvent | 详见 function_reports/dbmw/_ZN10CDBManager21insertServerGameEventEP31Packet_StartGameEventFromServer.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0032 已消除）| CDBManager::insertServerGameEvent
 bool CDBManager::insertServerGameEvent(
     Packet_StartGameEventFromServer* packet)
 {
@@ -1297,16 +1278,13 @@ bool CDBManager::insertServerGameEvent(
         ((StartGameEventFromServerView*)packet)->m_serverId);
     if (!ok)
     {
-        const char* q = h->get_quest_str();
-        CMyFileLog log(__FUNCTION__, 0x2e96);
-        log("./log/DBQueryErr", q);
+        CMyFileLog(__FUNCTION__, 0x2e96)("./log/DBQueryErr", h->get_quest_str());
         return 0;
     }
     ok = h->exec(0x4f5d);
     if (!ok)
     {
-        CMyFileLog log(__FUNCTION__, 0x2e9d);
-        log("./log/DBQueryErr", "insertServerGameEvent Query(exec) Error");
+        CMyFileLog(__FUNCTION__, 0x2e9d)("./log/DBQueryErr", "insertServerGameEvent Query(exec) Error");
         return 0;
     }
     return 1;
@@ -1392,8 +1370,7 @@ char CDBManager::QueryGuildPointList(int serverId, CGuildManager* gm)
                       "seLect guild_id, guild_point from guild_info where server_id = %d and expire_flag = 0",
                       serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0x692);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x692)("./log/DBQueryErr",
             "CDBManager::QueryGuild() select guild_id, guild_point from guild_info where server_id = %d and expire_flag = 0\n",
             serverId);
         return 0;
@@ -1453,52 +1430,54 @@ bool CDBManager::QueryP2PStatistics(Packet_P2P_Statistics* packet)
         ((P2PStatisticsView*)packet)->m_field3B);
     if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x295c);
-        log("./log/DBQueryErr", "set_query(insert_p2p_statistics)");
+        CMyFileLog(__FUNCTION__, 0x295c)("./log/DBQueryErr", "set_query(insert_p2p_statistics)");
         return 0;
     }
     if (!h->exec(0x4f26))
         return 0;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0040 | dbmw | 与ORIG差异=DIFF | CDBManager::OnGoldcardEventStatistic | 详见 function_reports/dbmw/_ZN10CDBManager24OnGoldcardEventStatisticEP35Packet_Goldcard_Event_Statistic_STD.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0040 已消除）| CDBManager::OnGoldcardEventStatistic
 char CDBManager::OnGoldcardEventStatistic(
     Packet_Goldcard_Event_Statistic_STD* packet)
 {
     CDBHandle* h = m_handles[4];    // log db
     for (int i = 0; i <= 0x62; i++)
     {
-        if (((GoldcardEventView*)packet)->m_entries[i].m_createCnt != 0 ||
-            ((GoldcardEventView*)packet)->m_entries[i].m_openCnt != 0)
+        // 负条件 goto + 体内显式 goto join：复现 ORIG 的「skip 岛 + 体尾 jmp」布局（P223）
+        if (packet->m_items[i].m_createCnt == 0 &&
+            packet->m_items[i].m_openCnt == 0)
+            goto gc_skip;
+        h->set_query(0x4f03,
+                     "upDate log_goldcard_event set create_cnt=create_cnt+%d,open_cnt=open_cnt+%d where occ_date=cast(now() as date) and level=%d",
+                     packet->m_items[i].m_createCnt,
+                     packet->m_items[i].m_openCnt, i);
+        if (h->exec(0x4f03) != 1)
         {
-            h->set_query(0x4f03,
-                         "upDate log_goldcard_event set create_cnt=create_cnt+%d,open_cnt=open_cnt+%d where occ_date=cast(now() as date) and level=%d",
-                         ((GoldcardEventView*)packet)->m_entries[i].m_createCnt,
-                         ((GoldcardEventView*)packet)->m_entries[i].m_openCnt, i);
-            if (h->exec(0x4f03) != 1)
+            CMyFileLog(__FUNCTION__, 0x222b)("./log/DBQueryErr",
+                "CDBManager::OnGoldcardEventStatistic() upDate Error");
+        }
+        if (h->getAffectedRowCount() == 0)
+        {
+            h->set_query(0x4f02,
+                         "inSert into log_goldcard_event(occ_date,level,create_cnt,open_cnt) values(cast(now() as date), %d, %d, %d)",
+                         i, packet->m_items[i].m_createCnt,
+                         packet->m_items[i].m_openCnt);
+            if (h->exec(0x4f02) != 1)
             {
-                CMyFileLog log(__FUNCTION__, 0x222b);
-                log("./log/DBQueryErr",
-                    "CDBManager::OnGoldcardEventStatistic() upDate Error");
-            }
-            if (h->getAffectedRowCount() == 0)
-            {
-                h->set_query(0x4f02,
-                             "inSert into log_goldcard_event(occ_date,level,create_cnt,open_cnt) values(cast(now() as date), %d, %d, %d)",
-                             i, ((GoldcardEventView*)packet)->m_entries[i].m_createCnt,
-                             ((GoldcardEventView*)packet)->m_entries[i].m_openCnt);
-                if (h->exec(0x4f02) != 1)
-                {
-                    CMyFileLog log(__FUNCTION__, 0x2236);
-                    log("./log/DBQueryErr",
-                        "CDBManager::OnGoldcardEventStatistic() inSert Error");
-                }
+                CMyFileLog(__FUNCTION__, 0x2236)("./log/DBQueryErr",
+                    "CDBManager::OnGoldcardEventStatistic() inSert Error");
             }
         }
+        goto gc_join;
+    gc_skip:
+        ;
+    gc_join:
+        ;
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0044 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryUpdateChannelOccNum | 详见 function_reports/dbmw/_ZN10CDBManager24QueryUpdateChannelOccNumEP27Packet_User_Count_Statistic.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0044 已消除）| CDBManager::QueryUpdateChannelOccNum
 bool CDBManager::QueryUpdateChannelOccNum(Packet_User_Count_Statistic* packet)
 {
     if (!packet)
@@ -1516,7 +1495,7 @@ bool CDBManager::QueryUpdateChannelOccNum(Packet_User_Count_Statistic* packet)
             "upDate game_channel Error : channel_no(%d), user_count(%d)",
             packet->m_gcNo, packet->m_userCount);
     }
-    for (unsigned int i = 0; i < 0x64; i++)
+    for (int i = 0; (unsigned int)i < 0x64; i++)
     {
         h->set_query(0x4f29,
                      "upDate channel_occ_info set occ_num=%d where gc_no=%d and age=%d",
@@ -1581,8 +1560,7 @@ char CDBManager::QueryGuildBooting(
                       "seLect a_side_point, b_side_point, winner_side from power_war where server_id = %d",
                       serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0x1297);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x1297)("./log/DBQueryErr",
             "CDBManager::QueryGuildBooting() : seLect a_side_point, b_side_point, winner_side from power_war where server_id = %d",
             serverId);
         return 0;
@@ -1616,63 +1594,64 @@ char CDBManager::QueryHellPartyStatisticItemCreate(
     if (!h)
         return 0;
     int count = 0;
-    char* p = (char*)packet;
-    count = *(int*)(p + 0xa);
-    CMyFileLog log(__FUNCTION__, 0x1848);
-    log("./log/statistic",
+    count = packet->m_count;
+    CMyFileLog(__FUNCTION__, 0x1848)("./log/statistic",
         "Packet_DBMW_HellParty_Statistic_Item : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
         count);
     for (int i = 0; i < count; i++)
     {
-        char* e = p + i * 0x24;
         h->set_query(
             0x4ec0,
             "inSert into log_hellparty_value (occ_time, hellparty_type, dungeon_index, dungeon_diff, party_count, hellparty_diff, update_count, uncommon_count, rare_count, uniq_count, epic_count) values (now(), %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
-            *(unsigned char*)(e + 0xe), *(int*)(e + 0xf),
-            *(signed char*)(e + 0x13), *(signed char*)(e + 0x14),
-            *(signed char*)(e + 0x15), *(int*)(e + 0x16),
-            *(int*)(e + 0x1e), *(int*)(e + 0x22), *(int*)(e + 0x26),
-            *(int*)(e + 0x2a));
+            *(unsigned char*)((char*)packet + i * 0x24 + 0xe),
+            *(int*)((char*)packet + i * 0x24 + 0xf),
+            *(signed char*)((char*)packet + i * 0x24 + 0x13),
+            *(signed char*)((char*)packet + i * 0x24 + 0x14),
+            *(signed char*)((char*)packet + i * 0x24 + 0x15),
+            *(int*)((char*)packet + i * 0x24 + 0x16),
+            *(int*)((char*)packet + i * 0x24 + 0x1e),
+            *(int*)((char*)packet + i * 0x24 + 0x22),
+            *(int*)((char*)packet + i * 0x24 + 0x26),
+            *(int*)((char*)packet + i * 0x24 + 0x2a));
         if (!h->exec(0x4ec0))
         {
-            CMyFileLog log2(__FUNCTION__, 0x185c);
-            log2("./log/statistic",
+            CMyFileLog(__FUNCTION__, 0x185c)("./log/statistic",
                  "\nQueryDeathTowerValueStatisticCreate db error!!\n");
             return 0;
         }
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0050 | dbmw | 与ORIG差异=DIFF | CDBManager::OnSavePacketOverflowWrite | 详见 function_reports/dbmw/_ZN10CDBManager25OnSavePacketOverflowWriteEP37Packet_DBMW_Packet_Overflow_Statistic.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0050 已消除）| CDBManager::OnSavePacketOverflowWrite
 char CDBManager::OnSavePacketOverflowWrite(
     Packet_DBMW_Packet_Overflow_Statistic* packet)
 {
+    bool r;
     CDBHandle* h = m_handles[0xf];  // frame_lag db
     if (!h)
         return 0;
     char name[0x100];
     if (((PacketOverflowView*)packet)->m_packetType == 0)
     {
-        int idx = ((PacketOverflowView*)packet)->m_packetKind;
-        if (idx >= getNotiPacketNameCount())
+        if (((PacketOverflowView*)packet)->m_packetKind >= getNotiPacketNameCount())
             memcpy(name, "???", 4);
         else
-            strcpy(name, g_szNotiPacketName[idx]);
+            strcpy(name, g_szNotiPacketName[((PacketOverflowView*)packet)->m_packetKind]);
     }
     else
     {
-        int idx = ((PacketOverflowView*)packet)->m_packetKind;
-        if (idx >= getCmdPacketNameCount())
+        if (((PacketOverflowView*)packet)->m_packetKind >= getCmdPacketNameCount())
             memcpy(name, "???", 4);
         else
-            strcpy(name, g_szCmdPacketName[idx]);
+            strcpy(name, g_szCmdPacketName[((PacketOverflowView*)packet)->m_packetKind]);
     }
     char sql[0x400];
     sprintf(sql, "upDate packet_overflow set cnt=cnt+%d where packet_type=%d and packet_kind='%s'",
             ((PacketOverflowView*)packet)->m_cnt,
             ((PacketOverflowView*)packet)->m_packetType, name);
     h->set_query(0x4eba, "%s", sql);
-    if (!h->exec(0x4eba) || h->getAffectedRowCount() == 0)
+    r = h->exec(0x4eba);
+    if (!r || h->getAffectedRowCount() == 0)
     {
         memset(sql, 0, 0x400);
         sprintf(sql, "inSert into packet_overflow (packet_type, packet_kind, cnt) values (%d, '%s', %d)",
@@ -1683,28 +1662,28 @@ char CDBManager::OnSavePacketOverflowWrite(
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0059 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryErrorLineStatisticCreate | 详见 function_reports/dbmw/_ZN10CDBManager29QueryErrorLineStatisticCreateEP37Packet_DBMW_Save_Error_Line_Statistic.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0059 已消除）| CDBManager::QueryErrorLineStatisticCreate
 char CDBManager::QueryErrorLineStatisticCreate(
     Packet_DBMW_Save_Error_Line_Statistic* packet)
 {
     time_t now = time(0);
     CDBHandle* h = m_handles[4];    // log db
     int count = 0;
-    char* p = (char*)packet;
-    count = *(int*)(p + 0xa);
+    count = packet->m_count;
     char buf[0x800] = {0};
     std::string sql;
     for (int i = 0; i < count; i++)
     {
-        char* e = p + i * 0xa;
         if (sql.size() != 0)
             sprintf(buf, ",(from_unixtime(%d),%d,%d,%d)", now,
-                    *(unsigned short*)(e + 0x12), *(int*)(e + 0xe),
-                    *(int*)(e + 0x14));
+                    packet->m_items[i].m_errorLine,
+                    packet->m_items[i].m_errorCode,
+                    packet->m_items[i].m_cnt);
         else
             sprintf(buf, "(from_unixtime(%d),%d,%d,%d)", now,
-                    *(unsigned short*)(e + 0x12), *(int*)(e + 0xe),
-                    *(int*)(e + 0x14));
+                    packet->m_items[i].m_errorLine,
+                    packet->m_items[i].m_errorCode,
+                    packet->m_items[i].m_cnt);
         sql += buf;
     }
     h->set_query(0x4e88,
@@ -1714,7 +1693,7 @@ char CDBManager::QueryErrorLineStatisticCreate(
         return 0;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0057 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryTowerOfDespairStatistic | 详见 function_reports/dbmw/_ZN10CDBManager28QueryTowerOfDespairStatisticEP35Packet_TowerOfDespair_Statistic_STD.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0057 已消除）| CDBManager::QueryTowerOfDespairStatistic
 bool CDBManager::QueryTowerOfDespairStatistic(
     Packet_TowerOfDespair_Statistic_STD* packet)
 {
@@ -1725,34 +1704,36 @@ bool CDBManager::QueryTowerOfDespairStatistic(
         return 0;
     for (int i = 1; i <= 0x64; i++)
     {
-        if (((TowerOfDespairView*)packet)->m_entries[i].m_enter != 0 ||
-            ((TowerOfDespairView*)packet)->m_entries[i].m_success != 0)
+        // 负条件 goto + 体内显式 goto join：复现 ORIG 的「skip 岛 + 体尾 jmp」布局（P223）
+        if (packet->m_entries[i].m_enter == 0 &&
+            packet->m_entries[i].m_success == 0)
+            goto tod_skip;
+        h->set_query(0x4f27,
+                     "inSert into log_tower_despair_layer_stat(occ_date,server_id,layer,enter,success) values(now(),%d,%d,%d,%d)",
+                     packet->m_serverId, i,
+                     packet->m_entries[i].m_enter,
+                     packet->m_entries[i].m_success);
+        if (!h->exec(0x4f27))
         {
-            h->set_query(0x4f27,
-                         "inSert into log_tower_despair_layer_stat(occ_date,server_id,layer,enter,success) values(now(),%d,%d,%d,%d)",
-                         ((TowerOfDespairView*)packet)->m_serverId, i,
-                         ((TowerOfDespairView*)packet)->m_entries[i].m_enter,
-                         ((TowerOfDespairView*)packet)->m_entries[i].m_success);
-            if (!h->exec(0x4f27))
-            {
-                CMyFileLog log(__FUNCTION__, 0x27bc);
-                log("./log/DBQueryErr",
-                    "insert error TOD : group(%d),layer(%d),enter(%d),succ(%d)",
-                    ((TowerOfDespairView*)packet)->m_serverId, i,
-                    ((TowerOfDespairView*)packet)->m_entries[i].m_enter,
-                    ((TowerOfDespairView*)packet)->m_entries[i].m_success);
-            }
+            CMyFileLog(__FUNCTION__, 0x27bc)("./log/DBQueryErr",
+                "insert error TOD : group(%d),layer(%d),enter(%d),succ(%d)",
+                packet->m_serverId, i,
+                packet->m_entries[i].m_enter,
+                packet->m_entries[i].m_success);
         }
+        goto tod_join;
+    tod_skip:
+        ;
+    tod_join:
+        ;
     }
     h->set_query(0x4f28,
                  "inSert into log_tower_despair_uv_stat(occ_date,server_id,uv) values(now(),%d,%d)",
-                 ((TowerOfDespairView*)packet)->m_serverId,
-                 ((TowerOfDespairView*)packet)->m_uv);
+                 packet->m_serverId, packet->m_uv);
     if (!h->exec(0x4f28))
     {
-        CMyFileLog log(__FUNCTION__, 0x27c8);
-        log("./log/DBQueryErr", "insert error TOD : uv(%d)",
-            ((TowerOfDespairView*)packet)->m_uv);
+        CMyFileLog(__FUNCTION__, 0x27c8)("./log/DBQueryErr", "insert error TOD : uv(%d)",
+            packet->m_uv);
     }
     return 1;
 }
@@ -1825,14 +1806,14 @@ int CDBManager::GetMaxHuntingPointServerGroup(int serverId)
         return 0;
     return result;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0017 | dbmw | 与ORIG差异=DIFF | CDBManager::updateCollectItems | 详见 function_reports/dbmw/_ZN10CDBManager18updateCollectItemsEhijh.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0017 已消除）| CDBManager::updateCollectItems
 bool CDBManager::updateCollectItems(unsigned char a, int b, unsigned int c,
                                     unsigned char d)
 {
+    bool setQueryOk;
     CDBHandle* h = m_handles[9];    // event db
     if (!h)
         return 0;
-    bool setQueryOk;
     if (d == 0)
     {
         if (b <= 0)
@@ -1857,38 +1838,37 @@ bool CDBManager::updateCollectItems(unsigned char a, int b, unsigned int c,
     }
     if (!setQueryOk)
     {
-        CMyFileLog log(__FUNCTION__, 0x29d6);
-        log("./log/DBQueryErr", "upDate collect_items set Error");
+        CMyFileLog(__FUNCTION__, 0x29d6)("./log/DBQueryErr", "upDate collect_items set Error");
         return 0;
     }
-    if (!h->exec(0x4f4d))
+    setQueryOk = h->exec(0x4f4d);
+    if (!setQueryOk)
     {
-        CMyFileLog log(__FUNCTION__, 0x29df);
-        log("./log/DBQueryErr", "updateCollectItems Query(exec) Error");
+        CMyFileLog(__FUNCTION__, 0x29df)("./log/DBQueryErr", "updateCollectItems Query(exec) Error");
         return 0;
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0025 | dbmw | 与ORIG差异=DIFF | CDBManager::updateCollectItemsGm | 详见 function_reports/dbmw/_ZN10CDBManager20updateCollectItemsGmEhiij.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0025 已消除）| CDBManager::updateCollectItemsGm
 char CDBManager::updateCollectItemsGm(unsigned char a, int b, int c,
                                       unsigned int d)
 {
+    bool ret;
     CDBHandle* h = m_handles[9];    // event db
     if (!h)
         return 0;
-    if (!h->set_query(0x4f4d,
-                      "upDate collect_items set cur_count=%u, total_count=%u, change_flag = 1, full_time=from_unixtime(%d) where server_info = %d",
-                      b, c, d, a))
-    {
-        CMyFileLog log(__FUNCTION__, 0x29f6);
-        log("./log/DBQueryErr", "upDate collect_items set Error");
-        return 0;
-    }
-    bool ret = h->exec(0x4f4d);
+    ret = h->set_query(0x4f4d,
+                       "upDate collect_items set cur_count=%u, total_count=%u, change_flag = 1, full_time=from_unixtime(%d) where server_info = %d",
+                       b, c, d, a);
     if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x29ff);
-        log("./log/DBQueryErr", "updateCollectItems Query(exec) Error");
+        CMyFileLog(__FUNCTION__, 0x29f6)("./log/DBQueryErr", "upDate collect_items set Error");
+        return 0;
+    }
+    ret = h->exec(0x4f4d);
+    if (!ret)
+    {
+        CMyFileLog(__FUNCTION__, 0x29ff)("./log/DBQueryErr", "updateCollectItems Query(exec) Error");
         return 0;
     }
     return 1;
@@ -1899,20 +1879,21 @@ bool CDBManager::insertHolePunchingResult(
 {
     if (!packet)
         return 0;
+    bool inserted;
     CDBHandle* h = m_handles[0xf];  // frame_lag db
     if (!h)
         return 0;
-    if (!h->set_query(0x4f60,
-                      "inSert into p2p_connect_success_rate  (server_group, connected_type, required_time, check_time, nation_code, peer_address, occ_date) values (%d, %d, %d, %d, '%s', '%s', now())",
-                      ((HolePunchingResultView*)packet)->m_fieldA,
-                      ((HolePunchingResultView*)packet)->m_fieldB,
-                      ((HolePunchingResultView*)packet)->m_fieldC,
-                      ((HolePunchingResultView*)packet)->m_fieldD,
-                      ((HolePunchingResultView*)packet)->m_restE,
-                      ((HolePunchingResultView*)packet)->m_restF))
+    inserted = h->set_query(0x4f60,
+                                 "inSert into p2p_connect_success_rate  (server_group, connected_type, required_time, check_time, nation_code, peer_address, occ_date) values (%d, %d, %d, %d, '%s', '%s', now())",
+                                 ((HolePunchingResultView*)packet)->m_fieldA,
+                                 ((HolePunchingResultView*)packet)->m_fieldB,
+                                 ((HolePunchingResultView*)packet)->m_fieldC,
+                                 ((HolePunchingResultView*)packet)->m_fieldD,
+                                 ((HolePunchingResultView*)packet)->m_restE,
+                                 ((HolePunchingResultView*)packet)->m_restF);
+    if (!inserted)
     {
-        CMyFileLog log(__FUNCTION__, 0x2edf);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2edf)("./log/DBQueryErr",
             "set_query(inSert_hole_punching_success_rate_stat)");
         return 0;
     }
@@ -1920,7 +1901,7 @@ bool CDBManager::insertHolePunchingResult(
         return 0;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0046 | dbmw | 与ORIG差异=DIFF | CDBManager::UpdateRandomboxStatistic | 详见 function_reports/dbmw/_ZN10CDBManager24UpdateRandomboxStatisticEP29Packet_Randombox_statistic_DB.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0046 已消除）| CDBManager::UpdateRandomboxStatistic
 bool CDBManager::UpdateRandomboxStatistic(
     Packet_Randombox_statistic_DB* packet)
 {
@@ -1941,17 +1922,16 @@ bool CDBManager::UpdateRandomboxStatistic(
         default:
             break;
         }
-        if (((RandomboxStatisticView*)packet)->m_createCount[i] != 0 ||
-            ((RandomboxStatisticView*)packet)->m_openCount[i] != 0)
+        if (packet->m_typed.m_createCount[i] != 0 ||
+            packet->m_typed.m_openCount[i] != 0)
         {
             h->set_query(0x4eea,
                          "inSert into log_randombox(occ_date, box_kind, create_count, open_count) values(CURDATE(), '%s', %d, %d)",
-                         boxKind, ((RandomboxStatisticView*)packet)->m_createCount[i],
-                         ((RandomboxStatisticView*)packet)->m_openCount[i]);
+                         boxKind, packet->m_typed.m_createCount[i],
+                         packet->m_typed.m_openCount[i]);
             if (!h->exec(0x4eea))
             {
-                CMyFileLog log(__FUNCTION__, 0x207b);
-                log("./log/statistic", "UpdateRandomboxStatistic db error!!\n");
+                CMyFileLog(__FUNCTION__, 0x207b)("./log/statistic", "UpdateRandomboxStatistic db error!!\n");
                 return 0;
             }
         }
@@ -1969,8 +1949,7 @@ char CDBManager::SaveMemberExp(unsigned int characNo, unsigned int exp,
     ret = h->exec(0x4e4d);
     if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x4f1);
-        log("./log/MemberModify",
+        CMyFileLog(__FUNCTION__, 0x4f1)("./log/MemberModify",
             "ERROR  CDBManager::SaveMemberExp   upDate charac_members set exp=%d where charac_no = %d and master_no = %d",
             lev, characNo, exp);
         return 0;
@@ -1987,8 +1966,7 @@ char CDBManager::UpdatePowerSecedeTime(unsigned char serverId,
                       secedeTime, serverId))
     {
         register unsigned int sv = serverId;
-        CMyFileLog log(__FUNCTION__, 0x12fa);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x12fa)("./log/DBQueryErr",
             "CDBManager::SavePowerWarPoint() : upDate guild_info set power_secede_time = now() where guild_id = %d and server_id = %d",
             secedeTime, sv);
         return 0;
@@ -2006,8 +1984,7 @@ bool CDBManager::QueryMsg(Packet_DBMW_Query_Msg* packet)
     if (!ret)
     {
         register char* str = ((QueryMsgView*)packet)->m_query;
-        CMyFileLog log(__FUNCTION__, 0x1db6);
-        log("./log/DBQueryErr", "GetDBMWQueryMsg Query(%s) Error\n",
+        CMyFileLog(__FUNCTION__, 0x1db6)("./log/DBQueryErr", "GetDBMWQueryMsg Query(%s) Error\n",
             str);
         return 0;
     }
@@ -2023,8 +2000,7 @@ bool CDBManager::GetDBMWStatistic(Packet_DBMW_Query_String* packet)
     if (!ret)
     {
         register char* str = ((QueryStringView*)packet)->m_query;
-        CMyFileLog log(__FUNCTION__, 0x1cb8);
-        log("./log/DBQueryErr", "GetDBMWStatistic Query(%s) Error\n",
+        CMyFileLog(__FUNCTION__, 0x1cb8)("./log/DBQueryErr", "GetDBMWStatistic Query(%s) Error\n",
             str);
         return 0;
     }
@@ -2045,13 +2021,12 @@ bool CDBManager::UpdateCreateEmblemStatistic(
                  ((EmblemCreateStatisticView*)packet)->m_grade6);
     if (!h->exec(0x4ee9))
     {
-        CMyFileLog log(__FUNCTION__, 0x1f04);
-        log("./log/statistic", "UpdateCreateEmblemStatistic db error!!\n");
+        CMyFileLog(__FUNCTION__, 0x1f04)("./log/statistic", "UpdateCreateEmblemStatistic db error!!\n");
         return 0;
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0034 | dbmw | 与ORIG差异=DIFF | CDBManager::OnWriteGuildMemberMemo | 详见 function_reports/dbmw/_ZN10CDBManager22OnWriteGuildMemberMemoEP33Packet_DB_Write_Guild_Member_Memo.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0034 已消除）| CDBManager::OnWriteGuildMemberMemo
 char CDBManager::OnWriteGuildMemberMemo(
     Packet_DB_Write_Guild_Member_Memo* packet)
 {
@@ -2059,15 +2034,13 @@ char CDBManager::OnWriteGuildMemberMemo(
     CDBHandle* h = m_handles[8];    // guild db
     unsigned int guildId = packet->m_guildId;
     unsigned int characNo = packet->m_characNo;
-    char buf[0x6002];
-    memset(buf, 0, 0x6002);
+    char buf[0x6002] = {0};
     h->escape_string(buf, packet->m_memo);
     if (!h->set_query(0x4ebb,
                       "upDate guild_member set memo='%s' where guild_id = %d and charac_no = %d",
                       buf, guildId, characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0x1a8e);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x1a8e)("./log/DBQueryErr",
             "CDBManager::OnWriteGuildMemo() upDate guild_member set memo='%s' where guild_id = %d and charac_no = %d",
             buf, guildId, characNo);
         return 0;
@@ -2075,8 +2048,7 @@ char CDBManager::OnWriteGuildMemberMemo(
     r = h->exec(0x4ebb);
     if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x1a96);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x1a96)("./log/DBQueryErr",
             "upDate_into_guild_member_memo Query Error\n");
         return 0;
     }
@@ -2094,8 +2066,7 @@ char CDBManager::OnServerMatchData(Packet_Server_Match_data_DBMW* packet)
     ret = h->exec(0x4ef8);
     if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x219d);
-        log("./log/Except", "OnServerMatchData Error db ");
+        CMyFileLog(__FUNCTION__, 0x219d)("./log/Except", "OnServerMatchData Error db ");
         return 0;
     }
     if (h->getAffectedRowCount() == 0)
@@ -2109,7 +2080,7 @@ char CDBManager::OnServerMatchData(Packet_Server_Match_data_DBMW* packet)
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0009 | dbmw | 与ORIG差异=NEAR | CDBManager::OnManagerEventTriggerAck | 详见 function_reports/dbmw/_ZN10CDBManager24OnManagerEventTriggerAckEP32Packet_Manager_Event_Trigger_Ack.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-NEAR-0009 已消除）| CDBManager::OnManagerEventTriggerAck
 char CDBManager::OnManagerEventTriggerAck(
     Packet_Manager_Event_Trigger_Ack* packet)
 {
@@ -2131,19 +2102,17 @@ char CDBManager::OnManagerEventTriggerAck(
     }
     else
     {
-        CMyFileLog log(__FUNCTION__, 0x2211);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2211)("./log/DBQueryErr",
             "CDBManager::OnManagerEventTriggerAck() Unvalid Kind(%d)", kind);
     }
     if (!h->exec(0x4eff))
     {
-        CMyFileLog log(__FUNCTION__, 0x2215);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2215)("./log/DBQueryErr",
             "CDBManager::OnManagerEventTriggerAck() upDate Error");
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0036 | dbmw | 与ORIG差异=DIFF | CDBManager::OnSaveLoadingTimeReport | 详见 function_reports/dbmw/_ZN10CDBManager23OnSaveLoadingTimeReportEP31Packet_DBMW_Loading_Time_Report.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0036 已消除）| CDBManager::OnSaveLoadingTimeReport
 char CDBManager::OnSaveLoadingTimeReport(
     Packet_DBMW_Loading_Time_Report* packet)
 {
@@ -2156,16 +2125,14 @@ char CDBManager::OnSaveLoadingTimeReport(
         memset(buf, 0, 0x400);
         snprintf(buf, 0x400,
                  "inSert into loading_time (occ_time, server_id, type, load_sec) values (now(), %d, %d, %d)",
-                 ((LoadingTimeReportView*)packet)->m_group[i], i,
-                 (int)((LoadingTimeReportView*)packet)->m_value[i]);
+                 packet->m_group[i], i, packet->m_value[i]);
         h->set_query(0x4ec4, "%s", buf);
         h->exec(0x4ec4);
-        CMyFileLog log(__FUNCTION__, 0x1ae8);
-        log("./log/Statistic", "[LoadingTime] %s", buf);
+        CMyFileLog(__FUNCTION__, 0x1ae8)("./log/Statistic", "[LoadingTime] %s", buf);
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0023 | dbmw | 与ORIG差异=DIFF | CDBManager::OnSaveFatigueBattery | 详见 function_reports/dbmw/_ZN10CDBManager20OnSaveFatigueBatteryEP43Packet_DBMW_Fatigue_Battery_Money_Statistic.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0023 已消除）| CDBManager::OnSaveFatigueBattery
 char CDBManager::OnSaveFatigueBattery(
     Packet_DBMW_Fatigue_Battery_Money_Statistic* packet)
 {
@@ -2174,20 +2141,24 @@ char CDBManager::OnSaveFatigueBattery(
         return 0;
     for (int i = 0; i <= 0x64; i++)
     {
-        if (((FatigueBatteryView*)packet)->m_entries[i].m_fieldA != 0 ||
-            ((FatigueBatteryView*)packet)->m_entries[i].m_fieldA != 0)
-        {
-            h->set_query(0x4ec5,
-                         "inSert into log_fatigue_battery set occ_date = now(), server_id = %d, money = %d, buff = %d",
-                         i, ((FatigueBatteryView*)packet)->m_entries[i].m_fieldA,
-                         ((FatigueBatteryView*)packet)->m_entries[i].m_fieldE);
-            h->exec(0x4ec5);
-            CMyFileLog log(__FUNCTION__, 0x1b23);
-            log("./log/Statistic",
-                "[Fatigue Battery] inSert into log_fatigue_battery set occ_time = now(), server_id = %d, money = %d, buff = %d",
-                i, ((FatigueBatteryView*)packet)->m_entries[i].m_fieldA,
-                ((FatigueBatteryView*)packet)->m_entries[i].m_fieldE);
-        }
+        // 负条件 goto + 体内显式 goto join：复现 ORIG 的「skip 岛 + 体尾 jmp」布局（P223）
+        if (packet->m_typed.m_items[i].m_money == 0 &&
+            packet->m_typed.m_items[i].m_money == 0)
+            goto fatigue_skip;
+        h->set_query(0x4ec5,
+                     "inSert into log_fatigue_battery set occ_date = now(), server_id = %d, money = %d, buff = %d",
+                     i, packet->m_typed.m_items[i].m_money,
+                     packet->m_typed.m_items[i].m_buff);
+        h->exec(0x4ec5);
+        CMyFileLog(__FUNCTION__, 0x1b23)("./log/Statistic",
+            "[Fatigue Battery] inSert into log_fatigue_battery set occ_time = now(), server_id = %d, money = %d, buff = %d",
+            i, packet->m_typed.m_items[i].m_money,
+            packet->m_typed.m_items[i].m_buff);
+        goto fatigue_join;
+    fatigue_skip:
+        ;
+    fatigue_join:
+        ;
     }
     return 1;
 }
@@ -2491,15 +2462,14 @@ int CDBManager::FindCharProxyInArray(ST_MemberProxy* proxies, unsigned int chara
 // [DNF-NONIDENTICAL] DNF-DBM-DIFF-0004 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryMember | 详见 function_reports/dbmw/_ZN10CDBManager11QueryMemberEjR28Packet_DB_Reply_Query_Member.md
 bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member& reply)
 {
-    bool cVar1;
     CDBHandle* h = m_handles[2];    // game db
+    bool cVar1;
     if (!h->set_query(
             0x4e29,
             "seLect 1 as type, master_no, exp, unix_timestamp(create_time), unix_timestamp(delete_time) as charac from charac_members where charac_no = %d union all select 2, charac_no, exp, unix_timestamp(create_time), unix_timestamp(delete_time) from charac_members where master_no = %d",
             characNo, characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0x52d);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x52d)("./log/DBQueryErr",
             "CDBManager::QueryGuildMember() select 1 as type, master_no as charac from charac_members where charac_no = %d union all select 2, charac_no from charac_members where master_no = %d\n",
             characNo, characNo);
         reply.m_flag = 0;
@@ -2509,8 +2479,7 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
     if (!cVar1)
     {
         reply.m_flag = 0;
-        CMyFileLog log(__FUNCTION__, 0x537);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x537)("./log/DBQueryErr",
             "CDBManager::QueryMember() db->exec(select_from_charac_members_for_lower_member_query, Query ID : %d\n",
             characNo);
         return 0;
@@ -2530,8 +2499,7 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
     if (!cVar1)
     {
         reply.m_flag = 0;
-        CMyFileLog log(__FUNCTION__, 0x54f);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x54f)("./log/DBQueryErr",
             "CDBManager::QueryMember() First db->fetch(), Lower, Query ID : %d, n_data : %d\n",
             characNo, n);
         return 0;
@@ -2590,8 +2558,7 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
             if (!cVar1)
             {
                 reply.m_flag = 0;
-                CMyFileLog log(__FUNCTION__, 0x58e);
-                log("./log/DBQueryErr",
+                CMyFileLog(__FUNCTION__, 0x58e)("./log/DBQueryErr",
                     "CDBManager::QueryMember() 1 == type and find lower db->fetch() loop : %d, Lower, Query ID : %d\n",
                     i, characNo);
                 return 0;
@@ -2633,8 +2600,7 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
             if (!cVar1)
             {
                 reply.m_flag = 0;
-                CMyFileLog log(__FUNCTION__, 0x5cb);
-                log("./log/DBQueryErr",
+                CMyFileLog(__FUNCTION__, 0x5cb)("./log/DBQueryErr",
                     "CDBManager::QueryMember() 1 != type and find lower db->fetch() loop, Lower Query ID : %d\n",
                     i, characNo);
                 return 0;
@@ -2657,8 +2623,7 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
     else
     {
         reply.m_flag = 0;
-        CMyFileLog log(__FUNCTION__, 0x5e3);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x5e3)("./log/DBQueryErr",
             "CDBManager::QueryMember() 1 != type and 2 != type, type(%d)\n", type);
         return 0;
     }
@@ -2671,8 +2636,7 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
                       "seLect charac_no, lev, charac_name from charac_info where charac_no in %s",
                       str))
     {
-        CMyFileLog log(__FUNCTION__, 0x5f5);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x5f5)("./log/DBQueryErr",
             "CDBManager::QueryGuildMember() select lev, charac_name from charac_info where charac_no in %s\n",
             str);
         reply.m_flag = 2;
@@ -2740,36 +2704,44 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
     reply.m_flag = 1;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0029 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryGuildMemberProxy | 详见 function_reports/dbmw/_ZN10CDBManager21QueryGuildMemberProxyEjjR18STGuildMemberProxy.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0029 已消除）| CDBManager::QueryGuildMemberProxy
 bool CDBManager::QueryGuildMemberProxy(unsigned int guildId, unsigned int characNo,
                                        STGuildMemberProxy& proxy)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     if (!h->set_query(0x4e54,
                       "seLect charac_no, charac_name, job, lev, grow_type, sex from guild_member where guild_id = %d and charac_no = %d and member_flag = 1",
                       guildId, characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0x25d);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x25d)("./log/DBQueryErr",
             "CDBManager::QueryGuildMemberProxy() seLect charac_no, charac_name, job, lev, grow_type, sex from guild_member where guild_id = %d and charac_no = %d and member_flag = 1",
             guildId, characNo);
         return 0;
     }
-    if (!h->exec(0x4e54))
+    r = h->exec(0x4e54);
+    if (!r)
         return 0;
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
         return 0;
-    if (!h->get_uint(0, (unsigned int&)proxy.m_no))
+    r = h->get_uint(0, (unsigned int&)proxy.m_no);
+    if (!r)
         return 0;
-    if (!h->get_str(1, proxy.m_name, 0x1d))
+    r = h->get_str(1, proxy.m_name, 0x1d);
+    if (!r)
         return 0;
-    if (!h->get_byte(2, (char&)proxy.m_job))
+    r = h->get_byte(2, (char&)proxy.m_job);
+    if (!r)
         return 0;
-    if (!h->get_short(3, (short&)proxy.m_lev))
+    r = h->get_short(3, (short&)proxy.m_lev);
+    if (!r)
         return 0;
-    if (!h->get_byte(4, (char&)proxy.m_growType))
+    r = h->get_byte(4, (char&)proxy.m_growType);
+    if (!r)
         return 0;
-    if (!h->get_byte(5, (char&)proxy.m_sex))
+    r = h->get_byte(5, (char&)proxy.m_sex);
+    if (!r)
         return 0;
     return 1;
 }
@@ -2778,38 +2750,45 @@ bool CDBManager::QueryGuildAllMembersProxy(unsigned int guildId,
                                            STGuildMemberProxy* proxies,
                                            unsigned short& count)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     if (!h->set_query(0x4e23,
                       "seLect charac_no, charac_name, job, lev, grow_type, sex, grade, unix_timestamp(last_play_time), memo from guild_member where guild_id = %d and member_flag = 1 limit %d",
                       guildId, 0x12c))
     {
-        CMyFileLog log(__FUNCTION__, 0x1d7);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x1d7)("./log/DBQueryErr",
             "CDBManager::QueryGuildAllMembersProxy() seLect charac_no, charac_name, job, lev, grow_type, sex, grade, unix_timestamp(last_play_time) from guild_member where guild_id = %d and member_flag = 1 limit %d",
             guildId, 0x12c);
         return 0;
     }
-    char execOk = h->exec(0x4e23);
-    if (execOk != 1)
+    r = h->exec(0x4e23);
+    if (!r)
         return 0;
     count = (unsigned short)h->get_n_rows();
     if (count > 0x12c)
         count = 0x12c;
     for (int i = 0; i < count; i++)
     {
-        if (!h->fetch())
+        r = h->fetch();
+        if (!r)
             return 0;
-        if (!h->get_uint(0, (unsigned int&)proxies[i].m_no))
+        r = h->get_uint(0, (unsigned int&)proxies[i].m_no);
+        if (!r)
             return 0;
-        if (!h->get_str(1, proxies[i].m_name, 0x1d))
+        r = h->get_str(1, proxies[i].m_name, 0x1d);
+        if (!r)
             return 0;
-        if (!h->get_byte(2, (char&)proxies[i].m_job))
+        r = h->get_byte(2, (char&)proxies[i].m_job);
+        if (!r)
             return 0;
-        if (!h->get_short(3, (short&)proxies[i].m_lev))
+        r = h->get_short(3, (short&)proxies[i].m_lev);
+        if (!r)
             return 0;
-        if (!h->get_byte(4, (char&)proxies[i].m_growType))
+        r = h->get_byte(4, (char&)proxies[i].m_growType);
+        if (!r)
             return 0;
-        if (!h->get_byte(5, (char&)proxies[i].m_sex))
+        r = h->get_byte(5, (char&)proxies[i].m_sex);
+        if (!r)
             return 0;
         if (!h->get_ubyte(6, proxies[i].m_grade))
             return 0;
@@ -2976,7 +2955,7 @@ bool CDBManager::GuildJoin(STGuildJoinInfo* info, unsigned int& result)
     result = 0;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0013 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveMemberInsert | 详见 function_reports/dbmw/_ZN10CDBManager16SaveMemberInsertEjjh.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-DBM-DIFF-0013 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveMemberInsert | 详见 function_reports/dbmw/_ZN10CDBManager16SaveMemberInsertEjjh.md
 char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                                   unsigned char type)
 {
@@ -2988,8 +2967,7 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                           "upDate charac_members set master_no = %d , create_time = now() where charac_no = %d",
                           masterNo, characNo))
         {
-            CMyFileLog log(__FUNCTION__, 0x455);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x455)("./log/DBQueryErr",
                 "CDBManager::SaveMemberInsert() upDate charac_members set master_no = %d , create_time = now() where charac_no = %d",
                 masterNo, characNo);
             return 0;
@@ -3001,8 +2979,7 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                               "inSert into charac_members set charac_no=%d, master_no=%d, exp = 0, create_time = now()",
                               characNo, masterNo))
             {
-                CMyFileLog log(__FUNCTION__, 0x466);
-                log("./log/DBQueryErr",
+                CMyFileLog(__FUNCTION__, 0x466)("./log/DBQueryErr",
                     "CDBManager::SaveMemberInsert() inSert into charac_members set charac_no=%d, master_no=%d, exp = 0, create_time = now()",
                     characNo, masterNo);
                 return 0;
@@ -3015,8 +2992,7 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                           "upDate charac_members set charac_no = %d, create_time = now() where charac_no = %d",
                           masterNo, masterNo))
         {
-            CMyFileLog log(__FUNCTION__, 0x47b);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x47b)("./log/DBQueryErr",
                 "CDBManager::SaveMemberInsert() upDate charac_members set charac_no = %d where charac_no = %d",
                 masterNo, masterNo);
             return 0;
@@ -3028,8 +3004,7 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                               "inSert into charac_members set charac_no=%d, master_no=0, exp = 0, create_time = now()",
                               masterNo))
             {
-                CMyFileLog log(__FUNCTION__, 0x488);
-                log("./log/DBQueryErr",
+                CMyFileLog(__FUNCTION__, 0x488)("./log/DBQueryErr",
                     "CDBManager::SaveMemberInsert() inSert into charac_members set charac_no=%d, master_no=0, exp = 0",
                     masterNo);
                 return 0;
@@ -3038,63 +3013,59 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
             if (!r)
                 return 0;
         }
-        return 1;
     }
-    if (type != 1)
-        return 1;
-    if (!h->set_query(0x4e48,
-                      "upDate charac_members set master_no = %d, create_time = now() where charac_no = %d",
-                      masterNo, characNo))
+    else if (type == 1)   // ORIG: 与 type==2 互斥（块尾直接 jmp 到 return 1）
     {
-        CMyFileLog log(__FUNCTION__, 0x49d);
-        log("./log/DBQueryErr",
-            "CDBManager::SaveMemberInsert() upDate charac_members set master_no = %d where charac_no = %d",
-            masterNo, characNo);
-        return 0;
-    }
-    r = h->exec(0x4e48);
-    if (!r || h->getAffectedRowCount() == 0)
-    {
-        if (!h->set_query(0x4e49,
-                          "inSert into charac_members set charac_no=%d, master_no=%d, exp = 0, create_time = now()",
-                          characNo, masterNo))
+        if (!h->set_query(0x4e48,
+                          "upDate charac_members set master_no = %d, create_time = now() where charac_no = %d",
+                          masterNo, characNo))
         {
-            CMyFileLog log(__FUNCTION__, 0x4ae);
-            log("./log/DBQueryErr",
-                "CDBManager::SaveMemberInsert() inSert into charac_members set charac_no=%d, master_no=%d, exp = 0",
-                characNo, masterNo);
+            CMyFileLog(__FUNCTION__, 0x49d)("./log/DBQueryErr",
+                "CDBManager::SaveMemberInsert() upDate charac_members set master_no = %d where charac_no = %d",
+                masterNo, characNo);
             return 0;
         }
-        r = h->exec(0x4e49);
-        if (!r)
-            return 0;
-    }
-    if (!h->set_query(0x4e4a,
-                      "upDate charac_members set create_time = now() where charac_no = %d",
-                      masterNo))
-    {
-        CMyFileLog log(__FUNCTION__, 0x4c2);
-        log("./log/DBQueryErr",
-            "CDBManager::SaveMemberInsert() upDate charac_members set create_time = now() where charac_no = %d",
-            masterNo);
-        return 0;
-    }
-    r = h->exec(0x4e4a);
-    if (!r || h->getAffectedRowCount() == 0)
-    {
-        if (!h->set_query(0x4e46,
-                          "inSert into charac_members set charac_no=%d, master_no=0, exp = 0, create_time=now()",
+        r = h->exec(0x4e48);
+        if (!r || h->getAffectedRowCount() == 0)
+        {
+            if (!h->set_query(0x4e49,
+                              "inSert into charac_members set charac_no=%d, master_no=%d, exp = 0, create_time = now()",
+                              characNo, masterNo))
+            {
+                CMyFileLog(__FUNCTION__, 0x4ae)("./log/DBQueryErr",
+                    "CDBManager::SaveMemberInsert() inSert into charac_members set charac_no=%d, master_no=%d, exp = 0",
+                    characNo, masterNo);
+                return 0;
+            }
+            r = h->exec(0x4e49);
+            if (!r)
+                return 0;
+        }
+        if (!h->set_query(0x4e4a,
+                          "upDate charac_members set create_time = now() where charac_no = %d",
                           masterNo))
         {
-            CMyFileLog log(__FUNCTION__, 0x4cf);
-            log("./log/DBQueryErr",
-                "CDBManager::SaveMemberInsert() inSert into charac_members set charac_no=%d, master_no=0, exp = 0, create_time=now()",
+            CMyFileLog(__FUNCTION__, 0x4c2)("./log/DBQueryErr",
+                "CDBManager::SaveMemberInsert() upDate charac_members set create_time = now() where charac_no = %d",
                 masterNo);
             return 0;
         }
-        r = h->exec(0x4e46);
-        if (!r)
-            return 0;
+        r = h->exec(0x4e4a);
+        if (!r || h->getAffectedRowCount() == 0)
+        {
+            if (!h->set_query(0x4e46,
+                              "inSert into charac_members set charac_no=%d, master_no=0, exp = 0, create_time=now()",
+                              masterNo))
+            {
+                CMyFileLog(__FUNCTION__, 0x4cf)("./log/DBQueryErr",
+                    "CDBManager::SaveMemberInsert() inSert into charac_members set charac_no=%d, master_no=0, exp = 0, create_time=now()",
+                    masterNo);
+                return 0;
+            }
+            r = h->exec(0x4e46);
+            if (!r)
+                return 0;
+        }
     }
     return 1;
 }
@@ -3146,28 +3117,22 @@ bool CDBManager::OnGuildJoinByListApprove(unsigned int guildId,
                       "seLect m_id,born_year from guild_join_list where guild_id=%d and charac_no=%d",
                       guildId, characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0x23d1);
-        log("./log/DBQueryErr", "set_query(seLect_from_guild_join_list) Query Error");
+        CMyFileLog(__FUNCTION__, 0x23d1)("./log/DBQueryErr", "set_query(seLect_from_guild_join_list) Query Error");
         return 0;
     }
     if (!h->exec(0x4f0a) || !h->fetch())
     {
-        CMyFileLog log(__FUNCTION__, 0x23d7);
-        log("./log/DBQueryErr", "exec(seLect_from_guild_join_list) or fetch() Query Error");
+        CMyFileLog(__FUNCTION__, 0x23d7)("./log/DBQueryErr", "exec(seLect_from_guild_join_list) or fetch() Query Error");
         return 0;
     }
-    unsigned int accId;
-    if (!h->get_uint(0, accId))
+    if (!h->get_uint(0, *(unsigned int*)&joinInfo.m_id))
     {
-        CMyFileLog log(__FUNCTION__, 0x23dd);
-        log("./log/DBQueryErr", "get_uint(0, join_info.m_uAccId) Query Error");
+        CMyFileLog(__FUNCTION__, 0x23dd)("./log/DBQueryErr", "get_uint(0, join_info.m_uAccId) Query Error");
         return 0;
     }
-    joinInfo.m_id = accId;
     if (!h->get_str(1, joinInfo.m_bornYear, 3))
     {
-        CMyFileLog log(__FUNCTION__, 0x23e3);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x23e3)("./log/DBQueryErr",
             "get_str(1, join_info.m_bornYear, sizeof(join_info.m_bornYear)) Query Error");
         return 0;
     }
@@ -3175,46 +3140,39 @@ bool CDBManager::OnGuildJoinByListApprove(unsigned int guildId,
                        "seLect charac_name,job,grow_type,lev,sex from charac_info where charac_no=%d",
                        characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0x23ec);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x23ec)("./log/DBQueryErr",
             "set_query(seLect_from_charac_info_with_guild_join_list Query Error");
         return 0;
     }
     if (!h2->exec(0x4f0b) || !h2->fetch())
     {
-        CMyFileLog log(__FUNCTION__, 0x23f2);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x23f2)("./log/DBQueryErr",
             "exec(seLect_from_charac_info_with_guild_join_list) or fetch() Query Error");
         return 0;
     }
     if (!h2->get_str(0, joinInfo.m_characName, 0x1d))
     {
-        CMyFileLog log(__FUNCTION__, 0x240a);
-        log("./log/DBQueryErr", "get_str(0, join_info.m_szJoinCharName) Query Error");
+        CMyFileLog(__FUNCTION__, 0x240a)("./log/DBQueryErr", "get_str(0, join_info.m_szJoinCharName) Query Error");
         return 0;
     }
     if (!h2->get_byte(1, (char&)joinInfo.m_lev))
     {
-        CMyFileLog log(__FUNCTION__, 0x2411);
-        log("./log/DBQueryErr", "get_byte(1, join_info.m_JoinJob) Query Error");
+        CMyFileLog(__FUNCTION__, 0x2411)("./log/DBQueryErr", "get_byte(1, join_info.m_JoinJob) Query Error");
         return 0;
     }
     if (!h2->get_byte(2, (char&)joinInfo.m_growType))
     {
-        CMyFileLog log(__FUNCTION__, 0x2417);
-        log("./log/DBQueryErr", "get_byte(2, join_info.m_JoinGrowType) Query Error");
+        CMyFileLog(__FUNCTION__, 0x2417)("./log/DBQueryErr", "get_byte(2, join_info.m_JoinGrowType) Query Error");
         return 0;
     }
     if (!h2->get_byte(3, (char&)joinInfo.m_job))
     {
-        CMyFileLog log(__FUNCTION__, 0x241d);
-        log("./log/DBQueryErr", "get_byte(3, join_info.m_JoinLevel) Query Error");
+        CMyFileLog(__FUNCTION__, 0x241d)("./log/DBQueryErr", "get_byte(3, join_info.m_JoinLevel) Query Error");
         return 0;
     }
     if (!h2->get_byte(4, (char&)joinInfo.m_sex))
     {
-        CMyFileLog log(__FUNCTION__, 0x2423);
-        log("./log/DBQueryErr", "get_byte(4, join_info.m_JoinSex) Query Error");
+        CMyFileLog(__FUNCTION__, 0x2423)("./log/DBQueryErr", "get_byte(4, join_info.m_JoinSex) Query Error");
         return 0;
     }
     if (!GuildJoin(&joinInfo, result))
@@ -3223,14 +3181,12 @@ bool CDBManager::OnGuildJoinByListApprove(unsigned int guildId,
                       "deLete from guild_join_list where guild_id=%d and charac_no=%d",
                       guildId, characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0x242f);
-        log("./log/DBQueryErr", "set_query(deLete_from_guild_join_list) Query Error");
+        CMyFileLog(__FUNCTION__, 0x242f)("./log/DBQueryErr", "set_query(deLete_from_guild_join_list) Query Error");
         return 0;
     }
     if (!h->exec(0x4f0c))
     {
-        CMyFileLog log(__FUNCTION__, 0x2435);
-        log("./log/DBQueryErr", "guild_db->exec(deLete_from_guild_join_list) Query Error");
+        CMyFileLog(__FUNCTION__, 0x2435)("./log/DBQueryErr", "guild_db->exec(deLete_from_guild_join_list) Query Error");
         return 0;
     }
     return 1;
@@ -3243,9 +3199,9 @@ char CDBManager::QueryPartyStatisticCreate(
     CDBHandle* h = m_handles[4];    // log db
     if (!h)
         return 0;
-    int count = packet->m_count;
-    CMyFileLog log(__FUNCTION__, 0x15b3);
-    log("./log/statistic",
+    int count = 0;
+    count = packet->m_count;
+    CMyFileLog(__FUNCTION__, 0x15b3)("./log/statistic",
         "Packet_DBMW_Dungeon_Statistic_Party : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
         count);
     char buf[0x800] = {0};
@@ -3281,8 +3237,7 @@ char CDBManager::QueryPartyStatisticCreate(
                          sql.c_str());
             if (!h->exec(0x4e99))
             {
-                CMyFileLog log2(__FUNCTION__, 0x15e1);
-                log2("./log/statistic",
+                CMyFileLog(__FUNCTION__, 0x15e1)("./log/statistic",
                      "\nQueryPartyJobStatisticCreate db error!!\n");
                 return 0;
             }
@@ -3299,8 +3254,7 @@ char CDBManager::QueryPartyStatisticCreate(
                  sql.c_str());
     if (!h->exec(0x4e97))
     {
-        CMyFileLog log2(__FUNCTION__, 0x15f0);
-        log2("./log/statistic", "\nQueryPartyStatisticCreate db error!!\n");
+        CMyFileLog(__FUNCTION__, 0x15f0)("./log/statistic", "\nQueryPartyStatisticCreate db error!!\n");
         return 0;
     }
     return 1;
@@ -3313,9 +3267,9 @@ char CDBManager::QueryPartyJobStatisticCreate(
     CDBHandle* h = m_handles[4];    // log db
     if (!h)
         return 0;
-    int count = packet->m_count;
-    CMyFileLog log(__FUNCTION__, 0x1645);
-    log("./log/statistic",
+    int count = 0;
+    count = packet->m_count;
+    CMyFileLog(__FUNCTION__, 0x1645)("./log/statistic",
         "Packet_DBMW_Dungeon_Statistic_Party_Job : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
         count);
     char buf[0x800] = {0};
@@ -3328,14 +3282,14 @@ char CDBManager::QueryPartyJobStatisticCreate(
                     ",(now(),%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)",
                     PM(i)->m_channelNo, PM(i)->m_dungeonIndex, PM(i)->m_dungeonDiff,
                     PM(i)->m_dungeonStandardLevel, PM(i)->m_abuseParty, PM(i)->m_balkunParty,
-                    PM(i)->m_success, PM(i)->m_partyUserCount, PM(i)->m_characJob,
+                    PM(i)->m_success, (int)(unsigned char)PM(i)->m_partyUserCount, PM(i)->m_characJob,
                     PM(i)->m_characGrow, PM(i)->m_jobCount, PM(i)->m_rank);
         else
             sprintf(buf,
                     "(now(),%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)",
                     PM(i)->m_channelNo, PM(i)->m_dungeonIndex, PM(i)->m_dungeonDiff,
                     PM(i)->m_dungeonStandardLevel, PM(i)->m_abuseParty, PM(i)->m_balkunParty,
-                    PM(i)->m_success, PM(i)->m_partyUserCount, PM(i)->m_characJob,
+                    PM(i)->m_success, (int)(unsigned char)PM(i)->m_partyUserCount, PM(i)->m_characJob,
                     PM(i)->m_characGrow, PM(i)->m_jobCount, PM(i)->m_rank);
 #undef PM
         if (sql.length() + 0x800 > 0x6000)
@@ -3345,8 +3299,7 @@ char CDBManager::QueryPartyJobStatisticCreate(
                          sql.c_str());
             if (!h->exec(0x4e99))
             {
-                CMyFileLog log2(__FUNCTION__, 0x166a);
-                log2("./log/statistic",
+                CMyFileLog(__FUNCTION__, 0x166a)("./log/statistic",
                      "\nQueryPartyJobStatisticCreate db error!!\n");
                 return 0;
             }
@@ -3363,8 +3316,7 @@ char CDBManager::QueryPartyJobStatisticCreate(
                  sql.c_str());
     if (!h->exec(0x4e99))
     {
-        CMyFileLog log2(__FUNCTION__, 0x1678);
-        log2("./log/statistic", "\nQueryPartyJobStatisticCreate db error!!\n");
+        CMyFileLog(__FUNCTION__, 0x1678)("./log/statistic", "\nQueryPartyJobStatisticCreate db error!!\n");
         return 0;
     }
     return 1;
@@ -3377,9 +3329,9 @@ char CDBManager::QueryPartyCharacStatisticCreate(
     CDBHandle* h = m_handles[4];    // log db
     if (!h)
         return 0;
-    int count = packet->m_count;
-    CMyFileLog log(__FUNCTION__, 0x16ce);
-    log("./log/statistic",
+    int count = 0;
+    count = packet->m_count;
+    CMyFileLog(__FUNCTION__, 0x16ce)("./log/statistic",
         "Packet_DBMW_Dungeon_Statistic_Party_Charac : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
         count);
     char buf[0x800] = {0};
@@ -3415,8 +3367,7 @@ char CDBManager::QueryPartyCharacStatisticCreate(
                          sql.c_str());
             if (!h->exec(0x4e9b))
             {
-                CMyFileLog log2(__FUNCTION__, 0x16ff);
-                log2("./log/statistic",
+                CMyFileLog(__FUNCTION__, 0x16ff)("./log/statistic",
                      "\nQueryPartyCharacStatisticCreate db error!!\n");
                 return 0;
             }
@@ -3433,24 +3384,22 @@ char CDBManager::QueryPartyCharacStatisticCreate(
                  sql.c_str());
     if (!h->exec(0x4e9b))
     {
-        CMyFileLog log2(__FUNCTION__, 0x170c);
-        log2("./log/statistic", "\nQueryPartyCharacStatisticCreate db error!!\n");
+        CMyFileLog(__FUNCTION__, 0x170c)("./log/statistic", "\nQueryPartyCharacStatisticCreate db error!!\n");
         return 0;
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0005 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveGuildInfo | 详见 function_reports/dbmw/_ZN10CDBManager13SaveGuildInfoEhjR17STGuildDBInfoOnly.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0005 已消除）| CDBManager::SaveGuildInfo
 bool CDBManager::SaveGuildInfo(unsigned char serverGroup, unsigned int guildId,
                                STGuildDBInfoOnly& info)
 {
+    bool updated;
     CDBHandle* h = m_handles[8];    // guild db
     if (info.m_guildName[0] == 0)
     {
-        register unsigned char sg = serverGroup;
-        CMyFileLog log(__FUNCTION__, 0x2e2);
-        log("./log/TraceGuildErr",
+        CMyFileLog(__FUNCTION__, 0x2e2)("./log/TraceGuildErr",
             "CDBManager::SaveGuildInfo server_group(%d), guild_id(%d) GuildName NULL\n",
-            sg, guildId);
+            serverGroup, guildId);
     }
     h->set_query(0x4e25,
                  "upDate guild_info set lev=%d, ability=%d, guild_point=%d, guild_exp = %d, guild_name = '%s', power_side=%d, power_war_point=%d, guild_agit_flag=%d, power_join_count=%d, guild_fund = %d where guild_id = %d",
@@ -3458,7 +3407,8 @@ bool CDBManager::SaveGuildInfo(unsigned char serverGroup, unsigned int guildId,
                  info.m_guildExp, info.m_guildName, info.m_powerSide,
                  info.m_powerWarPoint, info.m_guildAgitFlag,
                  info.m_powerJoinCount, info.m_guildFund, guildId);
-    if (!h->exec(0x4e25))
+    updated = h->exec(0x4e25);
+    if (!updated)
         return 0;
     return 1;
 }
@@ -3484,7 +3434,7 @@ CDBManager::~CDBManager()
         }
     }
 }
-char CDBManager::Open(ENUM_DB_HANDLE_IDX idx, const char* host, unsigned int port,
+bool CDBManager::Open(ENUM_DB_HANDLE_IDX idx, const char* host, unsigned int port,
                       const char* user, const char* pass, const char* db)
 {
     return ((CMySql*)m_handles[idx])->open(host, port, user, pass, db);
@@ -3612,8 +3562,7 @@ char CDBManager::LoadQueryIdTable()
     CDBHandle* h = m_handles[6];    // sso db
     if (!h->set_query(0x4f61, "seLect q_id from log_query_dbmw_ref"))
     {
-        CMyFileLog log(__FUNCTION__, 0xcb6);
-        log("./log/DBQueryErr", "seLect q_id from log_query_dbmw_ref");
+        CMyFileLog(__FUNCTION__, 0xcb6)("./log/DBQueryErr", "seLect q_id from log_query_dbmw_ref");
         return 0;
     }
     ret = h->exec(0x4f61);
@@ -3684,8 +3633,7 @@ char CDBManager::OnSavePowerwarLagReport(
         h->set_query(0x4eca, "%s", packet->m_sql[i]);
         h->exec(0x4eca);
         register char* q = packet->m_sql[i];
-        CMyFileLog log(__FUNCTION__, 0x1b0f);
-        log("./log/Statistics", "[PowerWar Lag] %s", q);
+        CMyFileLog(__FUNCTION__, 0x1b0f)("./log/Statistics", "[PowerWar Lag] %s", q);
     }
     return 1;
 }
@@ -3711,8 +3659,7 @@ char CDBManager::OnReasonCrashDownQueryWrite(
     if (!ok)
     {
         register char* q = packet->m_query;
-        CMyFileLog log(__FUNCTION__, 0x1d53);
-        log("./log/StatisticsErr", "Query Error : %s",
+        CMyFileLog(__FUNCTION__, 0x1d53)("./log/StatisticsErr", "Query Error : %s",
             q);
         return 0;
     }
@@ -3730,8 +3677,7 @@ char CDBManager::OnSavePowerwarLoadingReport(
         h->set_query(0x4ec9, "%s", packet->m_sql[i]);
         h->exec(0x4ec9);
         register char* q = packet->m_sql[i];
-        CMyFileLog log(__FUNCTION__, 0x1afc);
-        log("./log/Statistics", "[PowerWar LoadingTime] %s", q);
+        CMyFileLog(__FUNCTION__, 0x1afc)("./log/Statistics", "[PowerWar LoadingTime] %s", q);
     }
     return 1;
 }
@@ -3766,8 +3712,7 @@ char CDBManager::OnTechnicalReportCommonQuery(
     if (!ret)
     {
         register char* q = packet->m_query;
-        CMyFileLog log(__FUNCTION__, 0x2188);
-        log("./log/TechnicalReport", "OnTechnicalReportCommonQuery Error (%s)", q);
+        CMyFileLog(__FUNCTION__, 0x2188)("./log/TechnicalReport", "OnTechnicalReportCommonQuery Error (%s)", q);
     }
     return 1;
 }
@@ -3783,7 +3728,7 @@ char CDBManager::SunAhWriteQuery(
         return 0;
     return 1;
 }
-char CDBManager::Open(ENUM_DB_HANDLE_IDX idx, const char* host,
+bool CDBManager::Open(ENUM_DB_HANDLE_IDX idx, const char* host,
                       const char* user, const char* pass, const char* db)
 {
     return m_handles[idx]->open(host, user, pass, db);
@@ -3830,8 +3775,7 @@ char CDBManager::OnUpgradeGuildAgit(Packet_DB_Upgrade_Guild_Agit* req,
     if (!ret)
     {
         reply.m_result = 2;
-        CMyFileLog log(__FUNCTION__, 0x19ea);
-        log("./log/DBQueryErr", "OnUpgradeGuildAgit Query Error\n");
+        CMyFileLog(__FUNCTION__, 0x19ea)("./log/DBQueryErr", "OnUpgradeGuildAgit Query Error\n");
         return 0;
     }
     reply.m_result = 0;
@@ -3890,7 +3834,7 @@ bool CDBManager::QueryGuildWarPointList(int guildWarPoint, CGuildManager* gm)
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0026 | dbmw | 与ORIG差异=DIFF | CDBManager::AwardGuildTitleByMail | 详见 function_reports/dbmw/_ZN10CDBManager21AwardGuildTitleByMailEijjPcj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0026 已消除）| CDBManager::AwardGuildTitleByMail
 bool CDBManager::AwardGuildTitleByMail(int guildId, unsigned int characNo,
                                        unsigned int itemId, char* guildName,
                                        unsigned int item)
@@ -3902,8 +3846,7 @@ bool CDBManager::AwardGuildTitleByMail(int guildId, unsigned int characNo,
                       "seLect charac_no from guild_member where guild_id = %d and server_id = %d and member_flag = 1",
                       characNo, guildId))
     {
-        CMyFileLog log(__FUNCTION__, 0x82b);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x82b)("./log/DBQueryErr",
             "CDBManager::AwardGuildTitleByMail() select charac_no from guild_member where server_id = %d and guild_id = %d and member_flag = 1\n",
             guildId, characNo);
         return 0;
@@ -3912,6 +3855,7 @@ bool CDBManager::AwardGuildTitleByMail(int guildId, unsigned int characNo,
     if (!ok)
         return 0;
     int n = h->get_n_rows();
+    unsigned int titleNo;
     time_t t = time(0);
     struct tm* now = localtime(&t);
     now->tm_hour += 1;
@@ -3923,7 +3867,6 @@ bool CDBManager::AwardGuildTitleByMail(int guildId, unsigned int characNo,
         ok = h->fetch();
         if (!ok)
             return 0;
-        unsigned int titleNo = 0;
         ok = h->get_uint(0, titleNo);
         if (!ok)
             return 0;
@@ -3933,8 +3876,7 @@ bool CDBManager::AwardGuildTitleByMail(int guildId, unsigned int characNo,
                 "inSert into postal (occ_time, send_charac_no, receive_charac_no, seal_flag, item_id, add_info, endurance, upgrade, gold, send_charac_name ) values ( from_unixtime( %d ), %d, %d, %d, %d, %d, %d, %d, %d,'%s')",
                 awardTime, 0, titleNo, 0, itemId, rand, item, 0, 0, guildName))
         {
-            CMyFileLog log(__FUNCTION__, 0x87d);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x87d)("./log/DBQueryErr",
                 "CDBManager::AwardGuildTitleByMail() Fatal Error Break : insert into postal (occ_time, send_charac_no, receive_charac_no, seal_flag, item_id, add_info, endurance, upgrade, gold, send_charac_name ) values ( from_unixtime( %d ), %d, %d, %d, %d, %d, %d, %d, %d,'%s')\n",
                 awardTime, 0, titleNo, 0, itemId, rand, 0, 0, 0, guildName);
         }
@@ -3943,56 +3885,54 @@ bool CDBManager::AwardGuildTitleByMail(int guildId, unsigned int characNo,
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0021 | dbmw | 与ORIG差异=DIFF | CDBManager::RegisterToBlackList | 详见 function_reports/dbmw/_ZN10CDBManager19RegisterToBlackListEjjPc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0021 已消除）| CDBManager::RegisterToBlackList
 bool CDBManager::RegisterToBlackList(unsigned int m_id, unsigned int characNo,
                                      char* characName)
 {
+    bool r;
     CDBHandle* h = m_handles[3];    // game db
     if (!h->set_query(0x4e3f,
                       "inSert into charac_black_list( m_id, charac_no, charac_name,  occ_time ) values( %s, %d, '%s', now() )",
                       NumberToString(m_id, 0), characNo, characName))
     {
-        char* midStr = NumberToString(m_id, 0);
-        CMyFileLog log(__FUNCTION__, 0x9fd);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x9fd)("./log/DBQueryErr",
             "CDBManager::RegisterToBlackList() inSert into charac_black_list( m_id, charac_no, charac_name,  occ_time ) values( %s, %d, '%s', now() )",
-            midStr, characNo, characName);
+            NumberToString(m_id, 0), characNo, characName);
         return 0;
     }
-    if (!h->exec(0x4e3f))
+    r = h->exec(0x4e3f);
+    if (!r)
         return 0;
     if (!h->set_query(0x4e41,
                       "upDate charac_black_info set black_point = black_point + 1 where charac_no = %d",
                       characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0xa0e);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xa0e)("./log/DBQueryErr",
             "CDBManager::RegisterToBlackList() upDate charac_black_info set black_point = black_point + 1 where charac_no = %d",
             characNo);
         return 0;
     }
-    h->exec(0x4e41);
-    if (h->getAffectedRowCount() == 0)
+    r = h->exec(0x4e41);
+    if (!r || h->getAffectedRowCount() == 0)
     {
         if (!h->set_query(0x4e43,
                           "inSert into charac_black_info( charac_no, black_point,  offset_point ) values( %d, 1, 0 )",
                           characNo))
         {
-            CMyFileLog log(__FUNCTION__, 0xa17);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0xa17)("./log/DBQueryErr",
                 "CDBManager::RegisterToBlackList() inSert into charac_black_info( charac_no, black_point,  offset_point ) values( %d, 1, 0 )",
                 characNo);
             return 0;
         }
-        if (!h->exec(0x4e43))
+        r = h->exec(0x4e43);
+        if (!r)
             return 0;
     }
     if (!h->set_query(0x4ed4,
                       "seLect black_point,offset_point,unix_timestamp(problem_child_time) from charac_black_info where charac_no=%d",
                       characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0xa24);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xa24)("./log/DBQueryErr",
             "CDBManager::RegisterToBlackList() seLect black_point,offset_point from charac_black_info where charac_no=%d",
             characNo);
         return 0;
@@ -4002,15 +3942,13 @@ bool CDBManager::RegisterToBlackList(unsigned int m_id, unsigned int characNo,
     int n = h->get_n_rows();
     if (n > 1)
     {
-        CMyFileLog log(__FUNCTION__, 0xa2c);
-        log("./log/BlackListModify",
+        CMyFileLog(__FUNCTION__, 0xa2c)("./log/BlackListModify",
             "CDBManager::RegisterToBlackList() idata > 1 seLect black_point,offset_point from charac_black_info where charac_no=%d",
             characNo);
     }
     if (!h->fetch())
     {
-        CMyFileLog log(__FUNCTION__, 0xa32);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xa32)("./log/DBQueryErr",
             "CDBManager::RegisterToBlackList() !db->fetch() seLect black_point,offset_point from charac_black_info where charac_no=%d",
             characNo);
         return 0;
@@ -4020,24 +3958,21 @@ bool CDBManager::RegisterToBlackList(unsigned int m_id, unsigned int characNo,
     unsigned int problemTime = 0;  // -0x70
     if (!h->get_int(0, blackPoint))
     {
-        CMyFileLog log(__FUNCTION__, 0xa3b);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xa3b)("./log/DBQueryErr",
             "CDBManager::RegisterToBlackList() !db->fetch() seLect black_point,offset_point from charac_black_info where charac_no=%d",
             characNo);
         return 0;
     }
     if (!h->get_int(1, offsetPoint))
     {
-        CMyFileLog log(__FUNCTION__, 0xa40);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xa40)("./log/DBQueryErr",
             "CDBManager::RegisterToBlackList() !db->fetch() seLect black_point,offset_point from charac_black_info where charac_no=%d",
             characNo);
         return 0;
     }
     if (!h->get_uint(2, problemTime))
     {
-        CMyFileLog log(__FUNCTION__, 0xa45);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xa45)("./log/DBQueryErr",
             "CDBManager::RegisterToBlackList() !db->fetch() seLect black_point,offset_point from charac_black_info where charac_no=%d",
             characNo);
         return 0;
@@ -4048,13 +3983,13 @@ bool CDBManager::RegisterToBlackList(unsigned int m_id, unsigned int characNo,
                           "upDate charac_black_info set problem_child_time = now() where charac_no = %d",
                           characNo))
         {
-            CMyFileLog log(__FUNCTION__, 0xa4e);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0xa4e)("./log/DBQueryErr",
                 "CDBManager::RegisterToBlackList() upDate charac_black_info set problem_child_time = now() where charac_no = %d",
                 characNo);
             return 0;
         }
-        if (!h->exec(0x4ed5))
+        r = h->exec(0x4ed5);
+        if (!r)
             return 0;
     }
     return 1;
@@ -4064,6 +3999,7 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
                              unsigned int& characNo, unsigned int& m_id,
                              unsigned int& result)
 {
+    bool r;
     result = 2;
     CDBHandle* h = m_handles[8];    // guild db
     CDBHandle* h2 = m_handles[2];   // game db
@@ -4074,37 +4010,37 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
                           "seLect charac_no,grade from guild_member where guild_id = %d and charac_name = '%s' and member_flag = 1",
                           req->m_guildId, req->m_characName))
         {
-            CMyFileLog log(__FUNCTION__, 0xfaf);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0xfaf)("./log/DBQueryErr",
                 "CDBManager::GuildSecede()seLect charac_no from guild_member where guild_id = %d and charac_name = '%s' and member_flag = 1",
                 req->m_guildId, req->m_characName);
             return 0;
         }
-        if (!h->exec(0x4e66))
+        r = h->exec(0x4e66);
+        if (!r)
         {
-            CMyFileLog log(__FUNCTION__, 0xfb6);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0xfb6)("./log/DBQueryErr",
                 "CDBManager::GuildSecede() db->exec() seLect charac_no from guild_member where guild_id = %d and charac_name = '%s' and member_flag = 1",
                 req->m_guildId, req->m_characName);
             return 0;
         }
-        if (!h->fetch())
+        r = h->fetch();
+        if (!r)
         {
             result = 0x22;
             return 0;
         }
-        if (!h->get_uint(0, characNo))
+        r = h->get_uint(0, characNo);
+        if (!r)
         {
-            CMyFileLog log(__FUNCTION__, 0xfc4);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0xfc4)("./log/DBQueryErr",
                 "CDBManager::GuildSecede() db->get_uint() seLect charac_no from guild_member where guild_id = %d and charac_name = '%s' and member_flag = 1",
                 req->m_guildId, req->m_characName);
             return 0;
         }
-        if (!h->get_byte(1, grade))
+        r = h->get_byte(1, grade);
+        if (!r)
         {
-            CMyFileLog log(__FUNCTION__, 0xfcc);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0xfcc)("./log/DBQueryErr",
                 "CDBManager::GuildSecede() db->get_uint() seLect grade from guild_member where guild_id = %d and charac_name = '%s' and member_flag = 1",
                 req->m_guildId, req->m_characName);
             return 0;
@@ -4117,9 +4053,11 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
         return 0;
     if (!h->exec(0x4e83))
         return 0;
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
         return 0;
-    if (!h->get_int(0, memberCount))
+    r = h->get_int(0, memberCount);
+    if (!r)
         return 0;
     if (req->m_grade == 2 && req->m_masterCharacNo == (int)characNo)
     {
@@ -4146,16 +4084,15 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
                        "upDate charac_info set guild_id = 0 where charac_no = %d",
                        characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0x100f);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x100f)("./log/DBQueryErr",
             "CDBManager::GuildSecede() upDate charac_info set guild_id = 0 where charac_no = %d",
             characNo);
         return 0;
     }
-    if (!h2->exec(0x4e68))
+    r = h2->exec(0x4e68);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x1016);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x1016)("./log/DBQueryErr",
             "CDBManager::GuildSecede() upDate charac_info set guild_id = 0 where charac_no = %d",
             characNo);
         return 0;
@@ -4164,16 +4101,15 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
                       "upDate guild_member set member_flag = 2, secede_time = now(), secede_type = %d where guild_id = %d and charac_no = %d",
                       req->m_grade - 1, req->m_guildId, characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0x1023);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x1023)("./log/DBQueryErr",
             "CDBManager::GuildSecede()upDate guild_member set member_flag = 2 where guild_id = %d and charac_no = %d and member_flag = 1",
             req->m_guildId, characNo);
         return 0;
     }
-    if (!h->exec(0x4e67))
+    r = h->exec(0x4e67);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x102b);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x102b)("./log/DBQueryErr",
             "CDBManager::GuildSecede()upDate guild_member set member_flag = 2 where guild_id = %d and charac_no = %d and member_flag = 1",
             req->m_guildId, characNo);
         return 0;
@@ -4182,32 +4118,30 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
                       "seLect count(*) from guild_member where guild_id = %d and member_flag = 1",
                       req->m_guildId))
     {
-        CMyFileLog log(__FUNCTION__, 0x1034);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x1034)("./log/DBQueryErr",
             "CDBManager::GuildSecede() seLect count(*) from guild_member where guild_id = %d and member_flag = 1",
             req->m_guildId);
         return 0;
     }
     if (!h->exec(0x4e83))
     {
-        CMyFileLog log(__FUNCTION__, 0x1039);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x1039)("./log/DBQueryErr",
             "CDBManager::GuildSecede() seLect count(*) from guild_member where guild_id = %d and member_flag = 1",
             req->m_guildId);
         return 0;
     }
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x103f);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x103f)("./log/DBQueryErr",
             "CDBManager::GuildSecede() db->fetch() seLect count(*) from guild_member where guild_id = %d and member_flag = 1",
             req->m_guildId);
         return 0;
     }
-    if (!h->get_int(0, memberCount))
+    r = h->get_int(0, memberCount);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x1046);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x1046)("./log/DBQueryErr",
             "CDBManager::GuildSecede() db->get_int() seLect count(*) from guild_member where guild_id = %d and member_flag = 1",
             req->m_guildId);
         return 0;
@@ -4218,16 +4152,14 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
                           "upDate guild_info set member_count = %d where guild_id = %d",
                           memberCount, req->m_guildId))
         {
-            CMyFileLog log(__FUNCTION__, 0x104e);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x104e)("./log/DBQueryErr",
                 "CDBManager::GuildSecede() upDate guild_info set member_count = %d where guild_id = %d seceded(%d)",
                 memberCount, req->m_guildId, characNo);
             return 0;
         }
         if (!h->exec(0x4e74))
         {
-            CMyFileLog log(__FUNCTION__, 0x1053);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x1053)("./log/DBQueryErr",
                 "CDBManager::GuildSecede() upDate guild_info set member_count = %d where guild_id = %d seceded(%d)",
                 memberCount, req->m_guildId, characNo);
             return 0;
@@ -4239,29 +4171,29 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
                            "seLect m_id from charac_info where charac_no = %u",
                            characNo))
         {
-            CMyFileLog log(__FUNCTION__, 0x105f);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x105f)("./log/DBQueryErr",
                 "CDBManager::GuildSecede() seLect m_id from charac_info where charac_no = %u",
                 characNo);
             return 0;
         }
-        if (!h2->exec(0x4f01))
+        r = h2->exec(0x4f01);
+        if (!r)
         {
-            CMyFileLog log(__FUNCTION__, 0x1067);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x1067)("./log/DBQueryErr",
                 "CDBManager::GuildSecede() seLect m_id from charac_info where charac_no = %u",
                 characNo);
             return 0;
         }
-        if (!h2->fetch())
+        r = h2->fetch();
+        if (!r)
         {
             result = 0x22;
             return 0;
         }
-        if (!h2->get_uint(0, m_id))
+        r = h2->get_uint(0, m_id);
+        if (!r)
         {
-            CMyFileLog log(__FUNCTION__, 0x1076);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x1076)("./log/DBQueryErr",
                 "CDBManager::GuildSecede()  db->get_uint() seLect m_id from charac_info where charac_no = %u",
                 characNo);
             return 0;
@@ -4320,36 +4252,39 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
 bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
                                   unsigned int& guildId, unsigned int& result)
 {
+    bool r;
     result = 0;
     CDBHandle* h = m_handles[8];    // guild db
-    CDBHandle* unused = m_handles[5];
     CDBHandle* h2 = m_handles[2];   // game db
+    CDBHandle* unused = m_handles[5];
     (void)unused;
     if (!h->set_query(0x4e6b,
                       "seLect member_flag, unix_timestamp(secede_time) from guild_member where charac_no = %d and server_id = %d",
                       req->m_characNo, req->m_serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0x110a);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x110a)("./log/DBQueryErr",
             "seLect member_flag from guild_member where server_id = %d and charac_no = %d",
             req->m_serverId, req->m_characNo);
         result = 2;
         return 0;
     }
-    if (!h->exec(0x4e6b))
+    r = h->exec(0x4e6b);
+    if (!r)
     {
         result = 2;
         return 0;
     }
     if (h->get_n_rows() != 0)
     {
-        if (!h->fetch())
+        r = h->fetch();
+        if (!r)
         {
             result = 0x22;
             return 0;
         }
         int memberFlag = 0;
-        if (!h->get_uint(0, (unsigned int&)memberFlag))
+        r = h->get_uint(0, (unsigned int&)memberFlag);
+        if (!r)
         {
             result = 2;
             return 0;
@@ -4361,8 +4296,9 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
         }
         if (memberFlag == 2)
         {
-            unsigned int secedeTime = 0;
-            if (!h->get_uint(1, secedeTime))
+            unsigned int secedeTime;
+            r = h->get_uint(1, secedeTime);
+            if (!r)
                 return 0;
             if (!isDayTimeOver(secedeTime, 3))
             {
@@ -4376,16 +4312,14 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
         result = 2;
         if (req->m_characName[0] == 0)
         {
-            CMyFileLog log(__FUNCTION__, 0x114f);
-            log("./log/TraceGuildErr",
+            CMyFileLog(__FUNCTION__, 0x114f)("./log/TraceGuildErr",
                 "CDBManager::QueryGuildCreate server_group(%d), charac_no(%d) CharacName NULL\n",
                 req->m_serverId, req->m_characNo);
             return 0;
         }
         else
         {
-            CMyFileLog log(__FUNCTION__, 0x1151);
-            log("./log/TraceGuildErr",
+            CMyFileLog(__FUNCTION__, 0x1151)("./log/TraceGuildErr",
                 "CDBManager::QueryGuildCreate server_group(%d), charac_no(%d) GuildName NULL\n",
                 req->m_serverId, req->m_characNo);
         }
@@ -4399,7 +4333,8 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
         result = 2;
         return 0;
     }
-    if (!h->exec(0x4e6c))
+    r = h->exec(0x4e6c);
+    if (!r)
     {
         result = 2;
         return 0;
@@ -4411,24 +4346,24 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
     h->set_query(0x4f5f,
                  "upDate guild_info set guild_url='%s' where guild_id=%d",
                  url.c_str(), guildId);
-    if (!h->exec(0x4f5f) || h->getAffectedRowCount() == 0)
+    r = h->exec(0x4f5f);
+    if (!r || h->getAffectedRowCount() == 0)
         result = 2;
     h->set_query(0x4e6d,
                  "upDate guild_member set guild_id=%d,m_id=%s,charac_name='%s',grade=1,job=%d,grow_type=%d,lev=%d,born_year='%s',sex=%d,apply_time=now(),member_time=now(),member_flag=1 where charac_no=%d and server_id=%d",
                  guildId, NumberToString(req->m_id, 0), req->m_characName,
                  req->m_job, req->m_growType, req->m_lev, req->m_bornYear,
                  req->m_sex, req->m_characNo, req->m_serverId);
-    if (h->exec(0x4e6d) && h->getAffectedRowCount() != 0)
-    {
-    }
-    else
+    r = h->exec(0x4e6d);
+    if (!r || h->getAffectedRowCount() == 0)
     {
         h->set_query(0x4e6e,
                      "inSert into guild_member set guild_id=%d,charac_no=%d,m_id=%s,server_id=%d,charac_name='%s',grade=1,job=%d,grow_type=%d,lev=%d,born_year='%s',sex=%d,apply_time=now(),member_time=now(),member_flag=1",
                      guildId, req->m_characNo, NumberToString(req->m_id, 0),
                      req->m_serverId, req->m_characName, req->m_job,
                      req->m_growType, req->m_lev, req->m_bornYear, req->m_sex);
-        if (!h->exec(0x4e6e))
+        r = h->exec(0x4e6e);
+        if (!r)
             result = 2;
     }
     if (!h->set_query(0x4e6f,
@@ -4438,7 +4373,8 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
         result = 2;
         return 0;
     }
-    if (!h->exec(0x4e6f))
+    r = h->exec(0x4e6f);
+    if (!r)
         result = 2;
     if (!h->set_query(0x4e70,
                       "inSert into guild_member_introduce set guild_id=%d,charac_no=%d",
@@ -4447,7 +4383,8 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
         result = 2;
         return 0;
     }
-    if (!h->exec(0x4e70))
+    r = h->exec(0x4e70);
+    if (!r)
         result = 2;
     if (!h->set_query(0x4e71,
                       "inSert into guild_visit set guild_id=%d,server_id=%d, total_visit=0, today_visit=0",
@@ -4456,14 +4393,16 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
         result = 2;
         return 0;
     }
-    if (!h->exec(0x4e71))
+    r = h->exec(0x4e71);
+    if (!r)
         result = 2;
     if (!h->set_query(0x4e72, "inSert into guild_skill set guild_id=%d", guildId))
     {
         result = 2;
         return 0;
     }
-    if (!h->exec(0x4e72))
+    r = h->exec(0x4e72);
+    if (!r)
         result = 2;
     if (!h2->set_query(0x4e73,
                        "upDate charac_info set guild_id=%d where m_id=%s and charac_no=%d",
@@ -4472,7 +4411,8 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
         result = 2;
         return 0;
     }
-    if (!h2->exec(0x4e73))
+    r = h2->exec(0x4e73);
+    if (!r)
         result = 2;
     return 1;
 }
@@ -4613,7 +4553,7 @@ bool CDBManager::onItemLimitEditionUpdateData(
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0003 | dbmw | 与ORIG差异=NEAR | CDBManager::QueryGuild | 详见 function_reports/dbmw/_ZN10CDBManager10QueryGuildEhjR27Packet_DB_Reply_Query_Guild.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-NEAR-0003 已消除）| CDBManager::QueryGuild
 bool CDBManager::QueryGuild(unsigned char serverGroup, unsigned int guildId,
                             Packet_DB_Reply_Query_Guild& reply)
 {
@@ -4623,8 +4563,7 @@ bool CDBManager::QueryGuild(unsigned char serverGroup, unsigned int guildId,
                       "seLect guild_name, master_no, lev, ability, member_count, guild_rank, guild_point, guild_exp, power_side, unix_timestamp(power_secede_time), power_war_point, guild_agit_flag, power_join_count, guild_fund,master_name from guild_info where guild_id = %d and server_id = %d and expire_flag = 0",
                       guildId, serverGroup))
     {
-        CMyFileLog log(__FUNCTION__, 0x97);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x97)("./log/DBQueryErr",
             "CDBManager::QueryGuild() select guild_name, master_no, lev, ability, member_count, guild_rank, guild_point, guild_exp from guild_info where guild_id = %d\n",
             guildId);
         reply.m_result = 0;
@@ -4715,8 +4654,7 @@ char CDBManager::SaveServerQueueLoadStatistic(unsigned char type, int kind,
     ret = h->exec(0x4ecd);
     if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x1c5f);
-        log("./log/DBQueryErr", "SaveServerQueueLoadStatistic Query Error");
+        CMyFileLog(__FUNCTION__, 0x1c5f)("./log/DBQueryErr", "SaveServerQueueLoadStatistic Query Error");
     }
     return 1;
 }
@@ -4728,8 +4666,7 @@ char CDBManager::UpdateGuildWarPointList(int serverId, int rank)
                       "upDate guild_info set guild_war_point = 1000 where server_id = %d and expire_flag = 0 and guild_rank <= %d",
                       serverId, 0xa))
     {
-        CMyFileLog log(__FUNCTION__, 0x9d2);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x9d2)("./log/DBQueryErr",
             "CDBManager::UpdateGuildWarPointList() update guild_info set guild_war_point = 1000 where server_id = %d and expire_flag = 0 and guild_rank <= %d",
             serverId, 0xa);
         return 0;
@@ -4865,8 +4802,7 @@ char CDBManager::OnUpgradeGuildCargo(Packet_DB_Guild_Cargo_Upgrade* packet)
             ((GuildCargoUpgradeView*)packet)->m_fieldE;
         register unsigned int g =
             ((GuildCargoUpgradeView*)packet)->m_fieldA;
-        CMyFileLog log(__FUNCTION__, 0x1bec);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x1bec)("./log/DBQueryErr",
             "OnUpgradeGuildCargo Query Error(G:%d,U:%d,Capa:%d)",
             g, u, c);
         return 0;
@@ -4901,8 +4837,7 @@ char CDBManager::OnStatisticNumOfOccupations(
     ret = h->exec(0x4eeb);
     if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x20b6);
-        log("./log/Statistics", "OnStatisticNumOfOccupations db insert error");
+        CMyFileLog(__FUNCTION__, 0x20b6)("./log/Statistics", "OnStatisticNumOfOccupations db insert error");
     }
     return 1;
 }
@@ -4912,23 +4847,26 @@ Packet_Result_OnTimeEvent_Idx::Packet_Result_OnTimeEvent_Idx()
     m_maxNo = 0;
     m_result = 0;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0033 | dbmw | 与ORIG差异=DIFF | CDBManager::OnStatisticLoginLogout | 详见 function_reports/dbmw/_ZN10CDBManager22OnStatisticLoginLogoutEP34Packet_DBMW_Statistic_Login_Logout.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0033 已消除）| CDBManager::OnStatisticLoginLogout
 char CDBManager::OnStatisticLoginLogout(
     Packet_DBMW_Statistic_Login_Logout* packet)
 {
+    bool inserted;
     CDBHandle* h = m_handles[4];    // log db
-    time_t now = time(0);
-    for (int i = 0; i < packet->m_count; i++)
+    time_t now = 0;
+    time(&now);
+    int i;
+    for (i = 0; i < packet->m_count; i++)
     {
         h->set_query(0x4eeb,
                      "inSert into log_login_logout(occ_time,channel_no,event_type,count) values (from_unixtime(%d),%d,%d,%d)",
-                     now, *(unsigned char*)((char*)packet + i * 6 + 0xe),
-                     *(unsigned char*)((char*)packet + i * 6 + 0xf),
+                     now, packet->m_items[i].m_channelNo,
+                     packet->m_items[i].m_eventType,
                      packet->m_items[i].m_count);
-        if (!h->exec(0x4eeb))
+        inserted = h->exec(0x4eeb);
+        if (!inserted)
         {
-            CMyFileLog log(__FUNCTION__, 0x2099);
-            log("./log/Statistics", "OnStatisticLoginLogout db insert error");
+            CMyFileLog(__FUNCTION__, 0x2099)("./log/Statistics", "OnStatisticLoginLogout db insert error");
         }
     }
     return 1;
@@ -4940,8 +4878,7 @@ char CDBManager::QueryOnTimeEventIdx(Packet_Result_OnTimeEvent_Idx& rpy)
     if (!h->set_query(0x4f14,
                       "seLect ifnull(max(no), 1) from event_1112_ontime_info"))
     {
-        CMyFileLog log(__FUNCTION__, 0x244e);
-        log("./log/DBQueryErr", "set_query(seLect_from_event_ontime_idx) Query Error");
+        CMyFileLog(__FUNCTION__, 0x244e)("./log/DBQueryErr", "set_query(seLect_from_event_ontime_idx) Query Error");
         return 0;
     }
     if (!h->exec(0x4f14) || !h->fetch())
@@ -5062,6 +4999,7 @@ char CDBManager::QueryReloadSpecDb(Packet_Frame_Lag_Statistic_Reload_Spec* req,
 char CDBManager::InsertFrameLagStatistics(
     Packet_Frame_Lag_Statistic_Write_Lag_Index* packet, CStatisticsServer* stats)
 {
+    bool r;
     CDBHandle* h = m_handles[0xf];    // frame_lag db
     if (!h)
         return 0;
@@ -5082,7 +5020,8 @@ char CDBManager::InsertFrameLagStatistics(
                  v->m_crashLoad,
                  v->m_villageToDungeonLag,
                  v->m_dungeonToVillageLag);
-    if (!h->exec(0x4e8c))
+    r = h->exec(0x4e8c);
+    if (!r)
         return 0;
     char buf[0x20];
     for (int kind = 0; kind <= 5; kind++)
@@ -5134,13 +5073,15 @@ char CDBManager::InsertFrameLagStatistics(
                      v->m_kinds[kind].m_time5,
                      v->m_kinds[kind].m_frame6,
                      v->m_kinds[kind].m_time6);
-        if (!h->exec(0x4e8d))
+        r = h->exec(0x4e8d);
+        if (!r)
             return 0;
     }
     h->set_query(0x4e8e,
                  "select unique_id from monitoring_spec where spec_id = %d",
                  v->m_specId);
-    if (!h->exec(0x4e8e))
+    r = h->exec(0x4e8e);
+    if (!r)
         return 0;
     if (h->get_n_rows() != 0)
         return 1;
@@ -5248,7 +5189,7 @@ bool CDBManager::QueryTodayGuildMember(unsigned int guildId,
         memset(member, 0, 0x27);
         if (!h->fetch())
             return 0;
-        if (!h->get_uint(0, p->m_characNo))
+        if (!h->get_uint(0, *(unsigned int*)&p->m_characNo))
             return 0;
         if (!h->get_str(1, p->m_name, 0x1d))
             return 0;
@@ -5267,11 +5208,23 @@ bool CDBManager::QueryTodayGuildMember(unsigned int guildId,
     }
     if (vec.size() <= 0x13)
         return 1;
-    STTodayGuildMember& m = vec[rand() % vec.size()];
     // ORIG 逐字段拷贝 0x27 字节（9 dword + word + byte，写 reply +0xe..+0x34）。
     // sizeof(STTodayGuildMember) 因对齐为 0x28，memcpy 会越界多写 +0x35 一字节，
     // 与 ORIG 语义不符（ORIG 汇编见 md：mov %ecx,0xe(%edx) ... mov %al,0x34(%edx)）。
-    memcpy(reply.m_data, &m, 0x27);
+    // N84：ORIG 为结构体整体赋值的逐字段展开（9 dword + word + byte），
+    // 用等宽 packed 镜像视图复现；memcpy 会退化成 call。
+    struct __attribute__((packed)) STTodayGuildMemberCopy
+    {
+        unsigned int m_characNo;
+        char m_name[0x1e];
+        unsigned char m_grade;
+        unsigned char m_job;
+        unsigned char m_growType;
+        unsigned char m_sex;
+        unsigned char m_lev;
+    };
+    *(STTodayGuildMemberCopy*)reply.m_data =
+        *(const STTodayGuildMemberCopy*)&vec[rand() % vec.size()];
     vec.clear();
     return 1;
 }
@@ -5356,17 +5309,17 @@ char CDBManager::QueryHWspecCreate(
 char CDBManager::OnLoadGuildCargoHistory(
     unsigned int guildId, Packet_Guild_Load_Guild_Cargo_History& reply)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     char buf[0xff] = {0};
     sprintf(buf, "guild_cargo_history_%d", guildId % 10);
     h->set_query(0x4ed8,
                  "seLect occ_time,behavior,charac_name,item_id,add_info,random_option from %s where guild_id=%d order by occ_time desc limit %d",
                  buf, guildId, 0x32);
-    char r = h->exec(0x4ed8);
+    r = h->exec(0x4ed8);
     if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x1b63);
-        log("./log/DBQueryErr", "OnLoadGuildCargoHistory Query Error");
+        CMyFileLog(__FUNCTION__, 0x1b63)("./log/DBQueryErr", "OnLoadGuildCargoHistory Query Error");
         return 0;
     }
     reply.m_count = h->get_n_rows();
@@ -5468,6 +5421,7 @@ bool CDBManager::OnLoadGuildBoard(int guildId, int& count,
                                   STGuildBoardDBInfo* boards)
 {
     bool ok;
+    unsigned int m_id;
     CDBHandle* h = m_handles[5];    // sso db
     h->set_query(0x4f07,
                  "seLect no, m_id, charac_no, charac_name, memo, unix_timestamp(create_time), job from guild_memo where guild_id=%d order by no desc limit %d",
@@ -5475,166 +5429,167 @@ bool CDBManager::OnLoadGuildBoard(int guildId, int& count,
     ok = h->exec(0x4f07);
     if (!ok)
     {
-        CMyFileLog log(__FUNCTION__, 0x2292);
-        log("./log/DBQueryErr", "OnLoadGuildBoard Query Error");
+        CMyFileLog(__FUNCTION__, 0x2292)("./log/DBQueryErr", "OnLoadGuildBoard Query Error");
         return 0;
     }
-    count = h->get_n_rows();
+    count = (int)h->get_n_rows();
     if (count == 0)
         return 0;
+    m_id = 0;
     unsigned int i = 0;
     while (i < (unsigned int)count)
     {
-        unsigned int m_id = 0;
         if (!h->fetch())
             return 0;
-        STGuildBoardDBInfo* b = &boards[i];
-        if (!h->get_uint(0, *(unsigned int*)&b->m_no))
+        if (!h->get_uint(0, *(unsigned int*)&boards[i].m_no))
             return 0;
         if (!h->get_uint(1, m_id))
             return 0;
-        if (!h->get_uint(2, *(unsigned int*)&b->m_characNo))
+        if (!h->get_uint(2, *(unsigned int*)&boards[i].m_characNo))
             return 0;
-        if (!h->get_str(3, b->m_member.m_name, 0x1e))
+        if (!h->get_str(3, boards[i].m_member.m_name, 0x1e))
             return 0;
-        if (!h->get_str(4, b->m_pre, 0x78))
+        if (!h->get_str(4, boards[i].m_pre, 0x78))
             return 0;
-        if (!h->get_uint(5, *(unsigned int*)&b->m_createTime))
+        if (!h->get_uint(5, *(unsigned int*)&boards[i].m_createTime))
             return 0;
-        if (!h->get_byte(6, *(char*)&b->m_member.m_job))
+        if (!h->get_byte(6, *(char*)&boards[i].m_member.m_job))
             return 0;
         if (m_id == 0)
-            b->m_characNo = 0;
+            boards[i].m_characNo = 0;
+        m_id = 0;
         i++;
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0016 | dbmw | 与ORIG差异=DIFF | CDBManager::selectCollectItems | 详见 function_reports/dbmw/_ZN10CDBManager18selectCollectItemsEhRiS0_RjRh.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0016 已消除）| CDBManager::selectCollectItems
 bool CDBManager::selectCollectItems(unsigned char serverInfo, int& curCount,
                                     int& totalCount, unsigned int& changeFlag,
                                     unsigned char& fullTime)
 {
+    bool r;
     CDBHandle* h = m_handles[9];    // +0x24
+    int col;
     if (!h)
         return 0;
-    if (!h->set_query(0x4f4c,
-                      "seLect cur_count, total_count, change_flag, unix_timestamp(full_time) from collect_items where server_info = %d",
-                      serverInfo))
+    r = h->set_query(0x4f4c,
+                     "seLect cur_count, total_count, change_flag, unix_timestamp(full_time) from collect_items where server_info = %d",
+                     serverInfo);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x2977);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2977)("./log/DBQueryErr",
             "seLect cur_count, total_count from collect_items Error");
         return 0;
     }
-    if (!h->exec(0x4f4c))
+    r = h->exec(0x4f4c);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x2981);
-        log("./log/DBQueryErr", "selectCollectItems Query(exec) Error");
+        CMyFileLog(__FUNCTION__, 0x2981)("./log/DBQueryErr", "selectCollectItems Query(exec) Error");
         return 0;
     }
     if (h->get_n_rows() == 0)
     {
-        CMyFileLog log(__FUNCTION__, 0x2987);
-        log("./log/DBQueryErr", "selectCollectItems (Row_Data Not Exist) Error");
+        CMyFileLog(__FUNCTION__, 0x2987)("./log/DBQueryErr", "selectCollectItems (Row_Data Not Exist) Error");
         return 0;
     }
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x298e);
-        log("./log/DBQueryErr", "selectCollectItems Query(fetch) Error");
+        CMyFileLog(__FUNCTION__, 0x298e)("./log/DBQueryErr", "selectCollectItems Query(fetch) Error");
         return 0;
     }
-    if (!h->get_int(0, curCount))
+    col = 0;
+    r = h->get_int(col++, curCount);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x2997);
-        log("./log/DBQueryErr", "selectCollectItems (get_uint(cur_count_)) Error");
+        CMyFileLog(__FUNCTION__, 0x2997)("./log/DBQueryErr", "selectCollectItems (get_uint(cur_count_)) Error");
         return 0;
     }
-    if (!h->get_int(1, totalCount))
+    r = h->get_int(col++, totalCount);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x299e);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x299e)("./log/DBQueryErr",
             "selectCollectItems (get_uint(total_count_) Error");
         return 0;
     }
-    if (!h->get_ubyte(2, fullTime))
+    r = h->get_ubyte(col++, fullTime);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x29a5);
-        log("./log/DBQueryErr", "selectCollectItems (get_ubyte(change_flag) Error");
+        CMyFileLog(__FUNCTION__, 0x29a5)("./log/DBQueryErr", "selectCollectItems (get_ubyte(change_flag) Error");
         return 0;
     }
-    if (!h->get_uint(3, changeFlag))
+    r = h->get_uint(col++, changeFlag);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x29ac);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x29ac)("./log/DBQueryErr",
             "selectCollectItems (get_uint(total_count_) Error");
         return 0;
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0063 | dbmw | 与ORIG差异=DIFF | CDBManager::updateNexonPinPcRoomPlayTimeEvent | 详见 function_reports/dbmw/_ZN10CDBManager33updateNexonPinPcRoomPlayTimeEventEhjRjPcj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0063 已消除）| CDBManager::updateNexonPinPcRoomPlayTimeEvent
 bool CDBManager::updateNexonPinPcRoomPlayTimeEvent(
     unsigned char serverInfo, unsigned int m_id, unsigned int& pinNo,
     char* nexonPin, unsigned int len)
 {
+    bool r;
     CDBHandle* h = m_handles[9];    // +0x24
     if (!h)
         return 0;
-    if (!h->set_query(0x4f4e,
-                      "seLect no, nexon_pin from event_pcroom_time_nexon_cash where server_info = %d and m_id = 0 order by no asc limit 1",
-                      serverInfo))
+    r = h->set_query(0x4f4e,
+                     "seLect no, nexon_pin from event_pcroom_time_nexon_cash where server_info = %d and m_id = 0 order by no asc limit 1",
+                     serverInfo);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x2a16);
-        log("./log/DBQueryErr", "seLect NexonPinPcRoomPlayTime set Error");
+        CMyFileLog(__FUNCTION__, 0x2a16)("./log/DBQueryErr", "seLect NexonPinPcRoomPlayTime set Error");
         return 0;
     }
-    if (!h->exec(0x4f4e))
+    r = h->exec(0x4f4e);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x2a1e);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2a1e)("./log/DBQueryErr",
             "selectNexonPinPcRoomPlayTime Query(exec) Error");
         return 0;
     }
     if (h->get_n_rows() == 0)
     {
-        CMyFileLog log(__FUNCTION__, 0x2a24);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2a24)("./log/DBQueryErr",
             "selectNexonPinPcRoomPlayTime (Row_Data Not Exist) Error");
         return 0;
     }
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x2a2b);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2a2b)("./log/DBQueryErr",
             "selectNexonPinPcRoomPlayTime Query(fetch) Error");
         return 0;
     }
-    if (!h->get_uint(0, pinNo))
+    r = h->get_uint(0, pinNo);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x2a32);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2a32)("./log/DBQueryErr",
             "selectNexonPinPcRoomPlayTime (get_uint(pin_num)) Error");
         return 0;
     }
-    if (!h->get_str(1, nexonPin, len))
+    r = h->get_str(1, nexonPin, len);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x2a39);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2a39)("./log/DBQueryErr",
             "selectNexonPinPcRoomPlayTime (get_str(nexon_pin)) Error");
         return 0;
     }
-    if (!h->set_query(0x4f4f,
-                      "upDate event_pcroom_time_nexon_cash set m_id = %d, occ_date = now() where no = %d",
-                      m_id, pinNo))
+    r = h->set_query(0x4f4f,
+                     "upDate event_pcroom_time_nexon_cash set m_id = %d, occ_date = now() where no = %d",
+                     m_id, pinNo);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x2a43);
-        log("./log/DBQueryErr", "upDate NexonPinPcRoomPlayTime set Error");
+        CMyFileLog(__FUNCTION__, 0x2a43)("./log/DBQueryErr", "upDate NexonPinPcRoomPlayTime set Error");
         return 0;
     }
-    if (!h->exec(0x4f4f))
+    r = h->exec(0x4f4f);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x2a4b);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2a4b)("./log/DBQueryErr",
             "upDate updateNexonPinPcRoomPlayTime Query(exec) Error");
         return 0;
     }
@@ -5644,6 +5599,7 @@ bool CDBManager::updateNexonPinPcRoomPlayTimeEvent(
 char CDBManager::OnSaveAssertManagerInfoWrite(
     Packet_DBMW_Assert_Manager_Info_Write_Query* packet)
 {
+    bool r;
     CDBHandle* h = m_handles[0xf];    // frame_lag db
     if (!h)
         return 0;
@@ -5655,33 +5611,42 @@ char CDBManager::OnSaveAssertManagerInfoWrite(
         char buf3[0x100];
         memset(buf1, 0, 0x400);
         memset(buf2, 0, 0x100);
-        char* entry = (char*)packet + i * 0x206;
-        if (strlen(entry + 0xe) > 0xfe || entry[0xe] == 0)
+        if (strlen(((AssertManagerWriteElemView*)((char*)packet +
+                i * 0x206))->m_fileName) > 0xfe ||
+            ((AssertManagerWriteElemView*)((char*)packet +
+                i * 0x206))->m_fileName[0] == 0)
         {
-            CMyFileLog log(__FUNCTION__, 0x1a0e);
-            log("./log/Statistics", "Assert Manager Error : %s", entry + 0xe);
+            CMyFileLog(__FUNCTION__, 0x1a0e)("./log/Statistics", "Assert Manager Error : %s",
+                ((AssertManagerWriteElemView*)((char*)packet +
+                    i * 0x206))->m_fileName);
             continue;
         }
-        h->escape_string(buf2, entry + 0xe);
+        h->escape_string(buf2, ((AssertManagerWriteElemView*)((char*)packet +
+            i * 0x206))->m_fileName);
         memset(buf3, 0, 0x100);
-        h->escape_string(buf3, entry + 0x114);
+        h->escape_string(buf3, ((AssertManagerWriteElemView*)((char*)packet +
+            i * 0x206))->m_reason);
         sprintf(buf1,
                 "upDate assert_manager set cnt=cnt+%d where file_name='%s' and file_line=%d and reason='%s'",
-                *(int*)(entry + 0x110), buf2,
-                *(unsigned short*)(entry + 0x10e), buf3);
+                ((AssertManagerWriteElemView*)((char*)packet +
+                    i * 0x206))->m_cnt, buf2,
+                ((AssertManagerWriteElemView*)((char*)packet +
+                    i * 0x206))->m_fileLine, buf3);
         h->set_query(0x4eb8, "%s", buf1);
-        if (!h->exec(0x4eb8) || h->getAffectedRowCount() == 0)
+        r = h->exec(0x4eb8);
+        if (!r || h->getAffectedRowCount() == 0)
         {
             memset(buf1, 0, 0x400);
             sprintf(buf1,
                     "inSert into assert_manager (file_name, file_line, reason, cnt) values ('%s', %d, '%s', %d)",
-                    buf2, *(unsigned short*)(entry + 0x10e), buf3,
-                    *(int*)(entry + 0x110));
+                    buf2, ((AssertManagerWriteElemView*)((char*)packet +
+                        i * 0x206))->m_fileLine, buf3,
+                    ((AssertManagerWriteElemView*)((char*)packet +
+                        i * 0x206))->m_cnt);
             h->set_query(0x4eb7, "%s", buf1);
             h->exec(0x4eb7);
         }
-        CMyFileLog log(__FUNCTION__, 0x1a2e);
-        log("./log/Statistic", "Exec Query : %s", buf1);
+        CMyFileLog(__FUNCTION__, 0x1a2e)("./log/Statistic", "Exec Query : %s", buf1);
     }
     return 1;
 }
@@ -5692,9 +5657,9 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
     CDBHandle* h = m_handles[4];    // log db
     if (!h)
         return 0;
-    int count = ((CubeStatisticView*)packet)->m_count;
-    CMyFileLog slog(__FUNCTION__, 0x1872);
-    slog("./log/statistic",
+    int count = 0;
+    count = ((CubeStatisticView*)packet)->m_count;
+    CMyFileLog(__FUNCTION__, 0x1872)("./log/statistic",
          "CDBManager::QueryCubeStatisticCreate : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n", count);
     char buf[0x800] = {0};
     std::string str;
@@ -5725,8 +5690,7 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
                          str.c_str());
             if (!h->exec(0x4ec2))
             {
-                CMyFileLog log(__FUNCTION__, 0x1895);
-                log("./log/statistic",
+                CMyFileLog(__FUNCTION__, 0x1895)("./log/statistic",
                     "\nQueryCubeStatisticCreate db1 error!!\n");
                 return 0;
             }
@@ -5743,8 +5707,7 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
                  str.c_str());
     if (!h->exec(0x4ec2))
     {
-        CMyFileLog log(__FUNCTION__, 0x18a2);
-        log("./log/statistic", "\nQueryCubeStatisticCreate db1 error!!\n");
+        CMyFileLog(__FUNCTION__, 0x18a2)("./log/statistic", "\nQueryCubeStatisticCreate db1 error!!\n");
         return 0;
     }
     return 1;
@@ -5753,39 +5716,38 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
 char CDBManager::SaveUnchangableGuildInfo(
     Packet_UnChangable_GuildInfo_Save* packet)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     if (*(char*)((char*)packet + 0x12) == 0)
     {
-        int characNo = packet->m_characNo;
-        int guildId = packet->m_guildId;
-        CMyFileLog log(__FUNCTION__, 0x1313);
-        log("./log/TraceGuildErr",
+        CMyFileLog(__FUNCTION__, 0x1313)("./log/TraceGuildErr",
             "CDBManager::SaveUnchangableGuildInfo guild(%d), charac_no(%d)\n",
-            guildId, characNo);
+            packet->m_guildId, packet->m_characNo);
         return 0;
     }
     if (!h->set_query(0x4e86,
                       "seLect master_no from guild_info where guild_id = %d and expire_flag = 0",
                       packet->m_guildId))
     {
-        CMyFileLog log(__FUNCTION__, 0x1319);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x1319)("./log/DBQueryErr",
             "CDBManager::SaveUnchangableGuildInfo() seLect master_no from guild_info where guild_id = %d and expire_flag = 0",
             packet->m_guildId);
         return 0;
     }
-    if (!h->exec(0x4e86))
+    r = h->exec(0x4e86);
+    if (!r)
         return 0;
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x1327);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x1327)("./log/DBQueryErr",
             "CDBManager::SaveUnchangableGuildInfo() seLect master_no from guild_info where guild_id = %d and expire_flag = 0, fetch()",
             packet->m_guildId);
         return 0;
     }
-    unsigned int masterNo = 0;
-    if (!h->get_uint(0, masterNo))
+    unsigned int masterNo;
+    r = h->get_uint(0, masterNo);
+    if (!r)
         return 0;
     if (packet->m_characNo == (int)masterNo)
     {
@@ -5793,16 +5755,15 @@ char CDBManager::SaveUnchangableGuildInfo(
                           "upDate guild_info set master_name='%s' where guild_id=%d and expire_flag = 0",
                           (char*)packet + 0x12, packet->m_guildId))
         {
-            CMyFileLog log(__FUNCTION__, 0x1348);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x1348)("./log/DBQueryErr",
                 "CDBManager::SaveUnchangableGuildInfo() : upDate guild_info set master_name='%s' where guild_id=%d and expire_flag = 0",
                 (char*)packet + 0x12, packet->m_guildId);
             return 0;
         }
-        if (!h->exec(0x4e87))
+        r = h->exec(0x4e87);
+        if (!r)
         {
-            CMyFileLog log(__FUNCTION__, 0x134f);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x134f)("./log/DBQueryErr",
                 "CDBManager::SaveUnchangableGuildInfo() : upDate guild_info set master_name='%s' where guild_id=%d and expire_flag = 0, exe()",
                 (char*)packet + 0x12, packet->m_guildId);
             return 0;
@@ -5815,17 +5776,16 @@ char CDBManager::SaveUnchangableGuildInfo(
                           (char*)packet + 0x12, packet->m_guildId,
                           packet->m_characNo))
         {
-            CMyFileLog log(__FUNCTION__, 0x135e);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x135e)("./log/DBQueryErr",
                 "CDBManager::SaveUnchangableGuildInfo() : upDate guild_member set charac_name=%s where guild_id=%d and charac_no=%d",
                 (char*)packet + 0x12, packet->m_guildId,
                 packet->m_characNo);
             return 0;
         }
-        if (!h->exec(0x4e84))
+        r = h->exec(0x4e84);
+        if (!r)
         {
-            CMyFileLog log(__FUNCTION__, 0x1369);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x1369)("./log/DBQueryErr",
                 "CDBManager::SaveUnchangableGuildInfo() : upDate guild_member set charac_name=%s where guild_id=%d and charac_no=%d, exe()",
                 (char*)packet + 0x12, packet->m_guildId,
                 packet->m_characNo);
@@ -5851,26 +5811,24 @@ bool CDBManager::InsertLetter(unsigned int characNo, unsigned int sendCharacNo,
     letterNo = GetIdentity(h);
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0067 | dbmw | 与ORIG差异=DIFF | CDBManager::AddBuddy | 详见 function_reports/dbmw/_ZN10CDBManager8AddBuddyEjPcR13STBuddyDBInfoRi.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0067 已消除）| CDBManager::AddBuddy
 char CDBManager::AddBuddy(unsigned int characNo, char* name,
                           STBuddyDBInfo& info, int& result)
 {
     result = 3;
-    char buf[0x3b] = {0};
-    unsigned int m_id = 0;
+    unsigned int m_id;
     bool r;
     CDBHandle* h = m_handles[2];    // game db
     int n;
-    void* gm;
+    WongWork::CGMAccounts* gm;
     memcpy((char*)&info, name, 0x1d);
+    char buf[0x3b] = {0};
     h->escape_string(buf, name);
-    r = h->set_query(0x4e50,
-                     "seLect charac_no, lev, job, grow_type, sex, m_id, charac_name from charac_info where charac_name = '%s' and delete_flag = 0",
-                     buf);
-    if (!r)
+    if (!h->set_query(0x4e50,
+                      "seLect charac_no, lev, job, grow_type, sex, m_id, charac_name from charac_info where charac_name = '%s' and delete_flag = 0",
+                      buf))
     {
-        CMyFileLog log(__FUNCTION__, 0xb8a);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xb8a)("./log/DBQueryErr",
             "seLect charac_no, lev, job, grow_type, sex from charac_info where charac_name = '%s' and delete_flag = 0",
             buf);
         return 0;
@@ -5883,8 +5841,7 @@ char CDBManager::AddBuddy(unsigned int characNo, char* name,
         return 0;
     if (n > 1)
     {
-        CMyFileLog log(__FUNCTION__, 0xb9e);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xb9e)("./log/DBQueryErr",
             "CDBManager::AddBuddy() : n_data != 1( %d ) \n", n);
     }
     r = h->fetch();
@@ -5908,10 +5865,10 @@ char CDBManager::AddBuddy(unsigned int characNo, char* name,
     r = h->get_uint(5, m_id);
     if (!r)
         return 0;
-    gm = m_app->GetGMAccounts();
+    gm = (WongWork::CGMAccounts*)m_app->GetGMAccounts();
     if (gm)
     {
-        if (((WongWork::CGMAccounts*)gm)->isGM(m_id))
+        if (gm->isGM(m_id))
         {
             result = 0x5a;
             return 0;
@@ -5928,40 +5885,46 @@ char CDBManager::AddBuddy(unsigned int characNo, char* name,
     result = 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0110 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryIPCounter | 详见 function_reports/dbmw/_ZN10CDBManager14QueryIPCounterEhRSt6vectorI18st_ip_counter_listSaIS1_EERS0_I23st_full_ip_counter_listSaIS5_EE.md
 bool CDBManager::QueryIPCounter(
     unsigned char serverGroup, std::vector<st_ip_counter_list>& ipList,
     std::vector<st_full_ip_counter_list>& fullIpList)
 {
+    bool r;
     CDBHandle* h = m_handles[6];    // guild db
     if (!h->set_query(0x4eda,
                       "seLect hack_type, hack_sub_type, c_class_ip, cnt from  auto_punish_hack_ip where occ_date = now() and cnt >= %d",
                       serverGroup))
     {
-        CMyFileLog log("QueryIPCounter", 0x1cd3);
-        log("./log/DBQueryErr",
+        CMyFileLog("QueryIPCounter", 0x1cd3)("./log/DBQueryErr",
             "CDBManager::QueryIPCounter() seLect hack_type, hack_sub_type, c_class_ip, cnt from  auto_punish_hack_ip where occ_date = now() and cnt >= %d \n",
             serverGroup);
         return 0;
     }
-    if (!h->exec(0x4eda))
+    r = h->exec(0x4eda);
+    if (!r)
         return 0;
     int n = h->get_n_rows();
-    CMyFileLog log1("QueryIPCounter", 0x1cdf);
-    log1("./log/Secu", "[IP Counter] QueryIPCounter (cnt>%d) : %d \n",
+    CMyFileLog("QueryIPCounter", 0x1cdf)("./log/Secu", "[IP Counter] QueryIPCounter (cnt>%d) : %d \n",
          serverGroup, n);
     for (int i = 0; i < n; i++)
     {
-        if (!h->fetch())
+        r = h->fetch();
+        if (!r)
             return 0;
         st_ip_counter_list item;
-        if (!h->get_ushort(0, item.m_hackType))
+        r = h->get_ushort(0, item.m_hackType);
+        if (!r)
             return 0;
-        if (!h->get_ushort(1, item.m_hackSubType))
+        r = h->get_ushort(1, item.m_hackSubType);
+        if (!r)
             return 0;
         memset(item.m_cClassIp, 0, sizeof(item.m_cClassIp));
-        if (!h->get_str(2, item.m_cClassIp, 0xc))
+        r = h->get_str(2, item.m_cClassIp, 0xc);
+        if (!r)
             return 0;
-        if (!h->get_uint(3, item.m_cnt))
+        r = h->get_uint(3, item.m_cnt);
+        if (!r)
             return 0;
         ipList.push_back(item);
     }
@@ -5969,31 +5932,35 @@ bool CDBManager::QueryIPCounter(
                       "seLect hack_type, hack_sub_type, full_ip, cnt from  auto_punish_hack_full_ip where occ_date = now() and cnt >= %d",
                       serverGroup))
     {
-        CMyFileLog log("QueryIPCounter", 0x1d0f);
-        log("./log/DBQueryErr",
+        CMyFileLog("QueryIPCounter", 0x1d0f)("./log/DBQueryErr",
             "CDBManager::QueryIPCounter() seLect hack_type, hack_sub_type, full_ip, cnt from  auto_punish_hack_full_ip where occ_date = now() and cnt >= %d \n",
             serverGroup);
         return 0;
     }
-    if (!h->exec(0x4edb))
+    r = h->exec(0x4edb);
+    if (!r)
         return 0;
     n = h->get_n_rows();
-    CMyFileLog log2("QueryIPCounter", 0x1d1b);
-    log2("./log/Secu", "[D_IP Counter] QueryIPCounter (cnt>%d) : %d \n",
+    CMyFileLog("QueryIPCounter", 0x1d1b)("./log/Secu", "[D_IP Counter] QueryIPCounter (cnt>%d) : %d \n",
          serverGroup, n);
     for (int j = 0; j < n; j++)
     {
-        if (!h->fetch())
+        r = h->fetch();
+        if (!r)
             return 0;
         st_full_ip_counter_list item;
-        if (!h->get_ushort(0, item.m_hackType))
+        r = h->get_ushort(0, item.m_hackType);
+        if (!r)
             return 0;
-        if (!h->get_ushort(1, item.m_hackSubType))
+        r = h->get_ushort(1, item.m_hackSubType);
+        if (!r)
             return 0;
         memset(item.m_fullIp, 0, sizeof(item.m_fullIp));
-        if (!h->get_str(2, item.m_fullIp, 0x10))
+        r = h->get_str(2, item.m_fullIp, 0x10);
+        if (!r)
             return 0;
-        if (!h->get_uint(3, item.m_cnt))
+        r = h->get_uint(3, item.m_cnt);
+        if (!r)
             return 0;
         fullIpList.push_back(item);
     }
@@ -6007,10 +5974,9 @@ char CDBManager::QueryDeathTowerPlayDataJobStatisticCreate(
     CDBHandle* h = m_handles[4];    // log db
     if (!h)
         return 0;
-    DeathTowerPlaydataJobView* view = (DeathTowerPlaydataJobView*)packet;
-    int count = view->m_count;
-    CMyFileLog slog(__FUNCTION__, 0x17a5);
-    slog("./log/statistic",
+    int count = 0;
+    count = ((DeathTowerPlaydataJobView*)packet)->m_count;
+    CMyFileLog(__FUNCTION__, 0x17a5)("./log/statistic",
          "Packet_DBMW_DeathTower_Statistic_Playdata_Job : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
          count);
     char buf[0x800] = {0};
@@ -6020,22 +5986,22 @@ char CDBManager::QueryDeathTowerPlayDataJobStatisticCreate(
         if (str.size() != 0)
         {
             sprintf(buf, ",(now(),%d,%d,%d,%d,%d,%d)",
-                    view->m_entries[i].m_type,
-                    view->m_entries[i].m_level,
-                    view->m_entries[i].m_field4,
-                    view->m_entries[i].m_field8,
-                    view->m_entries[i].m_avg,
-                    view->m_entries[i].m_count);
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[i].m_type,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[i].m_level,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[i].m_field4,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[i].m_field8,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[i].m_avg,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[i].m_count);
         }
         else
         {
             sprintf(buf, "(now(),%d,%d,%d,%d,%d,%d)",
-                    view->m_entries[i].m_type,
-                    view->m_entries[i].m_level,
-                    view->m_entries[i].m_field4,
-                    view->m_entries[i].m_field8,
-                    view->m_entries[i].m_avg,
-                    view->m_entries[i].m_count);
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[i].m_type,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[i].m_level,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[i].m_field4,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[i].m_field8,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[i].m_avg,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[i].m_count);
         }
         str += buf;
     }
@@ -6044,8 +6010,7 @@ char CDBManager::QueryDeathTowerPlayDataJobStatisticCreate(
                  str.c_str());
     if (!h->exec(0x4e9f))
     {
-        CMyFileLog log(__FUNCTION__, 0x17c1);
-        log("./log/statistic",
+        CMyFileLog(__FUNCTION__, 0x17c1)("./log/statistic",
             "\nQueryDeathTowerPlayDataJobStatisticCreate db1 error!!\n");
         return 0;
     }
@@ -6056,22 +6021,22 @@ char CDBManager::QueryDeathTowerPlayDataJobStatisticCreate(
         if (str.size() != 0)
         {
             sprintf(buf, ",(now(),%d,%d,%d,%d,%d,%d)",
-                    view->m_entries[j].m_type,
-                    view->m_entries[j].m_level,
-                    view->m_entries[j].m_field4,
-                    view->m_entries[j].m_field8,
-                    view->m_entries[j].m_avg,
-                    view->m_entries[j].m_count);
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[j].m_type,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[j].m_level,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[j].m_field4,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[j].m_field8,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[j].m_avg,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[j].m_count);
         }
         else
         {
             sprintf(buf, "(now(),%d,%d,%d,%d,%d,%d)",
-                    view->m_entries[j].m_type,
-                    view->m_entries[j].m_level,
-                    view->m_entries[j].m_field4,
-                    view->m_entries[j].m_field8,
-                    view->m_entries[j].m_avg,
-                    view->m_entries[j].m_count);
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[j].m_type,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[j].m_level,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[j].m_field4,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[j].m_field8,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[j].m_avg,
+                    ((DeathTowerPlaydataJobView*)packet)->m_entries[j].m_count);
         }
         str += buf;
     }
@@ -6080,14 +6045,13 @@ char CDBManager::QueryDeathTowerPlayDataJobStatisticCreate(
                  str.c_str());
     if (!h->exec(0x4e9f))
     {
-        CMyFileLog log(__FUNCTION__, 0x17df);
-        log("./log/statistic",
+        CMyFileLog(__FUNCTION__, 0x17df)("./log/statistic",
             "\nQueryDeathTowerPlayDataJobStatisticCreate db2 error!!\n");
         return 0;
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0064 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryDeathTowerValueStatisticCreate | 详见 function_reports/dbmw/_ZN10CDBManager35QueryDeathTowerValueStatisticCreateEP38Packet_DBMW_DeathTower_Statistic_Value.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0064 已消除）| CDBManager::QueryDeathTowerValueStatisticCreate
 char CDBManager::QueryDeathTowerValueStatisticCreate(
     Packet_DBMW_DeathTower_Statistic_Value* packet)
 {
@@ -6097,33 +6061,31 @@ char CDBManager::QueryDeathTowerValueStatisticCreate(
         return 0;
     int count = 0;
     count = packet->m_count;
-    CMyFileLog slog(__FUNCTION__, 0x1760);
-    slog("./log/statistic",
+    CMyFileLog(__FUNCTION__, 0x1760)("./log/statistic",
          "Packet_DBMW_DeathTower_Statistic_Value : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
          count);
     for (int i = 0; i < count; i++)
     {
         unsigned int vals[0xb] = {0};
-        vals[packet->m_items[i].m_index] =
+        vals[(unsigned int)packet->m_items[i].m_index] =
             packet->m_items[i].m_value;
         h->set_query(0x4e9e,
                      "upDate log_deathtower_value set try_cnt=try_cnt+%u, clear_stage=clear_stage+%u, recipeCnt=recipeCnt+%u, commonCnt=commonCnt+%u, uncommonCnt=uncommonCnt+%u, rareCnt=rareCnt+%u, uniqCnt=uniqCnt+%u, card_item_goldprice=card_item_goldprice+%u, card_gold=card_gold+%u, repair_price=repair_price+%u  where occ_date=cast(now() as date) and type=%d and level=%d",
                      vals[0], vals[1], vals[2], vals[3], vals[4], vals[5],
                      vals[6], vals[7], vals[8], vals[9],
-                     *(signed char*)((char*)packet + i * 0xf + 0xe),
+                     packet->m_items[i].m_type,
                      packet->m_items[i].m_level);
         if (!h->exec(0x4e9e) || h->getAffectedRowCount() == 0)
         {
             h->set_query(0x4e9d,
                          "inSert into log_deathtower_value (occ_date, type, level, try_cnt, clear_stage, recipeCnt, commonCnt, uncommonCnt, rareCnt, uniqCnt, card_item_goldprice, card_gold, repair_price) values (cast(now() as date), %d, %d, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u)",
-                         *(signed char*)((char*)packet + i * 0xf + 0xe),
+                         packet->m_items[i].m_type,
                          packet->m_items[i].m_level, vals[0],
                          vals[1], vals[2], vals[3], vals[4], vals[5], vals[6],
                          vals[7], vals[8], vals[9]);
             if (!h->exec(0x4e9d))
             {
-                CMyFileLog log(__FUNCTION__, 0x178c);
-                log("./log/statistic",
+                CMyFileLog(__FUNCTION__, 0x178c)("./log/statistic",
                     "\nQueryDeathTowerValueStatisticCreate db error!!\n");
                 return 0;
             }
@@ -6131,6 +6093,7 @@ char CDBManager::QueryDeathTowerValueStatisticCreate(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0111 | dbmw | 与ORIG差异=DIFF | CDBManager::queryTowerFullRank | 详见 function_reports/dbmw/_ZN10CDBManager18queryTowerFullRankEjRSt6vectorI13stTowerRank_tSaIS1_EEj.md
 bool CDBManager::queryTowerFullRank(unsigned int towerIndex,
                                     std::vector<stTowerRank_t>& ranks,
                                     unsigned int limit)
@@ -6138,7 +6101,7 @@ bool CDBManager::queryTowerFullRank(unsigned int towerIndex,
     CDBHandle* h = m_handles[2];    // game db
     for (unsigned int rank = 1; rank <= 4; rank++)
     {
-        char ok = 0;
+        bool ok = false;
         if (limit <= 5)
         {
             ok = h->set_query(0x4e69,
@@ -6153,8 +6116,7 @@ bool CDBManager::queryTowerFullRank(unsigned int towerIndex,
         }
         if (!ok)
         {
-            CMyFileLog log("queryTowerFullRank", 0xf6d);
-            log("./log/DBQueryErr",
+            CMyFileLog("queryTowerFullRank", 0xf6d)("./log/DBQueryErr",
                 "CDBManager::GuildJoin() seLect_charac_no_tower_idx_rank_from_charac_tower_rank Exception Break\n");
             return 0;
         }
@@ -6166,11 +6128,11 @@ bool CDBManager::queryTowerFullRank(unsigned int towerIndex,
             if (!h->fetch())
                 return 0;
             stTowerRank_t item;
-            if (!h->get_uint(0, item.m_characNo))
+            if (!h->get_uint(0, *(unsigned int*)&item.m_characNo))
                 return 0;
-            if (!h->get_ushort(1, item.m_towerIndex))
+            if (!h->get_ushort(1, *(unsigned short*)&item.m_towerIndex))
                 return 0;
-            if (!h->get_ushort(2, item.m_rank))
+            if (!h->get_ushort(2, *(unsigned short*)&item.m_rank))
                 return 0;
             if (!h->get_binary(3, item.m_memberInfo, rank * 0x17))
                 return 0;
@@ -6185,12 +6147,12 @@ bool CDBManager::queryTowerFullRank(unsigned int towerIndex,
 bool CDBManager::UpdateDisjointAvatarStatistic(
     Packet_Avater_Disjoint_Statistic_DB* packet)
 {
+    char reservedSlot[0x10];
     CDBHandle* h = m_handles[4];    // log db
     char buf1[0x10] = {0};
     char buf2[0x10] = {0};
     if (!h)
         return 0;
-    AvaterDisjointView* view = (AvaterDisjointView*)packet;
     for (int kind = 0; kind <= 2; kind++)
     {
         if (kind == 0)
@@ -6221,17 +6183,16 @@ bool CDBManager::UpdateDisjointAvatarStatistic(
                 memcpy(buf2, "skin", 5);
             else
                 memcpy(buf2, "aurora", 7);
-            int idx = kind * 9 + item;
+            register int idx = kind * 9 + item;
             h->set_query(0x4f47,
                          "upDate log_avatar_grind set avatar_emblem_grind=avatar_emblem_grind+%d, avatar_bindcube_grind=avatar_bindcube_grind+%d, avatar_rechargestone_grind=avatar_rechargestone_grind+%d where cur_date=CURDATE() and grade='%s' and body_part='%s' ",
-                         view->m_pairs[idx].m_emblem,
-                         view->m_pairs[idx].m_bindcube,
-                         view->m_recharge[idx],
+                         ((AvaterDisjointView*)packet)->m_pairs[idx].m_emblem,
+                         ((AvaterDisjointView*)packet)->m_pairs[idx].m_bindcube,
+                         ((AvaterDisjointView*)packet)->m_recharge[idx],
                          buf1, buf2);
             if (!h->exec(0x4f47))
             {
-                CMyFileLog log(__FUNCTION__, 0x1eb0);
-                log("./log/DBQueryErr",
+                CMyFileLog(__FUNCTION__, 0x1eb0)("./log/DBQueryErr",
                     "CDBManager::UpdateDisjointAvatarStatistic() upDate Error");
             }
             if (h->getAffectedRowCount() == 0)
@@ -6240,13 +6201,12 @@ bool CDBManager::UpdateDisjointAvatarStatistic(
                     0x4ee8,
                     "inSert into log_avatar_grind(cur_date, grade, body_part, avatar_emblem_grind, avatar_bindcube_grind, avatar_rechargestone_grind) values(CURDATE(), '%s', '%s', %d, %d, %d)",
                     buf1, buf2,
-                    view->m_pairs[idx].m_emblem,
-                    view->m_pairs[idx].m_bindcube,
-                    view->m_recharge[idx]);
+                    ((AvaterDisjointView*)packet)->m_pairs[idx].m_emblem,
+                    ((AvaterDisjointView*)packet)->m_pairs[idx].m_bindcube,
+                    ((AvaterDisjointView*)packet)->m_recharge[idx]);
                 if (!h->exec(0x4ee8))
                 {
-                    CMyFileLog log(__FUNCTION__, 0x1ebe);
-                    log("./log/DBQueryErr",
+                    CMyFileLog(__FUNCTION__, 0x1ebe)("./log/DBQueryErr",
                         "CDBManager::UpdateDisjointAvatarStatistic(insert) upDate Error");
                 }
             }
@@ -6262,11 +6222,9 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
     CDBHandle* h = m_handles[4];    // log db
     if (!h)
         return 0;
-    DeathTowerPlaydataPartyView* view =
-        (DeathTowerPlaydataPartyView*)packet;
-    int count = view->m_count;
-    CMyFileLog slog(__FUNCTION__, 0x17f7);
-    slog("./log/statistic",
+    int count = 0;
+    count = ((DeathTowerPlaydataPartyView*)packet)->m_count;
+    CMyFileLog(__FUNCTION__, 0x17f7)("./log/statistic",
          "Packet_DBMW_DeathTower_Statistic_Playdata_Party : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
          count);
     char buf[0x800] = {0};
@@ -6276,18 +6234,18 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
         if (str.size() != 0)
         {
             sprintf(buf, ",(now(),%d,%d,%d,%d)",
-                    view->m_entries[i].m_type,
-                    view->m_entries[i].m_field1,
-                    view->m_entries[i].m_value,
-                    view->m_entries[i].m_field6);
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_type,
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_field1,
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_value,
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_field6);
         }
         else
         {
             sprintf(buf, "(now(),%d,%d,%d,%d)",
-                    view->m_entries[i].m_type,
-                    view->m_entries[i].m_field1,
-                    view->m_entries[i].m_value,
-                    view->m_entries[i].m_field6);
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_type,
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_field1,
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_value,
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[i].m_field6);
         }
         str += buf;
     }
@@ -6296,8 +6254,7 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
                  str.c_str());
     if (!h->exec(0x4ea1))
     {
-        CMyFileLog log(__FUNCTION__, 0x1813);
-        log("./log/statistic",
+        CMyFileLog(__FUNCTION__, 0x1813)("./log/statistic",
             "\nQueryDeathTowerPlayDataPartyStatisticCreate db1 error!!\n");
         return 0;
     }
@@ -6308,18 +6265,18 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
         if (str.size() != 0)
         {
             sprintf(buf, ",(now(),%d,%d,%d,%d)",
-                    view->m_entries[j].m_type,
-                    view->m_entries[j].m_field1,
-                    view->m_entries[j].m_value,
-                    view->m_entries[j].m_field6);
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_type,
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_field1,
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_value,
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_field6);
         }
         else
         {
             sprintf(buf, "(now(),%d,%d,%d,%d)",
-                    view->m_entries[j].m_type,
-                    view->m_entries[j].m_field1,
-                    view->m_entries[j].m_value,
-                    view->m_entries[j].m_field6);
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_type,
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_field1,
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_value,
+                    ((DeathTowerPlaydataPartyView*)packet)->m_entries[j].m_field6);
         }
         str += buf;
     }
@@ -6328,32 +6285,33 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
                  str.c_str());
     if (!h->exec(0x4ea1))
     {
-        CMyFileLog log(__FUNCTION__, 0x1831);
-        log("./log/statistic",
+        CMyFileLog(__FUNCTION__, 0x1831)("./log/statistic",
             "\nQueryDeathTowerPlayDataPartyStatisticCreate db2 error!!\n");
         return 0;
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0112 | dbmw | 与ORIG差异=DIFF | CDBManager::AwardGuildCoinByMail | 详见 function_reports/dbmw/_ZN10CDBManager20AwardGuildCoinByMailEijjjiiRSt6vectorIiSaIiEE.md
 bool CDBManager::AwardGuildCoinByMail(int guildId, unsigned int serverGroup,
                                       unsigned int itemId,
                                       unsigned int endurance, int addInfo,
                                       int upgrade,
                                       std::vector<int>& characNos)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     CDBHandle* h2 = m_handles[3];   // game db
     if (!h->set_query(0x4e39,
                       "seLect charac_no,unix_timestamp(member_time) from guild_member where guild_id = %d and server_id = %d and member_flag = 1",
                       guildId, serverGroup))
     {
-        CMyFileLog log("AwardGuildCoinByMail", 0x8dd);
-        log("./log/DBQueryErr",
+        CMyFileLog("AwardGuildCoinByMail", 0x8dd)("./log/DBQueryErr",
             "CDBManager::AwardGuildCoinByMail() select charac_no from guild_member where server_id = %d and guild_id = %d and member_flag = 1\n",
             guildId, serverGroup);
         return 0;
     }
-    if (!h->exec(0x4e39))
+    r = h->exec(0x4e39);
+    if (!r)
         return 0;
     int n = h->get_n_rows();
     time_t now = time(0);
@@ -6365,50 +6323,59 @@ bool CDBManager::AwardGuildCoinByMail(int guildId, unsigned int serverGroup,
     int i = 0;
     while (i < n)
     {
-        if (!h->fetch())
+        r = h->fetch();
+        if (!r)
             return 0;
         unsigned int characNo = 0;
-        if (!h->get_uint(0, characNo))
+        r = h->get_uint(0, characNo);
+        if (!r)
             return 0;
         unsigned int memberTime = 0;
-        if (!h->get_uint(1, memberTime))
+        r = h->get_uint(1, memberTime);
+        if (!r)
             return 0;
         if (upgrade > 2 && !isDayTimeOver(memberTime, 7))
             continue;
         characNos.push_back(characNo + 0);
-        char buf[0x1e];
-        memset(buf, 0, 0x1e);
+        char buf[0x1e] = {0};
         std::string s = g_ServerString_.GetServerString(0x7d0, 0);
         strcpy(buf, s.c_str());
-        h2->set_query(0x4e57,
+        if (!h2->set_query(0x4e57,
                       "inSert into postal (occ_time, send_charac_no, receive_charac_no, seal_flag, item_id, add_info, endurance, upgrade, gold, send_charac_name ) values ( from_unixtime( %d ), %d, %d, %d, %d, %d, %d, %d, %d,'%s')",
                       tomorrow, 0, characNo, 0, itemId, addInfo, endurance, 0,
-                      0, buf);
+                      0, buf))
+        {
+            // ORIG 0x807530e：set_query 失败时的日志（文本照抄 ORIG .rodata 0x81af9a4）
+            CMyFileLog("AwardGuildCoinByMail", 0x939)("./log/DBQueryErr",
+                "CDBManager::AwardGuildTitleByMail() Fatal Error Break : insert into postal (occ_time, send_charac_no, receive_charac_no, seal_flag, item_id, add_info, endurance, upgrade, gold, send_charac_name ) values ( from_unixtime( now() ), %d, %d, %d, %d, %d, %d, %d, %d,'%s')\n",
+                0, characNo, 0, itemId, addInfo, endurance, 0, 0, buf);
+        }
         if (!h2->exec(0x4e57))
             return 0;
         i++;
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0022 | dbmw | 与ORIG差异=DIFF | CDBManager::SendGuildCoinByMail | 详见 function_reports/dbmw/_ZN10CDBManager19SendGuildCoinByMailEijjjiPcS0_.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0022 已消除）| CDBManager::SendGuildCoinByMail
 bool CDBManager::SendGuildCoinByMail(int guildId, unsigned int serverGroup,
                                      unsigned int itemId,
                                      unsigned int endurance, int addInfo,
                                      char* subject, char* content)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     CDBHandle* h2 = m_handles[3];   // game db
     if (!h->set_query(0x4e39,
                       "seLect charac_no from guild_member where guild_id = %d and server_id = %d and member_flag = 1",
                       serverGroup, guildId))
     {
-        CMyFileLog log(__FUNCTION__, 0x897);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x897)("./log/DBQueryErr",
             "CDBManager::SendGuildCoinByMail() select charac_no from guild_member where server_id = %d and guild_id = %d and member_flag = 1\n",
             guildId, serverGroup);
         return 0;
     }
-    if (!h->exec(0x4e39))
+    r = h->exec(0x4e39);
+    if (!r)
         return 0;
     int n = h->get_n_rows();
     time_t now = time(0);
@@ -6419,23 +6386,23 @@ bool CDBManager::SendGuildCoinByMail(int guildId, unsigned int serverGroup,
     time_t tomorrow = mktime(t);
     for (int i = 0; i < n; i++)
     {
-        if (!h->fetch())
+        r = h->fetch();
+        if (!r)
             return 0;
-        unsigned int characNo = 0;
-        if (!h->get_uint(0, characNo))
+        unsigned int characNo;
+        r = h->get_uint(0, characNo);
+        if (!r)
             return 0;
     int letterNo;
         if (!InsertLetter(characNo, 0, subject, content, letterNo, tomorrow))
         {
-            CMyFileLog log(__FUNCTION__, 0x8c0);
-            log("./log/Postal", "InsertLetter Err, %s(%s)", subject, content);
+            CMyFileLog(__FUNCTION__, 0x8c0)("./log/Postal", "InsertLetter Err, %s(%s)", subject, content);
             continue;
         }
         if (!InsertPostal(characNo, 0, 0, itemId, addInfo, endurance, 0,
                           subject, tomorrow, letterNo))
         {
-            CMyFileLog log(__FUNCTION__, 0x8c6);
-            log("./log/Postal", "InsertPostal Err, %s(%s)", subject, content);
+            CMyFileLog(__FUNCTION__, 0x8c6)("./log/Postal", "InsertPostal Err, %s(%s)", subject, content);
         }
     }
     return 1;
@@ -6452,8 +6419,7 @@ bool CDBManager::InsertPostal(unsigned int receiveCharacNo,
                        occTime, sendCharacNo, receiveCharacNo, sealFlag, itemId,
                        addInfo, endurance, 0, upgrade, name, letterId))
     {
-        CMyFileLog log(__FUNCTION__, 0x7bb);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x7bb)("./log/DBQueryErr",
             "CDBManager::AwardGuildTitleByMail() Fatal Error Break : insert into postal (occ_time, send_charac_no, receive_charac_no, seal_flag, item_id, add_info, endurance, upgrade, gold, send_charac_name ) values ( from_unixtime( %d ), %d, %d, %d, %d, %d, %d, %d, %d,'%s', %d)\n",
             occTime, sendCharacNo, receiveCharacNo, sealFlag, itemId, addInfo,
             endurance, 0, upgrade, name, letterId);
@@ -6462,46 +6428,55 @@ bool CDBManager::InsertPostal(unsigned int receiveCharacNo,
         return 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0113 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryLoadARSInfo | 详见 function_reports/dbmw/_ZN10CDBManager16QueryLoadARSInfoERSt6vectorI16st_ars_info_listSaIS1_EE.md
 bool CDBManager::QueryLoadARSInfo(std::vector<st_ars_info_list>& arsList)
 {
+    bool r;
     CDBHandle* h = m_handles[6];    // guild db
     if (!h->set_query(0x4ef3,
                       "seLect hack_type,cnt,etc,hack_sub_type,hack_sub_cnt,apply_flag, ip_cnt from auto_punish_hack_info where apply_flag > 0"))
     {
-        CMyFileLog log("QueryLoadARSInfo", 0x20cb);
-        log("./log/DBQueryErr",
+        CMyFileLog("QueryLoadARSInfo", 0x20cb)("./log/DBQueryErr",
             "CDBManager::QueryLoadARSInfo() seLect hack_type,cnt,etc,hack_sub_type,hack_sub_cnt,apply_flag, ip_cnt from auto_punish_hack_info where apply_flag > 0 \n");
         return 0;
     }
-    if (!h->exec(0x4ef3))
+    r = h->exec(0x4ef3);
+    if (!r)
         return 0;
     int n = h->get_n_rows();
-    CMyFileLog log("QueryLoadARSInfo", 0x20da);
-    log("./log/Secu", "[ARS_INFO] QueryLoadARSInfo Load Cnt : %d \n", n);
+    CMyFileLog("QueryLoadARSInfo", 0x20da)("./log/Secu", "[ARS_INFO] QueryLoadARSInfo Load Cnt : %d \n", n);
     if (n == 0)
         return 1;
     for (int i = 0; i < n; i++)
     {
-        if (!h->fetch())
+        r = h->fetch();
+        if (!r)
             return 0;
         st_ars_info_list item;
-        if (!h->get_ushort(0, item.m_hackType))
+        r = h->get_ushort(0, item.m_hackType);
+        if (!r)
             return 0;
-        if (!h->get_ushort(1, item.m_cnt))
+        r = h->get_ushort(1, item.m_cnt);
+        if (!r)
             return 0;
         // 注意：以下列序与 SQL 列名不完全对齐，但这是 ORIG 的原始行为
         //（本函数与 ORIG 逐字节 IDENTICAL，勿按 SQL 列名"修正"读取顺序）。
         // col2(etc)→+0xa、col3(hack_sub_type)→+4、col4(hack_sub_cnt)→+6、
         // col5(apply_flag)→+8、col6(ip_cnt)→+9。
-        if (!h->get_ushort(2, item.m_ipCnt))
+        r = h->get_ushort(2, item.m_ipCnt);
+        if (!r)
             return 0;
-        if (!h->get_ushort(3, item.m_etc))
+        r = h->get_ushort(3, item.m_etc);
+        if (!r)
             return 0;
-        if (!h->get_ushort(4, item.m_hackSubType))
+        r = h->get_ushort(4, item.m_hackSubType);
+        if (!r)
             return 0;
-        if (!h->get_ubyte(5, item.m_hackSubCnt))
+        r = h->get_ubyte(5, item.m_hackSubCnt);
+        if (!r)
             return 0;
-        if (!h->get_ubyte(6, item.m_applyFlag))
+        r = h->get_ubyte(6, item.m_applyFlag);
+        if (!r)
             return 0;
         arsList.push_back(item);
     }
@@ -6512,6 +6487,7 @@ bool CDBManager::QuerySubGuildMaster(unsigned char serverGroup,
                                      unsigned int guildId,
                                      Packet_DB_Reply_Query_Guild& reply)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     CDBHandle* h2 = m_handles[2];   // game db
     STGuildDBInfoOnly* info = &reply.m_guildInfo;
@@ -6519,26 +6495,27 @@ bool CDBManager::QuerySubGuildMaster(unsigned char serverGroup,
                       "seLect charac_no from guild_member where guild_id = %d and server_id = %d and grade =  %d and member_flag = 1 limit %d",
                       guildId, serverGroup, 2, 5))
     {
-        CMyFileLog log(__FUNCTION__, 0xd9d);
-        log("./log/DBQueryErr", "CDBManager::QueryGuildMember() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 0xd9d)("./log/DBQueryErr", "CDBManager::QueryGuildMember() Exception Break\n");
         reply.m_result = 0;
         return 0;
     }
-    if (!h->exec(0x4e58))
+    r = h->exec(0x4e58);
+    if (!r)
     {
         reply.m_result = 0;
         return 0;
     }
-    int n = h->get_n_rows();
-    info->m_subMasterCnt = (char)n;
-    for (int i = 0; i < n; i++)
+    info->m_subMasterCnt = (char)h->get_n_rows();
+    for (int i = 0; i < (unsigned char)info->m_subMasterCnt; i++)
     {
-        if (!h->fetch())
+        r = h->fetch();
+        if (!r)
         {
             reply.m_result = 1;
             return 1;
         }
-        if (!h->get_uint(0, *(unsigned int*)&info->m_subMasterData[i * 4]))
+        r = h->get_uint(0, *(unsigned int*)&info->m_subMasterData[i * 4]);
+        if (!r)
         {
             reply.m_result = 3;
             return 0;
@@ -6547,7 +6524,7 @@ bool CDBManager::QuerySubGuildMaster(unsigned char serverGroup,
     reply.m_result = 1;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0011 | dbmw | 与ORIG差异=NEAR | CDBManager::QueryOnTimeEventIdxUpdate | 详见 function_reports/dbmw/_ZN10CDBManager25QueryOnTimeEventIdxUpdateEP34Packet_Req_Ontime_Event_Idx_Update.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-NEAR-0011 已消除）| CDBManager::QueryOnTimeEventIdxUpdate
 char CDBManager::QueryOnTimeEventIdxUpdate(
     Packet_Req_Ontime_Event_Idx_Update* packet)
 {
@@ -6558,8 +6535,7 @@ char CDBManager::QueryOnTimeEventIdxUpdate(
     if (!h->set_query(0x4f14,
                       "seLect ifnull(max(no), 1) from event_1112_ontime_info"))
     {
-        CMyFileLog log(__FUNCTION__, 0x24d8);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x24d8)("./log/DBQueryErr",
             "set_query(seLect_from_event_ontime_idx) Query Error ");
         return 0;
     }
@@ -6575,8 +6551,7 @@ char CDBManager::QueryOnTimeEventIdxUpdate(
                           packet->m_itemIndex,
                           packet->m_itemCount))
         {
-            CMyFileLog log(__FUNCTION__, 0x24ec);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x24ec)("./log/DBQueryErr",
                 "set_query(inSert_event_ontime_idx_update) Query Error ");
             return 0;
         }
@@ -6594,8 +6569,7 @@ char CDBManager::QueryOnTimeEventItem(Packet_Result_Ontime_Event_Item& reply)
     CDBHandle* h = m_handles[0xd];    // se_event db
     if (!h->set_query(0x4f18, "seLect idx, cnt from event_ontime_item"))
     {
-        CMyFileLog log(__FUNCTION__, 0x24b1);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x24b1)("./log/DBQueryErr",
             "set_query(seLect_from_event_ontime_item) Query Error");
         return 0;
     }
@@ -6611,45 +6585,53 @@ char CDBManager::QueryOnTimeEventItem(Packet_Result_Ontime_Event_Item& reply)
         return 0;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0006 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryBuddyInfo | 详见 function_reports/dbmw/_ZN10CDBManager14QueryBuddyInfoEjP13STBuddyDBInfoRh.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0006 已消除）| CDBManager::QueryBuddyInfo
 bool CDBManager::QueryBuddyInfo(unsigned int characNo, STBuddyDBInfo* buddies,
                                 unsigned char& count)
 {
+    bool r;
     CDBHandle* h = m_handles[2];    // game db
     if (!h->set_query(0x4e52,
                       "seLect b.charac_no, b.charac_name, b.lev, b.job, b.grow_type, b.sex from charac_friends a, charac_info b where b.charac_no = a.friend_no and a.charac_no = %d and b.delete_flag=0 limit %d",
                       characNo, 0x20))
     {
-        CMyFileLog log(__FUNCTION__, 0xc24);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xc24)("./log/DBQueryErr",
             "select_b_charac_info_from_charac_friends_a_charac_friends_b_where_characno_limit where charac_no = %d and friend_no = %d",
             characNo, 0x20);
         return 0;
     }
-    if (!h->exec(0x4e52))
+    r = h->exec(0x4e52);
+    if (!r)
         return 0;
     count = (unsigned char)h->get_n_rows();
     for (int i = 0; i < (int)count; i++)
     {
-        if (!h->fetch())
-            return 1;
-        STBuddyDBInfo& b = buddies[i];
-        if (!h->get_uint(0, *(unsigned int*)&b.m_characNo))
+        r = h->fetch();
+        if (!r)
+            goto success;
+        r = h->get_uint(0, *(unsigned int*)&buddies[i].m_characNo);
+        if (!r)
             return 0;
-        if (!h->get_str(1, b.m_name, 0x1e))
+        r = h->get_str(1, buddies[i].m_name, 0x1e);
+        if (!r)
             return 0;
-        if (!h->get_short(2, *(short*)&b.m_lev))
+        r = h->get_short(2, *(short*)&buddies[i].m_lev);
+        if (!r)
             return 0;
-        if (!h->get_byte(3, *(char*)&b.m_job))
+        r = h->get_byte(3, *(char*)&buddies[i].m_job);
+        if (!r)
             return 0;
-        if (!h->get_byte(4, *(char*)&b.m_growType))
+        r = h->get_byte(4, *(char*)&buddies[i].m_growType);
+        if (!r)
             return 0;
-        if (!h->get_byte(5, *(char*)&b.m_sex))
+        r = h->get_byte(5, *(char*)&buddies[i].m_sex);
+        if (!r)
             return 0;
     }
+success:
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0006 | dbmw | 与ORIG差异=NEAR | CDBManager::GetCoinEventPerDay | 详见 function_reports/dbmw/_ZN10CDBManager18GetCoinEventPerDayEiiRiS0_.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-NEAR-0006 已消除）| CDBManager::GetCoinEventPerDay
 bool CDBManager::GetCoinEventPerDay(int serverId, int add, int& out1,
                                     int& out2)
 {
@@ -6661,8 +6643,7 @@ bool CDBManager::GetCoinEventPerDay(int serverId, int add, int& out1,
     ok = h->exec(0x4ee5);
     if (!ok)
     {
-        CMyFileLog log(__FUNCTION__, 0x1e15);
-        log("./log/DBQueryErr", "GetCoinEventPerDay Error\n");
+        CMyFileLog(__FUNCTION__, 0x1e15)("./log/DBQueryErr", "GetCoinEventPerDay Error\n");
         return 0;
     }
     if (h->get_n_rows() == 0)
@@ -6693,16 +6674,16 @@ bool CDBManager::GetCoinEventPerDay(int serverId, int add, int& out1,
     ok = h->exec(0x4ee6);
     if (!ok)
     {
-        CMyFileLog log(__FUNCTION__, 0x1e44);
-        log("./log/DBQueryErr", "GetCoinEventPerDay Error\n");
+        CMyFileLog(__FUNCTION__, 0x1e44)("./log/DBQueryErr", "GetCoinEventPerDay Error\n");
         return 0;
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0019 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryCharacNoByName | 详见 function_reports/dbmw/_ZN10CDBManager19QueryCharacNoByNameEPcRjPi.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0019 已消除）| CDBManager::QueryCharacNoByName
 bool CDBManager::QueryCharacNoByName(char* name, unsigned int& characNo,
                                      int* result)
 {
+    bool r;
     CDBHandle* h = m_handles[2];    // game db
     if (!result)
     {
@@ -6710,8 +6691,7 @@ bool CDBManager::QueryCharacNoByName(char* name, unsigned int& characNo,
                           "seLect charac_no from charac_info where charac_name = '%s'",
                           name))
         {
-            CMyFileLog log(__FUNCTION__, 0xb12);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0xb12)("./log/DBQueryErr",
                 "CDBManager::QueryCharacNoByName() seLect charac_no from charac_info where charac_name = '%s'",
                 name);
             return 0;
@@ -6723,65 +6703,70 @@ bool CDBManager::QueryCharacNoByName(char* name, unsigned int& characNo,
                           "seLect charac_no,m_id from charac_info where charac_name = '%s'",
                           name))
         {
-            CMyFileLog log(__FUNCTION__, 0xb1a);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0xb1a)("./log/DBQueryErr",
                 "CDBManager::QueryCharacNoByName() seLect charac_no from charac_info where charac_name = '%s'",
                 name);
             return 0;
         }
     }
-    if (!h->exec(0x4e3e))
+    r = h->exec(0x4e3e);
+    if (!r)
         return 0;
     int n = h->get_n_rows();
-    if (n == 0 || n > 1)
+    if (n > 1 || n == 0)
     {
-        CMyFileLog log(__FUNCTION__, 0xb30);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xb30)("./log/DBQueryErr",
             "CDBManager::QueryCharacNoByName() : n_data != 1( %d )\n", n);
         return 0;
     }
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
         return 0;
-    if (!h->get_uint(0, characNo))
+    r = h->get_uint(0, characNo);
+    if (!r)
         return 0;
     if (result)
     {
-        unsigned int m_id = 0;
-        if (!h->get_uint(1, m_id))
+        unsigned int m_id;
+        r = h->get_uint(1, m_id);
+        if (!r)
             return 0;
-        void* gm = m_app->GetGMAccounts();
-        if (gm && ((WongWork::CGMAccounts*)gm)->isGM(m_id))
+        WongWork::CGMAccounts* gm = (WongWork::CGMAccounts*)m_app->GetGMAccounts();
+        if (gm != 0)
         {
-            *result = 0x5a;
-            return 0;
+            if (gm->isGM(m_id))
+            {
+                *result = 0x5a;
+                return 0;
+            }
         }
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0048 | dbmw | 与ORIG差异=DIFF | CDBManager::updateCompatibilityIndex | 详见 function_reports/dbmw/_ZN10CDBManager24updateCompatibilityIndexEP31Packet_Stat_Compatibility_Index.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0048 已消除）| CDBManager::updateCompatibilityIndex
 bool CDBManager::updateCompatibilityIndex(
     Packet_Stat_Compatibility_Index* packet)
 {
+    bool r;
     CDBHandle* h = m_handles[0xf];    // frame_lag db
     if (!h)
         return 0;
-    StatCompatibilityView* v = (StatCompatibilityView*)packet;
     h->set_query(0x4f4b,
                  "upDate ting_user_spec set reg_datetime=now(), cpu_vendor=%d, cpu_num=%d, cpu_clock=%d, ram=%d, video_vendor=%d, video_device=%d, video_ram=%d, os=%d, os_bit=%d where m_id=%u",
-                 v->m_cpuVendor,
-                 v->m_cpuNum,
-                 v->m_cpuClock,
-                 v->m_ram,
-                 v->m_videoVendor,
-                 v->m_videoDevice,
-                 v->m_videoRam,
-                 v->m_os,
-                 v->m_osBit,
-                 v->m_id);
-    if (!h->exec(0x4f4b))
+                 ((StatCompatibilityView*)packet)->m_cpuVendor,
+                 ((StatCompatibilityView*)packet)->m_cpuNum,
+                 ((StatCompatibilityView*)packet)->m_cpuClock,
+                 ((StatCompatibilityView*)packet)->m_ram,
+                 ((StatCompatibilityView*)packet)->m_videoVendor,
+                 ((StatCompatibilityView*)packet)->m_videoDevice,
+                 ((StatCompatibilityView*)packet)->m_videoRam,
+                 ((StatCompatibilityView*)packet)->m_os,
+                 ((StatCompatibilityView*)packet)->m_osBit,
+                 ((StatCompatibilityView*)packet)->m_id);
+    r = h->exec(0x4f4b);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x2916);
-        log("./log/DBQueryErr", "upDate ting_user_spec Query(exec) Error");
+        CMyFileLog(__FUNCTION__, 0x2916)("./log/DBQueryErr", "upDate ting_user_spec Query(exec) Error");
         return 0;
     }
     if (h->getAffectedRowCount() == 0)
@@ -6789,20 +6774,20 @@ bool CDBManager::updateCompatibilityIndex(
         h->set_query(
             0x4f4a,
             "inSert into ting_user_spec (m_id, reg_datetime, cpu_vendor, cpu_num, cpu_clock, ram, video_vendor, video_device, video_ram, os, os_bit) values(%u, now(), %d, %d, %d, %d, %d, %d, %d, %d, %d)",
-            v->m_id,
-            v->m_cpuVendor,
-            v->m_cpuNum,
-            v->m_cpuClock,
-            v->m_ram,
-            v->m_videoVendor,
-            v->m_videoDevice,
-            v->m_videoRam,
-            v->m_os,
-            v->m_osBit);
-        if (!h->exec(0x4f4a))
+            ((StatCompatibilityView*)packet)->m_id,
+            ((StatCompatibilityView*)packet)->m_cpuVendor,
+            ((StatCompatibilityView*)packet)->m_cpuNum,
+            ((StatCompatibilityView*)packet)->m_cpuClock,
+            ((StatCompatibilityView*)packet)->m_ram,
+            ((StatCompatibilityView*)packet)->m_videoVendor,
+            ((StatCompatibilityView*)packet)->m_videoDevice,
+            ((StatCompatibilityView*)packet)->m_videoRam,
+            ((StatCompatibilityView*)packet)->m_os,
+            ((StatCompatibilityView*)packet)->m_osBit);
+        r = h->exec(0x4f4a);
+        if (!r)
         {
-            CMyFileLog log(__FUNCTION__, 0x292d);
-            log("./log/DBQueryErr", "inSert ting_user_spec Query(exec) Error");
+            CMyFileLog(__FUNCTION__, 0x292d)("./log/DBQueryErr", "inSert ting_user_spec Query(exec) Error");
             return 0;
         }
     }
@@ -6824,8 +6809,7 @@ char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
                      ((SecretShopStatisticView*)packet)->m_shopIdx);
         if (!h->exec(0x4efc))
         {
-            CMyFileLog log(__FUNCTION__, 0x21bd);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x21bd)("./log/DBQueryErr",
                 "CDBManager::OnSecretShopStatistic() upDate Error");
         }
         if (h->getAffectedRowCount() == 0)
@@ -6841,8 +6825,7 @@ char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
                 ((SecretShopStatisticView*)packet)->m_data[i * 5 + 4]);
             if (!h->exec(0x4efb))
             {
-                CMyFileLog log(__FUNCTION__, 0x21cb);
-                log("./log/DBQueryErr",
+                CMyFileLog(__FUNCTION__, 0x21cb)("./log/DBQueryErr",
                     "CDBManager::OnSecretShopStatistic() inSert Error");
             }
         }
@@ -6853,66 +6836,63 @@ char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
 bool CDBManager::loadLimitNpcBuyItemInfo(LimitNpcBuyItemRequestInfo* req,
                                          LimitNpcBuyItemResultInfo* result)
 {
+    bool r;
     CDBHandle* h = m_handles[2];    // game db
     if (!h)
         return 0;
-    if (!h->set_query(0x4f45,
-                      "seLect item_index, max_count, sell_count from limit_npc_item limit %d",
-                      0x1e))
+    r = h->set_query(0x4f45,
+                     "seLect item_index, max_count, sell_count from limit_npc_item limit %d",
+                     0x1e);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x2811);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x2811)("./log/DBQueryErr",
             "seLect item_index, max_count, sell_count from limit_npc_item Error");
         return 0;
     }
-    if (!h->exec(0x4f45))
+    r = h->exec(0x4f45);
+    if (!r)
     {
-        CMyFileLog log(__FUNCTION__, 0x281a);
-        log("./log/DBQueryErr", "loadLimitNpcBuyItemInfo Query(exec) Error");
+        CMyFileLog(__FUNCTION__, 0x281a)("./log/DBQueryErr", "loadLimitNpcBuyItemInfo Query(exec) Error");
         return 0;
     }
     result->m_count = h->get_n_rows();
     if (result->m_count == 0)
     {
-        CMyFileLog log(__FUNCTION__, 0x2821);
-        log("./log/DBQueryErr", "loadLimitNpcBuyItemInfo (Row_Data Not Exist) Error");
+        CMyFileLog(__FUNCTION__, 0x2821)("./log/DBQueryErr", "loadLimitNpcBuyItemInfo (Row_Data Not Exist) Error");
         return 0;
     }
     // ORIG 循环变量为 unsigned（jbe/ja 无符号比较），且条件失败直接 return 1。
     unsigned int i = 0;
-    while (true)
+    while (i < (unsigned int)result->m_count && i <= 0x1d)
     {
-        if ((unsigned int)result->m_count <= i || 0x1d < i)
+        r = h->fetch();
+        if (!r)
         {
-            return 1;
-        }
-        if (!h->fetch())
-        {
-            CMyFileLog log(__FUNCTION__, 0x282a);
-            log("./log/DBQueryErr", "loadLimitNpcBuyItemInfo Query(fetch) Error");
+            CMyFileLog(__FUNCTION__, 0x282a)("./log/DBQueryErr", "loadLimitNpcBuyItemInfo Query(fetch) Error");
             return 0;
         }
         int col = 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)result + i * 0xc + 0xe)))
+        r = h->get_uint(col++, *(unsigned int*)&result->m_items[i].m_field0);
+        if (!r)
         {
-            CMyFileLog log(__FUNCTION__, 0x2833);
-            log("./log/DBQueryErr", "loadLimitNpcBuyItemInfo (get_uint(itemId)) Error");
+            CMyFileLog(__FUNCTION__, 0x2833)("./log/DBQueryErr", "loadLimitNpcBuyItemInfo (get_uint(itemId)) Error");
             return 0;
         }
-        if (!h->get_uint(col++, *(unsigned int*)((char*)result + i * 0xc + 0x12)))
+        r = h->get_uint(col++, *(unsigned int*)&result->m_items[i].m_field4);
+        if (!r)
         {
-            CMyFileLog log(__FUNCTION__, 0x283a);
-            log("./log/DBQueryErr", "loadLimitNpcBuyItemInfo (get_uint(maxCount) Error");
+            CMyFileLog(__FUNCTION__, 0x283a)("./log/DBQueryErr", "loadLimitNpcBuyItemInfo (get_uint(maxCount) Error");
             return 0;
         }
-        if (!h->get_uint(col++, *(unsigned int*)((char*)result + i * 0xc + 0x16)))
+        r = h->get_uint(col++, *(unsigned int*)&result->m_items[i].m_field8);
+        if (!r)
         {
-            CMyFileLog log(__FUNCTION__, 0x2841);
-            log("./log/DBQueryErr", "loadLimitNpcBuyItemInfo (get_uint(sellCount)) Error");
+            CMyFileLog(__FUNCTION__, 0x2841)("./log/DBQueryErr", "loadLimitNpcBuyItemInfo (get_uint(sellCount)) Error");
             return 0;
         }
         i++;
     }
+    return 1;
 }
 bool CDBManager::updateLimitNpcBuyItemInfo(LimitNpcBuyItemUpdate* update)
 {
@@ -6951,8 +6931,7 @@ bool CDBManager::QueryGuildMemberGradeByName(unsigned char serverId,
                       "seLect charac_no, grade, m_id from guild_member where guild_id = %d and server_id = %d and charac_name =  '%s' and member_flag = 1",
                       guildId, serverId, name))
     {
-        CMyFileLog log(__FUNCTION__, 0xddf);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xddf)("./log/DBQueryErr",
             "CDBManager::ChangeUnconnectedGuildMemberGrade() Exception Break\n");
         return 0;
     }
@@ -7024,36 +7003,36 @@ bool CDBManager::ChangeGuildMemberGrade(unsigned char serverId,
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0038 | dbmw | 与ORIG差异=DIFF | CDBManager::ChangeGuildNotifyMessage | 详见 function_reports/dbmw/_ZN10CDBManager24ChangeGuildNotifyMessageEijPc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0038 已消除）| CDBManager::ChangeGuildNotifyMessage
 bool CDBManager::ChangeGuildNotifyMessage(int guildId, unsigned int m_id,
                                           char* msg)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
-    char buf[0x6002];
-    memset(buf, 0, 0x6002);
+    char buf[0x6002] = {0};
     h->escape_string(buf, msg);
     if (!h->set_query(0x4e62,
                       "upDate guild_notice set notice='%s' where guild_id = %d",
                       buf, m_id))
     {
-        CMyFileLog log(__FUNCTION__, 0xd3b);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xd3b)("./log/DBQueryErr",
             "CDBManager::ChangeGuildNotifyMessage() upDate guild_notice set notice='%s' where guild_id = %d",
             msg, m_id);
         return 0;
     }
-    if (h->exec(0x4e62) != 1 || h->getAffectedRowCount() == 0)
+    r = h->exec(0x4e62);
+    if (!r || h->getAffectedRowCount() == 0)
     {
         if (!h->set_query(0x4e63,
                           "inSert into guild_notice set guild_id=%d,notice='%s',acc_date=unix_timestamp(now())",
                           m_id, buf))
         {
-            CMyFileLog log(__FUNCTION__, 0xd4b);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0xd4b)("./log/DBQueryErr",
                 "CDBManager::ChangeGuildNotifyMessage() Exception Break\n");
             return 0;
         }
-        if (!h->exec(0x4e63))
+        r = h->exec(0x4e63);
+        if (!r)
             return 0;
     }
     return 1;
@@ -7067,8 +7046,7 @@ bool CDBManager::QueryGuildNotiMessage(unsigned char serverGroup,
     if (!h->set_query(0x4e64, "seLect notice from guild_notice where guild_id = %d",
                       guildId))
     {
-        CMyFileLog log(__FUNCTION__, 0xd65);
-        log("./log/DBQueryErr", "CDBManager::QueryGuildMember() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 0xd65)("./log/DBQueryErr", "CDBManager::QueryGuildMember() Exception Break\n");
         return 0;
     }
     r = h->exec(0x4e64);
@@ -7082,7 +7060,7 @@ bool CDBManager::QueryGuildNotiMessage(unsigned char serverGroup,
         return 0;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0008 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryGuildSkill | 详见 function_reports/dbmw/_ZN10CDBManager15QueryGuildSkillEhjR27Packet_DB_Reply_Query_Guild.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0008 已消除）| CDBManager::QueryGuildSkill
 bool CDBManager::QueryGuildSkill(unsigned char serverGroup,
                                  unsigned int guildId,
                                  Packet_DB_Reply_Query_Guild& reply)
@@ -7096,8 +7074,7 @@ bool CDBManager::QueryGuildSkill(unsigned char serverGroup,
                       guildId))
     {
         sv = serverGroup;
-        CMyFileLog log(__FUNCTION__, 0xcec);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xcec)("./log/DBQueryErr",
             "CDBManager::QueryGuild() seLect remain_sp, skill_slot from guild_skill where guild_id = %d and server_id = %d and expire_flag = 0",
             guildId, sv);
         reply.m_result = 0;
@@ -7129,8 +7106,8 @@ bool CDBManager::QueryGuildSkill(unsigned char serverGroup,
     }
     if ((unsigned char)info->m_skillLearnCnt != 0)
     {
-        r = h->get_binary(2, (char*)info->m_skills,
-                          (unsigned char)info->m_skillLearnCnt * 5);
+        r = h->get_binary(2, (void*)info->m_skills,
+                          (unsigned char)info->m_skillLearnCnt * 5u);
         if (!r)
         {
             reply.m_result = 3;
@@ -7190,8 +7167,7 @@ void CPacketTranslater::OnChangeUnconnectedGuildMemberGrade(PacketHeader* header
                 *(unsigned char*)(h + 0x32), h + 0x14))
         {
             gs->SendToServer((char*)&pkt, pkt.packetSize);
-            CMyFileLog log(__FUNCTION__, 0x495);
-            log("./log/GuildModify",
+            CMyFileLog(__FUNCTION__, 0x495)("./log/GuildModify",
                 "::OnChangeUnconnectedGuildMemberGrade GRADE_CHANGE Guild(%d) UnConnected Name(%s) Grade(%d) Prev(%d)",
                 *(unsigned int*)(h + 0xb), h + 0x14,
                 *(unsigned char*)(h + 0x32),

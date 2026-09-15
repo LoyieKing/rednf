@@ -251,7 +251,7 @@ public:
     void removeItem(unsigned int ipgno);
     bool updateItem(unsigned int ipgno, unsigned int sellNum);
     class CItemLimitEdition* getItemInfo(unsigned int ipgno) const;
-    char isEmpty() const;
+    bool isEmpty() const;
     void clear();
     std::map<unsigned int, class CItemLimitEdition*> m_items;  // +0
     time_t m_lastTime;                     // +0x18

@@ -17,8 +17,8 @@ public:
     int InitClientSocket();
     bool RecvFromClient(char* buf, int* len, unsigned int* ip, unsigned short* port) const;
     int RecvFromServer(char* buf, int* len, unsigned int* ip, unsigned short* port) const;
-    int SendToClient(char* buf, int len, unsigned short port, char const* ip,
-                     unsigned int ipaddr) const;
+    bool SendToClient(char* buf, int len, unsigned short port, char const* ip,
+                      unsigned int ipaddr) const;
     int SendToServer(char* buf, int len, unsigned short port, char const* ip) const;
     void InetAddr(char const* ip) const;
     int m_sock;         // +0

@@ -90,8 +90,7 @@ CMemberExpTbl::~CMemberExpTbl() {}
 //   注意异常串里写的是 **CMemberConfig**（ORIG 原版如此，逐字保留）。
 void CMemberExpTbl::Load_Table(const std::string& path)
 {
-    int rc = Load_Txt_Table_Data(path.c_str(), 0xb);
-    m_count = (unsigned char)rc;
+    m_count = (unsigned char)Load_Txt_Table_Data(path.c_str(), 0xb);
     if (m_count != 0 && m_count <= 0xb)
     {
         return;
@@ -101,7 +100,7 @@ void CMemberExpTbl::Load_Table(const std::string& path)
     throw CDNFException("CMemberConfig::Load_Table() Exception Break!");
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0016 | monitor | 与ORIG差异=DIFF | CMemberExpTbl::Parse_Table | 详见 function_reports/monitor/_ZN13CMemberExpTbl11Parse_TableEPci.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0016 已消除）| CMemberExpTbl::Parse_Table
 bool CMemberExpTbl::Parse_Table(char* line, int idx)
 {
     if (line[0] == '#')
@@ -123,8 +122,12 @@ bool CMemberExpTbl::Parse_Table(char* line, int idx)
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0017 | monitor | 与ORIG差异=DIFF | CMemberExpTbl::GetMemberExpLevel | 详见 function_reports/monitor/_ZN13CMemberExpTbl17GetMemberExpLevelEj.md
 int CMemberExpTbl::GetMemberExpLevel(unsigned int exp)
 {
+    // [P-DIFF] 唯一残差：我方 `m_count - 1`（unsigned char 算术）多一条冗余 `movzbl %al,%eax`
+    // （ORIG 为 movzbl+sub 单扩展）。已验证该差异对 4.1.2-52 / 4.4.4-13 / 4.4.6-3 /
+    // 4.4.7-3 / 4.4.7-23 / 重建 4.4.7 六个后端与 6 种源码形态（含 (int)/(unsigned int)/-1u/位域）
+    // 全部不变 ⇒ 属未知前端差异，暂无法消除。
     char* p = (char*)m_table;
-    int local_c = (int)m_count - 1;
+    int local_c = m_count - 1;
     int local_8 = 1;
     if (exp >= (unsigned int)m_table[local_c])
     {

@@ -43,17 +43,18 @@ STDBConnInfo::STDBConnInfo()
     m_port = 0;
     m_tail = 0;
 }
-int CAppConfig::Load_Table(const std::string& fileName)
+void CAppConfig::Load_Table(const std::string& fileName)
 {
-    CMyFileLog log("Load_Table", 0x35d);
-    log("./log/process.log", "CAppConfig::Load_Table :  _S_MOD_CFG_LOADER_BY_NAME\n");
+    DNF_LOG_SCOPE_AT("Load_Table", 0x35d, "./log/process.log",
+        "CAppConfig::Load_Table :  _S_MOD_CFG_LOADER_BY_NAME\n");
     std::string path = "./cfg/" + fileName + ".cfg";
     int n = Load_Txt_Table_Data(path.c_str(), 0xff);
-    if (n > 0 && n <= 0xfe)
-        return n;
-    CMyFileLog log2("Load_Table", 0x365);
-    log2("./log/TableError.log", "App Config Table - ReturnCode = %d\n", n);
-    throw CDNFException("CAppConfig::Load_Setup_Table() Exception Break!");
+    if (n <= 0 || n > 0xfe)
+    {
+        DNF_LOG_SCOPE_AT("Load_Table", 0x365, "./log/TableError.log",
+            "App Config Table - ReturnCode = %d\n", n);
+        throw CDNFException("CAppConfig::Load_Setup_Table() Exception Break!");
+    }
 }
 STDBConnInfo* CAppConfig::GetDBConnInfo(ENUM_DB_HANDLE_IDX idx)
 {
@@ -85,6 +86,7 @@ bool CAppConfig::Parse_Table(char* data, int size)
 {
     if (data[0] == '#')
         return 0;
+    char pad0[4];
     char* fields[2];
     if (DNFFLib::ExplodeString(data, " =\t\r\n\"", fields, 2) != 2)
         return 0;
@@ -206,13 +208,13 @@ bool CAppConfig::Parse_Table(char* data, int size)
         return 0;
     return 1;
 }
-int CAppConfig::Check_FileName(const std::string& fileName)
+void CAppConfig::Check_FileName(const std::string& fileName)
 {
-    std::string cfg = std::string("./cfg/") + fileName + std::string(".cfg");
+    std::string cfg = "./cfg/" + fileName + ".cfg";
+    std::string pid = "./pid/" + fileName + ".pid";
     if (access(cfg.c_str(), 0) != 0)
         throw CDNFException(
             "CAppConfig::Set_FileName() There is no cfg file Exception Break! Check ./cfg/*.cfg files");
-    std::string pid = std::string("./pid/") + fileName + std::string(".pid");
     // [2026-09-14 修复] ORIG df_dbmw_r 0x08069e2d/0x08069e34 实证：pid 检查用的是
     //   `call access; test eax,eax; **sete** al; test al,al; je 0x8069f2e`，
     //   异常串 @0x81a8f2c = "There is already pid file!..." ⇒ **access==0（pid 文件
@@ -225,7 +227,6 @@ int CAppConfig::Check_FileName(const std::string& fileName)
     if (access(pid.c_str(), 0) == 0)
         throw CDNFException(
             "CAppConfig::Set_FileName() There is already pid file! Exception Break! Check ./pid/*.pid files");
-    return 1;
 }
 int CAppConfig::Get_ServerUdpPort() { return m_udpPort; }
 int CAppConfig::Get_ServerTcpPort() { return m_tcpPort; }

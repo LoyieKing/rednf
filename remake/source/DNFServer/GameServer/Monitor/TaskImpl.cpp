@@ -113,7 +113,10 @@ unsigned int CTask_ChristmasEvent::MakeEventStartTick(int param_1)
     time_t now = time(0);
     tm nowTm = *localtime(&now);
 
-    if (now < (time_t)getEventStartTime())
+    // signed 比较（ORIG setg）⇒ 与 getEventStartTime() 的 unsigned 返回需显式 int 化；
+    // 余下 ndiff=6：比较处多一条 `mov %eax,%edx` 中转 + 循环退出少一条 `jmp`。
+    // 已试：`(time_t)`/无 cast、返回类型改 time_t（6→8）、goto 形式循环（181 条更差）。
+    if ((int)now < (int)getEventStartTime())
     {
         tm t = nowTm;
         t.tm_hour = 0;
@@ -125,10 +128,15 @@ unsigned int CTask_ChristmasEvent::MakeEventStartTick(int param_1)
     if (param_1 == 0 && eventHour < nowTm.tm_hour + 1)
     {
         int n = 0;
-        while (n < 3 && (eventHour = DecideEventTime(), eventHour < nowTm.tm_hour + 1))
+        do
         {
+            eventHour = DecideEventTime();
+            if (!(eventHour < nowTm.tm_hour + 1))
+            {
+                break;
+            }
             n++;
-        }
+        } while (n < 3);
         if (n == 3)
         {
             eventHour = (nowTm.tm_hour + eventHour + 1) % 25;
@@ -140,34 +148,34 @@ unsigned int CTask_ChristmasEvent::MakeEventStartTick(int param_1)
     t2.tm_min = 0;
     t2.tm_sec = 0;
     time_t result = mktime(&t2);
-    char* s = ctime(&result);
-    DNF_LOG_SCOPE_LINE(0x96, "./log/GameServer", "Next X_Mas Event Time! (%s)", s);
+    DNF_LOG_SCOPE_LINE(0x96, "./log/GameServer", "Next X_Mas Event Time! (%s)",
+        ctime(&result));
     return (unsigned int)result;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0127 | monitor | 与ORIG差异=DIFF | CTask_ChristmasEvent::_DoExecute | 详见 function_reports/monitor/_ZN20CTask_ChristmasEvent10_DoExecuteEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0 AE | CTask_ChristmasEvent::_DoExecute（原 DNF-MON-DIFF-0127 已消除）
 void CTask_ChristmasEvent::_DoExecute()
 {
     Packet_Monitor_ServerEvent_Start pkt;
     pkt.m_eventCode = 1;
     pkt.m_param1 = 0x14;
     pkt.m_param2 = 0xe10;
-    ((CApplication*)CApplicationInstance())->Get_ServerHandler()->SendAllToGameServer(
-        (char*)&pkt, 0x12);
-    unsigned int t = MakeEventStartTick(1);
-    if ((int)getEventEndTime() < (int)t)
+    CServerHandler* h = ((CApplication*)CApplicationInstance())->Get_ServerHandler();
+    h->SendAllToGameServer((char*)&pkt, 0x12);
+    int t = (int)MakeEventStartTick(1);
+    if ((int)getEventEndTime() < t)
     {
         DNF_LOG_SCOPE_LINE(0xc3, "./log/GameServer", "End X_Mas Event!");
     }
     else
     {
-        CTask_ChristmasEvent* task = new CTask_ChristmasEvent(t, 0);
-        ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(task);
+        ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(
+            new CTask_ChristmasEvent(t, 0));
         DNF_LOG_SCOPE_LINE(200, "./log/GameServer", "Start X_Mas Event!");
     }
 }
 
-CTask_ChristmasEvent::CTask_ChristmasEvent(unsigned int tick, unsigned int flag)
+CTask_ChristmasEvent::CTask_ChristmasEvent(unsigned int tick, unsigned int flag) throw()
     : CTaskScheduler::CTask(tick, flag)
 {
 }

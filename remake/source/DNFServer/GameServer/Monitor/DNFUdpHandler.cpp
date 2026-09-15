@@ -37,44 +37,46 @@ CUdpHandler::~CUdpHandler() {}
 
 unsigned int CUdpHandler::InetAddr(const char* ip) const { return inet_addr(ip); }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0003 | monitor | 与ORIG差异=DIFF | CUdpHandler::InitServerSocket | 详见 function_reports/monitor/_ZN11CUdpHandler16InitServerSocketEi.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原标记已消除，MonitorRest 翻正）| CUdpHandler::InitServerSocket | 详见 function_reports/monitor/_ZN11CUdpHandler16InitServerSocketEi.md
 int CUdpHandler::InitServerSocket(int port)
 {
-    int fd = socket(AF_INET, SOCK_DGRAM, 0x11);
-    m_sock = fd;
+    int err;
+    m_sock = socket(AF_INET, SOCK_DGRAM, 0x11);
     if (m_sock == -1)
     {
-        printf("Could not create a UDP socket : %d\n", getErrno());
+        err = getErrno();
+        printf("Could not create a UDP socket : %d\n", err);
         return -1;
     }
     sockaddr_in addr;
-    memset(&addr, 0, 0x10);
+    memset((char*)&addr, 0, 0x10);
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(0);
     addr.sin_port = htons((unsigned short)port);
     if (bind(m_sock, (sockaddr*)&addr, 0x10) != 0)
     {
-        int err = getErrno();
-        if (err == 0x62)
+        err = getErrno();
+        switch (err)
         {
+        case 0x62:
             printf("Port %d for receiving UDP is in use\n", port);
-        }
-        else if (err == 99)
-        {
+            break;
+        case 0x63:
             puts("Cannot assign requested address");
-        }
-        else if (err != 0)
-        {
+            break;
+        case 0:
+            break;
+        default:
             printf("Could not bind UDP receive port. Error= %d , strerror = %s\n", err,
                    strerror(err));
+            break;
         }
         m_sock = -1;
     }
     unsigned int rcvbuf = 0xf4240;
     setsockopt(m_clientSock, SOL_SOCKET, SO_RCVBUF, (char*)&rcvbuf, 4);
-    CMyFileLog log(__FUNCTION__, 0x6e);
-    log("./log/Udp", "Opened port %d with fd %d, recv buf size %d\n", port, m_sock,
-        rcvbuf);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x6e, "./log/Udp",
+                     "Opened port %d with fd %d, recv buf size %d\n", port, m_sock, rcvbuf);
     return m_sock;
 }
 
@@ -88,38 +90,38 @@ int CUdpHandler::InitClientSocket()
         return -1;
     }
     register int sock = m_clientSock;
-    CMyFileLog log(__FUNCTION__, 0x8f);
-    log("./log/Udp", "Opened port with fd %d\n", sock);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x8f, "./log/Udp", "Opened port with fd %d\n", sock);
     return m_clientSock;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0142 | monitor | 与ORIG差异=DIFF | CUdpHandler::RecvFromClient | 详见 function_reports/monitor/_ZNK11CUdpHandler14RecvFromClientEPcPiPjPt.md
-char CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原标记已消除，MonitorRest 翻正）| CUdpHandler::RecvFromClient | 详见 function_reports/monitor/_ZNK11CUdpHandler14RecvFromClientEPcPiPjPt.md
+bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
                                  unsigned short* port) const
 {
     if (m_sock == -1)
     {
         return 0;
     }
-    socklen_t len = 0x10;
     sockaddr_in from;
-    *size = recvfrom(m_sock, buf, *size, 0, (sockaddr*)&from, &len);
+    socklen_t len = 0x10;
+    register socklen_t* plen = &len;
+    *size = recvfrom(m_sock, buf, *size, 0, (sockaddr*)&from, plen);
     if (*size == -1)
     {
         int err = getErrno();
-        if (err == 0x58)
+        switch (err)
         {
+        case 0x58:
             puts("Error fd not a socket");
             DNF_LOG_SCOPE_LINE(0xaf, "./log/UdpErr", "Error fd not a socket\n");
-        }
-        else if (err == 0x68)
-        {
+            break;
+        case 0x68:
             puts("Error connection reset - host not reachable");
             DNF_LOG_SCOPE_LINE(0xb6, "./log/UdpErr", "Error connection reset - host not reachable\n");
-        }
-        else
-        {
+            break;
+        default:
             printf("Hm! Time out Or Socket Error = %d\n", err);
+            break;
         }
         return 0;
     }
@@ -132,19 +134,19 @@ char CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
     *port = ntohs(from.sin_port);
     *addr = ntohl(from.sin_addr.s_addr);
     char* ip = inet_ntoa(from.sin_addr);
-    if (*(short*)buf == 0x4c8 || *(short*)buf == 0x4c9 || *(short*)buf == 0x44f ||
-        *(short*)buf == 0x450)
+    unsigned short* pId = (unsigned short*)buf;
+    if (*pId == 0x4c8 || *pId == 0x4c9 || *pId == 0x44f || *pId == 0x450)
     {
         DNF_LOG_SCOPE_LINE(0xd1,"./log/Udp", "PacketId(%d) Recv success! IP = %s, Port %d, Recv size = %d",
-            *(unsigned short*)buf, ip, *port, *size);
+            *pId, ip, *port, *size);
     }
     buf[*size] = '\0';
     return 1;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0140 | monitor | 与ORIG差异=DIFF | CUdpHandler::SendToClient | 详见 function_reports/monitor/_ZNK11CUdpHandler12SendToClientEPcitPKcj.md
-int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const char* ip,
-                              unsigned int addr) const
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0140 | monitor | 与ORIG差异=DIFF | CUdpHandler::SendToClient | 详见 function_reports/monitor/_ZNK11CUdpHandler12SendToClientEPcitPKcj.md
+bool CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const char* ip,
+                               unsigned int addr) const
 {
     if (ip == 0 && addr == 0)
     {
@@ -178,21 +180,23 @@ int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const cha
     if (sent == -1)
     {
         int err = getErrno();
-        if (err == 0x61)
+        switch (err)
         {
-            puts("err EAFNOSUPPORT in send");
-            DNF_LOG_SCOPE_LINE(0x119, "./log/UdpErr", "Error( EAFNOSUPPORT ) in send = %d\n", err);
-        }
-        else if (err < 0x61 || 2 < (unsigned int)(err - 0x6f))
-        {
-            printf("err = %d , strerror = %s in send\n", err, strerror(err));
-            DNF_LOG_SCOPE_LINE(0x11f, "./log/UdpErr", "err = %d , strerror = %s in send\n", err, strerror(err));
-        }
-        else
-        {
+        case 0x6f:
+        case 0x70:
+        case 0x71:
             printf("Error( ECONNREFUSED, EHOSTDOWN, EHOSTUNREACH ) = %d\n", err);
             DNF_LOG_SCOPE_LINE(0x113,"./log/UdpErr",
                 "Error( ECONNREFUSED, EHOSTDOWN, EHOSTUNREACH ) = %d\n", err);
+            break;
+        case 0x61:
+            puts("err EAFNOSUPPORT in send");
+            DNF_LOG_SCOPE_LINE(0x119, "./log/UdpErr", "Error( EAFNOSUPPORT ) in send = %d\n", err);
+            break;
+        default:
+            printf("err = %d , strerror = %s in send\n", err, strerror(err));
+            DNF_LOG_SCOPE_LINE(0x11f, "./log/UdpErr", "err = %d , strerror = %s in send\n", err, strerror(err));
+            break;
         }
         return 0;
     }
@@ -202,16 +206,16 @@ int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const cha
         DNF_LOG_SCOPE_LINE(0x128, "./log/UdpErr", "no data sent in send\n");
         return 0;
     }
-    if (sent == len)
+    if (len != sent)
     {
-        return 1;
+        printf("Only %s out of %d bytes sent\n", sent, len);
+        DNF_LOG_SCOPE_LINE(0x133, "./log/UdpErr", "Only %s out of %d bytes sent\n", sent, len);
+        return 0;
     }
-    printf("Only %s out of %d bytes sent\n", sent, len);
-    DNF_LOG_SCOPE_LINE(0x133, "./log/UdpErr", "Only %s out of %d bytes sent\n", sent, len);
-    return 0;
+    return 1;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0141 | monitor | 与ORIG差异=DIFF | CUdpHandler::SendToServer | 详见 function_reports/monitor/_ZNK11CUdpHandler12SendToServerEPcitPKc.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0141 | monitor | 与ORIG差异=DIFF | CUdpHandler::SendToServer | 详见 function_reports/monitor/_ZNK11CUdpHandler12SendToServerEPcitPKc.md
 int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, const char* ip) const
 {
     if (m_clientSock == -1)
@@ -229,7 +233,7 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, const cha
     else
     {
         sockaddr_in to;
-        memset(&to, 0, 0x10);
+        memset((char*)&to, 0, 0x10);
         to.sin_family = AF_INET;
         to.sin_port = htons(port);
         to.sin_addr.s_addr = inet_addr(ip);
@@ -268,33 +272,34 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, const cha
     return 1;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0143 | monitor | 与ORIG差异=DIFF | CUdpHandler::RecvFromServer | 详见 function_reports/monitor/_ZNK11CUdpHandler14RecvFromServerEPcPiPjPt.md
-char CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原标记已消除，MonitorRest 翻正）| CUdpHandler::RecvFromServer | 详见 function_reports/monitor/_ZNK11CUdpHandler14RecvFromServerEPcPiPjPt.md
+bool CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
                                  unsigned short* port) const
 {
     if (m_clientSock == -1)
     {
         return 0;
     }
-    socklen_t len = 0x10;
     sockaddr_in from;
-    *size = recvfrom(m_clientSock, buf, *size, 0, (sockaddr*)&from, &len);
+    socklen_t len = 0x10;
+    register socklen_t* plen = &len;
+    *size = recvfrom(m_clientSock, buf, *size, 0, (sockaddr*)&from, plen);
     if (*size == -1)
     {
         int err = getErrno();
-        if (err == 0x58)
+        switch (err)
         {
+        case 0x58:
             puts("Error fd not a socket");
             DNF_LOG_SCOPE_LINE(0x156, "./log/UdpErr", "Error fd not a socket\n");
-        }
-        else if (err == 0x68)
-        {
+            break;
+        case 0x68:
             puts("Error connection reset - host not reachable");
             DNF_LOG_SCOPE_LINE(0x15d, "./log/UdpErr", "Error connection reset - host not reachable\n");
-        }
-        else
-        {
+            break;
+        default:
             printf("Hm! Time out Or Socket Error = %d\n", err);
+            break;
         }
         return 0;
     }
@@ -307,11 +312,12 @@ char CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
     *port = ntohs(from.sin_port);
     *addr = ntohl(from.sin_addr.s_addr);
     char* ip = inet_ntoa(from.sin_addr);
-    if (*(short*)buf == 0x4c8 || *(short*)buf == 0x4c9)
+    unsigned short* pId = (unsigned short*)buf;
+    if (*pId == 0x4c8 || *pId == 0x4c9)
     {
         DNF_LOG_SCOPE_LINE(0x179, "./log/Udp",
             "PacketId(%d) Recv success! IP = %s, Port %d, Recv size = %d",
-            *(unsigned short*)buf, ip, *port, *size);
+            *pId, ip, *port, *size);
     }
     buf[*size] = '\0';
     return 1;

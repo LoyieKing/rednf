@@ -69,7 +69,7 @@ void CTcpNetworkThread::attach(CTcpNetSystem* net)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0114 | monitor | 与ORIG差异=DIFF | CTcpNetworkThread::dispatch | 详见 function_reports/monitor/_ZN17CTcpNetworkThread8dispatchEPv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0114 已消除）
 void CTcpNetworkThread::dispatch(void* param)
 {
     CPeer* peer = 0;
@@ -82,27 +82,27 @@ void CTcpNetworkThread::dispatch(void* param)
         {
             errno = 0;
             DNFFLib::Sleep_Ext(0, 5);
-            if (m_net == 0)
-            {
+            if (!m_net)
                 continue;
-            }
             m_net->SetEpollAcceptedPeers();
             m_net->SendPacket();
             eventCount = m_net->WaitForEvent();
             if (eventCount == 0)
-            {
                 continue;
-            }
-            if (eventCount < 0 && errno != EINTR && errno != 0)
+            if (eventCount < 0)
             {
-                break;
+                if (errno != EINTR)
+                {
+                    if (errno != 0)
+                        return;
+                }
             }
             for (int i = 0; i < eventCount; i++)
             {
                 peer = (CPeer*)((CTcpHandler*)m_handler)->GetEventPtr(i);
                 if (peer != 0 && ((CTcpHandler*)m_handler)->IsSetInEvent(i))
                 {
-                    if (peer->RecvPacket() < 1)
+                    if (!peer->RecvPacket())
                     {
                         peer->DisConnSig();
                         m_net->DeletePeer(peer);
@@ -112,7 +112,10 @@ void CTcpNetworkThread::dispatch(void* param)
                 if (peer != 0 && peer->get_remain_sendlen() != 0 &&
                     ((CTcpHandler*)m_handler)->IsSetOutEvent(i))
                 {
-                    if (peer->get_remain_sendlen() < 0x1801)
+                    if (peer->get_remain_sendlen() > 0x1800)
+                    {
+                    }
+                    else
                     {
                         peer->send_packet();
                     }

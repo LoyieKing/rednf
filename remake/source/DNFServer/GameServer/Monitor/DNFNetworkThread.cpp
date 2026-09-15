@@ -66,6 +66,12 @@ void CUdpNetworkThread::SetUDPQueue(
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0115 | monitor | 与ORIG差异=DIFF | CUdpNetworkThread::dispatch | 详见 function_reports/monitor/_ZN17CUdpNetworkThread8dispatchEPv.md
 void CUdpNetworkThread::dispatch(void* param)
 {
+    // [MonitorRest 本轮] 524/520 DIFF ndiff=145（未归零）：主要差异为 ①EH 清理路径我方多
+    //   `mov %ecx,(%esp); call _Unwind_Resume`（ORIG 用 `jmp` 跳过，属 P374 ctor-spec 族，
+    //   但本函数被构造类型（CDNFException/CUdpRecvBuffer）的 ctor 在其它件也被引用，未强行加 throw()）；
+    //   ② -0x5c/-0x5e 与 -0x5a/-0x60 两组槽互换。
+    //   已试劣化并回退：删 `CUdpRecvBuffer* pkt = buf;` 副本（145→263，monitor 的 ORIG **保留**该副本，
+    //   与 guild 情形相反）。
     if (m_recvQ == 0 || m_udpHandler == 0 || m_qLock == 0)
     {
         throw CDNFException("NetworkThread is Not Ready!\n");
@@ -85,7 +91,7 @@ void CUdpNetworkThread::dispatch(void* param)
             int recvSize = 0x1800;
             unsigned short srcPort = 0;
             unsigned int fromAddr = 0;
-            if (m_udpHandler->RecvFromClient((char*)buf, &recvSize, &fromAddr, &srcPort) == 1)
+            if (m_udpHandler->RecvFromClient((char*)buf, &recvSize, &fromAddr, &srcPort))
             {
                 unsigned int recvByte = (unsigned int)recvSize;
                 CUdpRecvBuffer* pkt = buf;

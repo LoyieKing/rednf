@@ -142,17 +142,17 @@ void CServerInterface::OnDisconnect()
     m_heartBeatOverCnt = 0;
 }
 
-int CServerInterface::IsHeartBeatTimeOver()
+bool CServerInterface::IsHeartBeatTimeOver()
 {
     if (--m_heartBeatCnt == 0)
     {
         if (0x14 < (unsigned char)++m_heartBeatOverCnt)
         {
-            return 1;
+            return true;
         }
         m_heartBeatCnt = 0x14;
     }
-    return 0;
+    return false;
 }
 
 void CServerInterface::ResetHeartBeat()

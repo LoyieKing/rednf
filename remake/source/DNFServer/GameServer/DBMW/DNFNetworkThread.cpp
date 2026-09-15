@@ -46,7 +46,7 @@ void CNetworkThread::attach(CApplication* app)
         m_udpBLock = app->Get_BLock();
     }
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0080 | dbmw | 与ORIG差异=DIFF | CNetworkThread::dispatch | 详见 function_reports/dbmw/_ZN14CNetworkThread8dispatchEPv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0080 已消除）
 void CNetworkThread::dispatch(void* param)
 {
     try
@@ -66,6 +66,12 @@ void CNetworkThread::dispatch(void* param)
             int size = 0x1800;
             unsigned short port = 0;
             unsigned int addr = 0;
+            // 与 statics 的 identical 同源版一致：该 label 使 RecvFromClient 的调用与
+            //   紧随其后的条件判断分属两个基本块，异常 landing pad 才会落在调用之后
+            //   而非条件判断之后（否则本函数有 6 条指令错位）。goto 与目标相邻，-O0
+            //   下不产生额外指令。
+            goto l_recv_check;
+l_recv_check:
             if (((CUdpHandler*)m_udpHandler)->RecvFromClient(
                     (char*)buf, &size, &addr, &port) != 1)
             {

@@ -149,7 +149,7 @@ void CApplication::Init(int argc, char** argv)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0010 | guild | 与ORIG差异=DIFF | CApplication::Load | 详见 function_reports/guild/_ZN12CApplication4LoadEiPPc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GUI-DIFF-0010 已消除）
 void CApplication::Load(int argc, char** argv)
 {
     try
@@ -160,27 +160,27 @@ void CApplication::Load(int argc, char** argv)
     m_userManager.Init(this);
     m_appConfig->Load_Table(argv[1]);
     m_powerManager.InitPowerManager((char*)"./script/power_war_event.tbl", this);
-    m_frameCount.InitFrameCountInfo(this, m_appConfig->Get_FrameCountValue(), 1000);
+    m_frameCount.InitFrameCountInfo(this, ((CAppConfig*)m_appConfig)->Get_FrameCountValue(), 1000);
     m_udpHandler = new CUdpHandler;
-    if (m_udpHandler->InitServerSocket(m_appConfig->Get_ServerUdpPort()) == -1)
+    if (m_udpHandler->InitServerSocket(((CAppConfig*)m_appConfig)->Get_ServerUdpPort()) == -1)
     {
         throw CDNFException("CApplication::Load() Init UDP Server Socket Exception Break!");
     }
     m_serverHandler = new CServerHandler;
     m_serverHandler->Attach(this);
-    m_serverHandler->Load(m_appConfig->GetServerInfoMap());
+    m_serverHandler->Load(((CAppConfig*)m_appConfig)->GetServerInfoMap());
     CPacketTranslater::attach(this);
     m_innerMsgHandler = new CInnerMsgHandler;
     CPacketDecoderInstance()->Attach(this);
     m_udpThread = new CUdpNetworkThread;
-    m_udpThread->attach(this);
-    if (!((CThreadInterface*)m_udpThread)->begin())
+    ((CUdpNetworkThread*)m_udpThread)->attach(this);
+    if (!m_udpThread->begin())
     {
         throw;
     }
-    m_tcpNetSystem.Init(m_appConfig->Get_ServerTcpPort());
-    const char* dbIp = m_appConfig->Get_DBMWTcpIP();
-    unsigned short dbPort = m_appConfig->Get_DBMWTcpPort();
+    m_tcpNetSystem.Init(((CAppConfig*)m_appConfig)->Get_ServerTcpPort());
+    const char* dbIp = ((CAppConfig*)m_appConfig)->Get_DBMWTcpIP();
+    unsigned short dbPort = ((CAppConfig*)m_appConfig)->Get_DBMWTcpPort();
     CTcpDBServer* db = m_serverHandler->GetTcpDBServer();
     if (*dbIp != '\0' && dbPort != 0)
     {
@@ -372,14 +372,16 @@ void CApplication::CheckArgv(int argc, char** argv)
 //   姊妹函数 Send_Suspend_Signal 本地本来就是实现的，只有这个被漏成空壳。
 bool CApplication::Send_Term_Signal(const std::string& name)
 {
+    int pid;
+    int result;
+    FILE* fp;
     std::string path = "./pid/" + name + ".pid";
-    FILE* fp = fopen(path.c_str(), "r");
+    fp = fopen(path.c_str(), "r");
     if (fp == 0)
     {
         printf("%s process id file open \xbd\xc7\xc6\xd0\n", path.c_str());
         return 0;
     }
-    int pid = 0;
     fscanf(fp, "%d", &pid);
     if (pid <= 0)
     {
@@ -387,7 +389,8 @@ bool CApplication::Send_Term_Signal(const std::string& name)
         printf("%d\xb9\xf8\xc0\xc7 \xc0\xdf\xb8\xf8\xb5\xc8 process id\n", pid);
         return 0;
     }
-    if (kill(pid, 0xf) < 0)
+    result = kill(pid, 0xf);
+    if (result < 0)
     {
         fclose(fp);
         printf("%d\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc5 \xbd\xc7\xc6\xd0", pid);
@@ -403,15 +406,17 @@ bool CApplication::Send_Term_Signal(const std::string& name)
 
 void CApplication::Send_Suspend_Signal(const std::string& name)
 {
-    std::string path = "./pid/" + name;
-    FILE* fp = fopen(path.c_str(), "r");
+    int pid;
+    int result;
+    FILE* fp;
+    std::string path = "./pid/" + name + ".pid";
+    fp = fopen(path.c_str(), "r");
     if (fp == 0)
     {
-        printf("%s process id file open fail\n", path.c_str());
+        printf("%s process id file open \xbd\xc7\xc6\xd0\n", path.c_str());
     }
     else
     {
-        int pid = 0;
         fscanf(fp, "%d", &pid);
         if (pid < 1)
         {
@@ -420,10 +425,11 @@ void CApplication::Send_Suspend_Signal(const std::string& name)
         }
         else
         {
-            if (kill(pid, 10) < 0)
+            result = kill(pid, 10);
+            if (result < 0)
             {
                 fclose(fp);
-                printf("\x25\x64\xb9\xf8 process id\n", pid);
+                printf("\x25\x64\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc5 \xbd\xc7\xc6\xd0", pid);
             }
             else
             {
@@ -468,7 +474,7 @@ void CApplication::Call_DeleteGuildMember(unsigned int group, CUser* user)
 
 unsigned char CApplication::Get_ServerGroup()
 {
-    return m_appConfig->Get_ServerGroup();
+    return ((CAppConfig*)m_appConfig)->Get_ServerGroup();
 }
 
 void CApplication::SendTestPacket_2()
@@ -479,7 +485,7 @@ void CApplication::SendTestPacket_1()
 {
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0009 | guild | 与ORIG差异=DIFF | CApplication::TranslateSignal | 详见 function_reports/guild/_ZN12CApplication15TranslateSignalEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GUI-DIFF-0009 已消除）
 void CApplication::TranslateSignal()
 {
     m_killConfig->Clear_Table();
@@ -496,6 +502,9 @@ void CApplication::TranslateSignal()
         case 1:
             Get_GuildManager()->DBGuildProcess(Get_ServerHandler(), true);
             break;
+            case 4:
+                m_serverHandler->Load(((CAppConfig*)m_appConfig)->GetServerInfoMap());
+                break;
             case 3:
             {
                 Packet_Monitor_Send_Guild_Mail mail;
@@ -507,9 +516,6 @@ void CApplication::TranslateSignal()
                 CPacketTranslater::OnMonitorSendGuildLetter(&mail);
                 break;
             }
-            case 4:
-                m_serverHandler->Load(m_appConfig->GetServerInfoMap());
-                break;
             case 7:
             {
                 Packet_Monitor_Notice_Guild_Enter enter;
@@ -525,10 +531,10 @@ void CApplication::TranslateSignal()
             case 8:
             {
                 Packet_Monitor_Set_GuildMember_Grade_FromWeb grade;
-                grade.m_masterCharNo = (unsigned int)(*it)->m_param1;
                 grade.m_guildKey = 2;  // 与 ORIG 一致：guildKey 恒为 2
-                grade.m_newGrade = (unsigned char)(*it)->m_param3;
+                grade.m_masterCharNo = (unsigned int)(*it)->m_param1;
                 grade.m_targetCharNo = (unsigned int)(*it)->m_param2;
+                grade.m_newGrade = (unsigned char)(*it)->m_param3;
                 CPacketTranslater::OnSetGuildMemberGradeFromWeb(&grade);
                 break;
             }
@@ -594,7 +600,7 @@ void CApplication::SwitchQueueUDP()
     if (m_swapQueue.GetRecvQ()->empty())
         return;
     m_swapQueue.SwapQ();
-    m_udpThread->SetUDPQueue(
+    ((CUdpNetworkThread*)m_udpThread)->SetUDPQueue(
         m_swapQueue.GetRecvQ());
     CPacketDecoderInstance()->SetUdpQueue(
         m_swapQueue.GetParseQ());

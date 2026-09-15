@@ -279,7 +279,7 @@ public:
 class COnTimeEventRewardEndTrigger : public CTaskScheduler::CTask
 {
 public:
-    COnTimeEventRewardEndTrigger(unsigned int time, unsigned int flag, COnTimeEventManager* mgr);
+    COnTimeEventRewardEndTrigger(unsigned int time, unsigned int flag, COnTimeEventManager* mgr) throw();  // [P374] ORIG 调用点无 new 失败清理（唯一调用点：OnRewardStart）
     ~COnTimeEventRewardEndTrigger();
     void _DoExecute();
     COnTimeEventManager* m_mgr;  // +0x10
@@ -310,8 +310,8 @@ public:
     void Clear();
     CApplication* m_app;       // +0
     CRewardUserList m_rewardList;  // +4
-    int m_startTime;           // +0x1c（StartEvent: time(0)）
-    int m_rewardStartTime;     // +0x20（OnRewardStart: time(0)）
+    unsigned int m_startTime;  // +0x1c（StartEvent: time(0)；ORIG 为无符号，决定该赋值的载入序）
+    unsigned int m_rewardStartTime;  // +0x20（OnRewardStart: time(0)；ORIG 为无符号，决定该赋值的载入序）
     unsigned int m_eventStart; // +0x24（StartEvent(a,b)/GetCurEventItemByDBMW(a,b) 的 a）
     unsigned int m_eventDurationMin;  // +0x28（b；OnRewardStart: b*0x3c 秒触发结束）
     ENUM_ONTIME_EVENT_STATE m_state2c;  // +0x2c（枚举成员：enum 比较才出 ORIG 的 eax 形态）

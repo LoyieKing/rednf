@@ -89,7 +89,7 @@ unsigned long long CMySql::getAffectedRowCount()
 {
     return mysql_affected_rows(m_mysql);
 }
-// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0014 | dbmw | 与ORIG差异=NEAR | CMySql::get_int | 详见 function_reports/dbmw/_ZN6CMySql7get_intEiRj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-NEAR-0014 已消除）
 bool CMySql::get_int(int col, unsigned int& v)
 {
     return get_uint(col, v);
@@ -117,7 +117,7 @@ char* CMySql::escape_string(char* dst, char const* src)
 {
     return (char*)mysql_real_escape_string(m_mysql, dst, src, strlen(src));
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0114 | dbmw | 与ORIG差异=DIFF | CMySql::exec_query | 详见 function_reports/dbmw/_ZN6CMySql10exec_queryEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0114 已消除）
 int CMySql::exec_query()
 {
     clear_result_set();
@@ -137,14 +137,12 @@ int CMySql::exec_query()
                                             m_user, 0xcea, 0, 0x400))
                     {
                         register int e2 = mysql_errno(m_mysql);
-                        CMyFileLog log(__FUNCTION__, 0x118);
-                        log("./log/MysqlErr.log",
+                        CMyFileLog(__FUNCTION__, 0x118)("./log/MysqlErr.log",
                             "DB reconnection fail. err_no(%d)\n", e2);
                     }
                     else
                     {
-                        CMyFileLog log(__FUNCTION__, 0x11c);
-                        log("./log/MysqlErr.log",
+                        CMyFileLog(__FUNCTION__, 0x11c)("./log/MysqlErr.log",
                             "DB Reconnect By Server Gone Error\n");
                     }
                 }
@@ -155,21 +153,19 @@ int CMySql::exec_query()
         {
             register char* q = m_query;
             register int err = m_lastErrno;
-            CMyFileLog log(__FUNCTION__, 0x12a);
-            log("./log/MysqlErr.log",
+            CMyFileLog(__FUNCTION__, 0x12a)("./log/MysqlErr.log",
                 "DB error occured (%d) Query('%s')\n", err, q);
             if (m_lastErrno == 0x7d6)
             {
-                CMyFileLog log2(__FUNCTION__, 300);
-                log2("./log/MysqlErr.log",
-                     "CMySql::open() Function Error!\tCheck Connection First, Must Be Not Connected!\n");
+                CMyFileLog(__FUNCTION__, 300)("./log/MysqlErr.log",
+                    "CMySql::open() Function Error!\tCheck Connection First, Must Be Not Connected!\n");
             }
         }
         return 1;
     }
     return 0;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0116 | dbmw | 与ORIG差异=DIFF | CMySql::exec | 详见 function_reports/dbmw/_ZN6CMySql4execEj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0116 已消除）
 bool CMySql::exec(unsigned int q)
 {
     int ret;
@@ -198,7 +194,7 @@ bool CMySql::exec(unsigned int q)
         if (m_result)
         {
             m_nRows = mysql_num_rows(m_result);
-            m_nFields = mysql_num_fields(m_result);
+            m_nFields = (int)mysql_num_fields(m_result);
         }
         else
         {
@@ -337,8 +333,8 @@ bool CMySql::get_binary(int col, void* buf, int len)
     memcpy(buf, m_row[col], copyLen);
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0117 | dbmw | 与ORIG差异=DIFF | CMySql::open | 详见 function_reports/dbmw/_ZN6CMySql4openEPKcS1_S1_S1_.md
-char CMySql::open(const char* host, const char* user, const char* pass, const char* db)
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0117 已消除）
+bool CMySql::open(const char* host, const char* user, const char* pass, const char* db)
 {
     if (!host || !user || !pass || !db)
         return 0;
@@ -360,8 +356,8 @@ char CMySql::open(const char* host, const char* user, const char* pass, const ch
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0118 | dbmw | 与ORIG差异=DIFF | CMySql::open | 详见 function_reports/dbmw/_ZN6CMySql4openEPKcjS1_S1_S1_.md
-char CMySql::open(const char* host, unsigned int port, const char* user, const char* pass,
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0118 已消除）
+bool CMySql::open(const char* host, unsigned int port, const char* user, const char* pass,
                   const char* db)
 {
     if (!host || !user || !pass || !db)
@@ -384,7 +380,7 @@ char CMySql::open(const char* host, unsigned int port, const char* user, const c
 }
 bool CMySql::is_valid_col(int col)
 {
-    if (col < 0 || m_nFields <= col)
+    if (col < 0 || (int)m_nFields <= col)
         return 0;
     return 1;
 }

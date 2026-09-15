@@ -90,7 +90,7 @@ static const int guild_att_phase[] = {
     5, 10, 20, 35, 60, 100, 150, 220, 300,
 };
 
-static const int guild_att_exp[] = {
+static const unsigned int guild_att_exp[9][17] = {
     1,3,4,8,10,18,29,46,70,77,112,158,218,236,307,386,0,
     1,4,4,9,11,18,29,46,70,78,113,159,219,236,307,387,0,
     2,6,8,17,21,36,59,91,140,155,224,316,437,472,614,773,0,
@@ -167,7 +167,7 @@ unsigned int CGuildManager::GetMaxGuildExp2()
     return m_uGuildExpMax2;
 }
 
-unsigned char CGuildManager::IsCargoLock()
+bool CGuildManager::IsCargoLock()
 {
     return m_cargoLock;
 }
@@ -296,7 +296,7 @@ bool CGuildManager::IsEmptyGuild(unsigned int guildKey)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0012 | guild | 与ORIG差异=DIFF | CGuildManager::GuildMemLogin | 详见 function_reports/guild/_ZN13CGuildManager13GuildMemLoginEjP5CUser.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0012 | guild | 与ORIG差异=DIFF | CGuildManager::GuildMemLogin | 详见 function_reports/guild/_ZN13CGuildManager13GuildMemLoginEjP5CUser.md
 CGuild* CGuildManager::GuildMemLogin(unsigned int guildKey, CUser* user)
 {
     if (user == 0 || m_app == 0)
@@ -334,7 +334,13 @@ CGuild* CGuildManager::GuildMemLogin(unsigned int guildKey, CUser* user)
         guild->SetTodayGuildMember(*today);
         guild->NotifyTodayGuildMember(user);
     }
-    if (guild->InsertGuildMember(user->GetUniqCharNo(), user) == 1)
+    // [2026-09-15 修复/P354] ORIG 0x8078?? 该处为 `call; xor $1,%eax; test %al,%al;
+    //   jne <skip>`（bool callee 的「否定条件 + 空 then + else」形）；正写 `== 1` 只产
+    //   `test %al; je`（缺 xor 段，且块序相反）。
+    if (guild->InsertGuildMember(user->GetUniqCharNo(), user) != 1)
+    {
+    }
+    else
     {
         user->QueryGuildMember(handler);
     }
@@ -354,30 +360,33 @@ void CGuildManager::GuildMemLogout(unsigned int guildKey, CUser* user)
         throw CDNFException("CGuildManager::GuildMemLogout()\t0 == dwGuildKey\n");
     }
     CGuild* guild = FindGuild(guildKey);
-    if (guild != 0)
+    register bool bNull = (guild == 0);
+    if (bNull)
+    {
+        return;
+    }
+    if (user->GetGameServer() != 0)
+    {
+        guild->DBGuildMemberSave(user, user->GetGameServer()->GetGroupNo(),
+                                 m_app->Get_ServerHandler(), 1);
+    }
+    if (!guild->DeleteGuildMember(user->GetUniqCharNo(), user))
+    {
+        return;
+    }
+    guild->InsertGuildMemberChanglableInfo(user->GetUniqCharNo());
+    if (IsEmptyGuild(guildKey))
     {
         if (user->GetGameServer() != 0)
         {
-            guild->DBGuildMemberSave(user, user->GetGameServer()->GetGroupNo(),
-                                     m_app->Get_ServerHandler(), 1);
+            guild->DBGuildSave(user->GetGameServer()->GetGroupNo(),
+                               m_app->Get_ServerHandler(), 0);
         }
-        if (guild->DeleteGuildMember(user->GetUniqCharNo(), user) == 1)
-        {
-            guild->InsertGuildMemberChanglableInfo(user->GetUniqCharNo());
-            if (IsEmptyGuild(guildKey) == 0)
-            {
-                guild->NoticeGuildMemberLogin_Out(user, 0);
-            }
-            else
-            {
-                if (user->GetGameServer() != 0)
-                {
-                    guild->DBGuildSave(user->GetGameServer()->GetGroupNo(),
-                                       m_app->Get_ServerHandler(), 0);
-                }
-                DeleteGuild(guildKey);
-            }
-        }
+        DeleteGuild(guildKey);
+    }
+    else
+    {
+        guild->NoticeGuildMemberLogin_Out(user, 0);
     }
 }
 
@@ -524,7 +533,7 @@ void CGuildManager::SendGuildInfoToMembers(unsigned int guildKey, bool flag)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0013 | guild | 与ORIG差异=DIFF | CGuildManager::DBGuildProcess | 详见 function_reports/guild/_ZN13CGuildManager14DBGuildProcessEP14CServerHandlerb.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0013 | guild | 与ORIG差异=DIFF | CGuildManager::DBGuildProcess | 详见 function_reports/guild/_ZN13CGuildManager14DBGuildProcessEP14CServerHandlerb.md
 void CGuildManager::DBGuildProcess(CServerHandler* handler, bool flag)
 {
     if (handler == 0)
@@ -532,20 +541,18 @@ void CGuildManager::DBGuildProcess(CServerHandler* handler, bool flag)
         return;
     }
     static unsigned int save_order = 0;
-    time_t now;
-    tm* t;
-    now = time(NULL);
-    t = localtime(&now);
+    CGuild* guild;
+    time_t now = time(NULL);
+    tm* t = localtime(&now);
     char onTime = m_scheduler.IsOnTimeSpecialDayHour(t->tm_mday, t->tm_hour, t->tm_min);
     unsigned char groupNo = m_app->Get_ServerGroup();
     for (std::map<unsigned int, CGuild*>::iterator it = m_guilds.begin();
          it != m_guilds.end(); ++it)
     {
-        CGuild* guild = it->second;
+        guild = it->second;
         if (guild != 0)
         {
-            unsigned int key = guild->GetGuildKey();
-            key = key % 10;
+            unsigned int key = guild->GetGuildKey() % 10;
             if (key == save_order)
             {
                 guild->DBGuildSaveProcess(handler);
@@ -788,7 +795,7 @@ int CGuildManager::GetAttendancePhase(unsigned int guildKey)
     return -1;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0006 | guild | 与ORIG差异=NEAR | CGuildManager::GetAttendanceExp | 详见 function_reports/guild/_ZN13CGuildManager16GetAttendanceExpEji.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-NEAR-0006 已消除：多维索引二维化）
 int CGuildManager::GetAttendanceExp(unsigned int guildKey, int phase)
 {
     CGuild* guild = FindGuild(guildKey);
@@ -802,49 +809,45 @@ int CGuildManager::GetAttendanceExp(unsigned int guildKey, int phase)
     {
         unsigned int cnt = it->second.size();
         register int p = phase;
-        return guild_att_exp[(guild->GetGuildLevel() & 0xff) + (p + (p << 4))];
+        return guild_att_exp[p][guild->GetGuildLevel() & 0xff];
     }
     return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0015 | guild | 与ORIG差异=DIFF | CGuildManager::GetAttendanceInfo | 详见 function_reports/guild/_ZN13CGuildManager17GetAttendanceInfoEjR16STAttendanceInfo.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0015 已消除）
+//   [GuildA] 本件残余 1 条（ORIG then 块尾多一条 `jmp` 跳过对齐 nop）属「差 1 / 空差集」
+//   族；修法是**外层守卫反转**：`if (guild != 0) { body }` → `if (!guild) { return; }`
+//   后**保留原复合块 `{ body }`**（裸块不可删 —— 删掉就回到 ndiff=1，它正是复现 ORIG
+//   块布局/尾 jmp 的关键）。同族反例：同一 TU 的 `LoadGuild`、`AddGuildFund`、
+//   `DBGuildSaveProcess` 属「该 jmp 不可复现」型，加 return/裸块均无收益。
 void CGuildManager::GetAttendanceInfo(unsigned int guildKey, STAttendanceInfo& info)
 {
-    struct GAI_Layout {
-        unsigned int m0;  // +0
-        unsigned int m1;  // +4
-        unsigned int m2;  // +8
-        unsigned int m3;  // +0xc
-        unsigned int m4;  // +0x10
-        unsigned int m5;  // +0x14
-        int m6;           // +0x18
-    };
     CGuild* guild = FindGuild(guildKey);
-    if (guild != 0)
+    if (!guild)
     {
-        ((GAI_Layout&)info).m1 =
-            (unsigned int)guild->GetTotalCnt_Of_GuildDBInfo() & 0xffff;
+        return;
+    }
+    {
+        info.m1 = (unsigned int)guild->GetTotalCnt_Of_GuildDBInfo() & 0xffff;
         std::map<unsigned int, std::vector<unsigned int> >::iterator it =
             m_attendance.find(guildKey);
         if (it != m_attendance.end())
         {
-            ((GAI_Layout&)info).m0 = (unsigned int)it->second.size();
+            info.m0 = (unsigned int)it->second.size();
             int phase = GetAttendancePhase(guildKey);
-            ((GAI_Layout&)info).m6 = phase;
+            info.m6 = phase;
             if (phase >= 0 && phase < 9)
             {
-                ((GAI_Layout&)info).m4 = guild_att_phase[phase];
+                info.m4 = guild_att_phase[phase];
                 register int p = phase;
-                ((GAI_Layout&)info).m5 =
-                    guild_att_exp[(guild->GetGuildLevel() & 0xff) + p * 0x11];
+                info.m5 = guild_att_exp[p][guild->GetGuildLevel() & 0xff];
             }
             phase++;
             if (phase >= 0 && phase < 9)
             {
-                ((GAI_Layout&)info).m2 = guild_att_phase[phase];
+                info.m2 = guild_att_phase[phase];
                 register int p = phase;
-                ((GAI_Layout&)info).m3 =
-                    guild_att_exp[(guild->GetGuildLevel() & 0xff) + p * 0x11];
+                info.m3 = guild_att_exp[p][guild->GetGuildLevel() & 0xff];
             }
         }
     }

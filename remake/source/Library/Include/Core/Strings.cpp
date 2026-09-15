@@ -1239,6 +1239,7 @@ int32 CharString::tokenize(const CharString& str, std::vector<CharString>* token
     {
         char c = strBuf[i];
         const char* d0 = dropDelimiters;
+        const char* d1;
         // ORIG -O0: while (*d0 != 0 && *d0 != c) → mov $1/$0 flag loop
         while (*d0 != 0 && *d0 != c)
         {
@@ -1265,7 +1266,7 @@ int32 CharString::tokenize(const CharString& str, std::vector<CharString>* token
         }
         else
         {
-            const char* d1 = returnDelimiters;
+            d1 = returnDelimiters;
             while (*d1 != 0 && *d1 != c)
             {
                 d1 = d1 + 1;
@@ -1359,6 +1360,8 @@ CharString CharString::join(const std::vector<CharString>& tokenVector,
 
     // ORIG: separate runOnce flags; if (flag){} else {for...} → cmpb/jne;
     // for (it=begin(), end=end(); ...) caches end(); sepLen checked before it!=begin()
+    // ORIG-decl: flag lives in an inner scope ⇒ allocated after newData/newDataBuf
+    {
     bool token_runOnce = false;
     if (token_runOnce)
     {
@@ -1378,6 +1381,7 @@ CharString CharString::join(const std::vector<CharString>& tokenVector,
             }
         }
     }
+    }
 
     if (totalLength == 0)
     {
@@ -1387,6 +1391,7 @@ CharString CharString::join(const std::vector<CharString>& tokenVector,
     CharStringData* newData = CharStringData::createTerminated(totalLength);
     char* newDataBuf = newData->getBuffer();
 
+    {
     bool token_runOnce2 = false;
     if (token_runOnce2)
     {
@@ -1412,6 +1417,7 @@ CharString CharString::join(const std::vector<CharString>& tokenVector,
                 token_runOnce2 = false;
             }
         }
+    }
     }
 
     return CharString(newData);
@@ -1636,6 +1642,7 @@ int32 WideString::tokenize(const WideString& str, std::vector<WideString>* token
     {
         wchar c = strBuf[i];
         const wchar* d0 = dropDelimiters;
+        const wchar* d1;
         while (*d0 != 0 && *d0 != c)
         {
             d0 = d0 + 1;
@@ -1660,7 +1667,7 @@ int32 WideString::tokenize(const WideString& str, std::vector<WideString>* token
         }
         else
         {
-            const wchar* d1 = returnDelimiters;
+            d1 = returnDelimiters;
             while (*d1 != 0 && *d1 != c)
             {
                 d1 = d1 + 1;
@@ -1750,6 +1757,8 @@ WideString WideString::join(const std::vector<WideString>& tokenVector,
     int32 separatorStrLen = separatorStr.length();
     int32 totalLength = ((int32)tokenVector.size() - 1) * separatorStrLen;
 
+    // ORIG-decl: flag lives in an inner scope ⇒ allocated after newData/newDataBuf
+    {
     bool token_runOnce = false;
     if (token_runOnce)
     {
@@ -1769,6 +1778,7 @@ WideString WideString::join(const std::vector<WideString>& tokenVector,
             }
         }
     }
+    }
 
     if (totalLength == 0)
     {
@@ -1778,6 +1788,7 @@ WideString WideString::join(const std::vector<WideString>& tokenVector,
     WideStringData* newData = WideStringData::createTerminated(totalLength);
     wchar* newDataBuf = newData->getBuffer();
 
+    {
     bool token_runOnce2 = false;
     if (token_runOnce2)
     {
@@ -1804,6 +1815,7 @@ WideString WideString::join(const std::vector<WideString>& tokenVector,
                 token_runOnce2 = false;
             }
         }
+    }
     }
 
     return WideString(newData);

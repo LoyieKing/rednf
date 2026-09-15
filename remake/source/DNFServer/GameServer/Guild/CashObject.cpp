@@ -101,7 +101,16 @@ bool CCashObject::IsLifeTimeOut()
 
 void CCashObject::SetBlackUsersObject(std::map<unsigned int, CBlackUser*>& blackUsers)
 {
-    m_blackUsers = blackUsers;
+    if (blackUsers.empty())
+    {
+        return;
+    }
+    m_blackUsers.clear();
+    std::map<unsigned int, CBlackUser*>::iterator it = blackUsers.begin();
+    for (; it != blackUsers.end(); ++it)
+    {
+        m_blackUsers.insert(std::make_pair(it->first, it->second));
+    }
 }
 
 void CCashObject::ClearBlackUsers()

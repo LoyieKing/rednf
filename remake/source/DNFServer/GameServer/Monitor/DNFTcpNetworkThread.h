@@ -253,7 +253,7 @@ public:
     void* m_sendQ;              // +0x20
     void* m_sendQLock;          // +0x24
     void* m_sendBLock;          // +0x28
-    char m_runningFlag;         // +0x2c
+    bool m_runningFlag;         // +0x2c
     char m_pad[3];              // +0x2d
 };
 

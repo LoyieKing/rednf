@@ -82,10 +82,11 @@ void CPeer::DisConnSig()
 
 unsigned int CPeer::get_remain_sendlen() { return m_sendRemain; }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0131 | monitor | 与ORIG差异=DIFF | CPeer::send_packet | 详见 function_reports/monitor/_ZN5CPeer11send_packetEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原标记已消除，MonitorRest 翻正）| CPeer::send_packet | 详见 function_reports/monitor/_ZN5CPeer11send_packetEv.md
 int CPeer::send_packet()
 {
     int result = 0;
+    char pad[0x10];
     if (m_sendRemain == 0)
     {
         return 1;
@@ -93,7 +94,7 @@ int CPeer::send_packet()
     else
     {
         result = write(getHandle(), m_sendBuf, m_sendRemain);
-        if (result < 1)
+        while (result <= 0)
         {
             if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
             {
@@ -108,16 +109,11 @@ int CPeer::send_packet()
         }
         if (0 < result)
         {
-            if (result < m_sendRemain)
+            if (result < (int)m_sendRemain)
             {
                 m_sendPtr = m_sendBuf + result;
                 m_sendRemain = m_sendRemain - result;
-                if ((unsigned int)m_sendRemain < 0x96001)
-                {
-                    memmove(m_sendBuf, m_sendPtr, m_sendRemain);
-                    m_sendPtr = m_sendBuf + m_sendRemain;
-                }
-                else
+                if (0x96000 < (unsigned int)m_sendRemain)
                 {
                     DNF_LOG_SCOPE_LINE(0x17e,"./log/TcpErr",
                         "m_remain_sendlen < MAX_PACKET_SIZE_UDP :  m_remain_sendlen:%d]",
@@ -126,11 +122,16 @@ int CPeer::send_packet()
                     m_sendRemain = 0;
                     return 1;
                 }
+                else
+                {
+                    memmove(m_sendBuf, m_sendPtr, m_sendRemain);
+                    m_sendPtr = m_sendBuf + m_sendRemain;
+                }
             }
-            else if (m_sendRemain < result)
+            else if ((int)m_sendRemain < result)
             {
                 printf("offset error[Remain_Data: %d Send:%d]", m_sendRemain, result);
-                result = -1;
+                return -1;
             }
             else
             {
@@ -142,7 +143,7 @@ int CPeer::send_packet()
     return result;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-NEAR-0012 | monitor | 与ORIG差异=NEAR | CPeer::send_packet | 详见 function_reports/monitor/_ZN5CPeer11send_packetEPci.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-NEAR-0012 | monitor | 与ORIG差异=NEAR | CPeer::send_packet | 详见 function_reports/monitor/_ZN5CPeer11send_packetEPci.md
 int CPeer::send_packet(char* buf, int len)
 {
     if (getHandle() < 0)
@@ -195,7 +196,7 @@ void CPeer::InitPeer(std::queue<CTcpRecvBuffer*>* recvQ, CMutex* recvQLock, CMut
     m_sendRemain = 0;
 }
 
-int CPeer::RecvPacket()
+bool CPeer::RecvPacket()
 {
     int n = recv_packet();
     if (n > 0)
@@ -241,19 +242,26 @@ void CPeer::ConnSig()
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0132 | monitor | 与ORIG差异=DIFF | CPeer::parsing | 详见 function_reports/monitor/_ZN5CPeer7parsingEi.md
 bool CPeer::parsing(int recvLen)
 {
+    // [MonitorRest 本轮] 287/287 DIFF ndiff=97→80（未归零）。guild 同源副本 ndiff=38，其 ORIG 与本函数 ORIG
+    //   **逐槽同形**（帧 0x7c/14 槽完全一致）⇒ 可部分照搬：已采纳 guild 的声明顺序
+    //   `header → headerSize → totalLen`（97→80）。
+    //   已试无效/劣化：① `PacketHeader header;`（无默认 ctor，编译失败，已回退）；
+    //   ② S5 占位 `int reservedSlot;`（97→125，帧 0x7c→0x8c）；③ `unsigned int pktSize` 提升到循环外
+    //   （guild 形态，ndiff 不变）；④ `totalLen <= 9`（guild 比较式，不变）。
+    //   余差：我方 totalLen/headerSize 槽 -0x28/-0x24、ORIG -0x24/-0x1c（我方深 4 且多占 -0x28）⇒
+    //   未再找到可控的中间局部（属 BIND/临时对象分配顺序族）。
     PacketHeader header(0, 0);
-    int totalLen = m_remainLen + recvLen;
     int headerSize = 10;
+    int totalLen = m_remainLen + recvLen;
     if (totalLen < 10)
     {
         m_remainLen = m_remainLen + recvLen;
         m_buf = m_buf + recvLen;
         DNF_LOG_SCOPE_LINE(0xbb,"./log/TcpRecv", "(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d] ",
             m_buf, m_data, m_remainLen, recvLen);
+        return 1;
     }
-    else
-    {
-        do
+    do
         {
             if (m_remainLen != 0)
             {
@@ -326,7 +334,6 @@ LAB_51773:
             m_remainLen = (int)totalLen;
             m_buf = m_data + totalLen;
         }
-    }
     return 1;
 }
 

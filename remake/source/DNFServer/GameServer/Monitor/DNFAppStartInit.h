@@ -242,7 +242,8 @@ class CAppInit
 public:
     CAppInit();
     virtual ~CAppInit();
-    virtual void Init(CApplication* app, int argc, char** argv);
+    // ORIG _ZTV8CAppInit slot[2] = __cxa_pure_virtual，ORIG 无 _ZN8CAppInit4Init… 符号
+    virtual void Init(CApplication* app, int argc, char** argv) = 0;
 };
 
 class CAppStartInit : public CAppInit

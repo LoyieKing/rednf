@@ -15,7 +15,8 @@ class CommonDataPool
 {
 public:
     CommonDataPool();
-    virtual ~CommonDataPool();
+    // ORIG _ZTVN3nsl14CommonDataPoolE slot[0] = __cxa_pure_virtual（类外定义保留）
+    virtual ~CommonDataPool() = 0;
     virtual void destroyTimeEntity(void* pEntity) = 0;
     Message* getSendMessage(TCPUser* pUser);
     void destroySendMessage(Message* pMsg);

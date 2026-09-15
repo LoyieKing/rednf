@@ -207,6 +207,9 @@ void CPacketTranslater::OnGuildMasterDelegate(PacketHeader* header)
         return;
     try
     {
+        unsigned char grade;
+        unsigned int result;
+        int resultCode;
         Packet_DB_Request_Guild_Master_Delegate_View* pkt =
             (Packet_DB_Request_Guild_Master_Delegate_View*)header;
         if (pkt->m_guildId == 0)
@@ -215,12 +218,12 @@ void CPacketTranslater::OnGuildMasterDelegate(PacketHeader* header)
         reply.m_guildId = pkt->m_guildId;
         reply.m_oldMasterNo = pkt->m_oldMasterNo;
         memcpy((char*)&reply + 0x16, pkt->m_name, 0x1d);
-        unsigned char grade = 0;
-        unsigned int result = 0;
+        grade = 0;
+        result = 0;
         m_pclApp->m_dbManager.QueryGuildMemberGradeByName(
             pkt->m_serverId, pkt->m_guildId, pkt->m_name,
             grade, *(unsigned int*)((char*)&reply + 0x12), result);
-        int resultCode = 0;
+        resultCode = 0;
         if (grade == 2)
         {
             if (reply.m_newMasterNo == 0 || result == 0)
@@ -263,77 +266,79 @@ void CPacketTranslater::OnGuildMasterDelegate(PacketHeader* header)
                   "CPacketTranslater::OnGuildMasterDelegate() Exception Break",
                   0x63b, 0x640);
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0088 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnSendGuildLetter | 详见 function_reports/dbmw/_ZN17CPacketTranslater17OnSendGuildLetterEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0088 已消除）
 void CPacketTranslater::OnSendGuildLetter(PacketHeader* header)
 {
-    if (!m_pclApp)
-        return;
-    try
+    if (m_pclApp)
     {
-        struct SendGuildLetterLocal
+        try
         {
-            char m_pad[0xa];       // +0x0
-            unsigned int m_fieldA;   // +0xa
-            unsigned char m_serverId; // +0xe
-            unsigned int m_guildId;  // +0xf
-            char m_content[0x100];   // +0x13
-            char m_subject[0x11];    // +0x113
-            int m_flag;              // +0x124
-        } __attribute__((packed));
-        SendGuildLetterLocal* pkt = (SendGuildLetterLocal*)header;
-        if (pkt->m_guildId == 0)
-            return;
-        CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
-        if (pkt->m_flag == 1)
-        {
-            if (!m_pclApp->m_dbManager.SendGuildCoinByMail(
-                    pkt->m_serverId, pkt->m_guildId,
-                    1, 0, 1, pkt->m_subject, pkt->m_content))
+            struct SendGuildLetterLocal
             {
-                DNF_LOG_SCOPE_LINE(0x4da,
-                    "./log/GuildModify",
-                    "AwardGuildItemByMail Err(%d) : return false",
-                    pkt->m_guildId
-                );
-
+                char m_pad[0xa];       // +0x0
+                unsigned int m_fieldA;   // +0xa
+                unsigned char m_serverId; // +0xe
+                unsigned int m_guildId;  // +0xf
+                char m_content[0x100];   // +0x13
+                char m_subject[0x11];    // +0x113
+                int m_flag;              // +0x124
+            } __attribute__((packed));
+            SendGuildLetterLocal* pkt = (SendGuildLetterLocal*)header;
+            if (pkt->m_guildId == 0)
                 return;
-            }
-        }
-        else if (pkt->m_flag == -1)
-        {
-            if (!m_pclApp->m_dbManager.SendGuildLetter(
-                    pkt->m_serverId, pkt->m_guildId, pkt->m_content))
+            CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+            if (pkt->m_flag == 1)
             {
-                DNF_LOG_SCOPE_LINE(0x4e2,
-                    "./log/GuildModify",
-                    "OnSendGuildLetter Err(%d) : return false",
-                    pkt->m_guildId
-                );
+                if (!m_pclApp->m_dbManager.SendGuildCoinByMail(
+                        pkt->m_serverId, pkt->m_guildId,
+                        1, 0, 1, pkt->m_subject, pkt->m_content))
+                {
+                    DNF_LOG_SCOPE_LINE(0x4da,
+                        "./log/GuildModify",
+                        "AwardGuildItemByMail Err(%d) : return false",
+                        pkt->m_guildId
+                    );
 
-                return;
+                    return;
+                }
             }
-            Packet_DBMW_Reply_Guild_Mail reply;
-            reply.m_guildId = pkt->m_guildId;
-            reply.m_senderCharacNo = pkt->m_fieldA;
-            reply.m_result = 0;
-            gs->SendToServer((char*)&reply, reply.packetSize);
-        }
-        Packet_Notice_Guild_Mail_Arrived notice;
-        notice.m_flag = 1;
-        notice.m_guildId = pkt->m_guildId;
-        gs->SendToServer((char*)&notice, notice.packetSize);
-        DNF_LOG_SCOPE_LINE(0x507,
-            "./log/GuildMail",
-            "Guild(%d) Message(%s)",
-            pkt->m_guildId,
-            pkt->m_content
-        );
+            else if (pkt->m_flag == -1)
+            {
+                if (!m_pclApp->m_dbManager.SendGuildLetter(
+                        pkt->m_serverId, pkt->m_guildId, pkt->m_content))
+                {
+                    DNF_LOG_SCOPE_LINE(0x4e2,
+                        "./log/GuildModify",
+                        "OnSendGuildLetter Err(%d) : return false",
+                        pkt->m_guildId
+                    );
 
+                    return;
+                }
+                Packet_DBMW_Reply_Guild_Mail reply;
+                reply.m_guildId = pkt->m_guildId;
+                reply.m_senderCharacNo = pkt->m_fieldA;
+                reply.m_result = 0;
+                gs->SendToServer((char*)&reply, reply.packetSize);
+            }
+            Packet_Notice_Guild_Mail_Arrived notice;
+            notice.m_guildId = pkt->m_guildId;
+            notice.m_flag = 1;
+            gs->SendToServer((char*)&notice, notice.packetSize);
+            DNF_LOG_SCOPE_LINE(0x507,
+                "./log/GuildMail",
+                "Guild(%d) Message(%s)",
+                pkt->m_guildId,
+                pkt->m_content
+            );
+
+        }
+        DNF_CATCH_LOG("./log/Except.log",
+                      "CPacketTranslater::OnSendGuildLetter() Exception Break",
+                      0x50c, 0x511);
     }
-    DNF_CATCH_LOG("./log/Except.log",
-                  "CPacketTranslater::OnSendGuildLetter() Exception Break",
-                  0x50c, 0x511);
 }
+
 // [DNF-NONIDENTICAL] DNF-DBM-DIFF-0083 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnGuildJoin | 详见 function_reports/dbmw/_ZN17CPacketTranslater11OnGuildJoinEP12PacketHeader.md
 void CPacketTranslater::OnGuildJoin(PacketHeader* header)
 {
@@ -377,8 +382,7 @@ void CPacketTranslater::OnGuildJoin(PacketHeader* header)
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         gs->SendToServer(
             (char*)&reply, reply.packetSize);
-        CMyFileLog log2(__FUNCTION__, 0x576);
-        log2("./log/GuildModify", "::OnGuildJoin g(%d) c(%d) r(%d)",
+        CMyFileLog(__FUNCTION__, 0x576)("./log/GuildModify", "::OnGuildJoin g(%d) c(%d) r(%d)",
              pkt->m_guildId, pkt->m_characNo,
              reply.m_result);
     }
@@ -422,7 +426,7 @@ void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
             );
 
         }
-        else if (!characNos.empty())
+        else if (characNos.size() > 0)
         {
             Packet_Notify_New_Group_Mail notice;
             int n = characNos.size() > 0x12b ? 0x12c : characNos.size();
@@ -689,7 +693,7 @@ void CPacketTranslater::OnInsertGuildCargoHistory(PacketHeader* header)
                   "CPacketTranslater::OnInsertGuildCargoHistory() Exception Break",
                   0xa75, 0xa7a);
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0090 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnDeleteToBlackList | 详见 function_reports/dbmw/_ZN17CPacketTranslater19OnDeleteToBlackListEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0090 已消除）
 void CPacketTranslater::OnDeleteToBlackList(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -736,7 +740,7 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* header)
                   "CPacketTranslater::OnDeleteToBlackList() Exception Break",
                   0x29c, 0x2a1);
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0095 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnRegisterToBlackList | 详见 function_reports/dbmw/_ZN17CPacketTranslater21OnRegisterToBlackListEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0095 已消除）
 void CPacketTranslater::OnRegisterToBlackList(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -784,7 +788,7 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* header)
                   "CPacketTranslater::OnRegisterToBlackList() Exception Break",
                   0x266, 0x26b);
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0103 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnRequestBlackListOnLogin | 详见 function_reports/dbmw/_ZN17CPacketTranslater25OnRequestBlackListOnLoginEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0103 已消除）
 void CPacketTranslater::OnRequestBlackListOnLogin(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -822,6 +826,7 @@ void CPacketTranslater::OnRequestBlackListOnLogin(PacketHeader* header)
     DNF_CATCH_LOG("./log/Except.log",
                   "CPacketTranslater::OnRequestBlackListOnLogin() Exception Break",
                   0x2ca, 0x2cf);
+    return;
 }
 void CPacketTranslater::OnSaveGuild(PacketHeader* header)
 {
@@ -860,54 +865,54 @@ void CPacketTranslater::OnSaveGuild(PacketHeader* header)
                          "CPacketTranslater::OnSaveGuild() Exception Break",
                          0xd8, 0xde);
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0084 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnGuildSecede | 详见 function_reports/dbmw/_ZN17CPacketTranslater13OnGuildSecedeEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0084 已消除）
 void CPacketTranslater::OnGuildSecede(PacketHeader* header)
 {
-    if (!m_pclApp)
-        return;
-    try
+    if (m_pclApp)
     {
-        Packet_DB_Request_Guild_Secede* pkt =
-            (Packet_DB_Request_Guild_Secede*)header;
-        if (pkt->m_guildId == 0)
-            return;
-        Packet_DB_Reply_Guild_Secede reply;
-        reply.m_guildId = pkt->m_guildId;
-        reply.m_characNo = pkt->m_characNo;
-        reply.m_grade = pkt->m_grade;
-        reply.m_secedeType = pkt->m_secedeType;
-        memcpy((char*)&reply + 0x1f, pkt->m_characName, 0x1d);
-        if (!m_pclApp->m_dbManager.GuildSecede(
-                pkt,
-                *(unsigned int*)((char*)&reply + 0x12),
-                *(unsigned int*)((char*)&reply + 0x3d),
-                *(unsigned int*)((char*)&reply + 0x16)))
+        try
         {
-            DNF_LOG_SCOPE_LINE(0x5e1,
-                "./log/GuildModify",
-                "::OnGuildSecede Err g(%d) n(%s) c(%d) r(%d) f(%d)",
-                pkt->m_guildId,
-                pkt->m_characName,
-                reply.m_secedeCharacNo,
-                reply.m_result,
-                pkt->m_grade
-            );
+            Packet_DB_Request_Guild_Secede* pkt =
+                (Packet_DB_Request_Guild_Secede*)header;
+            if (pkt->m_guildId == 0)
+                return;
+            Packet_DB_Reply_Guild_Secede reply;
+            reply.m_guildId = pkt->m_guildId;
+            reply.m_characNo = pkt->m_characNo;
+            reply.m_grade = pkt->m_grade;
+            reply.m_secedeType = pkt->m_secedeType;
+            memcpy((char*)&reply + 0x1f, pkt->m_characName, 0x1d);
+            if (!m_pclApp->m_dbManager.GuildSecede(
+                    pkt,
+                    *(unsigned int*)((char*)&reply + 0x12),
+                    *(unsigned int*)((char*)&reply + 0x3d),
+                    *(unsigned int*)((char*)&reply + 0x16)))
+            {
+                DNF_LOG_SCOPE_LINE(0x5e1,
+                    "./log/GuildModify",
+                    "::OnGuildSecede Err g(%d) n(%s) c(%d) r(%d) f(%d)",
+                    pkt->m_guildId,
+                    pkt->m_characName,
+                    reply.m_secedeCharacNo,
+                    reply.m_result,
+                    pkt->m_grade
+                );
 
+            }
+            CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+            gs->SendToServer(
+                (char*)&reply, reply.packetSize);
+            CMyFileLog(__FUNCTION__, 0x5ed)("./log/GuildModify",
+                "::OnGuildSecede g(%d) c(%d) r(%d) f(%d)",
+                pkt->m_guildId, reply.m_secedeCharacNo,
+                reply.m_result, pkt->m_grade);
         }
-        CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
-        gs->SendToServer(
-            (char*)&reply, reply.packetSize);
-        CMyFileLog log2(__FUNCTION__, 0x5ed);
-        log2("./log/GuildModify", "::OnGuildSecede g(%d) c(%d) r(%d) f(%d)",
-             pkt->m_guildId,
-             reply.m_secedeCharacNo,
-             reply.m_result,
-             pkt->m_grade);
+        DNF_CATCH_LOG("./log/Except.log",
+                      "CPacketTranslater::OnGuildSecede() Exception Break",
+                      0x5f6, 0x5fb);
     }
-    DNF_CATCH_LOG("./log/Except.log",
-                  "CPacketTranslater::OnGuildSecede() Exception Break",
-                  0x5f6, 0x5fb);
 }
+
 void CPacketTranslater::OnSaveGuildMember(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -1032,7 +1037,7 @@ void CPacketTranslater::OnSavePowerWarPointReward(PacketHeader* header)
                   "CPacketTranslater::OnSavePowerWarPoint() Exception Break",
                   0x8cb, 0x8d0);
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0094 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnLoadPeriodicMessage | 详见 function_reports/dbmw/_ZN17CPacketTranslater21OnLoadPeriodicMessageEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0094 已消除）
 void CPacketTranslater::OnLoadPeriodicMessage(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -1042,21 +1047,20 @@ void CPacketTranslater::OnLoadPeriodicMessage(PacketHeader* header)
         Packet_Result_Loading_Periodic_Message reply;
         Packet_Load_Periodic_Message* pkt =
             (Packet_Load_Periodic_Message*)header;
-        if (m_pclApp->m_dbManager.OnLoadPeriodicMessage(
-                pkt, &reply) == 0)
-            return;
-        CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
-        unsigned int size = reply.packetSize;
-        unsigned int len = 0x212;
-        (void)size;
-        (void)len;
-        ms->SendToServer((char*)&reply, 0x212);
+        if (m_pclApp->m_dbManager.OnLoadPeriodicMessage(pkt, &reply))
+        {
+            CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
+            unsigned int size = reply.packetSize;
+            int len = 0x212;
+            (void)size;
+            ms->SendToServer((char*)&reply, len);
+        }
     }
     DNF_CATCH_LOG("./log/Except",
                   "CPacketTranslater::OnLoadPeriodicMessage() Exception Break",
                   0x104d, 0x1052);
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0085 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWInsertMail | 详见 function_reports/dbmw/_ZN17CPacketTranslater16OnDBMWInsertMailEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0085 已消除）
 void CPacketTranslater::OnDBMWInsertMail(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -1127,7 +1131,7 @@ void CPacketTranslater::OnQueryMember(PacketHeader* header)
                          "CPacketTranslater::OnQueryMember() Exception Break",
                          0x124, 0x12a);
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0089 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnQueryGuildMember | 详见 function_reports/dbmw/_ZN17CPacketTranslater18OnQueryGuildMemberEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0089 已消除）
 void CPacketTranslater::OnQueryGuildMember(PacketHeader* header)
 {
     try
@@ -1156,6 +1160,7 @@ void CPacketTranslater::OnQueryGuildMember(PacketHeader* header)
     DNF_CATCH_LOG_PRINTF("./log/Except",
                          "CPacketTranslater::OnQueryGuildMember() Exception Break",
                          0xa8, 0xae);
+    return;
 }
 void CPacketTranslater::OnQueryTodayGuildMemeber(PacketHeader* header)
 {
@@ -1265,8 +1270,7 @@ void CPacketTranslater::OnRequestApproveJoinGuild(PacketHeader* header)
         }
         m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
             (char*)&reply, reply.packetSize);
-        CMyFileLog log2(__FUNCTION__, 0x530);
-        log2("./log/GuildModify", "::OnGuildJoin g(%d) c(%d) r(%d)",
+        CMyFileLog(__FUNCTION__, 0x530)("./log/GuildModify", "::OnGuildJoin g(%d) c(%d) r(%d)",
              pkt->m_guildId, pkt->m_characNo, reply.m_result);
     }
     DNF_CATCH_LOG("./log/Except.log",
@@ -1352,8 +1356,7 @@ void CPacketTranslater::onStartGameEventFromServer(PacketHeader* header)
         if (!m_pclApp->m_dbManager.insertServerGameEvent(
                 pkt))
         {
-            CMyFileLog log2(__FUNCTION__, 0x156b);
-            log2("./log/AradOnly",
+            CMyFileLog(__FUNCTION__, 0x156b)("./log/AradOnly",
                  "CPacketTranslater::onStartGameEventFromServer fail\n");
             return;
         }
@@ -1397,8 +1400,7 @@ void CPacketTranslater::onEndGameEventFromServer(PacketHeader* header)
         if (!m_pclApp->m_dbManager.updateServerGameEvent(
                 pkt))
         {
-            CMyFileLog log2(__FUNCTION__, 0x1596);
-            log2("./log/AradOnly",
+            CMyFileLog(__FUNCTION__, 0x1596)("./log/AradOnly",
                  "CPacketTranslater::onEndGameEventFromServer fail\n");
             return;
         }
@@ -1495,39 +1497,44 @@ void CPacketTranslater::OnQueryGuildBooting(PacketHeader* header)
                   "CPacketTranslater::OnRequestGuildCreate() Exception Break",
                   0x689, 0x68e);
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0108 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnUpdateTowerOfDespairStatistic | 详见 function_reports/dbmw/_ZN17CPacketTranslater31OnUpdateTowerOfDespairStatisticEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0108 已消除）
 void CPacketTranslater::OnUpdateTowerOfDespairStatistic(PacketHeader* header)
 {
-    if (!m_pclApp)
-        return;
-    try
+    if (m_pclApp)
     {
-        Packet_TowerOfDespair_Statistic_STD* pkt =
-            (Packet_TowerOfDespair_Statistic_STD*)header;
-        if (!m_pclApp->m_dbManager.QueryTowerOfDespairStatistic(
-                pkt))
+        try
         {
-            if (!pkt)
-                return;
-            DNF_LOG_SCOPE_LINE(0x12e5, "./log/statistic", "TOD Statistic Error\nTOD uv(%d)", pkt->m_uv);
-
-            for (int i = 1; i <= 0x64; i++)
+            Packet_TowerOfDespair_Statistic_STD* pkt =
+                (Packet_TowerOfDespair_Statistic_STD*)header;
+            if (!m_pclApp->m_dbManager.QueryTowerOfDespairStatistic(
+                    pkt))
             {
-                DNF_LOG_SCOPE_LINE(0x12e7, "./log/statistic",
-                    "TOD Layer(%d), enter(%d), succ(%d)", i,
-                    pkt->m_entries[i].m_enter, pkt->m_entries[i].m_success);
+                if (!pkt)
+                    return;
+                DNF_LOG_SCOPE_LINE(0x12e5, "./log/statistic", "TOD Statistic Error\nTOD uv(%d)", pkt->m_uv);
+
+                for (int i = 1; i <= 0x64; i++)
+                {
+                    DNF_LOG_SCOPE_LINE(0x12e7, "./log/statistic",
+                        "TOD Layer(%d), enter(%d), succ(%d)", i,
+                        pkt->m_entries[i].m_enter, pkt->m_entries[i].m_success);
+                }
             }
         }
+        DNF_CATCH_LOG_CDNF("./log/Except.log",
+                           "CPacketTranslater::OnUpdateTowerOfDespairStatistic() Exception Break",
+                           0x12ed);
     }
-    DNF_CATCH_LOG_CDNF("./log/Except.log",
-                       "CPacketTranslater::OnUpdateTowerOfDespairStatistic() Exception Break",
-                       0x12ed);
 }
+
 // [DNF-NONIDENTICAL] DNF-DBM-DIFF-0098 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWVillageAttackRank | 详见 function_reports/dbmw/_ZN17CPacketTranslater23OnDBMWVillageAttackRankEP12PacketHeader.md
 void CPacketTranslater::OnDBMWVillageAttackRank(PacketHeader* header)
 {
     if (!m_pclApp)
         return;
+    // ORIG 存在一个声明但从未被引用的 4 字节局部，其槽位决定后续变量起点；
+    // 缺失会使 flag/a/b 整体上移 4 字节（-0x25 vs -0x29），勿删。
+    int reservedSlot;
     try
     {
         bool flag = false;
@@ -1849,8 +1856,8 @@ void CPacketTranslater::onCollectItemsUpdate(PacketHeader* header)
         unsigned char flag = 0;
         m_pclApp->m_dbManager.selectCollectItems(
             pkt->m_serverInfo,
-            *(int*)&reply.m_curCount, *(int*)&reply.m_totalCount,
-            *(unsigned int*)&reply.m_changeFlag, flag);
+            *(int*)((char*)&reply + 0xe), *(int*)((char*)&reply + 0xa),
+            *(unsigned int*)((char*)&reply + 0x12), flag);
         int diff = pkt->m_totalCount - reply.m_curCount;
         m_pclApp->m_dbManager.updateCollectItems(
             pkt->m_serverInfo, diff,
@@ -2003,7 +2010,7 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
             return;
         }
         int pageCount = count / 10;
-        int rem = count - pageCount * 10;
+        int rem = count % 10;
         for (int page = 0; page < pageCount; page++)
         {
             reply.m_count = 0;
@@ -2046,6 +2053,7 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
     DNF_CATCH_LOG("./log/Except",
                   "CPacketTranslater::OnDBLoadRequestGuildBoardOpen() Exception Break",
                   0xf98, 0xf9d);
+    return;
 }
 // [DNF-NONIDENTICAL] DNF-DBM-DIFF-0096 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnPcRoomPlayTimeReward | 详见 function_reports/dbmw/_ZN17CPacketTranslater22OnPcRoomPlayTimeRewardEP12PacketHeader.md
 void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* header)
@@ -2059,8 +2067,7 @@ void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* header)
         unsigned char serverInfo = pkt->m_serverInfo;
         int accId = pkt->m_accId;
         int characNo = pkt->m_characNo;
-        CMyFileLog log1(__FUNCTION__, 0x141b);
-        log1("./log/event",
+        CMyFileLog(__FUNCTION__, 0x141b)("./log/event",
              "CPacketTranslater::OnPcRoomPlayTimeReward Noti acc_id(%d), charac_no(%d), server_info(%d)",
              accId, characNo, serverInfo);
         unsigned int pinNo = 0;
@@ -2107,8 +2114,7 @@ void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* header)
         mail.m_characNo = characNo;
         CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
         ms->SendToServer((char*)&mail, mail.packetSize);
-        CMyFileLog log2(__FUNCTION__, 0x1447);
-        log2("./log/event",
+        CMyFileLog(__FUNCTION__, 0x1447)("./log/event",
              "CPacketTranslater::OnPcRoomPlayTimeReward reward acc_id(%d), charac_no(%d), server_info(%d), pin_num(%d), letter_id(%d)",
              accId, characNo, serverInfo, pinNo, letterNo);
     }
@@ -2137,6 +2143,11 @@ void CPacketTranslater::OnAddBuddy(PacketHeader* header)
                   0x2f5, 0x2fa);
 }
 // [DNF-NONIDENTICAL] DNF-DBM-DIFF-0097 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnRequestIPCounterList | 详见 function_reports/dbmw/_ZN17CPacketTranslater22OnRequestIPCounterListEP12PacketHeader.md
+// [R6-4 已修] 该件残留属「两步转换形态」：字段轴勿动（DBMW/DNFPacket.h 的
+//   m_batchFlag/m_count/m_rest 已正确为 unsigned char）；表达式侧已修（0xbd8 那条日志的
+//   实参改为 (int)(unsigned char)reply.m_batchFlag ⇒ mnemonic_fp 命中 1→0、.o 78→76）。
+//   注意：LCS/指纹工具的读数须核对是否位于同一修复侧（修复前 UNPAIRED vs 修复后 PAIRED
+//   不可并列），勿跨修复点合并证据。
 void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
 {
     std::vector<st_ip_counter_list> vec1;
@@ -2227,7 +2238,7 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
                 ms->SendToServer((char*)&reply, reply.packetSize);
                 DNF_LOG_SCOPE_LINE(0xbd8,
                     "./log/Secu",
-                    "[D_IP Counter] Packet Send - Stats : %3d, Cnt : %3d", (int)reply.m_batchFlag,
+                    "[D_IP Counter] Packet Send - Stats : %3d, Cnt : %3d", (int)(unsigned char)reply.m_batchFlag,
                     count
                 );
 
@@ -2249,6 +2260,9 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
 // [DNF-NONIDENTICAL] DNF-DBM-DIFF-0092 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::onQueryTowerFullRank | 详见 function_reports/dbmw/_ZN17CPacketTranslater20onQueryTowerFullRankEP12PacketHeader.md
 void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
 {
+    // ORIG 有一个 20 字节的独占局部（槽 -0x1c..-0x5c 组），其存在决定后续局部起点；
+    // 实测移除后 ndiff 97→132，勿删。
+    char padLocals[0x14];
     if (!m_pclApp)
         return;
     try
@@ -2265,8 +2279,7 @@ void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
         if (pkt->m_limit != 0x2710)
             reply.m_batchFlag = 0;
         reply.m_totalCount = ranks.size();
-        CMyFileLog log1(__FUNCTION__, 0x59b);
-        log1("./log/DeathTower", "(tower_idx:%d)(rank count:%d)\n",
+        CMyFileLog(__FUNCTION__, 0x59b)("./log/DeathTower", "(tower_idx:%d)(rank count:%d)\n",
              pkt->m_towerIndex, ranks.size());
         int i = 0;
         for (std::vector<stTowerRank_t>::const_iterator it = ranks.begin();

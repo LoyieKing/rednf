@@ -107,7 +107,7 @@ void CApplication::Init(int argc, char** argv)
     }
     DNF_CATCH_RETHROW("CApplication::Init() Exception Break");
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0069 | dbmw | 与ORIG差异=DIFF | CApplication::Load | 详见 function_reports/dbmw/_ZN12CApplication4LoadEiPPc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0069 已消除）
 void CApplication::Load(int argc, char** argv)
 {
     try
@@ -127,7 +127,7 @@ void CApplication::Load(int argc, char** argv)
         puts("Application UDP Handler Create() Success!");
         m_serverHandler = new CServerHandler;
         m_serverHandler->Attach(this);
-        m_serverHandler->Load((ST_ServerInfo*)((CServerConfig*)m_serverConfig)->GetServerInfo());
+        m_serverHandler->Load(((CServerConfig*)m_serverConfig)->GetServerInfo());
         puts("Application Server Handler Create() Success!");
         CPacketTranslater::attach(this);
         puts("Application Packet Translater Attach() Success!");
@@ -141,7 +141,7 @@ void CApplication::Load(int argc, char** argv)
         }
         m_guildManager = new CGuildManager;
         m_networkThread = new CNetworkThread;
-        m_networkThread->attach(this);
+        ((CNetworkThread*)m_networkThread)->attach(this);
         if (m_networkThread->begin() != 1)
             throw;
         puts("Application Network Thread Begin() Success!");
@@ -271,14 +271,15 @@ UdpRecvQueue* CApplication::Get_UdpPacketRecvQ() { return m_udpSwapQueue.GetRecv
 UdpRecvQueue* CApplication::Get_UdpPacketParseQ() { return m_udpSwapQueue.GetParseQ(); }
 bool CApplication::Send_Term_Signal(const std::string& msg)
 {
-    std::string filename = std::string("./pid/") + msg + std::string(".pid");
+    int pid;
+    int ret;
+    std::string filename = "./pid/" + msg + ".pid";
     FILE* f = fopen(filename.c_str(), "r");
     if (!f)
     {
         printf("%s process id file open Fail\n", filename.c_str());
         return 0;
     }
-    int pid;
     fscanf(f, "%d", &pid);
     if (pid <= 0)
     {
@@ -286,7 +287,7 @@ bool CApplication::Send_Term_Signal(const std::string& msg)
         printf("%d no's wrong process id\n", pid);
         return 0;
     }
-    int ret = kill(pid, 0xf);
+    ret = kill(pid, 0xf);
     if (ret < 0)
     {
         fclose(f);
@@ -295,36 +296,39 @@ bool CApplication::Send_Term_Signal(const std::string& msg)
     }
     fclose(f);
     if (remove(filename.c_str()) == -1)
+    {
         puts("FAIL TO DELETE PID FILE ERROR");
-    return 0;
+        return 0;
+    }
+    return 1;
 }
-int CApplication::Send_Suspend_Signal(const std::string& msg)
+void CApplication::Send_Suspend_Signal(const std::string& msg)
 {
-    std::string filename = std::string("./pid/") + msg + std::string(".pid");
+    int pid;
+    int ret;
+    std::string filename = "./pid/" + msg + ".pid";
     FILE* f = fopen(filename.c_str(), "r");
     if (!f)
     {
         printf("%s process id file open Fail\n", filename.c_str());
-        return 0;
+        return;
     }
-    int pid;
     fscanf(f, "%d", &pid);
     if (pid <= 0)
     {
         fclose(f);
         printf("%d no's wrong process id\n", pid);
-        return 0;
+        return;
     }
-    int ret = kill(pid, 0xa);
+    ret = kill(pid, 0xa);
     if (ret < 0)
     {
         fclose(f);
         printf("%d no's process end, signal send fail", pid);
-        return 0;
+        return;
     }
     printf("SEND SUSPEND SIGNAL TO %d\n", pid);
     fclose(f);
-    return 0;
 }
 CTcpServer* CApplication::FindTcpServer(unsigned int idx)
 {
@@ -349,7 +353,7 @@ void CApplication::SwitchQueueUDP()
     if (m_udpSwapQueue.GetRecvQ()->empty())
         return;
     m_udpSwapQueue.SwapQ();
-    m_networkThread->SetUDPQueue(m_udpSwapQueue.GetRecvQ());
+    ((CNetworkThread*)m_networkThread)->SetUDPQueue(m_udpSwapQueue.GetRecvQ());
     CPacketDecoderInstance()->SetUdpQueue(m_udpSwapQueue.GetParseQ());
 }
 void CApplication::Free()
@@ -423,7 +427,7 @@ void CApplication::TranslateSignal()
         {
         case 1:
             m_serverConfig->Load_Table(std::string("./table/server_config.tbl"));
-            m_serverHandler->Load((ST_ServerInfo*)((CServerConfig*)m_serverConfig)->GetServerInfo());
+            m_serverHandler->Load(((CServerConfig*)m_serverConfig)->GetServerInfo());
             break;
         case 2:
         {
@@ -439,8 +443,8 @@ void CApplication::TranslateSignal()
                 m_guildManager->GetVtGuildWarRankInfo();
             if (ranks->empty())
                 return;
-            int item = get_awardItem_using_interval();
-            if (item < 0)
+            int item;
+            if ((item = get_awardItem_using_interval()) < 0)
             {
                 DNF_LOG_SCOPE_LINE(0x45f,"./log/GuildWar",
                     "m_clDBManager.OnEndGuildWar Err : get_day_interval() Func return minus value");

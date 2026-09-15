@@ -283,28 +283,33 @@ void CApplication::CheckArgv(int argc, char** argv)
 }
 bool CApplication::Send_Term_Signal(const std::string& name)
 {
+    int pid;
+    int result;
     std::string path = "./pid/" + name + ".pid";
     FILE* f = fopen(path.c_str(), "r");
     if (f == 0)
     {
         printf("%s process id file open \xbd\xc7\xc6\xd0\n", path.c_str());
+        return 0;
     }
     else
     {
-        int pid;
         fscanf(f, "%d", &pid);
         if (pid < 1)
         {
             fclose(f);
             printf("%d\xb9\xf8\xc0\xc7 \xc0\xdf\xb8\xf8\xb5\xc8 process id\n", pid);
+            return 0;
         }
         else
         {
-            if (kill(pid, 0xf) < 0)
+            result = kill(pid, 0xf);
+            if (result < 0)
             {
                 fclose(f);
                 printf("%d\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc3 "
                        "\xbd\xc7\xc6\xd0", pid);
+                return 0;
             }
             else
             {
@@ -320,6 +325,8 @@ bool CApplication::Send_Term_Signal(const std::string& name)
 }
 void CApplication::Send_Suspend_Signal(const std::string& name)
 {
+    int pid;
+    int result;
     std::string path = "./pid/" + name + ".pid";
     FILE* f = fopen(path.c_str(), "r");
     if (f == 0)
@@ -328,23 +335,26 @@ void CApplication::Send_Suspend_Signal(const std::string& name)
     }
     else
     {
-        int pid;
         fscanf(f, "%d", &pid);
         if (pid < 1)
         {
             fclose(f);
             printf("%d\xb9\xf8\xc0\xc7 \xc0\xdf\xb8\xf8\xb5\xc8 process id\n", pid);
         }
-        else if (kill(pid, 10) < 0)
-        {
-            fclose(f);
-            printf("%d\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc3 "
-                   "\xbd\xc7\xc6\xd0", pid);
-        }
         else
         {
-            printf("SEND SUSPEND SIGNAL TO %d\n", pid);
-            fclose(f);
+            result = kill(pid, 10);
+            if (result < 0)
+            {
+                fclose(f);
+                printf("%d\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc3 "
+                       "\xbd\xc7\xc6\xd0", pid);
+            }
+            else
+            {
+                printf("SEND SUSPEND SIGNAL TO %d\n", pid);
+                fclose(f);
+            }
         }
     }
 }

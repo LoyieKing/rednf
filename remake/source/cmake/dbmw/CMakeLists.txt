@@ -133,7 +133,11 @@ dnf_service(dbmw
         # DNFPacketTracer/DNFMySql 同形态逐函数复检。
         "${SVC_DIR}/DNFApplication.cpp|-B${DF_CC1P446}"
         "${SVC_DIR}/DNFSignalTranslator.cpp|-B${DF_CC1P446}"
-        "${SVC_DIR}/DNFPacketTracer.cpp|-D_DNF_DBMW_C5_TU -std=gnu++98"
+        # 2026-09-15 路由纠正（svc_dbmw12）：ORIG 该 TU 含 4.4/C++0x 专属实例名
+        # `_ZSt9make_pairIRjR15stPacketProcessESt4pairINSt17__decay_and_stripIT_E6__typeENS4_IT0_E6__typeEEOS5_OS8_`
+        # （4.1.2 C++98 头无此重载）⇒ 原 C5 路由错配。实测同源码同旗标仅换路由：
+        # 4.4.6 → 34/52(86)/0/1/22；4.1.2/C5 → 23/41(64)/0/3/38。
+        "${SVC_DIR}/DNFPacketTracer.cpp|-B${DF_CC1P446}"
         "${SVC_DIR}/DNFMySql.cpp|-D_DNF_DBMW_C5_TU -std=gnu++98"
         "${SVC_DIR}/DNFSignal.cpp|-B${DF_CC1P446}"
         "${SVC_DIR}/DNFTcpHandler.cpp|-B${DF_CC1P446}"

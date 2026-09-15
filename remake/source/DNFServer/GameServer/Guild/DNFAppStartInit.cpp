@@ -89,12 +89,12 @@ CAppStartInit::~CAppStartInit()
 {
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0011 | guild | 与ORIG差异=DIFF | CAppStartInit::Init | 详见 function_reports/guild/_ZN13CAppStartInit4InitEP12CApplicationiPPc.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0011 | guild | 与ORIG差异=DIFF | CAppStartInit::Init | 详见 function_reports/guild/_ZN13CAppStartInit4InitEP12CApplicationiPPc.md
 void CAppStartInit::Init(CApplication* app, int argc, char** argv)
 {
     srand((unsigned int)time(0));
     app->m_appConfig = new CAppConfig;
-    app->m_appConfig->Check_FileName(std::string(argv[1]));
+    ((CAppConfig*)app->m_appConfig)->Check_FileName(std::string(argv[1]));
     app->m_serverConfig = new CServerConfig;
     app->m_killConfig = new CKillUSRConfig;
     if (Init_Daemon(argc, argv) == -1)
@@ -133,19 +133,24 @@ int CAppStartInit::Init_Daemon(int argc, char** argv)
 
 bool CAppStartInit::Save_pid(const std::string& name)
 {
-    std::string path = "./pid/" + name;
-    int fd = ::open(path.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0644);
+    ssize_t w;
+    int fd;
+    char buf[1024];
+    std::string path = "./pid/" + name + ".pid";
+    fd = ::open(path.c_str(), O_CREAT | O_RDWR, 0644);
     if (fd < 0)
     {
         return false;
     }
-    char buf[1024];
     memset(buf, 0, sizeof(buf));
     sprintf(buf, "%ld\n", (long)getpid());
-    int len = (int)strlen(buf);
-    ssize_t w = ::write(fd, buf, (size_t)len);
-    ::close(fd);
-    return w > 0;
+    w = ::write(fd, buf, strlen(buf));
+    if (w < 0)
+    {
+        ::close(fd);
+        return false;
+    }
+    return true;
 }
 
 CAppInit::~CAppInit()

@@ -61,7 +61,7 @@ void CAppConfig::Load_Table(const std::string& path)
     throw CDNFException("CAppConfig::Load_Setup_Table() Exception Break!");
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-NEAR-0001 | monitor | 与ORIG差异=NEAR | CAppConfig::Parse_Table | 详见 function_reports/monitor/_ZN10CAppConfig11Parse_TableEPci.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-NEAR-0001 已消除）
 bool CAppConfig::Parse_Table(char* line, int idx)
 {
     if (line[0] == '#')
@@ -116,7 +116,7 @@ bool CAppConfig::Parse_Table(char* line, int idx)
             si->m_type = (unsigned char)atoi(tokens[1]);
             si->m_field0 = (unsigned char)atoi(tokens[2]);
             si->m_group = (unsigned char)atoi(tokens[3]);
-            strncpy((char*)si + 3, tokens[4], 0x10);
+            strncpy((char*)((unsigned int)si + 3), tokens[4], 0x10);
             si->m_port = (unsigned short)atoi(tokens[5]);
             m_serverInfo.insert(std::pair<const unsigned int, stServerInfo*>(si->m_type, si));
             return 1;

@@ -243,7 +243,7 @@ struct stTowerRankElement_t;
 struct stUserHuntingPoint;
 
 // ---- 附属声明 ----
-extern int village_attacked_scheduler[18];
+extern int village_attacked_scheduler[9][2];
 extern int MAX_SCHEDULER_COUNT;
 extern int HUNTING_POINT_WEIGTH_CONST;
 extern int REWARD_BUFF_TIME;
@@ -802,7 +802,9 @@ class Packet_MiniCraneSeed : public PacketHeader
 {
 public:
     Packet_MiniCraneSeed();
-    unsigned int m_seed;  // +10（SendMiniCraneRandomSeed: m_seed = getMiniCraneSeed()）
+    int m_seed;           // +10（SendMiniCraneRandomSeed: m_seed = getMiniCraneSeed()；
+                          //      ORIG OnUpdateMiniCraneSeed `mov %eax,0xa(%edx)` 无转换指令
+                          //      ⇒ 字段类型 = int，与 getMiniCraneSeed() 返回类型一致）
 } __attribute__((packed));
 
 class Packet_DB_Query_Member : public PacketHeader
@@ -1337,7 +1339,7 @@ public:
 class Packet_Request_Revenge_Dungeon : public PacketHeader
 {
 public:
-    unsigned int m_rewardType;  // +10
+    int m_rewardType;           // +10（同 CVillageAttackedManager::m_rewardType 的 int 型；ORIG 一段 mov）
     unsigned int m_remainTime;  // +14
 } __attribute__((packed));
 

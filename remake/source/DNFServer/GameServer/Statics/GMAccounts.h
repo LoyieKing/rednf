@@ -41,7 +41,7 @@ struct STPartyStatisticKey
 // ---- PartyStatistic：0x30 ----
 struct PartyStatistic
 {
-    PartyStatistic();
+    PartyStatistic() throw();  // [2026-09-15 P216] 消调用者冗余 landing pad
     ~PartyStatistic() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     void operator+=(const PartyStatistic& other);
@@ -94,7 +94,7 @@ struct STPartyCharacKey
 // ---- PartyCharacStatistic：0x34 ----
 struct PartyCharacStatistic
 {
-    PartyCharacStatistic();
+    PartyCharacStatistic() throw();  // [2026-09-15 P216] 消调用者冗余 landing pad
     ~PartyCharacStatistic() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     void operator+=(const PartyCharacStatistic& other);
@@ -137,7 +137,7 @@ struct STDeathTowerPlayDataJobStatisticKey
 // ---- PlayDataJobStatistic：0x8 ----
 struct PlayDataJobStatistic
 {
-    PlayDataJobStatistic();
+    PlayDataJobStatistic() throw();  // [2026-09-15 P216] 消调用者冗余 landing pad（与 dtor 同规格）
     ~PlayDataJobStatistic() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     void operator+=(const PlayDataJobStatistic& other);
@@ -157,7 +157,7 @@ struct STDeathTowerPlayDataPartyStatisticKey
 // ---- PlayDataPartyStatistic：0x8 ----
 struct PlayDataPartyStatistic
 {
-    PlayDataPartyStatistic();
+    PlayDataPartyStatistic() throw();  // [2026-09-15 P216] 消调用者冗余 landing pad
     ~PlayDataPartyStatistic() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     void operator+=(const PlayDataPartyStatistic& other);
@@ -213,7 +213,7 @@ struct STHellPartyStatisticItemKey
 // ---- HellPartyItenmData：0x1c ----
 struct HellPartyItenmData
 {
-    HellPartyItenmData();
+    HellPartyItenmData() throw();  // [2026-09-15 P216] 消调用者冗余 landing pad
     ~HellPartyItenmData() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     void operator+=(const HellPartyItenmData& other);
@@ -291,7 +291,12 @@ struct STModuleLagStatistics
     STModuleLagStatistics() throw();
     ~STModuleLagStatistics() throw();
     void Reset() throw();
-    int m_data[4];
+    // [2026-09-15 C2] 原 `int m_data[4]`：ORIG 对 4 字段是「add $0x37 + shl $0x4」再各自位移，
+    //   数组下标形会被折进索引常量锚点 ⇒ 每字段换锚。
+    int m_data0;   // +0
+    int m_data1;   // +4
+    int m_data2;   // +8
+    int m_data3;   // +0xc
 };
 
 // ---- STDungeonLagStatistics：0x20 ----
@@ -300,7 +305,7 @@ struct STDungeonLagStatistics
     STDungeonLagStatistics();
     ~STDungeonLagStatistics() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
-    int m_data[8];
+    unsigned int m_data[8];
 };
 
 // ---- ValueStatisticData：0x78 ----
@@ -465,7 +470,10 @@ struct STPartyJobWireItem
     char m_partyUserCount;             // +b（log_dungeon_party_job.party_user_count）
     int m_characJob;                   // +c（log_dungeon_party_job.charac_job）
     char m_characGrow;                 // +0x10（log_dungeon_party_job.charac_grow）
-    int m_data[2];             // +0x11
+    // ORIG 0x806f6xx 实证：+0x11/+0x15 两字段是**独立标量成员**（ORIG 只把 +4 折进 disp，
+    // 数组下标形会被 4.4 折进索引常量锚点 ⇒ 每字段换锚，DIFF）。布局/sizeof 不变。
+    int m_data0;               // +0x11
+    int m_data1;               // +0x15
 };
 
 struct STPartyCharacWireItem
@@ -478,7 +486,22 @@ struct STPartyCharacWireItem
     unsigned int m_characJob;          // +9（log_dungeon_charac.charac_job）
     char m_characGrow;                 // +0xd（log_dungeon_charac.charac_grow）
     char m_partyUserCount;             // +0xe（log_dungeon_charac.party_user_count）
-    int m_data[13];            // +0xf
+    // [2026-09-15 C2/Scalarize] 原 `int m_data[13]`。ORIG 对 +0x11/+0x15/+0x19… 是独立标量成员
+    // （统一 `sub $0x1765` + 各自位移），数组下标形会被折进索引常量锚点 ⇒ 每字段换锚（DIFF）。
+    // 布局/sizeof 不变：0xf + 13*4 = 0x43。先例 = 同头 STPartyJobWireItem。
+    int m_data0;               // +0xf
+    int m_data1;               // +0x13
+    int m_data2;               // +0x17
+    int m_data3;               // +0x1b
+    int m_data4;               // +0x1f
+    int m_data5;               // +0x23
+    int m_data6;               // +0x27
+    int m_data7;               // +0x2b
+    int m_data8;               // +0x2f
+    int m_data9;               // +0x33
+    int m_data10;              // +0x37
+    int m_data11;              // +0x3b
+    int m_data12;              // +0x3f
 };
 
 struct STDeathTowerValueWireItem

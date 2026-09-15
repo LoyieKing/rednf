@@ -48,7 +48,7 @@ public:
             bool m_bProcess;                   // +0x1d640
             unsigned char m_bInit;             // +0x1d641
         };
-        char m_data[0x1d644];
+        char m_data[0x1d664];   // ORIG nm -S 该静态对象 = 0x1d664（尾 0x20 无任何引用）
     };
 };
 
@@ -70,7 +70,7 @@ public:
     Packet_DB_Load_Request_Guild_Board_Open();
     unsigned int m_guildKey;   // +0xa
     unsigned int m_charNo;     // +0xe
-};
+} __attribute__((packed));
 
 // from GuildPackets.h
 #pragma pack(push,1)
@@ -103,7 +103,7 @@ public:
     unsigned int m_charNo;    // +0xe
     unsigned int m_no;        // +0x12
     unsigned char m_group;    // +0x16
-};
+} __attribute__((packed));
 
 // from GuildPackets.h
 #pragma pack(push,1)
@@ -139,6 +139,6 @@ public:
     unsigned short m_result;  // +0xa
     unsigned int m_channel;   // +0xc
     unsigned int m_charNo;    // +0x10
-};
+} __attribute__((packed));
 
 #endif

@@ -267,13 +267,16 @@ int Search::ROI_SetSearchResult(TSearchResult* pSearchResult, PAuctionIdContaine
     {
         return 0;
     }
-    i = pContainer->begin();
-    while (i != pContainer->end())
+    // ORIG: 循环体内 early-continue + 裸复合块（落点 D），配合函数末尾的 return;
+    for (i = pContainer->begin(); i != pContainer->end(); ++i)
     {
         pAuctionItemInfo = &_tempSearchItemInfo;
         result = GetAuctionItemInfo(i->auctionId, pSearchResult->roi_search_category,
                                     pAuctionItemInfo);
-        if (result == 0)
+        if (result != 0)
+        {
+            continue;
+        }
         {
             if (pSearchResult->startIdx != 0)
             {
@@ -297,24 +300,25 @@ int Search::ROI_SetSearchResult(TSearchResult* pSearchResult, PAuctionIdContaine
                 }
             }
         }
-        ++i;
     }
     return 0;
 }
 
 int Search::OperateByRefine(TOperate* pOperate, PRefineContainer pParent)
 {
-    TAuctionIdContainer* p_container = NULL;
+    // ORIG: pp_container 在函数开头声明并置 NULL；p_container 无初值。
+    PAuctionIdContainer* pp_container = NULL;
+    TAuctionIdContainer* p_container;
     BYTE key = pOperate->refine;
     TRefineContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos == pParent->end())
+    if (pParent->end() == pos)
     {
         if (pOperate->operation == STATE_DELETE)
         {
             return 0x13;
         }
-        PAuctionIdContainer* pp_container = new PAuctionIdContainer;
+        pp_container = new PAuctionIdContainer;
         if (pp_container == (PAuctionIdContainer*)0x0)
         {
             return 9;
@@ -326,7 +330,7 @@ int Search::OperateByRefine(TOperate* pOperate, PRefineContainer pParent)
         }
         pParent->insert(std::make_pair(key, *pp_container));
         pos = pParent->find(key);
-        if (pos == pParent->end())
+        if (pParent->end() == pos)
         {
             return 0xe;
         }
@@ -357,17 +361,19 @@ int Search::OperateByRefine(TOperate* pOperate, PRefineContainer pParent)
 
 int Search::OperateByUpgrade(TOperate* pOperate, PUpgradeContainer pParent)
 {
-    PRefineContainer p_container = NULL;
+    // ORIG: pp_container 在函数开头声明并置 NULL；p_container 无初值。
+    PRefineContainer* pp_container = NULL;
+    PRefineContainer p_container;
     unsigned long key = pOperate->upgrade;
     TUpgradeContainer::iterator pos;
     pos = pParent->find((unsigned char)key);
-    if (pos == pParent->end())
+    if (pParent->end() == pos)
     {
         if (pOperate->operation == STATE_DELETE)
         {
             return 0x13;
         }
-        PRefineContainer* pp_container = new PRefineContainer;
+        pp_container = new PRefineContainer;
         if (pp_container == (PRefineContainer*)0x0)
         {
             return 9;
@@ -379,7 +385,7 @@ int Search::OperateByUpgrade(TOperate* pOperate, PUpgradeContainer pParent)
         }
         pParent->insert(std::make_pair(key, *pp_container));
         pos = pParent->find((unsigned char)key);
-        if (pos == pParent->end())
+        if (pParent->end() == pos)
         {
             return 0xe;
         }
@@ -397,17 +403,20 @@ int Search::OperateByUpgrade(TOperate* pOperate, PUpgradeContainer pParent)
 
 int Search::OperateByLv(TOperate* pOperate, PLvContainer pParent)
 {
-    TAuctionIdContainer* p_container = NULL;
+    // ORIG: pp_container 在函数开头声明并置 NULL（唯一的一条 movl $0x0,-0x20），
+    // p_container 无初值（首个 movl $0x0 不出现）。
+    PAuctionIdContainer* pp_container = NULL;
+    TAuctionIdContainer* p_container;
     BYTE key = pOperate->lv;
     TLvContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos == pParent->end())
+    if (pParent->end() == pos)
     {
         if (pOperate->operation == STATE_DELETE)
         {
             return 0x13;
         }
-        PAuctionIdContainer* pp_container = new PAuctionIdContainer;
+        pp_container = new PAuctionIdContainer;
         if (pp_container == (PAuctionIdContainer*)0x0)
         {
             return 9;
@@ -419,7 +428,7 @@ int Search::OperateByLv(TOperate* pOperate, PLvContainer pParent)
         }
         pParent->insert(std::make_pair(key, *pp_container));
         pos = pParent->find(key);
-        if (pos == pParent->end())
+        if (pParent->end() == pos)
         {
             return 0x11;
         }
@@ -455,7 +464,7 @@ int Search::OperateByRefineLv(TOperate* pOperate, PRefineLvContainer pParent)
     BYTE key = pOperate->refine;
     TRefineLvContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos == pParent->end())
+    if (pParent->end() == pos)
     {
         if (pOperate->operation == STATE_DELETE)
         {
@@ -473,7 +482,7 @@ int Search::OperateByRefineLv(TOperate* pOperate, PRefineLvContainer pParent)
         }
         pParent->insert(std::make_pair(key, *pp_container));
         pos = pParent->find(key);
-        if (pos == pParent->end())
+        if (pParent->end() == pos)
         {
             return 0x11;
         }
@@ -496,7 +505,7 @@ int Search::OperateByUpgradeLv(TOperate* pOperate, PUpgradeLvContainer pParent)
     BYTE key = pOperate->upgrade;
     TUpgradeLvContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos == pParent->end())
+    if (pParent->end() == pos)
     {
         if (pOperate->operation == STATE_DELETE)
         {
@@ -514,7 +523,7 @@ int Search::OperateByUpgradeLv(TOperate* pOperate, PUpgradeLvContainer pParent)
         }
         pParent->insert(std::make_pair(key, *pp_container));
         pos = pParent->find(key);
-        if (pos == pParent->end())
+        if (pParent->end() == pos)
         {
             return 0x11;
         }
@@ -537,7 +546,7 @@ int Search::OperateByRarityUpgrade(TOperate* pOperate, PRarityUpgradeContainer p
     BYTE key = pOperate->rarity;
     TRarityUpgradeContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos == pParent->end())
+    if (pParent->end() == pos)
     {
         if (pOperate->operation == STATE_DELETE)
         {
@@ -555,7 +564,7 @@ int Search::OperateByRarityUpgrade(TOperate* pOperate, PRarityUpgradeContainer p
         }
         pParent->insert(std::make_pair(key, *pp_container));
         pos = pParent->find(key);
-        if (pos == pParent->end())
+        if (pParent->end() == pos)
         {
             return 0x10;
         }
@@ -578,7 +587,7 @@ int Search::OperateByRarityUpgradeLv(TOperate* pOperate, PRarityUpgradeLvContain
     BYTE key = pOperate->rarity;
     TRarityUpgradeLvContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos == pParent->end())
+    if (pParent->end() == pos)
     {
         if (pOperate->operation == STATE_DELETE)
         {
@@ -596,7 +605,7 @@ int Search::OperateByRarityUpgradeLv(TOperate* pOperate, PRarityUpgradeLvContain
         }
         pParent->insert(std::make_pair(key, *pp_container));
         pos = pParent->find(key);
-        if (pos == pParent->end())
+        if (pParent->end() == pos)
         {
             return 0xf;
         }
@@ -614,17 +623,19 @@ int Search::OperateByRarityUpgradeLv(TOperate* pOperate, PRarityUpgradeLvContain
 
 int Search::OperateByItemIdUpgrade(TOperate* pOperate, PItemIdUpgradeContainer pParent)
 {
-    PUpgradeContainer p_container = NULL;
+    // ORIG: pp_container 在函数开头声明并置 NULL；p_container 无初值。
+    PUpgradeContainer* pp_container = NULL;
+    PUpgradeContainer p_container;
     unsigned long key = pOperate->itemId;
     TItemIdUpgradeContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos == pParent->end())
+    if (pParent->end() == pos)
     {
         if (pOperate->operation == STATE_DELETE)
         {
             return 0x13;
         }
-        PUpgradeContainer* pp_container = new PUpgradeContainer;
+        pp_container = new PUpgradeContainer;
         if (pp_container == (PUpgradeContainer*)0x0)
         {
             return 9;
@@ -636,7 +647,7 @@ int Search::OperateByItemIdUpgrade(TOperate* pOperate, PItemIdUpgradeContainer p
         }
         pParent->insert(std::make_pair(key, *pp_container));
         pos = pParent->find(key);
-        if (pos == pParent->end())
+        if (pParent->end() == pos)
         {
             return 0xe;
         }
@@ -659,7 +670,7 @@ int Search::OperateByCategoryUpgrade(TOperate* pOperate, PCategoryUpgradeContain
     WORD key = pOperate->category;
     TCategoryUpgradeContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos == pParent->end())
+    if (pParent->end() == pos)
     {
         if (pOperate->operation == STATE_DELETE)
         {
@@ -677,7 +688,7 @@ int Search::OperateByCategoryUpgrade(TOperate* pOperate, PCategoryUpgradeContain
         }
         pParent->insert(std::make_pair(key, *pp_container));
         pos = pParent->find(key);
-        if (pos == pParent->end())
+        if (pParent->end() == pos)
         {
             return 0x12;
         }
@@ -700,7 +711,7 @@ int Search::OperateByCategoryUpgradeLv(TOperate* pOperate, PCategoryUpgradeLvCon
     WORD key = pOperate->category;
     TCategoryUpgradeLvContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos == pParent->end())
+    if (pParent->end() == pos)
     {
         if (pOperate->operation == STATE_DELETE)
         {
@@ -718,7 +729,7 @@ int Search::OperateByCategoryUpgradeLv(TOperate* pOperate, PCategoryUpgradeLvCon
         }
         pParent->insert(std::make_pair(key, *pp_container));
         pos = pParent->find(key);
-        if (pos == pParent->end())
+        if (pParent->end() == pos)
         {
             return 0x11;
         }
@@ -742,7 +753,7 @@ int Search::OperateByCategoryRarityUpgrade(TOperate* pOperate,
     WORD key = pOperate->category;
     TCategoryRarityUpgradeContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos == pParent->end())
+    if (pParent->end() == pos)
     {
         if (pOperate->operation == STATE_DELETE)
         {
@@ -760,7 +771,7 @@ int Search::OperateByCategoryRarityUpgrade(TOperate* pOperate,
         }
         pParent->insert(std::make_pair(key, *pp_container));
         pos = pParent->find(key);
-        if (pos == pParent->end())
+        if (pParent->end() == pos)
         {
             return 0x10;
         }
@@ -784,7 +795,7 @@ int Search::OperateByCategoryRarityUpgradeLv(TOperate* pOperate,
     WORD key = pOperate->category;
     TCategoryRarityUpgradeLvContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos == pParent->end())
+    if (pParent->end() == pos)
     {
         if (pOperate->operation == STATE_DELETE)
         {
@@ -802,7 +813,7 @@ int Search::OperateByCategoryRarityUpgradeLv(TOperate* pOperate,
         }
         pParent->insert(std::make_pair(key, *pp_container));
         pos = pParent->find(key);
-        if (pos == pParent->end())
+        if (pParent->end() == pos)
         {
             return 0xf;
         }
@@ -1203,9 +1214,12 @@ int Search::SearchByUpgrade(TCategoryParameter* pParameter, PUpgradeContainer pP
 int Search::SearchByLv(TCategoryParameter* pParameter, PLvContainer pParent)
 {
     // ORIG DWARF 声明序：result(1682)/pos(1684)/pSearchResult(1685)。
+    // ORIG 含一个从未被引用的 4 字节局部（位于 -0x24/-0x28，反汇编不可见）：
+    // 该槽决定后续变量的分配起点；缺它则 pSearchResult/result/pos 全部错位 4 字节。
+    int reservedSlot;
+    TSearchResult* pSearchResult;
     BYTE result;
     TLvContainer::iterator pos;
-    TSearchResult* pSearchResult;
 
     pSearchResult = &pParameter->searchResult;
     pSearchResult->category = -1;
@@ -1275,7 +1289,7 @@ int Search::SearchByRarityUpgrade(TCategoryParameter* pParameter, PRarityUpgrade
     BYTE key = pParameter->rarity;
     TRarityUpgradeContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos != pParent->end())
+    if (pParent->end() != pos)
     {
         if (SearchByUpgrade(pParameter, pos->second) != 0)
         {
@@ -1291,7 +1305,7 @@ int Search::SearchByRarityUpgradeLv(TCategoryParameter* pParameter,
     BYTE key = pParameter->rarity;
     TRarityUpgradeLvContainer::iterator pos;
     pos = pParent->find(key);
-    if (pos != pParent->end())
+    if (pParent->end() != pos)
     {
         if (SearchByUpgradeLv(pParameter, pos->second) != 0)
         {
@@ -1393,7 +1407,7 @@ int Search::SearchByItemIdUpgrade(TItemIdParameter* pParameter, PItemIdUpgradeCo
 {
     TItemIdUpgradeContainer::iterator pos;
     unsigned long key;
-    register int i;
+    int i;
     CNRDItemInfoList::STItemInfo* p_item_info;
     bool has_category_selected;
     BYTE upgrade_start_backup;

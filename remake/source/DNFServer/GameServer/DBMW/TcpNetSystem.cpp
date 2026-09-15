@@ -48,7 +48,7 @@ CTcpNetSystem::~CTcpNetSystem()
         m_field4 = 0;
     }
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0076 | dbmw | 与ORIG差异=DIFF | CTcpNetSystem::OpenTcpService | 详见 function_reports/dbmw/_ZN13CTcpNetSystem14OpenTcpServiceERiPKct.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0076 已消除）
 int CTcpNetSystem::OpenTcpService(int& serverCount, const char* ip, unsigned short port)
 {
     CPeer* peer = CreatePeer();
@@ -56,16 +56,14 @@ int CTcpNetSystem::OpenTcpService(int& serverCount, const char* ip, unsigned sho
     if (!sock->open())
     {
         puts("tcpSock.open() Fail!");
-        CMyFileLog log(__FUNCTION__, 0x118);
-        log("./log/TcpServer", "tcpSock.open() Fail!");
+        CMyFileLog(__FUNCTION__, 0x118)("./log/TcpServer", "tcpSock.open() Fail!");
         DeletePeer(peer);
         return 0;
     }
     if (!sock->connect(ip, port))
     {
         puts("tcpSock.connect Fail!");
-        CMyFileLog log(__FUNCTION__, 0x123);
-        log("./log/TcpServer", "tcpSock.connect(%s, %d) Fail!", ip, port);
+        CMyFileLog(__FUNCTION__, 0x123)("./log/TcpServer", "tcpSock.connect(%s, %d) Fail!", ip, port);
         DeletePeer(peer);
         return 0;
     }
@@ -137,109 +135,116 @@ void CTcpNetSystem::SetEpollConnectedPeer(CPeer* peer)
     }
     m_peerMap.insert(std::make_pair(peer->GetTcpSocket()->getHandle(), peer));
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0079 | dbmw | 与ORIG差异=DIFF | CTcpNetSystem::SetEpollAcceptedPeers | 详见 function_reports/dbmw/_ZN13CTcpNetSystem21SetEpollAcceptedPeersEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0079 已消除）
 void CTcpNetSystem::SetEpollAcceptedPeers()
 {
     CGuard<CMutex> guard(&m_mutex60);
     if (m_peerQueue.empty())
-        goto done;
+        return;
+    CPeer* peer = 0;
+    while (!m_peerQueue.empty())
     {
-        CPeer* peer = 0;
-        int ret;
-        goto check;
-    body:
         peer = m_peerQueue.front();
-        ret = 0;
-        ret = m_tcpHandler->SetPeer(peer, peer->GetTcpSocket()->getHandle(), false);
-        if (ret != 0)
+        int ret = 0;
+        if ((ret = m_tcpHandler->SetPeer(peer, peer->GetTcpSocket()->getHandle(),
+                                        false)) != 0)
         {
             printf("G_EpollHandler()->SetPeer(peer->get_socket(%d)) %d(%s)",
                    peer->GetTcpSocket()->getHandle(), ret, strerror(ret));
         }
         m_peerMap.insert(std::make_pair(peer->GetTcpSocket()->getHandle(), peer));
         m_peerQueue.pop();
-    check:
-        if (!m_peerQueue.empty())
-            goto body;
     }
-done:
-    ;
 }
 // [DNF-NONIDENTICAL] DNF-DBM-DIFF-0075 | dbmw | 与ORIG差异=DIFF | CTcpNetSystem::SendPacket | 详见 function_reports/dbmw/_ZN13CTcpNetSystem10SendPacketEv.md
+// X2 移植自 guild identical 版：ORIG 反汇编实测 TcpSendBuffer 头部字段（id@0/size@2/pad@4/ip@6）
+#pragma pack(push, 1)
+struct TcpPacketFields
+{
+    unsigned short m_id;   // +0
+    unsigned short m_size; // +2
+    unsigned short m_pad;  // +4
+    int m_ip;              // +6
+};
+#pragma pack(pop)
+
 int CTcpNetSystem::SendPacket()
 {
-    CTcpSendBuffer* buf;
-    register int flag;
-    register int result;
     {
-        CGuard<CMutex> guard(&m_mutexE8);
-        if (m_sendQueue.empty())
+        register int ret;
+        register int flag;
+        CTcpSendBuffer* buf;
+        CTcpSendBuffer* b2;
+        CPeer* peer;
+        int result;
+        int cnt;
         {
-            result = 0;
-            flag = 0;
-        }
-        else
-        {
-            buf = m_sendQueue.front();
-            flag = 1;
-        }
-    }
-    if (flag)
-    {
-        if (!buf)
-        {
-            result = 0;
-            return result;
-        }
-        std::map<unsigned int, CPeer*>::iterator it =
-            m_peerMap.find(*(unsigned int*)((char*)buf + 6));
-        if (it == m_peerMap.end())
-        {
-            CMyFileLog log(__FUNCTION__, 0xba);
-            log("./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
-                buf->m_header.packetId, buf->m_header.packetSize,
-                buf->m_header.m_connNo);
-            PopDeleteTcpSendPacketQ(buf);
-            result = 0;
-        }
-        else
-        {
-            CPeer* peer = it->second;
-            bool bad = true;
-            if (peer != NULL &&
-                buf->m_header.m_connNo ==
-                    peer->GetTcpSocket()->getHandle())
-                bad = false;
-            if (bad)
+            CGuard<CMutex> guard(&m_mutexE8);
+            if (m_sendQueue.empty())
             {
-                CMyFileLog log(__FUNCTION__, 0xc3);
-                log("./log/TcpSend",
-                    "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)", peer,
-                    buf->m_header.packetId, buf->m_header.packetSize,
-                    buf->m_header.m_connNo);
-                PopDeleteTcpSendPacketQ(buf);
-                result = 0;
+                ret = 0;
+                flag = 0;
             }
             else
             {
-                result = peer->send_packet((char*)buf,
-                                           buf->m_header.packetSize);
-                if (result < 1)
+                buf = m_sendQueue.front();
+                flag = 1;
+            }
+        }
+        if (flag)
+        {
+            if (!buf)
+            {
+                ret = 0;
+                goto done;
+            }
+            b2 = buf;
+            std::map<unsigned int, CPeer*>::iterator it =
+                m_peerMap.find(*(unsigned int*)((char*)b2 + 6));
+            if (it == m_peerMap.end())
+            {
+                DNF_LOG_SCOPE_LINE(0xba, "./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
+                    ((TcpPacketFields*)b2)->m_id, ((TcpPacketFields*)b2)->m_size,
+                    ((TcpPacketFields*)b2)->m_ip);
+                PopDeleteTcpSendPacketQ(buf);
+                ret = 0;
+            }
+            else
+            {
+                peer = it->second;
+                if (peer == 0 ||
+                    ((TcpPacketFields*)b2)->m_ip !=
+                        peer->GetTcpSocket()->getHandle())
                 {
-                    CMyFileLog log(__FUNCTION__, 0xd5);
-                    log("./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
-                        buf->m_header.packetId, buf->m_header.packetSize,
-                        buf->m_header.m_connNo,
-                        m_sendQueue.size());
+                    DNF_LOG_SCOPE_LINE(0xc3, "./log/TcpSend",
+                        "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)", peer,
+                        ((TcpPacketFields*)b2)->m_id, ((TcpPacketFields*)b2)->m_size,
+                        ((TcpPacketFields*)b2)->m_ip);
+                    PopDeleteTcpSendPacketQ(buf);
+                    ret = 0;
                 }
                 else
                 {
-                    PopDeleteTcpSendPacketQ(buf);
+                    result = peer->send_packet((char*)b2,
+                                               ((TcpPacketFields*)b2)->m_size);
+                    if (result > 0)
+                    {
+                        PopDeleteTcpSendPacketQ(buf);
+                    }
+                    else
+                    {
+                        cnt = (int)m_sendQueue.size();
+                        DNF_LOG_SCOPE_LINE(0xd5, "./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
+                            ((TcpPacketFields*)b2)->m_id, ((TcpPacketFields*)b2)->m_size,
+                            ((TcpPacketFields*)b2)->m_ip, cnt);
+                    }
+                    ret = result;
                 }
             }
         }
+    done:
+        return ret;
     }
-    return result;
 }
 void CTcpNetSystem::PopDeleteTcpSendPacketQ(CTcpSendBuffer* buf)
 {
@@ -257,7 +262,7 @@ CTcpSendBuffer* CTcpNetSystem::Acquire_TcpSendBuffer()
     CGuard<CMutex> guard(&m_mutex100);
     return new CTcpSendBuffer;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0077 | dbmw | 与ORIG差异=DIFF | CTcpNetSystem::PushTcpSendPacketQ | 详见 function_reports/dbmw/_ZN13CTcpNetSystem18PushTcpSendPacketQEPc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0077 已消除）
 void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
 {
     CGuard<CMutex> guard(&m_mutexE8);
@@ -265,20 +270,19 @@ void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
     int n = m_sendQueue.size();
     if (n > 0xa)
     {
-        CMyFileLog log(__FUNCTION__, 0x91);
-        log("./log/TcpSend", "SEND PUSH(cnt:%d,id:%d,size:%d,ip:%d)", n,
+        CMyFileLog(__FUNCTION__, 0x91)("./log/TcpSend", "SEND PUSH(cnt:%d,id:%d,size:%d,ip:%d)", n,
             ((CTcpSendBuffer*)buf)->m_header.packetId,
             ((CTcpSendBuffer*)buf)->m_header.packetSize,
             ((CTcpSendBuffer*)buf)->m_header.m_connNo);
     }
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0078 | dbmw | 与ORIG差异=DIFF | CTcpNetSystem::CleanTcpSendPacketQ | 详见 function_reports/dbmw/_ZN13CTcpNetSystem19CleanTcpSendPacketQEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0078 已消除）
 void CTcpNetSystem::CleanTcpSendPacketQ()
 {
     for (;;)
     {
         CTcpSendBuffer* p;
-        int keep;
+        register int keep;
         {
             CGuard<CMutex> guard(&m_mutexE8);
             if (m_sendQueue.empty())
@@ -299,8 +303,7 @@ void CTcpNetSystem::CleanTcpSendPacketQ()
             delete p;
         }
     }
-    CMyFileLog log(__FUNCTION__, 0x16b);
-    log("./log/TcpSend", "Clean Tcp Send Queue Complete !");
+    CMyFileLog(__FUNCTION__, 0x16b)("./log/TcpSend", "Clean Tcp Send Queue Complete !");
 }
 int CTcpNetSystem::WaitForEvent()
 {

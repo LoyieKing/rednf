@@ -145,20 +145,19 @@ void COnTimeEventManager::StartEvent()
     StartEvent(m_eventStart, m_eventDurationMin);
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0123 | monitor | 与ORIG差异=DIFF | COnTimeEventManager::StartEvent | 详见 function_reports/monitor/_ZN19COnTimeEventManager10StartEventEjj.md
 void COnTimeEventManager::StartEvent(unsigned int a, unsigned int b)
 {
     if (b >= a)
     {
         return;
     }
-    unsigned int t = (unsigned int)time(0);
+    int t = (int)time(0);
     m_eventStart = (int)a;
     m_eventDurationMin = (int)b;
-    m_startTime = (int)t;
+    m_startTime = t;
     ChangeState(ONTIME_EVENT_STATE_START);
     register CTaskScheduler::CTask* task =
-        new COnTimeEventRewardStartTrigger(t, 0, this);
+        new COnTimeEventRewardStartTrigger((unsigned int)t, 0, this);
     m_app->GetTaskScheduler()->AddTask(task);
 }
 
@@ -226,45 +225,41 @@ int COnTimeEventManager::GetCurIdxByDBMW()
     return -1;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0125 | monitor | 与ORIG差异=DIFF | COnTimeEventManager::OnRewardStart | 详见 function_reports/monitor/_ZN19COnTimeEventManager13OnRewardStartEv.md
 void COnTimeEventManager::OnRewardStart()
 {
     register time_t t0 = time(0);
-    CMyFileLog log(__FUNCTION__, 0x82);
-    log("./log/OnTimeEvent", "On Time Event : On Reward Start Trigger On(%d)", t0);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x82, "./log/OnTimeEvent",
+                     "On Time Event : On Reward Start Trigger On(%d)", t0);
     if (IsCurState(ONTIME_EVENT_STATE_REWARD))
     {
         puts("On Time Event : Event Off Trigger");
         Clear();
     }
+    else if (IsCurState(ONTIME_EVENT_STATE_NONE))
+    {
+        return;
+    }
     else
     {
-        if (IsCurState(ONTIME_EVENT_STATE_NONE))
-        {
-        }
-        else
-        {
-            ChangeState(ONTIME_EVENT_STATE_NONE);
-            UpdateEventIdx();
-            register int t = (int)time(0);
-            m_rewardStartTime = t;
-            register CTaskScheduler::CTask* task =
-                new COnTimeEventRewardEndTrigger((unsigned int)(m_eventDurationMin * 0x3c + t), 0, this);
-            m_app->GetTaskScheduler()->AddTask(task);
-            register int idx = GetEvent_Idx();
-            CMyFileLog log2(__FUNCTION__, 0xa7);
-            log2("./log/OnTimeEvent",
-                 "On Time Event : On Reward Start Trigger Process Success curidx(%d)", idx);
-        }
+        ChangeState(ONTIME_EVENT_STATE_NONE);
+        UpdateEventIdx();
+        int t = (int)time(0);
+        m_rewardStartTime = t;
+        register CTaskScheduler::CTask* task =
+            new COnTimeEventRewardEndTrigger((unsigned int)(m_eventDurationMin * 0x3c + t), 0, this);
+        m_app->GetTaskScheduler()->AddTask(task);
+        register int idx = GetEvent_Idx();
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0xa7, "./log/OnTimeEvent",
+                         "On Time Event : On Reward Start Trigger Process Success curidx(%d)", idx);
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0124 | monitor | 与ORIG差异=DIFF | COnTimeEventManager::OnRewardEnd | 详见 function_reports/monitor/_ZN19COnTimeEventManager11OnRewardEndEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0124 已消除）
 void COnTimeEventManager::OnRewardEnd()
 {
     register time_t t0 = time(0);
-    CMyFileLog log(__FUNCTION__, 0xae);
-    log("./log/OnTimeEvent", "On Time Event : On Reward End Trigger On(%d)\n", t0);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0xae, "./log/OnTimeEvent",
+                     "On Time Event : On Reward End Trigger On(%d)\n", t0);
     if (IsCurState(ONTIME_EVENT_STATE_REWARD))
     {
         puts("On Time Event : Event Off Trigger");
@@ -280,15 +275,16 @@ void COnTimeEventManager::OnRewardEnd()
             ChangeState(ONTIME_EVENT_STATE_START);
             Packet_MTG_OntimeEvent_RewardEnd pkt;
             m_app->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
-            CMyFileLog log2(__FUNCTION__, 0xd9);
-            log2("./log/OnTimeEvent", "On Time Event : On Reward End Trigger Process Success");
+            DNF_LOG_SCOPE_AT(__FUNCTION__, 0xd9, "./log/OnTimeEvent",
+                             "On Time Event : On Reward End Trigger Process Success");
         }
     }
+    return;
 }
 
 COnTimeEventRewardEndTrigger::COnTimeEventRewardEndTrigger(unsigned int time,
                                                            unsigned int flag,
-                                                           COnTimeEventManager* mgr)
+                                                           COnTimeEventManager* mgr) throw()
     : CTask(time, flag)
 {
     m_mgr = mgr;

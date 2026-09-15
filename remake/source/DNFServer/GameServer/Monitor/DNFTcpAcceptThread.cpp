@@ -52,7 +52,7 @@ void CTcpAcceptThread::attach(CTcpNetSystem* net)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0044 | monitor | 与ORIG差异=DIFF | CTcpAcceptThread::dispatch | 详见 function_reports/monitor/_ZN16CTcpAcceptThread8dispatchEPv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0044 已消除）
 void CTcpAcceptThread::dispatch(void* param)
 {
     try
@@ -60,35 +60,36 @@ void CTcpAcceptThread::dispatch(void* param)
         if (!m_sock.open())
         {
             printf("Tcp Accept Socket Open Err");
+            return;
         }
-        else if (!m_sock.bind(m_port, true))
+        if (!m_sock.bind(m_port, true))
         {
             printf("Tcp Accept Socket Bind Err");
+            return;
         }
-        else if (!m_sock.listen(5))
+        if (!m_sock.listen(5))
         {
             printf("Tcp Accept Socket Listen Err");
+            return;
         }
-        else
+        m_running = true;
+        DNFFLib::Sleep_Ext(5, 0);
+        while (m_running)
         {
-            m_running = true;
-            DNFFLib::Sleep_Ext(5, 0);
-            while (m_running)
+            if (!m_sock.pollReadEvent())
             {
-                if (m_sock.pollReadEvent())
-                {
-                    CPeer* peer = m_net->CreatePeer();
-                    if (m_sock.accept(*peer->GetTcpSocket()) != 1)
-                    {
-                        printf("Accept GameServer Fail(Port : %d)\n", peer->GetTcpSocket()->getHandle());
-                    }
-                    printf("Accept GameServer(Port : %d)\n", peer->GetTcpSocket()->getHandle());
-                    peer->InitPeer(
-                        (std::queue<CTcpRecvBuffer*>*)m_net->Get_TcpSwapQPacket()->GetRecvQ(), m_net->Get_TcpRecvQLock(), m_net->Get_TcpRecvBLock());
-                    peer->ConnSig();
-                    m_net->InsertAcceptedPeer(peer);
-                }
+                continue;
             }
+            CPeer* peer = m_net->CreatePeer();
+            if (!m_sock.accept(*peer->GetTcpSocket()))
+            {
+                printf("Accept GameServer Fail(Port : %d)\n", peer->GetTcpSocket()->getHandle());
+            }
+            printf("Accept GameServer(Port : %d)\n", peer->GetTcpSocket()->getHandle());
+            peer->InitPeer(
+                (std::queue<CTcpRecvBuffer*>*)m_net->Get_TcpSwapQPacket()->GetRecvQ(), m_net->Get_TcpRecvQLock(), m_net->Get_TcpRecvBLock());
+            peer->ConnSig();
+            m_net->InsertAcceptedPeer(peer);
         }
     }
     catch (CDNFException& e)

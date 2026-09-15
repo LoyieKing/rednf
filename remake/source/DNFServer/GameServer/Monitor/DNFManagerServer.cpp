@@ -184,7 +184,7 @@ int* CTcpManagerServer::GetSockRef() { return &m_sock; }
 
 int CTcpManagerServer::GetSock() { return m_sock; }
 
-char CTcpManagerServer::IsValidServer()
+bool CTcpManagerServer::IsValidServer()
 {
     if (m_sock != -1 && m_net != 0)
     {
@@ -332,7 +332,7 @@ bool CCacheCharacterMgr::GetCacheCharacter(unsigned int dbid, CACHE_CHARACTER_TY
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0039 | monitor | 与ORIG差异=DIFF | exchange_server::CCacheCharacterMgr::CollectGarbage | 详见 function_reports/monitor/_ZN15exchange_server18CCacheCharacterMgr14CollectGarbageEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0039 已消除）
 bool CCacheCharacterMgr::CollectGarbage()
 {
     bool result = 0;
@@ -351,10 +351,14 @@ bool CCacheCharacterMgr::CollectGarbage()
         }
         std::map<unsigned int, CACHE_CHARACTER_TYPE>::iterator it =
             m_cache.find(top.m_charNo);
-        if (it != m_cache.end() && now - it->second.m_time > 0x1d)
+        if (it != m_cache.end())
         {
-            m_cache.erase(it);
-            result = 1;
+            while (now - it->second.m_time > 0x1d)
+            {
+                m_cache.erase(it);
+                result = 1;
+                break;
+            }
         }
         m_timeQueue.pop();
     }

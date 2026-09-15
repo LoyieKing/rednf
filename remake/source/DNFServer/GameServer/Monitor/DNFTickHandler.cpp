@@ -51,19 +51,27 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int fram
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0116 | monitor | 与ORIG差异=DIFF | CFrameCountHandler::GetFrameCountInfo | 详见 function_reports/monitor/_ZN18CFrameCountHandler17GetFrameCountInfoEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0116 已消除）
 CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 {
-    tms tm = {};
-    int u0 = 0, u1 = 0, u2 = 0, u3 = 0;
-    (void)u0; (void)u1; (void)u2; (void)u3;
+    unsigned int l1 = 0;
+    unsigned int l2 = 0;
+    unsigned int l3 = 0;
+    unsigned int q;
+    unsigned int l4 = 0;
+    (void)l1;
+    (void)l2;
+    (void)l3;
+    (void)q;
+    (void)l4;
+    tms tm;
     m_state = 0;
     if (m_inited == 0)
     {
         m_inited = 1;
         m_frameCounter = 0;
         m_prevTick = times(&tm);
-        if (m_prevTick == -1)
+        while ((int)m_prevTick == -1)
         {
             throw CDNFException("CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
         }
@@ -71,32 +79,33 @@ CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
     else
     {
         m_curTick = times(&tm);
-        if (m_curTick == -1)
+        while ((int)m_curTick == -1)
         {
             throw CDNFException("CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
         }
-        if ((unsigned int)m_curTick < (unsigned int)m_prevTick)
+        if ((unsigned int)m_prevTick > (unsigned int)m_curTick)
         {
             m_prevTick = m_curTick;
         }
-        if (m_frameCounter < (unsigned int)((int)m_curTick - (int)m_prevTick) / (unsigned int)m_interval)
+        l1 = (unsigned int)m_curTick - (unsigned int)m_prevTick;
+        q = l1 / (unsigned int)m_interval;
+        if (m_frameCounter < q)
         {
             m_frameCounter++;
             m_state = 1;
-            if (99 < (unsigned int)((int)m_curTick - (int)m_prevTick))
+            l2 = (unsigned int)m_curTick - (unsigned int)m_prevTick;
+            if (99 < l2)
             {
                 m_fps = m_frameCounter;
                 m_state = 2;
                 m_frameCounter = 0;
-                m_prevTick = (m_curTick - (m_curTick - m_prevTick)) + 100;
+                m_prevTick = m_curTick - l2 + 100;
                 m_field20 = 0;  // 保留原名（未使用）
-                m_secCounter++;
-                if (59 < (unsigned char)m_secCounter)
+                if (0x3b < (unsigned char)(++m_secCounter))
                 {
                     m_state = 3;
                     m_secCounter = 0;
-                    m_minCounter++;
-                    if (59 < (unsigned char)m_minCounter)
+                    if (0x3b < (unsigned char)(++m_minCounter))
                     {
                         m_state = 4;
                         m_minCounter = 0;

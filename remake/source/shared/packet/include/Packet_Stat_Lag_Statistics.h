@@ -20,7 +20,8 @@ public:
         float m_deviation;  // +4..+7（dispatch_sig get_int 写入、AddLagStatistics 按 float 读；DB deviation）
         unsigned short m_count;  // +8..+9（dispatch_sig get_short；DB count）
     } m_records[8];         // +b..+5a（8×10B 模块记录槽，槽位下标即模块号 0..7）
-    char m_detailCount;  // +5b（index==1 记录附带的明细条数，≤10，内层循环上界）
+    unsigned char m_detailCount;  // +5b（index==1 记录附带的明细条数，≤10，内层循环上界）
+                                  // [2026-09-15 R6] ORIG 读该字段用 movzbl（零扩展）⇒ unsigned char
     struct __attribute__((packed)) LagDetailRecord {
         unsigned short m_key;    // +0（dispatch_sig get_short；AddLagStatistics map key）
         char m_pad1;             // +2（dispatch_sig get_byte 占位）

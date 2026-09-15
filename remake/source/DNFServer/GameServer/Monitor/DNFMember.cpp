@@ -82,13 +82,21 @@ void CMember::QueryMember(CServerHandler* handler)
 unsigned int* CMember::GetMemberDBInfoW() { return (unsigned int*)&m_dbInfo; }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0137 | monitor | 与ORIG差异=DIFF | CMember::NoticeMemberLogin_Out | 详见 function_reports/monitor/_ZN7CMember21NoticeMemberLogin_OutEP5CUserc.md
+// 残差 ndiff=2：仅「外层 if 真分支」与「m_flag 假分支」两个块尾 goto 标签互换（指令数 224/224 已一致）。
+// 已试：条件物化方向（&& 物化 / || 空-then-else）、member 赋值内联、循环复用同一 member、return 位置 4 种
+// （else 块内 / 函数尾 / 真分支内 / 双 return）——最优为当前「else 块内末尾 return」（ndiff 84→2）。
 void CMember::NoticeMemberLogin_Out(CUser* user, char flag)
 {
-    if (user != 0 && user->GetGameServer() != 0 && (m_flag & 4) != 0)
+    if (user == 0 || user->GetGameServer() == 0)
     {
+    }
+    else
+    {
+        if ((m_flag & 4) != 0)
+        {
         Packet_Monitor_Notice_Member_Member_Login_out pkt;
-        CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_charNo);
-        if (member != 0)
+        CUser* member;
+        if ((member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_charNo)) != 0)
         {
             if (user->IsBlackUser(member->GetUniqCharNo()) != 1)
             {
@@ -131,26 +139,27 @@ void CMember::NoticeMemberLogin_Out(CUser* user, char flag)
         {
             for (int i = 0; i < count; i++)
             {
-                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo);
-                if (m == 0)
+                if ((member = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo)) == 0)
                 {
                     continue;
                 }
-                if (user->IsBlackUser(m->GetUniqCharNo()) != 1)
+                if (user->IsBlackUser(member->GetUniqCharNo()) != 1)
                 {
                     pkt.m_flag = flag;
-                    pkt.m_idByChannel = m->GetIdByChannel();
-                    pkt.m_uniqCharNo = m->GetUniqCharNo();
+                    pkt.m_idByChannel = member->GetIdByChannel();
+                    pkt.m_uniqCharNo = member->GetUniqCharNo();
                     pkt.m_channelNo =
                         ((CServerInterface*)user->GetGameServer())->GetChannelNo();
                     pkt.m_type = 1;
                     memcpy(pkt.m_charName, user->GetCharName(), 0x1d);
-                    pkt.m_expLevel = m->GetUpperMemberExpLevel();
+                    pkt.m_expLevel = member->GetUpperMemberExpLevel();
                     pkt.m_uniqCharNo2 = user->GetUniqCharNo();
-                    m->SendTcpGameserver(&pkt);
+                    member->SendTcpGameserver(&pkt);
                 }
             }
         }
+        }
+        return;
     }
 }
 
@@ -198,7 +207,7 @@ void CMember::CheckMemberRegisterFlag()
     }
 }
 
-char CMember::IsEmpty()
+bool CMember::IsEmpty()
 {
     if (!IsThereUpper() && m_dbInfo.m_count27 == 0)
     {
@@ -208,97 +217,128 @@ char CMember::IsEmpty()
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0139 | monitor | 与ORIG差异=DIFF | CMember::NoticeChatMsgToMemberMembersHyperLink | 详见 function_reports/monitor/_ZN7CMember37NoticeChatMsgToMemberMembersHyperLinkEPcihPK19hyperlink_item_infoP5CUser.md
+// 残差 ndiff=5：items 循环内 memcpy 目标地址的三条指令次序不同（ORIG 先 lea 基址再 imul 索引；我方相反），
+// 其余含 2 处块尾 goto 标签互换。已试：三层嵌套 if + IsEmpty 空-then-else、member 复用（73→23）、
+// 指针加法 → 下标 `&pkt.m_items[i*0x68]`（23→5，C1 判据）、再加 (char*) cast（劣化，已回退）。
+// 另试 U4（unsigned 索引 `i * 0x68u`）—— 无效，已回退。
 void CMember::NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned char count,
                                                     const hyperlink_item_info* items, CUser* user)
 {
-    if (len < 0x100 && (m_flag & 4) != 0 && !IsEmpty())
+    if (len < 0x100)
     {
-        Packet_Monitor_Member_Chat_ToUser_Hyper_Link pkt;
-        memcpy(pkt.m_charName, user->GetCharName(), 0x1d);
-        pkt.m_msgLen = (unsigned char)len;
-        memcpy(pkt.m_msg, msg, len);
-        pkt.m_itemCount = count;
-        for (int i = 0; i < (int)count; i++)
+        if ((m_flag & 4) != 0)
         {
-            memcpy(pkt.m_items + i * 0x68, (char*)items + i * 0x68, 0x68);
-        }
-        pkt.packetSize = (unsigned short)len + 0x16a;
-        CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_charNo);
-        if (member != 0)
-        {
-            pkt.m_idByChannel = member->GetIdByChannel();
-            pkt.m_uniqCharNo = member->GetUniqCharNo();
-            member->SendToGameserver((char*)&pkt, pkt.packetSize);
-        }
-        pkt.m_idByChannel = user->GetIdByChannel();
-        pkt.m_uniqCharNo = user->GetUniqCharNo();
-        user->SendToGameserver((char*)&pkt, pkt.packetSize);
-        int count2 = (int)m_dbInfo.m_count27;
-        if (count2 > 0)
-        {
-            for (int i = 0; i < count2; i++)
+            if (IsEmpty())
             {
-                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo);
-                if (m != 0)
+            }
+            else
+            {
+                Packet_Monitor_Member_Chat_ToUser_Hyper_Link pkt;
+                memcpy(pkt.m_charName, user->GetCharName(), 0x1d);
+                pkt.m_msgLen = (unsigned char)len;
+                memcpy(pkt.m_msg, msg, len);
+                pkt.m_itemCount = count;
+                for (int i = 0; i < (int)count; i++)
                 {
-                    pkt.m_idByChannel = m->GetIdByChannel();
-                    pkt.m_uniqCharNo = m->GetUniqCharNo();
-                    m->SendToGameserver((char*)&pkt, pkt.packetSize);
+                    memcpy(&pkt.m_items[i * 0x68], (char*)items + i * 0x68, 0x68);
+                }
+                pkt.packetSize = (unsigned short)len + 0x16a;
+                CUser* member;
+                if ((member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_charNo)) != 0)
+                {
+                    pkt.m_idByChannel = member->GetIdByChannel();
+                    pkt.m_uniqCharNo = member->GetUniqCharNo();
+                    member->SendToGameserver((char*)&pkt, pkt.packetSize);
+                }
+                pkt.m_idByChannel = user->GetIdByChannel();
+                pkt.m_uniqCharNo = user->GetUniqCharNo();
+                user->SendToGameserver((char*)&pkt, pkt.packetSize);
+                int count2 = (int)m_dbInfo.m_count27;
+                if (count2 > 0)
+                {
+                    for (int i = 0; i < count2; i++)
+                    {
+                        if ((member = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo)) == 0)
+                        {
+                            continue;
+                        }
+                        pkt.m_idByChannel = member->GetIdByChannel();
+                        pkt.m_uniqCharNo = member->GetUniqCharNo();
+                        member->SendToGameserver((char*)&pkt, pkt.packetSize);
+                    }
                 }
             }
         }
+        return;
     }
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0138 | monitor | 与ORIG差异=DIFF | CMember::NoticeChatMsgToMemberMembers | 详见 function_reports/monitor/_ZN7CMember28NoticeChatMsgToMemberMembersEPciP5CUser.md
+// 残差 ndiff=2：仅 len 层与 m_flag 层的块尾 goto 标签互换（指令数 137/137 已一致）。
+// 已试：&& 物化 → 三层嵌套 if、IsEmpty()==0 → if(IsEmpty()){}else{}、return 位置 5 种（len 块内 / m_flag 块内 /
+// body 内 / 函数尾 / else 分支 / 早退形态 if(len>=0x100)return）——最优为当前「len 块内末尾 return」（ndiff 57→2）。
 void CMember::NoticeChatMsgToMemberMembers(char* msg, int len, CUser* user)
 {
-    if (len < 0x100 && (m_flag & 4) != 0 && !IsEmpty())
+    if (len < 0x100)
     {
-        Packet_Monitor_Member_Chat_ToUser pkt;
-        memcpy(pkt.m_charName, user->GetCharName(), 0x1d);
-        pkt.m_msgLen = (unsigned char)len;
-        memcpy(pkt.m_msg, msg, len);
-        pkt.packetSize = (unsigned short)len + 0x31;
-        CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_charNo);
-        if (member != 0)
+        if ((m_flag & 4) != 0)
         {
-            pkt.m_idByChannel = member->GetIdByChannel();
-            pkt.m_uniqCharNo = member->GetUniqCharNo();
-            member->SendToGameserver((char*)&pkt, pkt.packetSize);
-        }
-        pkt.m_idByChannel = user->GetIdByChannel();
-        pkt.m_uniqCharNo = user->GetUniqCharNo();
-        user->SendToGameserver((char*)&pkt, pkt.packetSize);
-        int count = (int)m_dbInfo.m_count27;
-        if (count > 0)
-        {
-            for (int i = 0; i < count; i++)
+            if (IsEmpty())
             {
-                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo);
-                if (m != 0)
+            }
+            else
+            {
+                Packet_Monitor_Member_Chat_ToUser pkt;
+                memcpy(pkt.m_charName, user->GetCharName(), 0x1d);
+                pkt.m_msgLen = (unsigned char)len;
+                memcpy(pkt.m_msg, msg, len);
+                pkt.packetSize = (unsigned short)len + 0x31;
+                CUser* member;
+                if ((member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_charNo)) != 0)
                 {
-                    pkt.m_idByChannel = m->GetIdByChannel();
-                    pkt.m_uniqCharNo = m->GetUniqCharNo();
-                    m->SendToGameserver((char*)&pkt, pkt.packetSize);
+                    pkt.m_idByChannel = member->GetIdByChannel();
+                    pkt.m_uniqCharNo = member->GetUniqCharNo();
+                    member->SendToGameserver((char*)&pkt, pkt.packetSize);
+                }
+                pkt.m_idByChannel = user->GetIdByChannel();
+                pkt.m_uniqCharNo = user->GetUniqCharNo();
+                user->SendToGameserver((char*)&pkt, pkt.packetSize);
+                int count = (int)m_dbInfo.m_count27;
+                if (count > 0)
+                {
+                    for (int i = 0; i < count; i++)
+                    {
+                        if ((member = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo)) == 0)
+                        {
+                            continue;
+                        }
+                        pkt.m_idByChannel = member->GetIdByChannel();
+                        pkt.m_uniqCharNo = member->GetUniqCharNo();
+                        member->SendToGameserver((char*)&pkt, pkt.packetSize);
+                    }
                 }
             }
         }
+        return;
     }
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0134 | monitor | 与ORIG差异=DIFF | CMember::LoadMember | 详见 function_reports/monitor/_ZN7CMember10LoadMemberER14STMemberDBInfosjj.md
+// 残差 ndiff=4：memcpy 实参求值顺序 + 目标地址 lea/add 形态（属地址计算族）。
+// 已试：(unsigned int) 三种 cast（无效，5→7）；limit 改 int + 去 cast 修复 jle/jbe（5→4，有效保留）；
+// memcpy dst/src 加 (char*) cast（无效，已回退）。
+// 另试 U4（unsigned 偏移 `(char*)this + 6u`）—— 无效，已回退。
 void CMember::LoadMember(STMemberDBInfo& info, short level, unsigned int a, unsigned int b)
 {
     if ((m_flag & 2) != 0)
     {
-        unsigned int limit = m_memberManager->GetLowerMemberEnterLimit(level);
-        if ((int)(unsigned int)info.m_count27 > (int)limit)
+        int limit = (int)m_memberManager->GetLowerMemberEnterLimit(level);
+        if (info.m_count27 > limit)
         {
             info.m_count27 = (unsigned char)limit;
         }
         unsigned int size = (unsigned int)info.m_count27 * 0x27 + 0x28;
-        memcpy((char*)this + 6, &info, size);
+        memcpy(&m_dbInfo, &info, size);
         m_flag |= 4;
         SetMemberRegisterTime(a);
         SetMemberDeleteTime(b);
@@ -404,24 +444,27 @@ int CMember::IncConnLowerMemberExp(int index, unsigned int uCharNo, unsigned int
     return proxy->m_exp;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0136 | monitor | 与ORIG差异=DIFF | CMember::NoticeLevelUpToLowers | 详见 function_reports/monitor/_ZN7CMember21NoticeLevelUpToLowersEj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0136 已消除）| CMember::NoticeLevelUpToLowers
 void CMember::NoticeLevelUpToLowers(unsigned int level)
 {
+    CUser* user;
     int count = (int)m_dbInfo.m_count27;
     if (count != 0)
     {
         Packet_Monitor_Notice_MemberExp_LevelUp pkt;
         for (int i = 0; i < count; i++)
         {
-            CUser* user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo);
-            if (user != 0)
-            {
-                pkt.m_idByChannel = user->GetIdByChannel();
-                pkt.m_uniqCharNo = user->GetUniqCharNo();
-                pkt.m_level = level;
-                user->SendToGameserver((char*)&pkt, 0x13);
-            }
+            if ((user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo)) == 0)
+                continue;
+            pkt.m_idByChannel = user->GetIdByChannel();
+            pkt.m_uniqCharNo = user->GetUniqCharNo();
+            pkt.m_level = level;
+            user->SendToGameserver((char*)&pkt, 0x13);
         }
+    }
+    else
+    {
+        return;
     }
 }
 
@@ -458,7 +501,7 @@ unsigned int CMember::GetUpperMemberExpLevel()
     return m_memberManager->GetMemberExpLevel(m_dbInfo.m_member.m_exp);
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0135 | monitor | 与ORIG差异=DIFF | CMember::GetConnLowerMemberCnt | 详见 function_reports/monitor/_ZN7CMember21GetConnLowerMemberCntEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0135 已消除）| CMember::GetConnLowerMemberCnt
 int CMember::GetConnLowerMemberCnt()
 {
     CUser* user;
@@ -470,8 +513,7 @@ int CMember::GetConnLowerMemberCnt()
     int cnt = 0;
     for (int i = 0; i < count; i++)
     {
-        user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo);
-        if (user == 0)
+        if ((user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo)) == 0)
         {
             continue;
         }
@@ -480,8 +522,8 @@ int CMember::GetConnLowerMemberCnt()
     return cnt;
 }
 
-int CMember::InsertUpperMember(unsigned int charNo, unsigned char level, const char* name,
-                               bool flag)
+bool CMember::InsertUpperMember(unsigned int charNo, unsigned char level, const char* name,
+                                bool flag)
 {
     if (IsThereUpper() != 0)
     {
@@ -497,8 +539,8 @@ int CMember::InsertUpperMember(unsigned int charNo, unsigned char level, const c
     return 1;
 }
 
-int CMember::InsertLowerMember(unsigned int charNo, unsigned char level, const char* name,
-                               bool flag)
+bool CMember::InsertLowerMember(unsigned int charNo, unsigned char level, const char* name,
+                                bool flag)
 {
     int n = (int)m_dbInfo.m_count27;
     if (n + 1 > 0xa)

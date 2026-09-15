@@ -8,7 +8,6 @@ CSourceVersionMgr::CSourceVersionMgr()
 {
     InsertSourceVersion(".", 0x19daa);
     InsertSourceVersion("../ServerCommon", 0x19daa);
-    InsertSourceVersion("../../DNFShared", 0x19daa);
 }
 CVersionMgr::CVersionMgr(int _Major, int _Minor, int _Release, int _Build)
 {

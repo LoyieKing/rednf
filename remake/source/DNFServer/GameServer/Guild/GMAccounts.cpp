@@ -112,15 +112,13 @@ int CGMAccounts::loadGMAccounts(const char* path)
     return 1;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0016 | guild | 与ORIG差异=NEAR | CGMAccounts::isGM | 详见 function_reports/guild/_ZN8WongWork11CGMAccounts4isGMEj.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-NEAR-0016 | guild | 与ORIG差异=NEAR | CGMAccounts::isGM | 详见 function_reports/guild/_ZN8WongWork11CGMAccounts4isGMEj.md
 int CGMAccounts::isGM(unsigned int id)
 {
     stGMInfo_t key = {};
     key.m_flag = 3;
     key.m_id = id;
-    std::list<stGMInfo_t>::iterator end = m_list.end();
-    std::list<stGMInfo_t>::iterator it = std::find(m_list.begin(), m_list.end(), key);
-    if (it != end) return 1;
+    if (std::find(m_list.begin(), m_list.end(), key) != m_list.end()) return 1;
     return 0;
 }
 

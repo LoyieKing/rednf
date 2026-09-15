@@ -71,10 +71,10 @@ template<class T>
 class IQueue
 {
 public:
-    IQueue() {}
+    IQueue() throw() {}
     ~IQueue() {}
     static IQueue& Get();
-    char InitQueue(T* recv, T* parse) { m_recv = recv; m_parse = parse; return 1; }
+    void InitQueue(T* recv, T* parse) { m_recv = recv; m_parse = parse; }
     T* GetParseQueue() { return m_parse; }
     bool SwitchQueue();
     T* m_recv;   // +0
@@ -87,7 +87,7 @@ class CSwapQueue
 public:
     CSwapQueue() { Init(); }
     ~CSwapQueue() {}
-    void Init() { m_recvIdx = 0; m_parseIdx = 1; }
+    void Init() throw() { m_recvIdx = 0; m_parseIdx = 1; }
     T* GetRecvQ() { return &m_queues[m_recvIdx]; }
     T* GetParseQ() { return &m_queues[m_parseIdx]; }
     void SwapQ();

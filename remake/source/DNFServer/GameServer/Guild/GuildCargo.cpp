@@ -89,7 +89,7 @@ struct GuildCargoLayout
     int m_capacity;      // +0x18d8
     int m_field18dc;     // +0x18dc
     int m_guildKey;      // +0x18e0
-    unsigned char m_load; // +0x18e4
+    bool m_load;          // +0x18e4
     char rest[0x1910 - 0x18e8];
 };
 
@@ -119,7 +119,7 @@ STGuildCargoDBInfo::STGuildCargoDBInfo()
     m_capacity = 0;
 }
 
-unsigned char CGuildCargo::IsLoadComplete()
+bool CGuildCargo::IsLoadComplete()
 {
     return ((GuildCargoLayout*)this)->m_load;
 }
@@ -267,6 +267,18 @@ int CGuildCargo::CheckInsertItem(int itemId, int count, int slot, unsigned char 
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-NEAR-0001 | guild | 与ORIG差异=NEAR | CGuildCargo::DeleteItem | 详见 function_reports/guild/_ZN11CGuildCargo10DeleteItemER11DnfItemInfoiihii.md
+// [GuildA 2026-09-15 实证但受阻塞，未落盘] P2 判据（赋值目标 signedness 决定 LHS/RHS 载入序）：
+//   本件 ELF 口径残差仅 2 行、纯载入序交换（ORIG `mov 0xc(%ebp),%eax`(info/LHS) 先于
+//   `mov 0x1c(%ebp),%edx`(b/RHS)；我方相反），对应源码 `info.m_addInfo = (int)b;`。
+//   沙箱实测：把 `Game/DnfItemInfo.h` 的 `unsigned int m_addInfo` 改成 `int m_addInfo`
+//   （同宽同偏移同大小）⇒ 本件 **NEAR → AE identical**（mdiff(.o)=0 equal=164；
+//   mdiff_ta(ELF)= AE 164/164）。
+//   **未落盘原因**：该头影响 **game 机器码**（第 1 级 .o md5 A/B：game
+//   `InterDispatcher.cpp.o` `2ec9edcf02aec2021e93a96ec572dc41` → `deeb80d0e4c4e2560cdecefe7b00874c`；
+//   `DnfItemInfo.cpp.o` 中性），而 game ELF 无法重链 ⇒ 不可验证；游戏侧不在任务范围内
+//   ⇒ 按 Main 裁决维持回退（`unsigned int`），待未来有 game 可验证环境时可直接复用本证据。
+//   其它已试形态（均 2–3，无改善）：去 `(int)` cast、`(int)(int)b`、
+//   `*(int*)((char*)&info + 6) = b;`。
 int CGuildCargo::DeleteItem(DnfItemInfo& info, int slot, int count, unsigned char a, int b, int c)
 {
     if (!IsValidSlot(slot))
@@ -358,21 +370,20 @@ void CGuildCargo::SetGuildCargoDBInfo(STGuildCargoDBInfo& info)
     ((GuildCargoLayout*)this)->m_load = 1;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0005 | guild | 与ORIG差异=DIFF | CGuildCargo::SetGuildCargoHistory | 详见 function_reports/guild/_ZN11CGuildCargo20SetGuildCargoHistoryEjP15STGuildCargoLog.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0005 | guild | 与ORIG差异=DIFF | CGuildCargo::SetGuildCargoHistory | 详见 function_reports/guild/_ZN11CGuildCargo20SetGuildCargoHistoryEjP15STGuildCargoLog.md
 void CGuildCargo::SetGuildCargoHistory(unsigned int idx, STGuildCargoLog* log)
 {
-    int c = idx;
-    if (idx > 0x32)
-    {
-        c = 0x32;
-    }
+    // [2026-09-15 修复] ORIG 0x8063d??：`mov 0xc(%ebp),%eax; cmp $0x32,%eax; jbe L;
+    //   mov $0x32,%eax; L: mov %eax,-0x10(%ebp)` ⇒ 原码是**三目求值一次再落槽**，
+    //   拆成 `int c = idx; if (idx > 0x32) c = 0x32;` 会多出参数槽直比 + 双写槽（ndiff 6）。
+    int c = (idx > 0x32) ? 0x32 : (int)idx;
     for (int i = 0; i < c; i++)
     {
         m_history.push_front(log[i]);
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0002 | guild | 与ORIG差异=DIFF | CGuildCargo::SendGuildCargo | 详见 function_reports/guild/_ZN11CGuildCargo14SendGuildCargoEP5CUser.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0002 | guild | 与ORIG差异=DIFF | CGuildCargo::SendGuildCargo | 详见 function_reports/guild/_ZN11CGuildCargo14SendGuildCargoEP5CUser.md
 void CGuildCargo::SendGuildCargo(CUser* user)
 {
     if (user == 0)
@@ -382,7 +393,10 @@ void CGuildCargo::SendGuildCargo(CUser* user)
     Packet_Notice_Guild_Cargo pkt;
     pkt.m_a = user->GetIdByChannel();
     pkt.m_b = user->GetUniqCharNo();
-    memcpy(&pkt.m_cargo, this, sizeof(STGuildCargoDBInfo));
+    // [2026-09-15 GuildA] 根因不是 sizeof 写法，而是 memcpy **源实参的表达式形态**：
+    //   ORIG 先载 this 到 eax 再压 size ⇒ 源码写的是成员 `&m_info`（不是 `this`）。
+    //   改 `&m_info` 后 ndiff 2→0（sizeof 用 sizeof(m_info) 或 sizeof(STGuildCargoDBInfo) 均可）。
+    memcpy(&pkt.m_cargo, &m_info, sizeof(m_info));
     user->SendTcpGameserver(&pkt);
 }
 
@@ -400,40 +414,46 @@ void CGuildCargo::PrintCargo(ENUM_GUILD_CARGO_BEHAVIOR behavior)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0003 | guild | 与ORIG差异=DIFF | CGuildCargo::PrintDnfItemInfo | 详见 function_reports/guild/_ZN11CGuildCargo16PrintDnfItemInfoER11DnfItemInfo.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0003 | guild | 与ORIG差异=DIFF | CGuildCargo::PrintDnfItemInfo | 详见 function_reports/guild/_ZN11CGuildCargo16PrintDnfItemInfoER11DnfItemInfo.md
 const char* CGuildCargo::PrintDnfItemInfo(DnfItemInfo& info)
 {
+    struct AttrBits { unsigned char pad[5]; unsigned char lo:5; unsigned char hi:3; };
     static char szBuffer[0x400];
     memset(szBuffer, 0, sizeof(szBuffer));
     sprintf(szBuffer,
             "id:%d,s:%d,sc:%d,up:%d,add:%d,en:%d,ex:%d,at:%d,av:%d,sp:%d",
             info.m_itemId,
-            (unsigned int)(unsigned char)info.m_seal,
-            (unsigned int)(unsigned char)(info.m_attr >> 5),
-            (unsigned int)(unsigned char)(info.m_attr & 0x1f),
+            (int)info.m_seal,
+            (int)(((AttrBits*)&info)->hi),
+            (int)(((AttrBits*)&info)->lo),
             info.m_addInfo,
-            (unsigned int)info.m_endurance,
+            info.m_endurance,
             info.m_extendInfo,
-            (unsigned int)(unsigned char)info.m_abilityType,
-            (unsigned int)info.m_abilityValue,
+            (int)info.m_abilityType,
+            info.m_abilityValue,
             (unsigned int)info.m_up.GetUpgradeSeparate());
     return szBuffer;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0004 | guild | 与ORIG差异=DIFF | CGuildCargo::SendGuildCargoToDBMW | 详见 function_reports/guild/_ZN11CGuildCargo20SendGuildCargoToDBMWEP14CServerHandleri.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0004 | guild | 与ORIG差异=DIFF | CGuildCargo::SendGuildCargoToDBMW | 详见 function_reports/guild/_ZN11CGuildCargo20SendGuildCargoToDBMWEP14CServerHandleri.md
 void CGuildCargo::SendGuildCargoToDBMW(CServerHandler* handler, int slot)
 {
     CTcpDBServer* db = handler->GetTcpDBServer();
     struct GuildCargoToDBMWPkt {
         char hdr[0xa];
         unsigned int guildKey;
-        int slot;
+        unsigned int slot;
         char cargo[0x18d8];
     } __attribute__((packed));
-    GuildCargoToDBMWPkt* p = (GuildCargoToDBMWPkt*)db->makePacketHeader(0x710, 0x18ea);
+    void* raw = db->makePacketHeader(0x710, 0x18ea);
+    GuildCargoToDBMWPkt* p = (GuildCargoToDBMWPkt*)raw;
     p->guildKey = m_guildKey;
     p->slot = slot;
-    memcpy(p->cargo, this, 0x18d8);
+    // [P319] 整型加法形（`add $0x12` 对齐 ORIG）与 char* 形 ndiff 同为 6，但后者
+    //   行级 equal 更高（34 vs 32）⇒ 取后者（guild11 交叉验证）
+    // [2026-09-15 GuildA] 残余 6 条并非 add/lea，而是 memcpy 源实参写成 `this`：
+    //   改成成员 `&m_info` 后 ORIG 的「先载 this 再压 size」顺序重现 ⇒ ndiff 6→0。
+    memcpy((char*)p + 0x12, &m_info, 0x18d8);
     db->SendToServer((char*)p);
 }
 
@@ -470,6 +490,16 @@ void CGuildCargo::InsertHistory(ENUM_GUILD_CARGO_BEHAVIOR behavior, int slot, co
         unsigned int opt2;        // +0x08
         unsigned short opt3;      // +0x0c
     } __attribute__((packed));
+    // [2026-09-15 GuildA] 本处残余 ndiff=8 = 寄存器选择族（死胡同，勿再投入）。
+    //   取证（ORIG df_guild_r）：`RandomOption::reset()`（W 0x08089620）逐条访问
+    //   +0/+3/+6（RandomOptionField，3 字节步长）/ +9（Seed）/ +0xa（Field）/ +0xd（Seed），
+    //   与 Game/Inven_Item.h 定义逐字段一致 ⇒ 布局正确、sizeof==0xe，**不是结构体错误**；
+    //   所以此处 ORIG 的 `+0/+4/+8` dword + `+0xc` word 读法在源码里就是一次 cast/union 视图，
+    //   不可用「改共享头补字段」来消除。
+    //   ORIG 单次载入 option 到 %eax 作基址、结果走 %edx；我方同结构但基址落 %ebx。
+    //   已试形态（均 ≥8，无一改善）：present 指针 register 形（8，保留）/ C 风格 cast（8）/
+    //   `unsigned int*` + o[0..2] + *(unsigned short*)(o+3)（12）/ const 引用形 o.optN（24）/
+    //   去 register（24）。
     register const OptionDwordView* o = reinterpret_cast<const OptionDwordView*>(option);
     log.opt0 = o->opt0;
     log.opt1 = o->opt1;

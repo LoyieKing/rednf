@@ -9,7 +9,9 @@ class CAppInit
 public:
     CAppInit();
     virtual ~CAppInit();
-    virtual void Init(CApplication* app, int argc, char** argv) {}
+    // ORIG _ZTV8CAppInit slot[2] = __cxa_pure_virtual（且 ORIG 无 _ZN8CAppInit4Init… 符号）
+    // ⇒ 本类是纯接口，实现在 CAppStartInit / CAppStopInit；原空壳 {} 违反「禁止空壳充数」。
+    virtual void Init(CApplication* app, int argc, char** argv) = 0;
 };
 
 class CAppStartInit : public CAppInit

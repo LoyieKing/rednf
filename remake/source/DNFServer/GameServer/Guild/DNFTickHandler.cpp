@@ -73,13 +73,13 @@ CFrameCountHandler::CFrameCountHandler()
     m_app = 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0010 | guild | 与ORIG差异=NEAR | CFrameCountHandler::InitFrameCountInfo | 详见 function_reports/guild/_ZN18CFrameCountHandler18InitFrameCountInfoEP12CApplicationjt.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GUI-NEAR-0010 已消除）
 void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int value,
                                             unsigned short tick)
 {
     if (value != 0)
     {
-        m_app = (int)app;
+        m_app = app;
         memset(&m_bInit, 0, 0x28);
         m_frameCount = value;
         m_fpsInterval = 100 / value;
@@ -90,19 +90,23 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int valu
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0103 | guild | 与ORIG差异=DIFF | CFrameCountHandler::GetFrameCountInfo | 详见 function_reports/guild/_ZN18CFrameCountHandler17GetFrameCountInfoEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GUI-DIFF-0103 已消除）
 CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 {
+    unsigned int l1 = 0;
+    unsigned int l2 = 0;
+    unsigned int l3 = 0;
+    unsigned int q;
+    unsigned int l4 = 0;
+    (void)l1; (void)l2; (void)l3; (void)q; (void)l4;
     struct tms t;
-    int u0 = 0, u1 = 0, u2 = 0, u3 = 0;
-    (void)u0; (void)u1; (void)u2; (void)u3;
     m_state = 0;
     if (m_bInit == 0)
     {
         m_bInit = 1;
         m_secondFrameCnt = 0;
-        m_startClock = (int)times(&t);
-        if (m_startClock == -1)
+        m_startClock = times(&t);
+        while ((int)m_startClock == -1)
         {
             throw CDNFException(
                 "CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
@@ -110,35 +114,35 @@ CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
     }
     else
     {
-        m_curClock = (int)times(&t);
-        if (m_curClock == -1)
+        m_curClock = times(&t);
+        while ((int)m_curClock == -1)
         {
             throw CDNFException(
                 "CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
         }
-        if ((unsigned int)m_startClock > (unsigned int)m_curClock)
+        if (m_startClock > m_curClock)
         {
             m_startClock = m_curClock;
         }
-        if ((unsigned int)m_secondFrameCnt <
-            (unsigned int)(m_curClock - m_startClock) / (unsigned int)m_fpsInterval)
+        l1 = m_curClock - m_startClock;
+        q = l1 / m_fpsInterval;
+        if (m_secondFrameCnt < q)
         {
-            m_secondFrameCnt = m_secondFrameCnt + 1;
+            m_secondFrameCnt++;
             m_state = 1;
-            if (99 < (unsigned int)(m_curClock - m_startClock))
+            l2 = m_curClock - m_startClock;
+            if (99 < l2)
             {
                 m_fps = m_secondFrameCnt;
                 m_state = 2;
                 m_secondFrameCnt = 0;
-                m_startClock = m_curClock - (m_curClock - m_startClock) + 100;
+                m_startClock = m_curClock - l2 + 100;
                 m_field20 = 0;
-                m_secCnt = (unsigned char)(m_secCnt + 1);
-                if (0x3b < m_secCnt)
+                if (0x3b < (unsigned char)(++m_secCnt))
                 {
                     m_state = 3;
                     m_secCnt = 0;
-                    m_minCnt = (unsigned char)(m_minCnt + 1);
-                    if (0x3b < m_minCnt)
+                    if (0x3b < (unsigned char)(++m_minCnt))
                     {
                         m_state = 4;
                         m_minCnt = 0;

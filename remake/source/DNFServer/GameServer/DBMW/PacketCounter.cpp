@@ -88,7 +88,7 @@ void CPacketCounter<Lo, Hi>::BeforeProcess()
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0081 | dbmw | 与ORIG差异=DIFF | CPacketCounter<1000, 10240>::AfterProcess | 详见 function_reports/dbmw/_ZN14CPacketCounterILi1000ELi10240EE12AfterProcessEi.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0081 已消除）
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::AfterProcess(int id)
 {
@@ -96,31 +96,26 @@ void CPacketCounter<Lo, Hi>::AfterProcess(int id)
         return;
     if (id <= 0x3e7)
         return;
-    if (!m_flag)
-    {
-        if ((unsigned int)m_a1[id - 1000] >= 0xb)
-            return;
-    }
-    int prev = m0;
-    if (prev == -1)
+    if (!m_flag && (unsigned int)m_a1[id - 1000] >= 0xb)
+        return;
+    int prev = (int)m0;
+    while (prev == -1)
     {
         prev = 0;
+        return;
+    }
+    int delta;
+    if (m_flag != 0)
+    {
+        delta = prev - (int)m_a3[0];
     }
     else
     {
-        int delta;
-        if (m_flag != 0)
-        {
-            delta = prev - m_a3[0];
-        }
-        else
-        {
-            delta = prev - m_a3[id - 1000];
-            m_a1[id - 1000]++;
-            m_b[id - 1000] = 0;
-        }
-        m_a2[id - 1000] = m_a2[id - 1000] + delta;
+        delta = prev - (int)m_a3[id - 1000];
+        m_a1[id - 1000]++;
+        m_b[id - 1000] = 0;
     }
+    m_a2[id - 1000] += delta;
 }
 
 template class CPacketCounter<1000, 10240>;

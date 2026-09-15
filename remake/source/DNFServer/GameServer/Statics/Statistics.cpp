@@ -16,6 +16,12 @@
 #include "Packet_Avater_Disjoint_Statistic.h"
 #include "Packet_Goldcard_Event_Statistic_GTS.h"
 #include "Packet_TowerOfDespair_Statistic_GTS.h"
+// C1（Main 广播）：AddLoadingTimeReportStatistics 需要 packet 的完整类型才能写「零 cast」的
+//   pkt->m_vals[i] / pkt->m_pw[j].m_player 访问（原走 LoadingValsWire/LoadingPwWire/LoadingLagWire
+//   视图 cast，cast 层会强制 base-先载入，与 ORIG 的 index-先相反）。
+#include "Packet_Loading_Time_Report_Statistics.h"
+// C1：AddLagStatistics 同样改为零 cast 访问（Packet_Stat_Lag_Statistics 自带 m_records/m_details）
+#include "Packet_Stat_Lag_Statistics.h"
 
 // AddLoadingTimeReportStatistics 的报文视图（+0xa 的 int[9]；+0x2e 起 powerwar 段；+0x3b8 起 lag 段）
 struct __attribute__((packed)) LoadingValsWire
@@ -76,7 +82,7 @@ struct STPartyJobStatisticKeyView
     unsigned char m_balkunParty;
     unsigned char m_success;
     char m_partyUserCount;
-    unsigned int m_characJob;
+    int m_characJob;   // ORIG 0x806f6d9 实证：与报文侧 int 同型 ⇒ 单段 mov 0x10(%eax),%edx
     char m_characGrow;
 };
 struct STPartyCharacKeyView
@@ -216,7 +222,7 @@ void StatisticManager::WriteDeathTowerValueStatistic(Packet_DeathTower_Statistic
         *v += value;
     }
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0012 | statics | 与ORIG差异=DIFF | StatisticManager::WriteDeathTowerPlayDataJobStatistic | 详见 function_reports/statics/_ZN16StatisticManager35WriteDeathTowerPlayDataJobStatisticEP40Packet_DeathTower_Statistic_Playdata_Job.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0012 已消除）| statics | StatisticManager::WriteDeathTowerPlayDataJobStatistic | 详见 function_reports/statics/_ZN16StatisticManager35WriteDeathTowerPlayDataJobStatisticEP40Packet_DeathTower_Statistic_Playdata_Job.md
 void StatisticManager::WriteDeathTowerPlayDataJobStatistic(
     Packet_DeathTower_Statistic_Playdata_Job* pkt)
 {
@@ -248,7 +254,7 @@ void StatisticManager::WriteDeathTowerPlayDataJobStatistic(
         *p += value;
     }
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0013 | statics | 与ORIG差异=DIFF | StatisticManager::WriteDeathTowerPlayDataPartyStatistic | 详见 function_reports/statics/_ZN16StatisticManager37WriteDeathTowerPlayDataPartyStatisticEP42Packet_DeathTower_Statistic_Playdata_Party.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0013 已消除）| statics | StatisticManager::WriteDeathTowerPlayDataPartyStatistic | 详见 function_reports/statics/_ZN16StatisticManager37WriteDeathTowerPlayDataPartyStatisticEP42Packet_DeathTower_Statistic_Playdata_Party.md
 void StatisticManager::WriteDeathTowerPlayDataPartyStatistic(
     Packet_DeathTower_Statistic_Playdata_Party* pkt)
 {
@@ -276,7 +282,7 @@ void StatisticManager::WriteDeathTowerPlayDataPartyStatistic(
         *p += value;
     }
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0008 | statics | 与ORIG差异=DIFF | StatisticManager::WriteDungeonPartyStatistic | 详见 function_reports/statics/_ZN16StatisticManager26WriteDungeonPartyStatisticEP30Packet_Dungeon_Statistic_Party.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0008 已消除）| statics | StatisticManager::WriteDungeonPartyStatistic | 详见 function_reports/statics/_ZN16StatisticManager26WriteDungeonPartyStatisticEP30Packet_Dungeon_Statistic_Party.md
 void StatisticManager::WriteDungeonPartyStatistic(Packet_Dungeon_Statistic_Party* pkt)
 {
     struct __attribute__((packed)) Wire
@@ -364,7 +370,7 @@ void StatisticManager::WriteDungeonPartyJobStatistic(Packet_Dungeon_Statistic_Pa
         *p += value;
     }
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0011 | statics | 与ORIG差异=DIFF | StatisticManager::WriteDungeonPartyCharacStatistic | 详见 function_reports/statics/_ZN16StatisticManager32WriteDungeonPartyCharacStatisticEP37Packet_Dungeon_Statistic_Party_Charac.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0011 已消除）| statics | StatisticManager::WriteDungeonPartyCharacStatistic | 详见 function_reports/statics/_ZN16StatisticManager32WriteDungeonPartyCharacStatisticEP37Packet_Dungeon_Statistic_Party_Charac.md
 void StatisticManager::WriteDungeonPartyCharacStatistic(Packet_Dungeon_Statistic_Party_Charac* pkt)
 {
     struct __attribute__((packed)) Wire
@@ -495,7 +501,7 @@ void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
         }
     }
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0006 | statics | 与ORIG差异=DIFF | StatisticManager::SendDBPartyJobStatistic | 详见 function_reports/statics/_ZN16StatisticManager23SendDBPartyJobStatisticEP14CServerHandler.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0006 已消除）| statics | StatisticManager::SendDBPartyJobStatistic | 详见 function_reports/statics/_ZN16StatisticManager23SendDBPartyJobStatisticEP14CServerHandler.md
 void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Dungeon_Statistic_Party_Job pkt;
@@ -520,8 +526,8 @@ void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_characJob =
                 ((const STPartyJobStatisticKeyView*)&it->first)->m_characJob;
             pkt.m_items[idx].m_characGrow = it->first.m_characGrow;
-            pkt.m_items[idx].m_data[0] = it->second.m_data[0];
-            pkt.m_items[idx].m_data[1] = it->second.m_data[1];
+            pkt.m_items[idx].m_data0 = it->second.m_data[0];
+            pkt.m_items[idx].m_data1 = it->second.m_data[1];
             if (0xf2U < (++idx))
             {
                 pkt.m_count = 0xf3;
@@ -538,7 +544,7 @@ void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
         }
     }
 }
-// [DNF-NONIDENTICAL] DNF-STA-NEAR-0001 | statics | 与ORIG差异=NEAR | StatisticManager::SendDBPartyCharacStatistic | 详见 function_reports/statics/_ZN16StatisticManager26SendDBPartyCharacStatisticEP14CServerHandler.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-NEAR-0001 已消除）| statics | StatisticManager::SendDBPartyCharacStatistic | 详见 function_reports/statics/_ZN16StatisticManager26SendDBPartyCharacStatisticEP14CServerHandler.md
 void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Dungeon_Statistic_Party_Charac pkt;
@@ -558,19 +564,19 @@ void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_characJob = it->first.m_characJob;
             pkt.m_items[idx].m_characGrow = it->first.m_characGrow;
             pkt.m_items[idx].m_partyUserCount = it->first.m_partyUserCount;
-            pkt.m_items[idx].m_data[0] = it->second.m_data[0];
-            pkt.m_items[idx].m_data[1] = it->second.m_data[1];
-            pkt.m_items[idx].m_data[2] = it->second.m_data[2];
-            pkt.m_items[idx].m_data[3] = it->second.m_data[3];
-            pkt.m_items[idx].m_data[4] = it->second.m_data[4];
-            pkt.m_items[idx].m_data[5] = it->second.m_data[5];
-            pkt.m_items[idx].m_data[6] = it->second.m_data[6];
-            pkt.m_items[idx].m_data[7] = it->second.m_data[7];
-            pkt.m_items[idx].m_data[8] = it->second.m_data[8];
-            pkt.m_items[idx].m_data[9] = it->second.m_data[9];
-            pkt.m_items[idx].m_data[10] = it->second.m_data[10];
-            pkt.m_items[idx].m_data[11] = it->second.m_data[11];
-            pkt.m_items[idx].m_data[12] = it->second.m_data[12];
+            pkt.m_items[idx].m_data0 = it->second.m_data[0];
+            pkt.m_items[idx].m_data1 = it->second.m_data[1];
+            pkt.m_items[idx].m_data2 = it->second.m_data[2];
+            pkt.m_items[idx].m_data3 = it->second.m_data[3];
+            pkt.m_items[idx].m_data4 = it->second.m_data[4];
+            pkt.m_items[idx].m_data5 = it->second.m_data[5];
+            pkt.m_items[idx].m_data6 = it->second.m_data[6];
+            pkt.m_items[idx].m_data7 = it->second.m_data[7];
+            pkt.m_items[idx].m_data8 = it->second.m_data[8];
+            pkt.m_items[idx].m_data9 = it->second.m_data[9];
+            pkt.m_items[idx].m_data10 = it->second.m_data[10];
+            pkt.m_items[idx].m_data11 = it->second.m_data[11];
+            pkt.m_items[idx].m_data12 = it->second.m_data[12];
             if (0x58U < (++idx))
             {
                 pkt.m_count = 0x59;
@@ -903,7 +909,7 @@ void StatisticManager::ResetUserTIngTimeCheckMap()
 {
     m_userTing.clear();
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0009 | statics | 与ORIG差异=DIFF | StatisticManager::WriteHellPartyStatisticItem | 详见 function_reports/statics/_ZN16StatisticManager27WriteHellPartyStatisticItemEP31Packet_HellParty_Statistic_Item.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0009 已消除）| statics | StatisticManager::WriteHellPartyStatisticItem | 详见 function_reports/statics/_ZN16StatisticManager27WriteHellPartyStatisticItemEP31Packet_HellParty_Statistic_Item.md
 void StatisticManager::WriteHellPartyStatisticItem(Packet_HellParty_Statistic_Item* pkt)
 {
     struct __attribute__((packed)) Wire
@@ -969,26 +975,26 @@ void StatisticManager::SendDBHellPartyStatisticItem(CServerHandler* handler)
         }
     }
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0010 | statics | 与ORIG差异=DIFF | StatisticManager::AddLoadingTimeReportStatistics | 详见 function_reports/statics/_ZN16StatisticManager30AddLoadingTimeReportStatisticsEP37Packet_Loading_Time_Report_Statistics.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0010 已消除）| statics | StatisticManager::AddLoadingTimeReportStatistics | 详见 function_reports/statics/_ZN16StatisticManager30AddLoadingTimeReportStatisticsEP37Packet_Loading_Time_Report_Statistics.md
 void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report_Statistics* pkt)
 {
     for (int i = 0; i <= 8; i++)
     {
-        if (((LoadingValsWire*)pkt)->m_vals[i] != 0)
+        if (pkt->m_vals[i] != 0)
         {
-            m_loading.m_data[i] += ((LoadingValsWire*)pkt)->m_vals[i];
-            m_loading.m_data2[i] += 1;
+            m_loading.m_data[i] += pkt->m_vals[i];
+            ++m_loading.m_data2[i];
         }
         if (i == 7)
         {
-            unsigned short lcount = ((LoadingPwWire*)pkt)->m_count;
+            unsigned short lcount = pkt->m_pwCount;
             if (lcount != 0)
             {
                 STPowerwarFightLoadingKey lkey;
-                lkey.m_mId = ((LoadingPwWire*)pkt)->m_key;
+                lkey.m_mId = pkt->m_accId;
                 for (int j = 0; j < (int)lcount; j++)
                 {
-                    lkey.m_round = ((LoadingPwWire*)pkt)->m_pw[j].m_key;
+                    lkey.m_round = pkt->m_pw[j].m_round;
                     if (m_pwLoading.size() < 0x3e9)
                     {
                         std::map<STPowerwarFightLoadingKey, STPowerwarFightLoadingData>::iterator it =
@@ -996,10 +1002,10 @@ void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report
                         if (m_pwLoading.empty() || it == m_pwLoading.end())
                         {
                             STPowerwarFightLoadingData v;
-                            v.m_player = ((LoadingPwWire*)pkt)->m_pw[j].m_f0;
-                            v.m_myLoading = ((LoadingPwWire*)pkt)->m_pw[j].m_f2;
-                            v.m_otherLoading = ((LoadingPwWire*)pkt)->m_pw[j].m_f4;
-                            v.m_vsLoading = ((LoadingPwWire*)pkt)->m_pw[j].m_f6;
+                            v.m_player = pkt->m_pw[j].m_player;
+                            v.m_myLoading = pkt->m_pw[j].m_myLoading;
+                            v.m_otherLoading = pkt->m_pw[j].m_otherLoading;
+                            v.m_vsLoading = pkt->m_pw[j].m_vsLoading;
                             m_pwLoading.insert(std::make_pair(lkey, v));
                         }
                     }
@@ -1008,14 +1014,14 @@ void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report
         }
         if (i == 8)
         {
-            unsigned short gcount = ((LoadingLagWire*)pkt)->m_count;
+            unsigned short gcount = pkt->m_lagCount;
             if (gcount != 0)
             {
                 STPowerwarFightLagKey gkey;
-                gkey.m_mId = ((LoadingLagWire*)pkt)->m_key;
+                gkey.m_mId = pkt->m_accId;
                 for (int j = 0; j < (int)gcount; j++)
                 {
-                    gkey.m_round = ((LoadingLagWire*)pkt)->m_lag[j].m_key;
+                    gkey.m_round = pkt->m_lag[j].m_round;
                     if (m_pwLag.size() < 0x3e9)
                     {
                         std::map<STPowerwarFightLagKey, STPowerwarFightLagData>::iterator it =
@@ -1023,9 +1029,9 @@ void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report
                         if (m_pwLag.empty() || it == m_pwLag.end())
                         {
                             STPowerwarFightLagData v;
-                            v.m_player = ((LoadingLagWire*)pkt)->m_lag[j].m_f0;
-                            v.m_lagAvg = ((LoadingLagWire*)pkt)->m_lag[j].m_f4;
-                            v.m_lagCnt = ((LoadingLagWire*)pkt)->m_lag[j].m_f8;
+                            v.m_player = pkt->m_lag[j].m_player;
+                            v.m_lagAvg = pkt->m_lag[j].m_lagAvg;
+                            v.m_lagCnt = pkt->m_lag[j].m_lagCnt;
                             m_pwLag.insert(std::make_pair(gkey, v));
                         }
                     }
@@ -1518,35 +1524,39 @@ void StatisticManager::AddUserCountStatistics(CServerHandler* handler,
 // [DNF-NONIDENTICAL] DNF-STA-DIFF-0002 | statics | 与ORIG差异=DIFF | StatisticManager::AddLagStatistics | 详见 function_reports/statics/_ZN16StatisticManager16AddLagStatisticsEP26Packet_Stat_Lag_Statistics.md
 void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
 {
+    // [2026-09-15 S5] ORIG 含一个声明但从未被引用的 4 字节局部（槽不可见），决定后续变量
+    //   分配起点 ⇒ 缺失时 i 等整体平移。本件最优为单个 4 字节占位（int 与 char[4] 等效；
+    //   两个独立 int → 188、单个 8 字节 → 214、改用 pA/pB 真局部 → 158，均已试并回退）。
+    int reservedSlot;
     for (int i = 0; i < 8; i++)
     {
-        if (((LagWire*)pkt)->m_mods[i].m_u.m_int != 0)
+        if (pkt->m_records[i].m_avg.m_int != 0)
         {
-            float* pAvg = &((LagWire*)pkt)->m_mods[i].m_u.m_float;
-            float* pDev = &((LagWire*)pkt)->m_mods[i].m_field4;
-            float avg_f = *pAvg;
-            float dev_f = *pDev;
-            m_modules[i].m_data[0] += (int)(long long)avg_f;
-            m_modules[i].m_data[1] += (int)(long long)dev_f;
-            m_modules[i].m_data[2] +=
-                (unsigned int)((LagWire*)pkt)->m_mods[i].m_field8;
-            m_modules[i].m_data[3] += 1;
+            // [2026-09-15 P183/P332] ORIG 帧 sub $0xd0（我方 $0xe0，多 4 个具名局部）
+            //   ⇒ 删掉为取 float 准备的具名指针，右值直用。
+            float avg_f = pkt->m_records[i].m_avg.m_float;
+            float dev_f = pkt->m_records[i].m_deviation;
+            m_modules[i].m_data0 += (int)(long long)avg_f;
+            m_modules[i].m_data1 += (int)(long long)dev_f;
+            m_modules[i].m_data2 +=
+                (unsigned int)pkt->m_records[i].m_count;
+            m_modules[i].m_data3 += 1;
         }
     }
-    if (((LagDungeonWire*)pkt)->m_dcount != 0 &&
-        ((LagDungeonWire*)pkt)->m_dcount < 0xb)
+    if (pkt->m_detailCount != 0 &&
+        pkt->m_detailCount < 0xb)
     {
-        for (int j = 0; j < (int)((LagDungeonWire*)pkt)->m_dcount; j++)
+        for (int j = 0; j < (int)pkt->m_detailCount; j++)
         {
-            unsigned short key = ((LagDungeonWire*)pkt)->m_d[j].m_key;
+            unsigned short key = pkt->m_details[j].m_key;
             std::map<unsigned short, STDungeonLagStatistics>::iterator it =
                 m_dungeonLag.find(key);
-            float* pA = &((LagDungeonWire*)pkt)->m_d[j].m_a;
-            float* pB = &((LagDungeonWire*)pkt)->m_d[j].m_b;
+            float* pA = &pkt->m_details[j].m_a;
+            float* pB = &pkt->m_details[j].m_b;
             float a = *pA;
             float b = *pB;
-            float* pC = &((LagDungeonWire*)pkt)->m_d[j].m_c;
-            float* pD = &((LagDungeonWire*)pkt)->m_d[j].m_d;
+            float* pC = &pkt->m_details[j].m_c;
+            float* pD = &pkt->m_details[j].m_d;
             float c = *pC;
             float d = *pD;
             if (m_dungeonLag.empty() || it == m_dungeonLag.end())
@@ -1554,11 +1564,11 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
                 STDungeonLagStatistics v;
                 v.m_data[0] = (int)(long long)a;
                 v.m_data[1] = (int)(long long)b;
-                v.m_data[2] = (unsigned int)((LagDungeonWire*)pkt)->m_d[j].m_cntA;
+                v.m_data[2] = (unsigned int)pkt->m_details[j].m_cntA;
                 v.m_data[3] = 1;
                 v.m_data[4] = (int)(long long)c;
                 v.m_data[5] = (int)(long long)d;
-                v.m_data[6] = (unsigned int)((LagDungeonWire*)pkt)->m_d[j].m_cntB;
+                v.m_data[6] = (unsigned int)pkt->m_details[j].m_cntB;
                 v.m_data[7] = 1;
                 m_dungeonLag.insert(std::make_pair(key, v));
             }
@@ -1567,12 +1577,12 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
                 it->second.m_data[0] += (int)(long long)a;
                 it->second.m_data[1] += (int)(long long)b;
                 it->second.m_data[2] +=
-                    (unsigned int)((LagDungeonWire*)pkt)->m_d[j].m_cntA;
+                    (unsigned int)pkt->m_details[j].m_cntA;
                 it->second.m_data[3] += 1;
                 it->second.m_data[4] += (int)(long long)c;
                 it->second.m_data[5] += (int)(long long)d;
                 it->second.m_data[6] +=
-                    (unsigned int)((LagDungeonWire*)pkt)->m_d[j].m_cntB;
+                    (unsigned int)pkt->m_details[j].m_cntB;
                 it->second.m_data[7] += 1;
             }
         }
@@ -1584,24 +1594,25 @@ void StatisticManager::SendDBLagStatistics(CServerHandler* handler, char* timeSt
     Packet_DBMW_TechnicalReport_Common_Query pkt;
     for (int i = 0; i < 8; i++)
     {
-        if (0 < m_modules[i].m_data[3])
+        if (0 < m_modules[i].m_data3)
         {
             memset(pkt.m_query, 0, sizeof(pkt.m_query));
             snprintf(pkt.m_query, 0x400,
                 "inSert into lag_stat_module (occ_time, server_id, module, average, deviation, count) values ('%s', %d, %d, %d, %d, %d)",
                 timeStr, handler->GetServerGroupNo() & 0xff, i,
-                (unsigned int)m_modules[i].m_data[0] / (unsigned int)m_modules[i].m_data[3],
-                (unsigned int)m_modules[i].m_data[1] / (unsigned int)m_modules[i].m_data[3],
-                m_modules[i].m_data[2] / m_modules[i].m_data[3]);
+                // [2026-09-15 R6-4 新轴 sar/idiv] ORIG 这三处除法全为 `sar $0x1f; idivl`（**有符号**除法），
+                //   原 (unsigned int) cast 让 GCC 生成 `div`（无符号）⇒ 删 cast 恢复有符号除法，与 ORIG 语义一致。
+                m_modules[i].m_data0 / m_modules[i].m_data3,
+                m_modules[i].m_data1 / m_modules[i].m_data3,
+                m_modules[i].m_data2 / m_modules[i].m_data3);
             DNF_LOG_SCOPE_LINE(0x6a1, "./log/LagStatistics", "%s", pkt.m_query);
             handler->SendToDB((PacketHeader*)&pkt);
             m_modules[i].Reset();
         }
     }
-    if (m_dungeonLag.empty())
-    {
-        return;
-    }
+    // [2026-09-15 StaticsStatMgr] ORIG 0x807???? 用 `xor $1,%eax; test; je`（即 if (!empty)
+    //   包裹主体），我方 early-return 生成 `jne` 整体反向；改成 if(!empty) 后 ndiff 23→20。
+    if (!m_dungeonLag.empty())
     for (std::map<unsigned short, STDungeonLagStatistics>::iterator it = m_dungeonLag.begin();
          it != m_dungeonLag.end(); ++it)
     {
@@ -1840,29 +1851,30 @@ void StatisticManager::ResetGoldcardEventStatistic()
 {
     memset(m_goldcard, 0, 0x37b);
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0007 | statics | 与ORIG差异=DIFF | StatisticManager::AddTowerOfDespairStatistic | 详见 function_reports/statics/_ZN16StatisticManager26AddTowerOfDespairStatisticEP35Packet_TowerOfDespair_Statistic_GTS.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0007 已消除）| statics | StatisticManager::AddTowerOfDespairStatistic | 详见 function_reports/statics/_ZN16StatisticManager26AddTowerOfDespairStatisticEP35Packet_TowerOfDespair_Statistic_GTS.md
 void StatisticManager::AddTowerOfDespairStatistic(Packet_TowerOfDespair_Statistic_GTS* pkt)
 {
-    if (pkt == 0)
+    // ORIG 0x8074aac 实证：首守卫是 if(pkt!=0){...} 包裹形而非早返——
+    // 其 je 直落函数尾 epilogue（无 return 岛），仅第二/第三守卫各带一个岛。
+    if (pkt != 0)
     {
-        return;
-    }
-    if (pkt->m_layer <= 0)
-    {
-        return;
-    }
-    if (0x64 < pkt->m_layer)
-    {
-        return;
-    }
-    if (pkt->m_enterFlag != 0)
-    {
-        ++m_tower[pkt->m_layer].m_enter;
-        m_serverList.insert(*(unsigned int*)((char*)pkt + 0x13));
-    }
-    else
-    {
-        ++m_tower[pkt->m_layer].m_success;
+        if (pkt->m_layer <= 0)
+        {
+            return;
+        }
+        if (0x64 < pkt->m_layer)
+        {
+            return;
+        }
+        if (pkt->m_enterFlag != 0)
+        {
+            ++m_tower[pkt->m_layer].m_enter;
+            m_serverList.insert(*(unsigned int*)((char*)pkt + 0x13));
+        }
+        else
+        {
+            ++m_tower[pkt->m_layer].m_success;
+        }
     }
 }
 void StatisticManager::SendDBTowerOfDespairStatistic(CServerHandler* handler)

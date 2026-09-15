@@ -231,7 +231,7 @@ void CServerXml::ProcessLoad(TiXmlNode* pRootNode)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0013 | dbmw | 与ORIG差异=NEAR | np_server_xml::CServerXml::StrPunish | 详见 function_reports/dbmw/_ZN13np_server_xml10CServerXml9StrPunishEiPKcNS_12_eStringTypeE.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-NEAR-0013 已消除）
 void CServerXml::StrPunish(int nTextID, const char* pText, _eStringType type)
 {
     if (pText != (const char*)0)

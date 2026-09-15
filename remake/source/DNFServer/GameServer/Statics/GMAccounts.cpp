@@ -180,7 +180,7 @@ STPartyStatisticKey::STPartyStatisticKey()
 STPartyStatisticKey::~STPartyStatisticKey() throw()
 {
 }
-PartyStatistic::PartyStatistic()
+PartyStatistic::PartyStatistic() throw()
 {
     Reset();
 }
@@ -241,7 +241,7 @@ STPartyCharacKey::STPartyCharacKey()
 STPartyCharacKey::~STPartyCharacKey() throw()
 {
 }
-PartyCharacStatistic::PartyCharacStatistic()
+PartyCharacStatistic::PartyCharacStatistic() throw()
 {
     Reset();
 }
@@ -295,7 +295,7 @@ STDeathTowerPlayDataJobStatisticKey::STDeathTowerPlayDataJobStatisticKey()
 STDeathTowerPlayDataJobStatisticKey::~STDeathTowerPlayDataJobStatisticKey() throw()
 {
 }
-PlayDataJobStatistic::PlayDataJobStatistic()
+PlayDataJobStatistic::PlayDataJobStatistic() throw()
 {
     Reset();
 }
@@ -315,7 +315,7 @@ STDeathTowerPlayDataPartyStatisticKey::STDeathTowerPlayDataPartyStatisticKey()
 STDeathTowerPlayDataPartyStatisticKey::~STDeathTowerPlayDataPartyStatisticKey() throw()
 {
 }
-PlayDataPartyStatistic::PlayDataPartyStatistic()
+PlayDataPartyStatistic::PlayDataPartyStatistic() throw()
 {
     Reset();
 }
@@ -374,7 +374,7 @@ STHellPartyStatisticItemKey::STHellPartyStatisticItemKey()
 STHellPartyStatisticItemKey::~STHellPartyStatisticItemKey() throw()
 {
 }
-HellPartyItenmData::HellPartyItenmData()
+HellPartyItenmData::HellPartyItenmData() throw()
 {
     Reset();
 }
@@ -466,10 +466,11 @@ STModuleLagStatistics::~STModuleLagStatistics() throw()
 }
 void STModuleLagStatistics::Reset() throw()
 {
-    m_data[0] = 0;
-    m_data[1] = 0;
-    m_data[2] = 0;
-    m_data[3] = 0;
+    // C2 标量化：原 m_data[0..3]（Statistics.cpp 侧同步改 m_dataK）
+    m_data0 = 0;
+    m_data1 = 0;
+    m_data2 = 0;
+    m_data3 = 0;
 }
 STDungeonLagStatistics::STDungeonLagStatistics()
 {
@@ -548,7 +549,9 @@ bool CGMAccounts::isGM(unsigned int id)
     stGMInfo_t key = {};
     key.type = 3;
     key.mid = id;
-    return std::find(m_gmList.begin(), m_gmList.end(), key) != m_gmList.end();
+    if (std::find(m_gmList.begin(), m_gmList.end(), key) != m_gmList.end())
+        return true;
+    return false;
 }
 
 int CGMAccounts::appendGM(unsigned int id, unsigned int value)

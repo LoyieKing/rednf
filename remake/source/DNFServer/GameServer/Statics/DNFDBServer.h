@@ -23,7 +23,7 @@ struct STSpecCount
 struct STErrorCount
 {
     STErrorCount();
-    unsigned int m_errorCode;   // +0（log_packet_dispatcher_error_line）
+    int m_errorCode;            // +0（log_packet_dispatcher_error_line）[试验：ORIG 是否为有符号]
     unsigned short m_errorLine; // +4（log_packet_dispatcher_error_line.error_line）
     unsigned int m_cnt;         // +6（log_packet_dispatcher_error_line.cnt）
 };

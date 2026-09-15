@@ -34,9 +34,7 @@
 
 CAppInit::~CAppInit() {}
 
-void CAppInit::Init(CApplication* app, int argc, char** argv) {}
-
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0015 | monitor | 与ORIG差异=DIFF | CAppStartInit::Init | 详见 function_reports/monitor/_ZN13CAppStartInit4InitEP12CApplicationiPPc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0015 已消除）
 CAppStartInit::CAppStartInit() {}
 
 CAppStartInit::~CAppStartInit() {}
@@ -45,7 +43,7 @@ void CAppStartInit::Init(CApplication* app, int argc, char** argv)
 {
     srand((unsigned int)time(0));
     app->m_appConfig = new CAppConfig;
-    app->m_appConfig->Check_FileName(std::string(argv[1]));
+    ((CAppConfig*)app->m_appConfig)->Check_FileName(std::string(argv[1]));
     app->m_memberConfig = new CMemberConfig;
     app->m_memberExpTbl = new CMemberExpTbl;
     app->m_serverHandler = new CKillUSRConfig;
@@ -88,18 +86,17 @@ int CAppStartInit::Init_Daemon(int argc, char** argv)
 
 bool CAppStartInit::Save_pid(const std::string& file)
 {
-    std::string path = "./pid/" + file;
+    char buf[0x400];
+    std::string path = "./pid/" + file + ".pid";
+    ssize_t wr;
     int fd = ::open(path.c_str(), 0x42, 0x1a4);
     if (fd < 0)
     {
         return 0;
     }
-    char buf[0x400];
     memset(buf, 0, 0x400);
-    pid_t pid = getpid();
-    sprintf(buf, "%ld\n", (long)pid);
-    ssize_t n = strlen(buf);
-    ssize_t wr = write(fd, buf, n);
+    sprintf(buf, "%ld\n", getpid());
+    wr = write(fd, buf, strlen(buf));
     if (wr < 0)
     {
         close(fd);

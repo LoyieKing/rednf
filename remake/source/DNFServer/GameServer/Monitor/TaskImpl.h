@@ -241,7 +241,7 @@ struct stUserHuntingPoint;
 class CTask_ChristmasEvent : public CTaskScheduler::CTask
 {
 public:
-    CTask_ChristmasEvent(unsigned int tick, unsigned int flag);
+    CTask_ChristmasEvent(unsigned int tick, unsigned int flag) throw();
     ~CTask_ChristmasEvent();
     void _DoExecute();
     static int DecideEventTime();

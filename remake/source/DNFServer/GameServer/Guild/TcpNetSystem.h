@@ -40,11 +40,16 @@ public:
     ~CSwapQueue();
     void Push(T* item);
     void Pop();
-    void Init();
+    // [2026-09-15 修复/P216] ORIG 0x08053dd8 `CSwapQueue<Tcp,2>::C1` 尾部 `call Init`
+    //   **不布 EH landing**（无成员析构 cleanup 块）；4.4.7 对「同 TU 可见的弱成员调用」
+    //   恒布 landing ⇒ Init 加 throw()（体非空，call 不被折叠）后 C1 与 ORIG 逐条一致。
+    void Init() throw();
     T* GetRecvQ();
     T* GetParseQ();
     void SwapQ();
-    char m_data[0x58];
+    unsigned int m_recv;    // +0x00（ORIG CSwapQueue::Init/GetRecvQ/SwapQ 实证）
+    unsigned int m_parse;   // +0x04（ORIG CSwapQueue::Init/GetParseQ/SwapQ 实证）
+    T m_queue[N];           // +0x08，元素 0x28B×N → 合计 0x58（ORIG C1/D1 循环步长实证）
 };
 
 // from GuildDomain.h
@@ -109,13 +114,19 @@ template<class T>
 class IQueue
 {
 public:
-    IQueue();
+    // [2026-09-15 修复/P216] ORIG 0x0806435a `IQueue<Tcp>::C1` 为**空体外联定义**，
+    //   且 ORIG `IQueue<Tcp>::Get`（0x08064116，0x63 字节）**无任何 EH 段**
+    //   （无 `__cxa_guard_abort`/`_Unwind_Resume`）。4.4.7 对「同 TU 可见的弱 ctor 调用」
+    //   恒布 landing pad ⇒ 声明+定义加 `throw()` 后与 ORIG 的 guard 段形状一致。
+    IQueue() throw();
     ~IQueue();
     static IQueue<T>* Get();
     void InitQueue(T* recv, T* parse);
     bool SwitchQueue();
     T* GetParseQueue();
-    char m_data[0x30];
+    T* m_recv;              // +0x00（ORIG InitQueue/GetParseQueue/SwitchQueue 实证）
+    T* m_parse;             // +0x04（same）
+    char m_pad[0x28];       // +0x08..+0x30
 };
 
 #endif

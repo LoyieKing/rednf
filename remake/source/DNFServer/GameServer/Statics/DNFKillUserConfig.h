@@ -17,7 +17,10 @@ struct ST_KillUSRConfig
 };
 
 // ---- CKillUSRConfig：CTableBase + vector<ST_KillUSRConfig*>@4（0x10）----
-class CKillUSRConfig : public CTableBase
+// [2026-09-15 RTTI 轴] ORIG 的 `_ZTI14CKillUSRConfig` = 0x18 (24B) 即 __vmi_class_type_info
+//   ⇒ CTableBase 在 ORIG 中是非 public 基类；我方 public 会退化为 __si_class_type_info (12B)。
+//   实测 ORIG: _ZTI14CKillUSRConfig 0x18 / _ZTI10CTableBase 0x8（四服务同源）。
+class CKillUSRConfig : private CTableBase
 {
 public:
     CKillUSRConfig();

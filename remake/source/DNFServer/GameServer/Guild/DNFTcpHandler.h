@@ -31,7 +31,7 @@ public:
     bool IsSetOutEvent(int idx);
     bool IsSetInEvent(int idx);
     void* GetEventPtr(int idx);
-    EpollHandler* m_epoll;  // +0
+    CProtocol* m_epoll;  // +0（ORIG：基类指针赋值产生 mov ebx,eax;mov eax,edx 形态）
 };
 
 // from GuildDomain.h

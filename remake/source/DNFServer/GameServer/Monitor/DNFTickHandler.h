@@ -249,8 +249,8 @@ public:
     char m_pad1[3];             // +1
     unsigned int m_frameCount;  // +4（DFC：每帧计数）
     int m_interval;             // +8（100/frameCount）
-    int m_prevTick;             // +0xc（times() 上一时刻）
-    int m_curTick;              // +0x10（times() 当前时刻）
+    unsigned int m_prevTick;    // +0xc（times() 上一时刻）
+    unsigned int m_curTick;     // +0x10（times() 当前时刻）
     int m_frameCounter;         // +0x14（间隔帧累计）
     int m_fps;                  // +0x18（FPS 快照）
     int m_field1c;              // +0x1c（未使用，保留）

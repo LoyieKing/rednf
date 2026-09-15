@@ -126,6 +126,73 @@ CPeer::~CPeer()
     m_sendRemain = 0;
 }
 
+// ORIG 证据（guild df_guild_r）：`_ZN5CPeer7ConnSigEv` T @0x08051c06、
+// `_ZN5CPeer10DisConnSigEv` T @0x08051b1c、`_ZN5CPeer12GetTcpSocketEv` W @0x08051da0、
+// `_ZN24Packet_InnerPakcet_LoginC1Ev` / `_ZN25Packet_InnerPakcet_LogoutC1Ev` W @0x08051de6。
+// ConnSig/DisConnSig 的 pkt 局部槽为 6 字节（packetId+packetSize+reversed1），ctor 仍写满
+// 10 字节（尾部越界到 fd 槽后被覆盖）——与 DBMW/Manager 同源（那边已 identical）。
+extern "C" void _ZN24Packet_InnerPakcet_LoginC1Ev(void*);
+extern "C" void _ZN25Packet_InnerPakcet_LogoutC1Ev(void*);
+
+Packet_InnerPakcet_Login::Packet_InnerPakcet_Login()
+    : PacketHeader(0xfa0, 0xa)
+{
+}
+
+Packet_InnerPakcet_Logout::Packet_InnerPakcet_Logout()
+    : PacketHeader(0xfa1, 0xa)
+{
+}
+
+void CPeer::ConnSig()
+{
+    struct PktLocal {
+        unsigned short packetId;
+        unsigned short packetSize;
+        unsigned short reversed1;
+    } __attribute__((packed));
+    PktLocal pkt;
+    _ZN24Packet_InnerPakcet_LoginC1Ev(&pkt);
+    int fd = getHandle();
+    CTcpRecvBuffer* buf;
+    {
+        CGuard<CMutex> guard((CMutex*)m_bLock);
+        buf = new CTcpRecvBuffer;
+    }
+    memcpy(buf, &pkt, pkt.packetSize);
+    {
+        CGuard<CMutex> guard((CMutex*)m_qLock);
+        ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->push(buf);
+    }
+}
+
+void CPeer::DisConnSig()
+{
+    struct PktLocal {
+        unsigned short packetId;
+        unsigned short packetSize;
+        unsigned short reversed1;
+    } __attribute__((packed));
+    PktLocal pkt;
+    _ZN25Packet_InnerPakcet_LogoutC1Ev(&pkt);
+    int fd = getHandle();
+    CTcpRecvBuffer* buf;
+    {
+        CGuard<CMutex> guard((CMutex*)m_bLock);
+        buf = new CTcpRecvBuffer;
+    }
+    memcpy(buf, &pkt, pkt.packetSize);
+    {
+        CGuard<CMutex> guard((CMutex*)m_qLock);
+        ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->push(buf);
+    }
+}
+
+TCPSocket* CPeer::GetTcpSocket()
+{
+    return this;
+}
+
 void CPeer::InitPeer(std::queue<CTcpRecvBuffer*>* q, CMutex* lock1, CMutex* lock2)
 {
     m_recvQ = q;
@@ -166,7 +233,7 @@ bool CPeer::RecvPacket()
     return 1;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0106 | guild | 与ORIG差异=DIFF | CPeer::recv_packet | 详见 function_reports/guild/_ZN5CPeer11recv_packetEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0106 已消除） | guild | CPeer::recv_packet | 详见 function_reports/guild/_ZN5CPeer11recv_packetEv.md
 int CPeer::recv_packet()
 {
     if (getHandle() < 0)
@@ -179,16 +246,10 @@ int CPeer::recv_packet()
         m_remainLen = 0;
         remaining = 0x1800;
     }
-    int n = read(getHandle(), m_buf, remaining);
-    if (n < 0)
+    int n;
+    if ((n = read(getHandle(), m_buf, remaining)) < 0)
     {
-        if (errno == EAGAIN)
-            return 0;
-        if (errno == EINTR)
-            return 0;
-        if (errno == EAGAIN)
-            return 0;
-        if (errno == 0)
+        if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
             return 0;
         printf("RECV ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
                getHandle(), errno, strerror(errno));
@@ -208,23 +269,24 @@ int CPeer::recv_packet()
 bool CPeer::parsing(int len)
 {
     PacketHeader hdr(0, 0);
-    int parsinglength = m_remainLen + len;
     int size = 10;
+    int parsinglength = m_remainLen + len;
     if (parsinglength <= 9)
     {
-        m_remainLen += len;
+        m_remainLen = m_remainLen + len;
         m_buf += len;
         DNF_LOG_SCOPE_LINE(0xbb, "./log/TcpRecv",
             "(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d] ",
             m_buf, m_data, m_remainLen, len);
         return 1;
     }
-    do
+    unsigned int packetSize;
+parsing_loop:
     {
         if (m_remainLen != 0)
             m_buf -= m_remainLen;
         memcpy(&hdr, m_buf, 10);
-        unsigned int packetSize = hdr.packetSize;
+        packetSize = hdr.packetSize;
         if (packetSize <= 9 || packetSize > 0x1800)
         {
             DNF_LOG_SCOPE_LINE(0xd0, "./log/TcpRecv",
@@ -235,23 +297,16 @@ bool CPeer::parsing(int len)
             return 0;
         }
         if ((unsigned int)parsinglength < packetSize)
-        {
-            DNF_LOG_SCOPE_LINE(0x100, "./log/TcpRecv",
-                "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",
-                parsinglength);
-            // ORIG 0x80515c1 打完这条日志**直接落到** +0x39f（`if (parsinglength > 0)`），
-            // 并不经过下面的 0xf8 判断块；等价于这里的 break 目标在 0xf8 之后。
-            goto parsing_after_header_size_log;
-        }
+            goto log_need_more;
         CTcpRecvBuffer* buf;
         {
-            CGuard<CMutex> guard(*(CMutex**)&m_bLock);
+            CGuard<CMutex> guard((CMutex*)m_bLock);
             buf = new CTcpRecvBuffer;
         }
         memcpy(buf, m_buf, packetSize);
         ((PacketHeader*)buf)->m_connNo = getHandle();
         {
-            CGuard<CMutex> guard(*(CMutex**)&m_qLock);
+            CGuard<CMutex> guard((CMutex*)m_qLock);
             ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->push(buf);
             int qsize = (int)((std::queue<CTcpRecvBuffer*>*)m_recvQ)->size();
         }
@@ -269,21 +324,30 @@ bool CPeer::parsing(int len)
             // （整机 A/B 实测：guild/log/TcpRecv 比 ORIG 多 3 行）。
             goto parsing_after_header_size_log;
         }
-    } while (parsinglength > 9);
-    if (parsinglength <= 9)
-    {
-        DNF_LOG_SCOPE_LINE(0xf8, "./log/TcpRecv",
-            "need more data (parsinglength < HEADER_SIZE): body=%d !!",
-            parsinglength);
     }
+    if (parsinglength > 9) goto parsing_loop;
+    DNF_LOG_SCOPE_LINE(0xf8, "./log/TcpRecv",
+        "need more data (parsinglength < HEADER_SIZE): body=%d !!",
+        parsinglength);
+    goto parsing_after_header_size_log;
+log_need_more:
+    DNF_LOG_SCOPE_LINE(0x100, "./log/TcpRecv",
+        "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",
+        parsinglength);
 parsing_after_header_size_log:
     // ORIG +0x39f：上面两个 break 分支真正落地的地方（跳过 0xf8 日志块）。
     if (parsinglength > 0)
     {
-        if ((unsigned int)parsinglength > 0x1800)
+        if ((unsigned int)parsinglength <= 0x1800)
+        {
+            memmove(m_data, m_buf, parsinglength);
+            m_remainLen = parsinglength;
+            m_buf = m_data + parsinglength;
+        }
+        else
         {
             // ORIG：try 包日志块（CMyFileLog 构造/调用），catch 是
-            // printf("[PARSING EXCEPTION] memmove...") + return 0；memmove 在 try 外。
+            // printf("[PARSING EXCEPTION] memmove...") + return 0。
             try
             {
                 DNF_LOG_SCOPE_LINE(0x10e, "./log/TcpRecv",
@@ -297,14 +361,11 @@ parsing_after_header_size_log:
             }
             return 0;
         }
-        memmove(m_data, m_buf, parsinglength);
-        m_remainLen = parsinglength;
-        m_buf = m_data + parsinglength;
     }
     return 1;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0011 | guild | 与ORIG差异=NEAR | CPeer::send_packet | 详见 function_reports/guild/_ZN5CPeer11send_packetEPci.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-NEAR-0011 已消除） | guild | CPeer::send_packet | 详见 function_reports/guild/_ZN5CPeer11send_packetEPci.md
 int CPeer::send_packet(char* buf, int len)
 {
     if (getHandle() < 0)
@@ -341,34 +402,31 @@ int CPeer::send_packet(char* buf, int len)
     return send_packet();
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0107 | guild | 与ORIG差异=DIFF | CPeer::send_packet | 详见 function_reports/guild/_ZN5CPeer11send_packetEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0107 已消除） | guild | CPeer::send_packet | 详见 function_reports/guild/_ZN5CPeer11send_packetEv.md
 int CPeer::send_packet()
 {
-    ssize_t ret = 0;
+    int ret = 0;
+    char pad[0x10];
     if (m_sendRemain == 0)
         return 1;
-    ret = write(getHandle(), m_sendBuf, m_sendRemain);
-    register bool sendFailed = ret <= 0;
-    if (sendFailed)
+    if ((ret = write(getHandle(), m_sendBuf, m_sendRemain)) <= 0)
     {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
             return 1;
-        printf("SEND ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
-               getHandle(), errno, strerror(errno));
-        return 1;
+        else
+        {
+            printf("SEND ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
+                   getHandle(), errno, strerror(errno));
+            return 1;
+        }
     }
     if (ret > 0)
     {
-        if (ret < m_sendRemain)
+        if ((int)m_sendRemain > ret)
         {
             m_sendPtr = m_sendBuf + ret;
-            m_sendRemain -= (int)ret;
-            if ((unsigned int)m_sendRemain <= 0x96000)
-            {
-                memmove(m_sendBuf, m_sendPtr, m_sendRemain);
-                m_sendPtr = m_sendBuf + m_sendRemain;
-            }
-            else
+            m_sendRemain -= ret;
+            if (m_sendRemain > 0x96000u)
             {
                 DNF_LOG_SCOPE_LINE(0x17e, "./log/TcpErr",
                     "m_remain_sendlen < MAX_PACKET_SIZE_UDP :  m_remain_sendlen:%d]",
@@ -377,10 +435,12 @@ int CPeer::send_packet()
                 m_sendRemain = 0;
                 return 1;
             }
+            memmove(m_sendBuf, m_sendPtr, m_sendRemain);
+            m_sendPtr = m_sendBuf + m_sendRemain;
         }
-        else if (m_sendRemain < ret)
+        else if ((int)m_sendRemain < ret)
         {
-            printf("offset error[Remain_Data: %d Send:%d]", m_sendRemain, (int)ret);
+            printf("offset error[Remain_Data: %d Send:%d]", m_sendRemain, ret);
             return -1;
         }
         else
@@ -389,58 +449,8 @@ int CPeer::send_packet()
             m_sendRemain = 0;
         }
     }
-    return (int)ret;
+    return ret;
 }
-
-void CPeer::DisConnSig()
-{
-    Packet_InnerPakcet_Logout pkt;
-    pkt.m_connNo = (unsigned int)getHandle();
-    CTcpRecvBuffer* buf;
-    {
-        CGuard<CMutex> guard((CMutex*)m_bLock);
-        buf = new CTcpRecvBuffer;
-    }
-    memcpy(buf, &pkt, pkt.packetSize);
-    {
-        CGuard<CMutex> guard((CMutex*)m_qLock);
-        ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->push(buf);
-    }
-}
-
-void CPeer::ConnSig()
-{
-    Packet_InnerPakcet_Login pkt;
-    pkt.m_connNo = (unsigned int)getHandle();
-    CTcpRecvBuffer* buf;
-    {
-        CGuard<CMutex> guard((CMutex*)m_bLock);
-        buf = new CTcpRecvBuffer;
-    }
-    memcpy(buf, &pkt, pkt.packetSize);
-    {
-        CGuard<CMutex> guard((CMutex*)m_qLock);
-        ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->push(buf);
-    }
-}
-
-TCPSocket* CPeer::GetTcpSocket()
-{
-    return this;
-}
-
-Packet_InnerPakcet_Login::Packet_InnerPakcet_Login()
-    : PacketHeader(0xfa0, 0xa)
-{
-    (void)0;
-}
-
-Packet_InnerPakcet_Logout::Packet_InnerPakcet_Logout()
-    : PacketHeader(0xfa1, 0xa)
-{
-    (void)0;
-}
-
 int CPeer::get_remain_sendlen()
 {
     return m_sendRemain;

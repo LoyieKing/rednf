@@ -14,12 +14,12 @@ public:
     int m_fieldC;  // +0xc
 };
 
-class CKillUSRConfig : public CTableBase
+class CKillUSRConfig : private CTableBase
 {
 public:
     CKillUSRConfig();
     virtual ~CKillUSRConfig();
-    virtual int Load_Table(const std::string& fileName);
+    virtual void Load_Table(const std::string& fileName);
     virtual bool Parse_Table(char* data, int size);
     void Clear_Table();
     void* GetInfo() const;

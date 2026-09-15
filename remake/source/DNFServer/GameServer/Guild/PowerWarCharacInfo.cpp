@@ -220,15 +220,16 @@ void CPowerWarCharacInfo::GetAllUserRankingInfo(unsigned int& count, STUserRank*
 
 void CPowerWarCharacInfo::GetStatueRankingUsers(std::vector<STPowerWarCharacInfo*>& vec)
 {
-    std::vector<STPowerWarCharacInfo*>* self = GetCharacInfoVector();
-    for (unsigned int i = 0; i < 3; i++)
+    // [P183/P339] ORIG 的 i 为 **signed int** 而循环界为 unsigned（`cmp $0x2; setbe`
+    //   = `i < 3u`），比较式 `(int)size() > i` 才是单条 `cmp mem,reg; setg`；
+    //   三处都是即时 `at(i)`（无具名 info 缓存），字段用 `m_field[]` disp 折叠。
+    for (int i = 0; i < 3u; i++)
     {
-        if ((int)i < (int)self->size())
+        if ((int)m_vec.size() > i)
         {
-            STPowerWarCharacInfo* info = self->at(i);
-            vec.push_back(info);
+            vec.push_back(m_vec.at(i));
             DNF_LOG_SCOPE_LINE(0xe4,"./log/Power", "Rank:%d, Charac No:%d Point:%d", i,
-                *(unsigned int*)info->m_data, *(unsigned int*)(info->m_data + 4));
+                m_vec.at(i)->m_field[0], m_vec.at(i)->m_field[1]);
         }
     }
 }

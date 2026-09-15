@@ -44,7 +44,7 @@ void CFrameCountHandler::SaveProcess(int n)
         m_field28 = 0;
     }
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0112 | dbmw | 与ORIG差异=DIFF | CFrameCountHandler::InitFrameCountInfo | 详见 function_reports/dbmw/_ZN18CFrameCountHandler18InitFrameCountInfoEP12CApplicationjt.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0112 已消除）
 void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int a, unsigned short b)
 {
     if (a == 0)
@@ -57,60 +57,64 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int a, u
 InitFrameCountInfo_throw:
     throw CDNFException("CFrameCountHandler::InitFrameCountInfo() Exception Break!");
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0111 | dbmw | 与ORIG差异=DIFF | CFrameCountHandler::GetFrameCountInfo | 详见 function_reports/dbmw/_ZN18CFrameCountHandler17GetFrameCountInfoEv.md
-void* CFrameCountHandler::GetFrameCountInfo()
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0111 已消除）
+CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 {
-    volatile clock_t dummy0 = 0;
-    volatile clock_t dummy1 = 0;
-    volatile clock_t dummy2 = 0;
-    volatile clock_t dummy3 = 0;
-    (void)dummy0;
-    (void)dummy1;
-    (void)dummy2;
-    (void)dummy3;
-    struct tms tmsbuf;
-    bool fail;
+    unsigned int l1 = 0;
+    unsigned int l2 = 0;
+    unsigned int l3 = 0;
+    unsigned int q;
+    unsigned int l4 = 0;
+    (void)l1;
+    (void)l2;
+    (void)l3;
+    (void)q;
+    (void)l4;
+    struct tms t;
     m_field24 = 0;
-    if (!m_field0[0])
+    if (m_field0[0] == 0)
     {
         m_field0[0] = 1;
         m_field14 = 0;
-        m_fieldC = times(&tmsbuf);
-        fail = (m_fieldC == (unsigned int)-1);
-        if (fail)
-            throw CDNFException("CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
-        return this;
-    }
-    m_field10 = times(&tmsbuf);
-    fail = (m_field10 == -1);
-    if (fail)
-        throw CDNFException("CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
-    if (m_fieldC > (unsigned int)m_field10)
-        m_fieldC = m_field10;
-    unsigned int diff = m_field10 - m_fieldC;
-    unsigned int frame = diff / m_field8;
-    if (m_field14 < frame)
-    {
-        m_field14++;
-        m_field24 = 1;
-    }
-    if (diff > 0x63)
-    {
-        m_field18 = m_field14;
-        m_field24 = 2;
-        m_field14 = 0;
-        m_fieldC = m_field10 - diff + 0x64;
-        m_field20 = 0;
-        m_field25++;
-        if (m_field25 > 0x3b)
+        m_fieldC = times(&t);
+        while ((int)m_fieldC == -1)
         {
-            m_field24 = 3;
-            m_field25 = 0;
-            m_field26++;
-            if (m_field26 > 0x3b)
+            throw CDNFException("CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
+        }
+    }
+    else
+    {
+        m_field10 = times(&t);
+        while ((int)m_field10 == -1)
+        {
+            throw CDNFException("CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
+        }
+        if (m_fieldC > (unsigned int)m_field10)
+            m_fieldC = m_field10;
+        l1 = m_field10 - m_fieldC;
+        q = l1 / m_field8;
+        if (m_field14 < q)
+        {
+            m_field14++;
+            m_field24 = 1;
+            l2 = m_field10 - m_fieldC;
+            if (99 < l2)
             {
-                m_field24 = 4;
-                m_field26 = 0;
+                m_field18 = m_field14;
+                m_field24 = 2;
+                m_field14 = 0;
+                m_fieldC = m_field10 - l2 + 0x64;
+                m_field20 = 0;
+                if (0x3b < (unsigned char)(++m_field25))
+                {
+                    m_field24 = 3;
+                    m_field25 = 0;
+                    if (0x3b < (unsigned char)(++m_field26))
+                    {
+                        m_field24 = 4;
+                        m_field26 = 0;
+                    }
+                }
             }
         }
     }

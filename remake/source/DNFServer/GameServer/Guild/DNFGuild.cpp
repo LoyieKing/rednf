@@ -462,10 +462,14 @@ void CGuild::EnableDBSaveFlag()
     m_dBSaveFlag = 1;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0013 | guild | 与ORIG差异=NEAR | CGuild::SetTodayGuildMember | 详见 function_reports/guild/_ZN6CGuild19SetTodayGuildMemberER18STTodayGuildMember.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-NEAR-0013 已消除）
 void CGuild::SetTodayGuildMember(STTodayGuildMember& member)
 {
-    this->m_board.m_today = *(const CGuildBoard::TodayMemberBlock*)&member;
+    // 试形记录（2026-09-15）：两侧显式同型 reinterpret 视图无法翻正
+    // `mov 0x8(%ebp),%eax` / `mov 0xc(%ebp),%edx` 装载序（4.4 恒先载 RHS 地址，
+    // 与 N76 镜像）⇒ 回退原形，按 N76 镜像族封顶。
+    // [P235 双视角] 同型赋值（STTodayGuildMember::m_today 与 m_board.m_today 同类型）
+    this->m_board.m_today = member.m_today;
 }
 
 CGuild::CGuild(unsigned int guildKey)
@@ -502,26 +506,28 @@ CGuild::~CGuild()
     m_members.clear();
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0113 | guild | 与ORIG差异=DIFF | CGuild::InsertGuildMember | 详见 function_reports/guild/_ZN6CGuild17InsertGuildMemberEjP5CUser.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0113 已消除）
 bool CGuild::InsertGuildMember(unsigned int charNo, CUser* user)
 {
-    if (user == 0)
+    // [P222] ORIG：user==0 直跳尾 return 0 块（否定早返改正向包裹）
+    if (user != 0)
     {
+        user->AttachGuild(this);
+        std::pair<std::map<unsigned int, CUser*>::iterator, bool> r =
+            m_members.insert(std::make_pair(charNo, user));
+        if (r.second != 0)
+        {
+            return 1;
+        }
+        {
+            DNF_LOG_SCOPE_LINE(0x7b,"./log/GuildMember",
+                "[INSERT_ERR]\tAlready Exist : Guild Key : %d\tChar Key : %d,\tChar Name : %s\tLogin Mem Cnt : %d\n",
+                GetGuildKey(), charNo, user->GetCharName(), m_members.size());
+        }
+        // [P214] ORIG：日志块后独立 return 0（生成 mov $0; jmp 尾块）
         return 0;
     }
-    user->AttachGuild(this);
-    std::pair<std::map<unsigned int, CUser*>::iterator, bool> r =
-        m_members.insert(std::make_pair(charNo, user));
-    if (r.second != 0)
-    {
-        return 1;
-    }
-    {
-        DNF_LOG_SCOPE_LINE(0x7b,"./log/GuildMember",
-            "[INSERT_ERR]\tAlready Exist : Guild Key : %d\tChar Key : %d,\tChar Name : %s\tLogin Mem Cnt : %d\n",
-            GetGuildKey(), charNo, user->GetCharName(), m_members.size());
-        return 0;
-    }
+    return 0;
 }
 
 bool CGuild::DeleteGuildMember(unsigned int charNo, CUser* user)
@@ -589,6 +595,10 @@ void CGuild::QueryGuild(CServerHandler* handler, unsigned int charNo)
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0146 | guild | 与ORIG差异=DIFF | CGuild::LoadGuild | 详见 function_reports/guild/_ZN6CGuild9LoadGuildER17STGuildDBInfoOnlyPc.md
+// [已试 2026-09-15 StaticsRest2] ORIG 尾部有 `jmp eb 01` + `nop`（if 的 join 残留），
+//   试过 ① if 后加 `return;`（→ 我方多 jmp+nop，113 条）② 空 `else {}`（无变化）
+//   ③ 额外复合块 + return（仍多一条 nop）④ D 形态三层配对（循环体内裸块 + 函数尾 `return;`，113 条）
+//   ⇒ 四种位置/形态均无效；Main 已将本件列入「尾 jmp 不来自显式 return」反例清单，登记死胡同。
 void CGuild::LoadGuild(STGuildDBInfoOnly& info, char* name)
 {
     if ((m_guildDBFlag & 4) == 0 && (m_guildDBFlag & 2) != 0)
@@ -596,10 +606,16 @@ void CGuild::LoadGuild(STGuildDBInfoOnly& info, char* name)
         int local18 = m_dbInfo.m_info.m_guildPoint;
         char local11 = 0;
         int local10 = 0;
-        while (local10 < (int)info.m_skillLearnCnt &&
-               199 < info.m_skills[local10].m0 &&
-               info.m_skills[local10].m0 < 0xd1)
+        while (local10 < (int)info.m_skillLearnCnt)
         {
+            if (199 < info.m_skills[local10].m0 &&
+                info.m_skills[local10].m0 < 0xd1)
+            {
+            }
+            else
+            {
+                break;
+            }
             local11++;
             local10++;
         }
@@ -633,6 +649,9 @@ void CGuild::SaveGuild(unsigned char flag, CServerHandler* handler, unsigned int
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0117 | guild | 与ORIG差异=DIFF | CGuild::DBGuildSaveProcess | 详见 function_reports/guild/_ZN6CGuild18DBGuildSaveProcessEP14CServerHandler.md
+// [已试 2026-09-15 StaticsRest2] 三个 CMyFileLog 临时槽：ORIG `-0x1c/-0x24/-0x28`，我方 `-0x1c/-0x20/-0x28`
+//   ⇒ log1(0x171) 与 log2(0x17c) 的槽互换；帧相同、槽集合各有一项独占 ⇒「槽互换族」，
+//   占位法对该族必劣化（判据表已证），未找到可改的声明位置（log 是宏/构造临时，无声明）⇒ 登记死胡同。
 void CGuild::DBGuildSaveProcess(CServerHandler* handler)
 {
     if (m_dBSaveFlag == 0)
@@ -643,13 +662,13 @@ void CGuild::DBGuildSaveProcess(CServerHandler* handler)
     {
         return;
     }
-    m_saveIntervalCnt++;
-    if (m_saveIntervalCnt > 1)
+    if (++m_saveIntervalCnt > 1)
     {
         if (m_members.empty())
         {
-            CMyFileLog log(__FUNCTION__, 0x171);
-            log("./log/Except", "[SAVE_INTERVAL]  Guild Key : %d\tGuild Name : %s\t\n",
+            // [P227/P329] ORIG：变参在 ctor 前求值并跨 ctor 保活
+            CMyFileLog(__FUNCTION__, 0x171)("./log/Except",
+                "[SAVE_INTERVAL]  Guild Key : %d\tGuild Name : %s\t\n",
                 m_guildKey, GetGuildName());
             m_saveIntervalCnt = 0;
         }
@@ -658,15 +677,15 @@ void CGuild::DBGuildSaveProcess(CServerHandler* handler)
             CUser* user = m_members.begin()->second;
             if (user == 0)
             {
-                CMyFileLog log(__FUNCTION__, 0x17c);
-                log("./log/Except", "[SAVE_INTERVAL]  pclUser is NULL!");
+                CMyFileLog(__FUNCTION__, 0x17c)("./log/Except",
+                    "[SAVE_INTERVAL]  pclUser is NULL!");
                 m_saveIntervalCnt = 0;
                 return;
             }
             if (user->GetGameServer() != 0)
             {
-                CMyFileLog log(__FUNCTION__, 0x183);
-                log("./log/Guild", "GUILD EXP   Guild Key : %d, Guild Exp : %d",
+                CMyFileLog(__FUNCTION__, 0x183)("./log/Guild",
+                    "GUILD EXP   Guild Key : %d, Guild Exp : %d",
                     m_guildKey, GetGuildExp());
                 SaveGuild((unsigned char)user->GetGameServer()->GetGroupNo(), handler, 0);
                 SendGuildInfoToMembers(false);
@@ -735,19 +754,22 @@ void CGuild::DBGuildMemberSave(CUser* user, unsigned char flag, CServerHandler* 
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0118 | guild | 与ORIG差异=DIFF | CGuild::DBSaveGuildMembers | 详见 function_reports/guild/_ZN6CGuild18DBSaveGuildMembersEhP14CServerHandlerh.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0118 已消除）
 void CGuild::DBSaveGuildMembers(unsigned char flag, CServerHandler* handler, unsigned char param)
 {
-    if ((m_guildDBFlag & 4) == 0)
-        return;
-    if (m_members.empty())
-        return;
-    for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-         it != m_members.end(); ++it)
+    // [P-nested-guard] 双早返 → 单尾岛復现
+    if ((m_guildDBFlag & 4) != 0)
     {
-        CUser* user = it->second;
-        if (user)
+        if (m_members.empty())
+            return;
+        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+             it != m_members.end(); ++it)
         {
+            CUser* user;
+            if ((user = it->second) == 0)
+            {
+                continue;
+            }
             user->SaveGuildMember(flag, m_guildKey, handler, param);
         }
     }
@@ -842,47 +864,50 @@ unsigned int CGuild::GetPowerWarPoint()
     return m_dbInfo.m_info.m_powerWarPoint;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0142 | guild | 与ORIG差异=DIFF | CGuild::NoticeGuildMasterDelegateToMembers | 详见 function_reports/guild/_ZN6CGuild34NoticeGuildMasterDelegateToMembersEPc.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0142 | guild | 与ORIG差异=DIFF | CGuild::NoticeGuildMasterDelegateToMembers | 详见 function_reports/guild/_ZN6CGuild34NoticeGuildMasterDelegateToMembersEPc.md
 void CGuild::NoticeGuildMasterDelegateToMembers(char* name)
 {
-    if ((m_guildDBFlag & 4) == 0)
+    if ((m_guildDBFlag & 4) != 0)
     {
-        CMyFileLog log(__FUNCTION__, 0x2bd);
-        log("./log/GuildErr", "GUILD_INFO : NoticeGuildMasterDelegateToMembers, Guild Key(%d)",
-            m_guildKey);
-        return;
+        Packet_Guild_Notice_Guild_Master_Delegate pkt;
+        memcpy(pkt.m_name, name, 0x1d);
+        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+             it != m_members.end(); ++it)
+        {
+            CUser* member;
+            if ((member = it->second) == 0) { continue; }
+            pkt.m_channel = member->GetIdByChannel();
+            pkt.m_charNo = member->GetUniqCharNo();
+            member->SendToGameserver((char*)&pkt, 0x30);
+        }
     }
-    Packet_Guild_Notice_Guild_Master_Delegate pkt;
-    memcpy(pkt.m_name, name, 0x1d);
-    for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-         it != m_members.end(); ++it)
+    else
     {
-        CUser* member;
-        if ((member = it->second) == 0) { continue; }
-        pkt.m_channel = member->GetIdByChannel();
-        pkt.m_charNo = member->GetUniqCharNo();
-        member->SendToGameserver((char*)&pkt, 0x30);
+        CMyFileLog(__FUNCTION__, 0x2bd)("./log/GuildErr",
+            "GUILD_INFO : NoticeGuildMasterDelegateToMembers, Guild Key(%d)", m_guildKey);
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0124 | guild | 与ORIG差异=DIFF | CGuild::SendGuildInfoToMembers | 详见 function_reports/guild/_ZN6CGuild22SendGuildInfoToMembersEb.md
 void CGuild::SendGuildInfoToMembers(bool flag)
 {
     Packet_Monitor_Notice_Guild_Info pkt;
+    CUser* member;
     pkt.m_guildKey = m_guildKey;
     memcpy(&pkt.m_info, &m_dbInfo.m_info, 0xbd);
     pkt.m_padD3 = (char)flag;
-    size_t n = strlen(m_guildMessage);
-    if (n > 0x64)
+    int n = strlen(m_guildMessage);
+    if (n <= 0x64)
     {
-        n = 0x64;
+        memcpy(pkt.m_rest, m_guildMessage, n);
     }
-    memcpy(pkt.m_rest, m_guildMessage, n);
+    else
+    {
+        memcpy(pkt.m_rest, m_guildMessage, 0x64);
+    }
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {
-        CUser* member = it->second;
-        if (member == 0)
+        if ((member = it->second) == 0)
         {
             continue;
         }
@@ -893,7 +918,7 @@ void CGuild::SendGuildInfoToMembers(bool flag)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0140 | guild | 与ORIG差异=DIFF | CGuild::SendGuildNameChangeToMembers | 详见 function_reports/guild/_ZN6CGuild28SendGuildNameChangeToMembersEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0140 已消除）
 void CGuild::SendGuildNameChangeToMembers()
 {
     Packet_Guild_Notice_Guild_Name_Change pkt;
@@ -902,13 +927,14 @@ void CGuild::SendGuildNameChangeToMembers()
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {
-        CUser* u = it->second;
-        if (u != 0)
+        CUser* u;
+        if ((u = it->second) == 0)
         {
-            pkt.m_channel = u->GetIdByChannel();
-            pkt.m_charNo = u->GetUniqCharNo();
-            u->SendToGameserver((char*)&pkt, 0x2d);
+            continue;
         }
+        pkt.m_channel = u->GetIdByChannel();
+        pkt.m_charNo = u->GetUniqCharNo();
+        u->SendToGameserver((char*)&pkt, 0x2d);
     }
 }
 
@@ -936,7 +962,7 @@ void CGuild::SendGuildInfoToMemberOnly(CUser* user)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0127 | guild | 与ORIG差异=DIFF | CGuild::SendGuildInfoToManagers | 详见 function_reports/guild/_ZN6CGuild23SendGuildInfoToManagersEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0127 已消除）
 void CGuild::SendGuildInfoToManagers()
 {
     if ((m_guildDBFlag & 4) != 0)
@@ -949,37 +975,42 @@ void CGuild::SendGuildInfoToManagers()
         for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
              it != m_members.end(); ++it)
         {
-            CUser* u = it->second;
-            if (u != 0)
+            CUser* u;
+            if ((u = it->second) == 0)
             {
-                if (IsGuildMaster(u->GetUniqCharNo()) == 1 ||
-                    IsSubGuildMaster(u->GetUniqCharNo()) == 1)
-                {
-                    pkt.m_channel = u->GetIdByChannel();
-                    pkt.m_charNo = u->GetUniqCharNo();
-                    u->SendToGameserver((char*)&pkt, 0x139);
-                }
+                continue;
             }
+            // [P354] ORIG 两处 `call; xor $1; test; je` ⇒ 源码为 !A && !B 否定式守卫
+            if (!IsGuildMaster(u->GetUniqCharNo()) &&
+                !IsSubGuildMaster(u->GetUniqCharNo()))
+            {
+                continue;
+            }
+            pkt.m_channel = u->GetIdByChannel();
+            pkt.m_charNo = u->GetUniqCharNo();
+            u->SendToGameserver((char*)&pkt, 0x139);
         }
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0119 | guild | 与ORIG差异=DIFF | CGuild::SendToGuildForMail | 详见 function_reports/guild/_ZN6CGuild18SendToGuildForMailEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0119 已消除）| CGuild::SendToGuildForMail | 详见 function_reports/guild/_ZN6CGuild18SendToGuildForMailEv.md
 void CGuild::SendToGuildForMail()
 {
-    if ((m_guildDBFlag & 4) == 0)
+    if ((m_guildDBFlag & 4) != 0)
     {
-        return;
-    }
-    Packet_Monitor_Notify_New_Mail pkt;
-    for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-         it != m_members.end(); ++it)
-    {
-        CUser* m;
-        if ((m = it->second) == 0) { continue; }
-        pkt.me = m->GetIdByChannel();
-        pkt.ma = m->GetUniqCharNo();
-        m->SendToGameserver((char*)&pkt, 0x12);
+        Packet_Monitor_Notify_New_Mail pkt;
+        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+             it != m_members.end(); ++it)
+        {
+            CUser* m;
+            if ((m = it->second) == 0)
+            {
+                continue;
+            }
+            pkt.me = m->GetIdByChannel();
+            pkt.ma = m->GetUniqCharNo();
+            m->SendToGameserver((char*)&pkt, 0x12);
+        }
     }
 }
 
@@ -1001,25 +1032,24 @@ void CGuild::GuildSkillPointUp(unsigned short point)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0110 | guild | 与ORIG差异=DIFF | CGuild::BuyGuildSkill | 详见 function_reports/guild/_ZN6CGuild13BuyGuildSkillEiisj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0110 已消除）
 bool CGuild::BuyGuildSkill(int skillId, int slot, short param, unsigned int charNo)
 {
     if ((m_guildDBFlag & 4) != 0)
     {
     if ((int)m_dbInfo.m_info.m_guildSkillPoint < (int)(short)param)
     {
-        CMyFileLog log(__FUNCTION__, 0x3d2);
-        log("./log/GuildSkill", "BUY_SKILL_1, GKey(%d) , Idx(%d), lev(%d), gsp(%d)",
-            GetGuildKey(), skillId, slot,
-            (unsigned int)m_dbInfo.m_info.m_guildSkillPoint);
+        // [P227/P329] ORIG：变参在 ctor 前求值并跨 ctor 保活（全表达式临时链）
+        CMyFileLog(__FUNCTION__, 0x3d2)("./log/GuildSkill",
+            "BUY_SKILL_1, GKey(%d) , Idx(%d), lev(%d), gsp(%d)",
+            GetGuildKey(), skillId, slot, (unsigned int)m_dbInfo.m_info.m_guildSkillPoint);
         return 0;
     }
     if (m_dbInfo.m_info.m_guildFund < charNo)
     {
-        CMyFileLog log(__FUNCTION__, 0x3d9);
-        log("./log/GuildSkill", "BUY_SKILL_1, GKey(%d) , Idx(%d), lev(%d), guildfund(%d)",
-            GetGuildKey(), skillId, slot,
-            (unsigned int)m_dbInfo.m_info.m_guildFund);
+        CMyFileLog(__FUNCTION__, 0x3d9)("./log/GuildSkill",
+            "BUY_SKILL_1, GKey(%d) , Idx(%d), lev(%d), guildfund(%d)",
+            GetGuildKey(), skillId, slot, (unsigned int)m_dbInfo.m_info.m_guildFund);
         return 0;
     }
     SubGuildFund(charNo);
@@ -1037,8 +1067,8 @@ bool CGuild::BuyGuildSkill(int skillId, int slot, short param, unsigned int char
         unsigned char* learnCnt = &m_dbInfo.m_info.m_skillLearnCnt;
         if (*learnCnt > 0xf)
         {
-            CMyFileLog log(__FUNCTION__, 0x3ee);
-            log("./log/GuildSkill", "BUY_SKILL_ERR, GKey(%d) , Learn Cnt(%d)", GetGuildKey(),
+            CMyFileLog(__FUNCTION__, 0x3ee)("./log/GuildSkill",
+                "BUY_SKILL_ERR, GKey(%d) , Learn Cnt(%d)", GetGuildKey(),
                 (unsigned int)*learnCnt);
             *learnCnt = 0xf;
             return 0;
@@ -1051,17 +1081,18 @@ bool CGuild::BuyGuildSkill(int skillId, int slot, short param, unsigned int char
     {
         m_dbInfo.m_info.m_skills[found].m4 = (unsigned char)slot;
     }
-    if (m_dbInfo.m_info.m_guildSkillPoint < param)
-    {
-        m_dbInfo.m_info.m_guildSkillPoint = 0;
-    }
-    else
+    // [P297 反条件 if/else] ORIG：jl 直跳「置 0」尾块，减法路径直落
+    if (m_dbInfo.m_info.m_guildSkillPoint >= param)
     {
         m_dbInfo.m_info.m_guildSkillPoint -= (unsigned short)param;
     }
+    else
+    {
+        m_dbInfo.m_info.m_guildSkillPoint = 0;
+    }
     m_dBSaveFlag = 1;
-    CMyFileLog log(__FUNCTION__, 0x403);
-    log("./log/GuildSkill", "BUY_SKILL, GKey(%d) , Idx(%d), lev(%d), gsp(%d)", GetGuildKey(),
+    CMyFileLog(__FUNCTION__, 0x403)("./log/GuildSkill",
+        "BUY_SKILL, GKey(%d) , Idx(%d), lev(%d), gsp(%d)", GetGuildKey(),
         skillId, slot, (unsigned int)m_dbInfo.m_info.m_guildSkillPoint);
     return 1;
     }
@@ -1069,6 +1100,9 @@ bool CGuild::BuyGuildSkill(int skillId, int slot, short param, unsigned int char
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0109 | guild | 与ORIG差异=DIFF | CGuild::GuildLevelUp | 详见 function_reports/guild/_ZN6CGuild12GuildLevelUpEP14CServerHandlerP5CUser.md
+// [已试 2026-09-15 StaticsRest2] 两处根因：①空 then+else 的分支方向（ORIG `je` / 我方 `jne`+`mov $2`）
+//   ②`m_flags |= 2` 我方多一条中转 mov 且重载 this（ORIG 单次载入）。试过 `m_flags = m_flags | 2`
+//   （显式展开）⇒ 逐字节不变；类型已是 unsigned char（R6 无靶点）⇒ 登记「分支方向 + this 保活」族。
 int CGuild::GuildLevelUp(CServerHandler* handler, CUser* user)
 {
     if (user == 0)
@@ -1077,6 +1111,14 @@ int CGuild::GuildLevelUp(CServerHandler* handler, CUser* user)
     }
     if ((m_guildDBFlag & 4) != 0)
     {
+    // [P354 已试] 空 then+else（本形 nd=25/177 条）优于 De Morgan 正极性守卫
+    //   （`!=`&&`==0`：nd=25 但 178 条且多 `xor $1`；`!f()`：多 `xor $1`）—— 保持原形
+    // [2026-09-15 StaticsRest2] ORIG 该处为「整体 `||` 值物化」：
+    //   `call GetUniqCharNo; call GetMasterId; cmp; je .1; call GetUniqCharNo; call IsSubGuildMaster;
+    //    test %al,%al; je .0; .1: mov $0x1,%eax; jmp .t; .0: mov $0x0,%eax; .t: test %al,%al; je else`
+    //   我方无物化（`jne <T>; mov $0x2,%eax; jmp <T>`）⇒ 属「条件物化形态族」。
+    //   已试并回退：①空 then/De Morgan（P354，无改善）② `!f()` 单侧取反（多 `xor $1`）
+    //   ③ 交换 `||` 操作数次序（ndiff 6→**25** 劣化）。⇒ 登记死胡同。
     if (user->GetUniqCharNo() == GetMasterId() ||
         IsSubGuildMaster(user->GetUniqCharNo()))
     {
@@ -1087,9 +1129,9 @@ int CGuild::GuildLevelUp(CServerHandler* handler, CUser* user)
     }
     if (m_dbInfo.m_info.m_guildLevel + 1 > 0x10)
     {
-        int nextLev = m_dbInfo.m_info.m_guildLevel + 1;
-        CMyFileLog log(__FUNCTION__, 0x41d);
-        log("./log/GuildModify", "CGuild::GuildLevelUp Err (%d)", nextLev);
+        // [P329] ORIG：nextLev 不具名（`lea 0x1(%eax),%ebx` 寄存器保活，无 -0x14 槽）
+        CMyFileLog(__FUNCTION__, 0x41d)("./log/GuildModify",
+            "CGuild::GuildLevelUp Err (%d)", m_dbInfo.m_info.m_guildLevel + 1);
         return 3;
     }
     m_dbInfo.m_info.m_guildLevel += 1;
@@ -1107,17 +1149,13 @@ int CGuild::GuildLevelUp(CServerHandler* handler, CUser* user)
     }
     else
     {
-        CMyFileLog log(__FUNCTION__, 0x445);
-        log("./log/Except", "CGuild::GuildLevelUp : pclUser->GetGameServer() == 0");
+        CMyFileLog(__FUNCTION__, 0x445)("./log/Except",
+            "CGuild::GuildLevelUp : pclUser->GetGameServer() == 0");
     }
     SendGuildInfoToMembers(false);
-    {
-        unsigned short gsp = m_dbInfo.m_info.m_guildSkillPoint;
-        unsigned char lev = m_dbInfo.m_info.m_guildLevel;
-        unsigned int key = GetGuildKey();
-        CMyFileLog log(__FUNCTION__, 0x44a);
-        log("./log/GuildModify", "CGuild::GuildLevelUp(%d : %d)GSP(%d)", key, lev, gsp);
-    }
+    CMyFileLog(__FUNCTION__, 0x44a)("./log/GuildModify",
+        "CGuild::GuildLevelUp(%d : %d)GSP(%d)", GetGuildKey(),
+        m_dbInfo.m_info.m_guildLevel, m_dbInfo.m_info.m_guildSkillPoint);
     return 0;
     }
     return 2;
@@ -1134,85 +1172,83 @@ void CGuild::SendToGuild(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0129 | guild | 与ORIG差异=DIFF | CGuild::NoticeEnterToGuildMember | 详见 function_reports/guild/_ZN6CGuild24NoticeEnterToGuildMemberEPc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0129 已消除）
 void CGuild::NoticeEnterToGuildMember(char* info)
 {
-    if ((m_guildDBFlag & 4) == 0 && (m_guildDBFlag & 2) == 0)
+    // [P-nested-guard] 双早返 → 单尾岛復现
+    if (!((m_guildDBFlag & 4) == 0 && (m_guildDBFlag & 2) == 0))
     {
-        return;
-    }
-    if (m_members.empty())
-    {
-        return;
-    }
-    Packet_Monitor_Notice_Guild_Enter_ToUser pkt;
-    memcpy(&pkt.m_info, info, 0x46);
-    for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-         it != m_members.end(); ++it)
-    {
-        CUser* u;
-        if ((u = it->second) == 0) { continue; }
-        pkt.m_a = u->GetIdByChannel();
-        pkt.m_b = u->GetUniqCharNo();
-        pkt.m_totalCnt = m_dbInfo.m_info.m_totalCnt;
-        u->SendToGameserver((char*)&pkt, 0x5a);
+        if (m_members.empty())
+        {
+            return;
+        }
+        Packet_Monitor_Notice_Guild_Enter_ToUser pkt;
+        memcpy(&pkt.m_info, info, 0x46);
+        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+             // [2026-09-15 实测] 该件循环增量切后置 `it++` 令 ndiff 1→33（劣化）⇒ 保持 `++it`；
+             it != m_members.end(); ++it)
+        {
+            CUser* u;
+            if ((u = it->second) == 0) { continue; }
+            pkt.m_a = u->GetIdByChannel();
+            pkt.m_b = u->GetUniqCharNo();
+            pkt.m_totalCnt = m_dbInfo.m_info.m_totalCnt;
+            u->SendToGameserver((char*)&pkt, 0x5a);
+        }
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0131 | guild | 与ORIG差异=DIFF | CGuild::NoticeSecedeToGuildMember | 详见 function_reports/guild/_ZN6CGuild25NoticeSecedeToGuildMemberEPc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0131 已消除）
 void CGuild::NoticeSecedeToGuildMember(char* info)
 {
-    if ((m_guildDBFlag & 4) == 0)
+    // [P-nested-guard] 双早返 → 单尾岛復现
+    if ((m_guildDBFlag & 4) != 0)
     {
-        return;
-    }
-    if (m_members.empty())
-    {
-        return;
-    }
-    Packet_Monitor_Notice_Guild_Secede_ToUser pkt;
-    memcpy(&pkt.m_info, info, 0x43);
-    for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-         it != m_members.end(); ++it)
-    {
-        CUser* u;
-        if ((u = it->second) == 0) { continue; }
-        pkt.m_channel = u->GetIdByChannel();
-        pkt.m_charNo = u->GetUniqCharNo();
-        u->SendToGameserver((char*)&pkt, 0x55);
+        if (m_members.empty())
+        {
+            return;
+        }
+        Packet_Monitor_Notice_Guild_Secede_ToUser pkt;
+        memcpy(&pkt.m_info, info, 0x43);
+        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+             it != m_members.end(); ++it)
+        {
+            CUser* u;
+            if ((u = it->second) == 0) { continue; }
+            pkt.m_channel = u->GetIdByChannel();
+            pkt.m_charNo = u->GetUniqCharNo();
+            u->SendToGameserver((char*)&pkt, 0x55);
+        }
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0141 | guild | 与ORIG差异=DIFF | CGuild::NoticeMarkChangeToGuildMember | 详见 function_reports/guild/_ZN6CGuild29NoticeMarkChangeToGuildMemberEj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0141 已消除）| CGuild::NoticeMarkChangeToGuildMember | 详见 function_reports/guild/_ZN6CGuild29NoticeMarkChangeToGuildMemberEj.md
 void CGuild::NoticeMarkChangeToGuildMember(unsigned int charNo)
 {
-    if ((m_guildDBFlag & 4) == 0)
+    if ((m_guildDBFlag & 4) != 0)
     {
-        return;
-    }
-    if (m_members.empty())
-    {
-        return;
-    }
-    Packet_Monitor_Notice_Guild_Mark_Change_ToUser pkt;
-    for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-         it != m_members.end(); ++it)
-    {
-        CUser* member;
-        if ((member = it->second) == 0) { continue; }
-        int channel = member->GetIdByChannel();
-        unsigned int memberNo = member->GetUniqCharNo();
-        pkt.m_channel = channel;
-        pkt.m_charNo = memberNo;
-        pkt.m_charNo2 = charNo;
-        CMyFileLog log(__FUNCTION__, 0x4bf);
-        log("./log/Web", "[GUILD MARK CHANGE] Send to game server. (channel:%d, character:%u, guildkey:%d)\n",
-            channel, memberNo, charNo);
-        member->SendToGameserver((char*)&pkt, 0x16);
+        if (m_members.empty())
+        {
+            return;
+        }
+        Packet_Monitor_Notice_Guild_Mark_Change_ToUser pkt;
+        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+             it != m_members.end(); ++it)
+        {
+            CUser* member;
+            if ((member = it->second) == 0) { continue; }
+            pkt.m_channel = member->GetIdByChannel();
+            pkt.m_charNo = member->GetUniqCharNo();
+            pkt.m_charNo2 = charNo;
+            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x4bf, "./log/Web",
+                "[GUILD MARK CHANGE] Send to game server. (channel:%d, character:%u, guildkey:%d)\n",
+                pkt.m_channel, pkt.m_charNo, pkt.m_charNo2);
+            member->SendToGameserver((char*)&pkt, 0x16);
+        }
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0139 | guild | 与ORIG差异=DIFF | CGuild::NoticeChatMsgToGuildMembers | 详见 function_reports/guild/_ZN6CGuild27NoticeChatMsgToGuildMembersEjPciPKc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0139 已消除）
 void CGuild::NoticeChatMsgToGuildMembers(unsigned int charNo, char* msg, int len,
                                          const char* name)
 {
@@ -1220,27 +1256,27 @@ void CGuild::NoticeChatMsgToGuildMembers(unsigned int charNo, char* msg, int len
     {
         return;
     }
-    if ((m_guildDBFlag & 4) == 0)
+    // [P-nested-guard] 后两个守卫内联（4.4 按早返数发岛；ORIG 只两岛）
+    if ((m_guildDBFlag & 4) != 0)
     {
-        return;
-    }
-    if (m_members.empty())
-    {
-        return;
-    }
-    Packet_Monitor_Guild_Chat_ToUser pkt;
-    for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-         it != m_members.end(); ++it)
-    {
-        CUser* u;
-        if ((u = it->second) == 0) { continue; }
-        pkt.m_channel = u->GetIdByChannel();
-        pkt.m_charNo = u->GetUniqCharNo();
-        memcpy(pkt.m_name, name, 0x1d);
-        pkt.m_len = (unsigned char)len;
-        memcpy(pkt.m_msg, msg, len);
-        pkt.packetSize = (unsigned short)(len + 0x31);
-        u->SendToGameserver((char*)&pkt, (unsigned int)(unsigned short)(len + 0x31));
+        if (m_members.empty())
+        {
+            return;
+        }
+        Packet_Monitor_Guild_Chat_ToUser pkt;
+        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+             it != m_members.end(); ++it)
+        {
+            CUser* u;
+            if ((u = it->second) == 0) { continue; }
+            pkt.m_channel = u->GetIdByChannel();
+            pkt.m_charNo = u->GetUniqCharNo();
+            memcpy(pkt.m_name, name, 0x1d);
+            pkt.m_len = (unsigned char)len;
+            memcpy(pkt.m_msg, msg, len);
+            pkt.packetSize = (unsigned short)(len + 0x31);
+            u->SendToGameserver((char*)&pkt, pkt.packetSize);
+        }
     }
 }
 
@@ -1254,49 +1290,55 @@ void CGuild::NoticeChatMsgToGuildMembersHyperLink(unsigned int charNo, char* msg
     {
         return;
     }
-    if ((m_guildDBFlag & 4) == 0)
+    // [P-nested-guard] 后两个守卫内联（4.4 按早返数发岛；ORIG 只两岛）
+    if ((m_guildDBFlag & 4) != 0)
     {
-        return;
-    }
-    if (m_members.empty())
-    {
-        return;
-    }
-    Packet_Monitor_Guild_Chat_ToUser_Hyper_Link pkt;
-    for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-         it != m_members.end(); ++it)
-    {
-        CUser* user;
-        if ((user = it->second) == 0) { continue; }
-        pkt.m_channel = user->GetIdByChannel();
-        pkt.m_charNo = user->GetUniqCharNo();
-        memcpy(pkt.m_name, name, 0x1d);
-        pkt.m_type = type;
-        for (int i = 0; i < (int)type; i++)
+        if (m_members.empty())
         {
-            memcpy(pkt.m_items + i * 0x68, (char*)link + i * 0x68, 0x68);
+            return;
         }
-        pkt.m_len = (char)len;
-        memcpy(pkt.m_msg, msg, (size_t)len);
-        pkt.packetSize = (unsigned short)(len + 0x16a);
-        user->SendToGameserver((char*)&pkt, (unsigned int)(len + 0x16a));
+        Packet_Monitor_Guild_Chat_ToUser_Hyper_Link pkt;
+        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+             it != m_members.end(); ++it)
+        {
+            CUser* user;
+            if ((user = it->second) == 0) { continue; }
+            pkt.m_channel = user->GetIdByChannel();
+            pkt.m_charNo = user->GetUniqCharNo();
+            memcpy(pkt.m_name, name, 0x1d);
+            pkt.m_type = type;
+            for (int i = 0; i < (int)type; i++)
+            {
+                // m_items@+0x31 = m_type(+0x30)+1：ORIG 以 add $0x30 / add $1 两步取址
+                // （试过改写为 `pkt.m_items + i * 0x68`：ndiff 5→10，已回退）
+                memcpy((char*)&pkt.m_type + 1 + i * 0x68,
+                       (char*)link + i * 0x68, 0x68);
+            }
+            pkt.m_len = (char)len;
+            memcpy(pkt.m_msg, msg, (size_t)len);
+            pkt.packetSize = (unsigned short)(len + 0x16a);
+            user->SendToGameserver((char*)&pkt, pkt.packetSize);
+        }
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0138 | guild | 与ORIG差异=DIFF | CGuild::DismissGuildMemberAndNotice | 详见 function_reports/guild/_ZN6CGuild27DismissGuildMemberAndNoticeEi.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0138 已消除）
 void CGuild::DismissGuildMemberAndNotice(int group)
 {
-    if ((m_guildDBFlag & 4) == 0)
-        return;
-    if (m_members.empty())
-        return;
-    Packet_Monitor_Notice_Guild_Dismiss_ToUser notice;
-    for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-         it != m_members.end(); ++it)
+    // [P-nested-guard] 双早返 → 单尾岛復现
+    if ((m_guildDBFlag & 4) != 0)
     {
-        CUser* user = it->second;
-        if (user)
+        if (m_members.empty())
+            return;
+        Packet_Monitor_Notice_Guild_Dismiss_ToUser notice;
+        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+             it != m_members.end(); ++it)
         {
+            CUser* user;
+            if ((user = it->second) == 0)
+            {
+                continue;
+            }
             notice.m_channel = user->GetIdByChannel();
             notice.m_charNo = user->GetUniqCharNo();
             user->SendToGameserver((char*)&notice, 0x12);
@@ -1311,36 +1353,46 @@ void CGuild::DismissGuildMemberAndNotice(int group)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0133 | guild | 与ORIG差异=DIFF | CGuild::NoticeGuildMemberLogin_Out | 详见 function_reports/guild/_ZN6CGuild26NoticeGuildMemberLogin_OutEP5CUserc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0133 已消除）| CGuild::NoticeGuildMemberLogin_Out | 详见 function_reports/guild/_ZN6CGuild26NoticeGuildMemberLogin_OutEP5CUserc.md
 void CGuild::NoticeGuildMemberLogin_Out(CUser* user, char flag)
 {
+    // [P360] 第一组保持 `||`（ORIG 此处为 bool 物化 `jne;mov $1;jmp;mov $0`）
     if (user == 0 || user->GetGameServer() == 0)
     {
         return;
     }
-    if ((m_guildDBFlag & 4) == 0 || m_members.empty())
+    if ((m_guildDBFlag & 4) != 0)
     {
-        return;
-    }
-    Packet_Monitor_Notice_Guild_Member_Login_out pkt;
-    for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-         it != m_members.end(); ++it)
-    {
-        CUser* member = it->second;
-        if (member == 0 || member == user)
+        if (m_members.empty())
         {
-            continue;
+            return;
         }
-        if (user->IsBlackUser(member->GetUniqCharNo()))
         {
-            continue;
+        Packet_Monitor_Notice_Guild_Member_Login_out pkt;
+        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+             it != m_members.end(); ++it)
+        {
+            CUser* member;
+            if ((member = it->second) == 0)
+            {
+                continue;
+            }
+            if (member == user)
+            {
+                continue;
+            }
+            if (user->IsBlackUser(member->GetUniqCharNo()))
+            {
+                continue;
+            }
+            pkt.m_flag = flag;
+            pkt.m_channel = member->GetIdByChannel();
+            pkt.m_charNo = member->GetUniqCharNo();
+            pkt.m_channelNo = (char)user->GetGameServer()->GetChannelNo();
+            memcpy(pkt.m_name, user->GetCharName(), 0x1d);
+            member->SendToGameserver((char*)&pkt, 0x32);
         }
-        pkt.m_flag = flag;
-        pkt.m_channel = member->GetIdByChannel();
-        pkt.m_charNo = member->GetUniqCharNo();
-        pkt.m_channelNo = (char)user->GetGameServer()->GetChannelNo();
-        memcpy(pkt.m_name, user->GetCharName(), 0x1d);
-        member->SendToGameserver((char*)&pkt, 0x32);
+        }
     }
 }
 
@@ -1359,11 +1411,11 @@ int CGuild::ReplyGuildMembersToWeb(STGuildMemberWebConnInfo* info)
         {
             if (it->second != 0 && !(299 < count))
             {
-                STGuildMemberWebConnInfo_Rec* rec = &info->m_members[count];
-                rec->m_charNo = it->second->GetUniqCharNo();
+                // [P348/P183] ORIG 无 rec 具名局部（指针在 %ebx 保活，地址重物化）
+                (info->m_members + count)->m_charNo = it->second->GetUniqCharNo();
                 if (it->second->GetGameServer() != 0)
                 {
-                    rec->m_channel = it->second->GetGameServer()->GetChannelNo();
+                    (info->m_members + count)->m_channel = it->second->GetGameServer()->GetChannelNo();
                 }
                 count++;
             }
@@ -1375,93 +1427,103 @@ int CGuild::ReplyGuildMembersToWeb(STGuildMemberWebConnInfo* info)
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0114 | guild | 与ORIG差异=DIFF | CGuild::ReplyGuildMembers | 详见 function_reports/guild/_ZN6CGuild17ReplyGuildMembersEP5CUser.md
 void CGuild::ReplyGuildMembers(CUser* user)
 {
-    if (user == 0 || (m_guildDBFlag & 4) == 0 || m_members.empty())
+    if (user == 0)
     {
         return;
     }
-    Packet_Monitor_Call_Guild_Members_ToChannel pkt;
-    char* buf = (char*)&pkt;
-    *(unsigned int*)(buf + 0x12) = m_guildKey;
-    memcpy(buf + 0x16, m_dbInfo.m_info.m_guildName, 0x16);
-    *(unsigned int*)(buf + 0x2e) = m_dbInfo.m_info.m_guildPoint;
-    *(unsigned short*)(buf + 0x32) = m_dbInfo.m_info.m_totalCnt;
-    int count = 0;
-    std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-    while (it != m_members.end())
+    if ((m_guildDBFlag & 4) != 0)
     {
-        CUser* m = it->second;
-        char* rec = buf + 0x34 + count * 0x3f;
-        rec[0] = m->GetJob();
-        rec[1] = m->GetGrowthType();
-        *(unsigned short*)(rec + 2) = m->GetLevel();
-        memcpy(rec + 4, m->GetCharName(), 0x1d);
-        rec[0x38] = m->GetSex();
-        if (m->GetGameServer() != 0)
+        if (m_members.empty())
         {
-            rec[0x37] = m->GetGameServer()->GetChannelNo();
+            return;
         }
-        memcpy(rec + 0x22, (char*)m->GetGuildMemDBInfo(), 0x14);
-        rec[0x3a] = (char)m->GetGuildMemDBInfo()->m_grade;
-        if (m->IsBlackUser(user->GetUniqCharNo()) != 0)
-        {
-            rec[0x39] = 1;
-        }
-        count++;
-        ++it;
-        if (0x5f < count)
-        {
-            break;
-        }
-    }
-    *(unsigned char*)(buf + 0x2d) = (unsigned char)count;
-    *(unsigned short*)(buf + 2) = (unsigned short)(count * 0x3f + 0x34);
-    *(unsigned int*)(buf + 0xa) = user->GetIdByChannel();
-    *(unsigned int*)(buf + 0xe) = user->GetUniqCharNo();
-    user->SendToGameserver(buf, count * 0x3f + 0x34);
-    if (it != m_members.end())
-    {
-        Packet_Monitor_Call_Guild_Members_ToChannel_Next pkt2;
-        char* buf2 = (char*)&pkt2;
-        *(unsigned int*)(buf2 + 0x12) = m_guildKey;
-        int cnt2 = 0;
+        Packet_Monitor_Call_Guild_Members_ToChannel pkt;
+        pkt.m_guildKey = m_guildKey;
+        memcpy(pkt.m_guildName, m_dbInfo.m_info.m_guildName, 0x16);
+        pkt.m_guildPoint = m_dbInfo.m_info.m_guildPoint;
+        pkt.m_totalCnt = m_dbInfo.m_info.m_totalCnt;
+        int count = 0;
+        std::map<unsigned int, CUser*>::iterator it;
+        it = m_members.begin();
         while (it != m_members.end())
         {
-            CUser* m = it->second;
-            char* rec = buf2 + 0x17 + cnt2 * 0x3f;
-            rec[0] = m->GetJob();
-            rec[1] = m->GetGrowthType();
-            *(unsigned short*)(rec + 2) = m->GetLevel();
-            memcpy(rec + 4, m->GetCharName(), 0x1d);
-            rec[0x38] = m->GetSex();
-            if (m->GetGameServer() != 0)
+            pkt.m_members[count].f.m_job = it->second->GetJob();
+            pkt.m_members[count].f.m_growthType = it->second->GetGrowthType();
+            pkt.m_members[count].f.m_level = it->second->GetLevel();
+            memcpy(pkt.m_members[count].f.m_name, it->second->GetCharName(), 0x1d);
+            pkt.m_members[count].f.m_sex = it->second->GetSex();
+            if (it->second->GetGameServer() != 0)
             {
-                rec[0x37] = m->GetGameServer()->GetChannelNo();
+                pkt.m_members[count].f.m_channel =
+                    it->second->GetGameServer()->GetChannelNo();
             }
-            memcpy(rec + 0x22, (char*)m->GetGuildMemDBInfo(), 0x14);
-            rec[0x3a] = (char)m->GetGuildMemDBInfo()->m_grade;
-            if (m->IsBlackUser(user->GetUniqCharNo()) != 0)
+            memcpy(pkt.m_members[count].f.m_guildMemDBInfo,
+                   (char*)it->second->GetGuildMemDBInfo(), 0x14);
+            pkt.m_members[count].f.m_grade =
+                (char)it->second->GetGuildMemDBInfo()->m_grade;
+            if (it->second->IsBlackUser(user->GetUniqCharNo()))
             {
-                rec[0x39] = 1;
+                pkt.m_members[count].f.m_blackUser = 1;
             }
-            cnt2++;
+            count++;
+            if (0x5f < count)
+            {
+                break;
+            }
             ++it;
-            if (0x5f < cnt2)
-            {
-                *(unsigned char*)(buf2 + 0x16) = (unsigned char)cnt2;
-                *(unsigned short*)(buf2 + 2) = 0x17b7;
-                *(unsigned int*)(buf2 + 0xa) = user->GetIdByChannel();
-                *(unsigned int*)(buf2 + 0xe) = user->GetUniqCharNo();
-                user->SendToGameserver(buf2, 0x17b7);
-                cnt2 = 0;
-            }
         }
-        if (cnt2 != 0)
+        pkt.m_count = (unsigned char)count;
+        pkt.packetSize = (unsigned short)(pkt.m_count * 0x3f + 0x34);
+        pkt.m_channel = user->GetIdByChannel();
+        pkt.m_charNo = user->GetUniqCharNo();
+        user->SendToGameserver((char*)&pkt, pkt.packetSize);
+        if (it != m_members.end())
         {
-            *(unsigned char*)(buf2 + 0x16) = (unsigned char)cnt2;
-            *(unsigned short*)(buf2 + 2) = (unsigned short)(cnt2 * 0x3f + 0x17);
-            *(unsigned int*)(buf2 + 0xa) = user->GetIdByChannel();
-            *(unsigned int*)(buf2 + 0xe) = user->GetUniqCharNo();
-            user->SendToGameserver(buf2, cnt2 * 0x3f + 0x17);
+            Packet_Monitor_Call_Guild_Members_ToChannel_Next pkt2;
+            pkt2.m_guildKey = m_guildKey;
+            count = 0;
+            std::map<unsigned int, CUser*>::iterator it2;
+            it2 = it;
+            while (it2 != m_members.end())
+            {
+                pkt2.m_members[count].f.m_job = it2->second->GetJob();
+                pkt2.m_members[count].f.m_growthType = it2->second->GetGrowthType();
+                pkt2.m_members[count].f.m_level = it2->second->GetLevel();
+                memcpy(pkt2.m_members[count].f.m_name, it2->second->GetCharName(), 0x1d);
+                pkt2.m_members[count].f.m_sex = it2->second->GetSex();
+                if (it2->second->GetGameServer() != 0)
+                {
+                    pkt2.m_members[count].f.m_channel =
+                        it2->second->GetGameServer()->GetChannelNo();
+                }
+                memcpy(pkt2.m_members[count].f.m_guildMemDBInfo,
+                       (char*)it2->second->GetGuildMemDBInfo(), 0x14);
+                pkt2.m_members[count].f.m_grade =
+                    (char)it2->second->GetGuildMemDBInfo()->m_grade;
+                if (it2->second->IsBlackUser(user->GetUniqCharNo()))
+                {
+                    pkt2.m_members[count].f.m_blackUser = 1;
+                }
+                count++;
+                ++it2;
+                if (0x5f < count)
+                {
+                    pkt2.m_count = (unsigned char)count;
+                    pkt2.packetSize = 0x17b7;
+                    pkt2.m_channel = user->GetIdByChannel();
+                    pkt2.m_charNo = user->GetUniqCharNo();
+                    user->SendToGameserver((char*)&pkt2, pkt2.packetSize);
+                    count = 0;
+                }
+            }
+            if (count != 0)
+            {
+                pkt2.m_count = (unsigned char)count;
+                pkt2.packetSize = (unsigned short)(pkt2.m_count * 0x3f + 0x17);
+                pkt2.m_channel = user->GetIdByChannel();
+                pkt2.m_charNo = user->GetUniqCharNo();
+                user->SendToGameserver((char*)&pkt2, pkt2.packetSize);
+            }
         }
     }
 }
@@ -1491,12 +1553,12 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
         return;
     }
     Packet_Monitor_Call_Guild_All_Members_ToChannel pkt;
-    char* buf = (char*)&pkt;
     pkt.m_guildKey = m_guildKey;
-    memcpy(buf + 0x16, m_dbInfo.m_info.m_guildName, 0x16);
+    memcpy(pkt.m_guildName, m_dbInfo.m_info.m_guildName, 0x16);
     pkt.m_guildPoint = m_dbInfo.m_info.m_guildPoint;
     pkt.m_totalCnt = m_totalCnt;
-    unsigned short total = m_totalCnt;
+    CUser* m;
+    int idx;
     int count = 0;
     if (m_dbInfo.m_info.m_totalCnt != m_totalCnt)
     {
@@ -1505,43 +1567,40 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
             (unsigned int)m_totalCnt);
         m_dbInfo.m_info.m_totalCnt = m_totalCnt;
     }
-    int idx = 0;
-    for (idx = 0; idx < (int)total; idx++)
+    for (idx = 0; idx < (int)m_totalCnt; idx++)
     {
-        char* src = (char*)&m_dbInfo.m_members[idx];
-        char* rec = buf + 0x34 + count * 0x3f;
-        rec[0] = src[0x22];
-        rec[1] = src[0x23];
-        *(unsigned short*)(rec + 2) = *(unsigned short*)(src + 0x24);
-        memcpy(rec + 4, src + 4, 0x1d);
-        rec[0x38] = src[0x26];
-        rec[0x3a] = src[0x27];
-        *(unsigned int*)(rec + 0x3b) = *(unsigned int*)(src + 0x28);
-        CUser* m = FindGuildMember(*(unsigned int*)src);
-        if (m == 0)
+
+        pkt.m_members[count].f.m_job = m_dbInfo.m_members[idx].m_job;
+        pkt.m_members[count].f.m_growthType = m_dbInfo.m_members[idx].m_growType;
+        pkt.m_members[count].f.m_level = (short)m_dbInfo.m_members[idx].m_lev;
+        memcpy(pkt.m_members[count].f.m_name, m_dbInfo.m_members[idx].m_name, 0x1d);
+        pkt.m_members[count].f.m_sex = m_dbInfo.m_members[idx].m_sex;
+        pkt.m_members[count].f.m_grade = m_dbInfo.m_members[idx].m_grade;
+        pkt.m_members[count].f.m_pad3b = m_dbInfo.m_members[idx].m_lastPlayTime;
+        if ((m = FindGuildMember(m_dbInfo.m_members[idx].m_no)) != 0)
         {
-            memcpy(rec + 0x22, src + 0x2c, 0x14);
-        }
-        else
-        {
-            rec[1] = m->GetGrowthType();
-            *(unsigned short*)(rec + 2) = m->GetLevel();
+            pkt.m_members[count].f.m_growthType = m->GetGrowthType();
+            pkt.m_members[count].f.m_level = (short)m->GetLevel();
             if (m->GetGameServer() == 0)
             {
                 DNF_LOG_SCOPE_LINE(0x658,"./log/Except",
                     "CGuild::ReplyGuildMembers() Guild Key : %d\tGuild Name : %s\tDB Id : %d\tChar Id : %d\n",
-                    GetGuildKey(), GetGuildName(), m->GetDBID(), *(unsigned int*)src);
+                    GetGuildKey(), GetGuildName(), m->GetDBID(), m_dbInfo.m_members[idx].m_no);
             }
             else
             {
-                rec[0x37] = m->GetGameServer()->GetChannelNo();
-                memcpy(rec + 0x22, (char*)m->GetGuildMemDBInfo(), 0x14);
-                rec[0x3a] = (char)m->GetGuildMemDBInfo()->m_grade;
+                pkt.m_members[count].f.m_channel = m->GetGameServer()->GetChannelNo();
+                memcpy(pkt.m_members[count].f.m_guildMemDBInfo, (char*)m->GetGuildMemDBInfo(), 0x14);
+                pkt.m_members[count].f.m_grade = (char)m->GetGuildMemDBInfo()->m_grade;
             }
             if (m->IsBlackUser(user->GetUniqCharNo()) != 0)
             {
-                rec[0x39] = 1;
+                pkt.m_members[count].f.m_blackUser = 1;
             }
+        }
+        else
+        {
+            memcpy(pkt.m_members[count].f.m_guildMemDBInfo, m_dbInfo.m_members[idx].m_memo, 0x14);
         }
         count++;
         if (0x5f < count)
@@ -1549,74 +1608,71 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
             break;
         }
     }
-    *(unsigned char*)(buf + 0x33) = (unsigned char)count;
-    *(unsigned short*)(buf + 2) = (unsigned short)(count * 0x3f + 0x34);
-    *(unsigned int*)(buf + 0xa) = user->GetIdByChannel();
-    *(unsigned int*)(buf + 0xe) = user->GetUniqCharNo();
-    user->SendTcpGameserver((PacketHeader*)buf);
-    if (count < (int)total)
+    pkt.m_count = (unsigned char)count;
+    pkt.packetSize = (unsigned short)(pkt.m_count * 0x3f + 0x34);
+    pkt.m_channel = user->GetIdByChannel();
+    pkt.m_charNo = user->GetUniqCharNo();
+    user->SendTcpGameserver((PacketHeader*)&pkt);
+    if (count < (int)m_totalCnt)
     {
         Packet_Monitor_Call_Guild_All_Members_ToChannel_Next pkt2;
-        char* buf2 = (char*)&pkt2;
-        *(unsigned int*)(buf2 + 0x12) = m_guildKey;
-        int cnt2 = 0;
-        for (int i = idx + 1; i < (int)total; i++)
+        pkt2.m_guildKey = m_guildKey;
+        count = 0;
+        for (int i = idx + 1; i < (int)m_totalCnt; i++)
         {
-            char* src = (char*)&m_dbInfo.m_members[i];
-            char* rec = buf2 + 0x17 + cnt2 * 0x3f;
-            rec[0] = src[0x22];
-            rec[1] = src[0x23];
-            *(unsigned short*)(rec + 2) = *(unsigned short*)(src + 0x24);
-            memcpy(rec + 4, src + 4, 0x1d);
-            rec[0x38] = src[0x26];
-            rec[0x3a] = src[0x27];
-            *(unsigned int*)(rec + 0x3b) = *(unsigned int*)(src + 0x28);
-            CUser* m = FindGuildMember(*(unsigned int*)src);
-            if (m == 0)
+
+            pkt2.m_members[count].f.m_job = m_dbInfo.m_members[i].m_job;
+            pkt2.m_members[count].f.m_growthType = m_dbInfo.m_members[i].m_growType;
+            pkt2.m_members[count].f.m_level = (short)m_dbInfo.m_members[i].m_lev;
+            memcpy(pkt2.m_members[count].f.m_name, m_dbInfo.m_members[i].m_name, 0x1d);
+            pkt2.m_members[count].f.m_sex = m_dbInfo.m_members[i].m_sex;
+            pkt2.m_members[count].f.m_grade = m_dbInfo.m_members[i].m_grade;
+            pkt2.m_members[count].f.m_pad3b = m_dbInfo.m_members[i].m_lastPlayTime;
+            if ((m = FindGuildMember(m_dbInfo.m_members[i].m_no)) != 0)
             {
-                rec[0] = (char)0xff;
-                memset(rec + 0x22, 0, 0x14);
-                rec[0x38] = 0;
-            }
-            else
-            {
-                rec[1] = m->GetGrowthType();
-                *(unsigned short*)(rec + 2) = m->GetLevel();
+                pkt2.m_members[count].f.m_growthType = m->GetGrowthType();
+                pkt2.m_members[count].f.m_level = (short)m->GetLevel();
                 if (m->GetGameServer() == 0)
                 {
                     DNF_LOG_SCOPE_LINE(0x695,"./log/Except",
                         "CGuild::ReplyGuildMembers() Guild Key : %d\tGuild Name : %s\tDB Id : %d\tChar Id : %d\n",
-                        GetGuildKey(), GetGuildName(), m->GetDBID(), *(unsigned int*)src);
+                        GetGuildKey(), GetGuildName(), m->GetDBID(), m_dbInfo.m_members[i].m_no);
                 }
                 else
                 {
-                    rec[0x37] = m->GetGameServer()->GetChannelNo();
-                    memcpy(rec + 0x22, (char*)m->GetGuildMemDBInfo(), 0x14);
-                    rec[0x3a] = (char)m->GetGuildMemDBInfo()->m_grade;
+                    pkt2.m_members[count].f.m_channel = m->GetGameServer()->GetChannelNo();
+                    memcpy(pkt2.m_members[count].f.m_guildMemDBInfo, (char*)m->GetGuildMemDBInfo(), 0x14);
+                    pkt2.m_members[count].f.m_grade = (char)m->GetGuildMemDBInfo()->m_grade;
                 }
                 if (m->IsBlackUser(user->GetUniqCharNo()) != 0)
                 {
-                    rec[0x39] = 1;
+                    pkt2.m_members[count].f.m_blackUser = 1;
                 }
             }
-            cnt2++;
-            if (0x5f < cnt2)
+            else
             {
-                *(unsigned char*)(buf2 + 0x16) = (unsigned char)cnt2;
-                *(unsigned short*)(buf2 + 2) = 0x17b7;
-                *(unsigned int*)(buf2 + 0xa) = user->GetIdByChannel();
-                *(unsigned int*)(buf2 + 0xe) = user->GetUniqCharNo();
-                user->SendTcpGameserver((PacketHeader*)buf2);
-                cnt2 = 0;
+                pkt2.m_members[count].f.m_job = (char)0xff;
+                memset(pkt2.m_members[count].f.m_guildMemDBInfo, 0, 0x14);
+                pkt2.m_members[count].f.m_sex = 0;
+            }
+            count++;
+            if (0x5f < count)
+            {
+                pkt2.m_count = (unsigned char)count;
+                pkt2.packetSize = 0x17b7;
+                pkt2.m_channel = user->GetIdByChannel();
+                pkt2.m_charNo = user->GetUniqCharNo();
+                user->SendTcpGameserver((PacketHeader*)&pkt2);
+                count = 0;
             }
         }
-        if (cnt2 != 0)
+        if (count != 0)
         {
-            *(unsigned char*)(buf2 + 0x16) = (unsigned char)cnt2;
-            *(unsigned short*)(buf2 + 2) = (unsigned short)(cnt2 * 0x3f + 0x17);
-            *(unsigned int*)(buf2 + 0xa) = user->GetIdByChannel();
-            *(unsigned int*)(buf2 + 0xe) = user->GetUniqCharNo();
-            user->SendTcpGameserver((PacketHeader*)buf2);
+            pkt2.m_count = (unsigned char)count;
+            pkt2.packetSize = (unsigned short)(pkt2.m_count * 0x3f + 0x17);
+            pkt2.m_channel = user->GetIdByChannel();
+            pkt2.m_charNo = user->GetUniqCharNo();
+            user->SendTcpGameserver((PacketHeader*)&pkt2);
         }
     }
 }
@@ -1645,7 +1701,7 @@ void CGuild::CallGuildAllMembersProxy(CUser* user, CServerHandler* handler)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0128 | guild | 与ORIG差异=DIFF | CGuild::LoadGuildAllMembersProxy | 详见 function_reports/guild/_ZN6CGuild24LoadGuildAllMembersProxyEP18STGuildMemberProxyhh.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0128 已消除）
 void CGuild::LoadGuildAllMembersProxy(STGuildMemberProxy* proxy, unsigned char flag,
                                       unsigned char param)
 {
@@ -1658,85 +1714,107 @@ void CGuild::LoadGuildAllMembersProxy(STGuildMemberProxy* proxy, unsigned char f
         }
         else
         {
-            memcpy(&((CGuildMemberMainArray*)this)->m_members[m_totalCnt].m_charNo,
-                   proxy, (size_t)param * 0x41);
+            memcpy(&m_dbInfo.m_members[m_totalCnt].m_no, proxy, (size_t)param * 0x41);
             m_totalCnt = (unsigned short)(m_totalCnt + param);
         }
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0125 | guild | 与ORIG差异=DIFF | CGuild::LoadGuildOneMemberProxy | 详见 function_reports/guild/_ZN6CGuild23LoadGuildOneMemberProxyEP5CUser.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0125 已消除）
 bool CGuild::LoadGuildOneMemberProxy(CUser* user)
 {
-    if ((m_guildDBFlag & 4) == 0 || (m_guildDBFlag & 8) == 0)
+    if ((m_guildDBFlag & 4) != 0 && (m_guildDBFlag & 8) != 0)
     {
-        return 0;
-    }
-    if (m_totalCnt <= 0x12b)
-    {
-        unsigned short idx = m_totalCnt;
-        ((CGuildMemberMainArray*)this)->m_members[idx].m_charNo = user->GetUniqCharNo();
-        memcpy(((CGuildMemberMainArray*)this)->m_members[idx].m_name,
-               user->GetCharName(), 0x1d);
-        ((CGuildMemberExtraArray*)this)->m_members[idx].m_job = (char)user->GetJob();
-        ((CGuildMemberExtraArray*)this)->m_members[idx].m_growth = (char)user->GetGrowthType();
-        ((CGuildMemberExtraArray*)this)->m_members[idx].m_sex = (char)user->GetSex();
-        ((CGuildMemberExtraArray*)this)->m_members[idx].m_level =
-            (unsigned short)user->GetLevel();
-        m_totalCnt++;
-    }
-    if (m_totalCnt > 0x12b)
-    {
-        CMyFileLog log(__FUNCTION__, 0x73d);
-        log("./log/GuildErr", "Guild Member Cnt Full Or Over : G Key(%d), Cnt(%d)", m_guildKey,
-            (unsigned int)m_totalCnt);
-        if (m_totalCnt > 0x12c)
+        if (m_totalCnt <= 0x12b)
         {
-            m_totalCnt = 0x12c;
+            m_dbInfo.m_members[m_totalCnt].m_no = user->GetUniqCharNo();
+            memcpy(m_dbInfo.m_members[m_totalCnt].m_name, user->GetCharName(), 0x1d);
+            m_dbInfo.m_members[m_totalCnt].m_job = user->GetJob();
+            m_dbInfo.m_members[m_totalCnt].m_growType = user->GetGrowthType();
+            m_dbInfo.m_members[m_totalCnt].m_sex = user->GetSex();
+            m_dbInfo.m_members[m_totalCnt].m_lev = user->GetLevel();
+            m_totalCnt++;
         }
+        if (m_totalCnt > 0x12b)
+        {
+            CMyFileLog(__FUNCTION__, 0x73d)("./log/GuildErr",
+                "Guild Member Cnt Full Or Over : G Key(%d), Cnt(%d)", m_guildKey,
+                (unsigned int)m_totalCnt);
+            if (m_totalCnt > 0x12c)
+            {
+                m_totalCnt = 0x12c;
+            }
+        }
+        m_dbInfo.m_info.m_totalCnt = m_totalCnt;
+        return 1;
     }
-    m_dbInfo.m_info.m_totalCnt = m_totalCnt;
-    return 1;
+    return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0126 | guild | 与ORIG差异=DIFF | CGuild::LoadGuildOneMemberProxy | 详见 function_reports/guild/_ZN6CGuild23LoadGuildOneMemberProxyER18STGuildMemberProxy.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0126 已消除）
 bool CGuild::LoadGuildOneMemberProxy(STGuildMemberProxy& proxy)
 {
-    if ((m_guildDBFlag & 4) == 0 || (m_guildDBFlag & 0x10) == 0)
+    if ((m_guildDBFlag & 4) != 0 && (m_guildDBFlag & 0x10) != 0)
     {
-        return 0;
-    }
-    if (m_totalCnt <= 0x12b)
-    {
-        memcpy(&((CGuildMemberMainArray*)this)->m_members[m_totalCnt].m_charNo, &proxy, 0x41);
-        m_totalCnt++;
-    }
-    if (m_totalCnt > 0x12b)
-    {
-        CMyFileLog log(__FUNCTION__, 0x719);
-        log("./log/GuildErr", "Guild Member Cnt Full Or Over : G Key(%d), Cnt(%d)", m_guildKey,
-            (unsigned int)m_totalCnt);
-        if (m_totalCnt > 0x12c)
+        if (m_totalCnt <= 0x12b)
         {
-            m_totalCnt = 0x12c;
+            memcpy(&m_dbInfo.m_members[m_totalCnt].m_no, &proxy, 0x41);
+            m_totalCnt++;
         }
+        if (m_totalCnt > 0x12b)
+        {
+            CMyFileLog(__FUNCTION__, 0x719)("./log/GuildErr",
+                "Guild Member Cnt Full Or Over : G Key(%d), Cnt(%d)", m_guildKey,
+                (unsigned int)m_totalCnt);
+            if (m_totalCnt > 0x12c)
+            {
+                m_totalCnt = 0x12c;
+            }
+        }
+        m_dbInfo.m_info.m_totalCnt = m_totalCnt;
+        return 1;
     }
-    m_dbInfo.m_info.m_totalCnt = m_totalCnt;
-    return 1;
+    return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0111 | guild | 与ORIG差异=DIFF | CGuild::AddGuildMember | 详见 function_reports/guild/_ZN6CGuild14AddGuildMemberER21ST_Notice_Guild_EnterP5CUser.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0111 已消除）| CGuild::AddGuildMember | 详见 function_reports/guild/_ZN6CGuild14AddGuildMemberER21ST_Notice_Guild_EnterP5CUser.md
 void CGuild::AddGuildMember(ST_Notice_Guild_Enter& info, CUser* user)
 {
     if (user == 0)
     {
         return;
     }
-    if ((m_guildDBFlag & 4) == 0)
+    if ((m_guildDBFlag & 4) != 0 && (m_guildDBFlag & 0x10) != 0)
     {
-        return;
+        if (m_members.empty())
+        {
+            return;
+        }
+        // [P183反向] ORIG 具名指针局部 p=&m_totalCnt（-0xc），每次解引用
+        unsigned short* idx = &m_totalCnt;
+        m_dbInfo.m_members[*idx].m_no = info.m_charNo;
+        memcpy(m_dbInfo.m_members[*idx].m_name, info.m_charName, 0x1d);
+        m_dbInfo.m_members[*idx].m_job = user->GetJob();
+        m_dbInfo.m_members[*idx].m_growType = user->GetGrowthType();
+        m_dbInfo.m_members[*idx].m_lev = user->GetLevel();
+        (*idx)++;
+        if (300 < *idx)
+        {
+            *idx = 300;
+        }
+        m_dbInfo.m_info.m_totalCnt = *idx;
     }
-    if ((m_guildDBFlag & 0x10) == 0)
+}
+
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0115 | guild | 与ORIG差异=DIFF | CGuild::SecedeProxyMember | 详见 function_reports/guild/_ZN6CGuild17SecedeProxyMemberER22ST_Notice_Guild_Secede.md
+// [已试 2026-09-15 StaticsRest2] 我方序言 `push %ebx; sub $0x24` vs ORIG `push %esi; push %ebx; sub $0x20`
+//   ⇒ ORIG 多用一个 callee-saved（%esi）保活某值，导致我方 `mov %eax,%edx; sub …; mov %edx,%eax`
+//   双中转。属寄存器分配族（帧差来自 push 数，非多余局部）。
+//   已试删除 `unsigned short* cnt = &m_totalCnt;` 并内联全部 `*cnt` ⇒ ndiff 23→39（更差，已回退）
+//   ⇒ 该具名指针局部是必需的（与 P-H 实证一致），登记死胡同。
+void CGuild::SecedeProxyMember(ST_Notice_Guild_Secede& info)
+{
+    if ((m_guildDBFlag & 4) == 0 || (m_guildDBFlag & 0x10) == 0)
     {
         return;
     }
@@ -1744,46 +1822,27 @@ void CGuild::AddGuildMember(ST_Notice_Guild_Enter& info, CUser* user)
     {
         return;
     }
-    unsigned short idx = m_totalCnt;
-    m_dbInfo.m_members[idx].m_no = info.m_charNo;
-    memcpy(m_dbInfo.m_members[idx].m_name, info.m_charName, 0x1d);
-    m_dbInfo.m_members[idx].m_job = user->GetJob();
-    m_dbInfo.m_members[idx].m_growType = user->GetGrowthType();
-    m_dbInfo.m_members[idx].m_lev = user->GetLevel();
-    idx++;
-    if (300 < idx)
     {
-        idx = 300;
-    }
-    m_totalCnt = idx;
-    m_dbInfo.m_info.m_totalCnt = idx;
-}
-
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0115 | guild | 与ORIG差异=DIFF | CGuild::SecedeProxyMember | 详见 function_reports/guild/_ZN6CGuild17SecedeProxyMemberER22ST_Notice_Guild_Secede.md
-void CGuild::SecedeProxyMember(ST_Notice_Guild_Secede& info)
-{
-    if ((m_guildDBFlag & 4) != 0 && (m_guildDBFlag & 0x10) != 0 && !m_members.empty())
-    {
-        unsigned short cnt = m_totalCnt;
-        if (cnt < 0x12d)
+        unsigned short* cnt = &m_totalCnt;
+        if (*cnt < 0x12d)
         {
-            for (int i = 0; i < (int)cnt; i++)
+            for (unsigned int i = 0; i < (unsigned int)*cnt; i++)
             {
                 if (m_dbInfo.m_members[i].m_no == (int)info.m_charNo)
                 {
-                    if ((unsigned int)cnt - (unsigned int)i != 1)
+                    if ((unsigned int)*cnt - i != 1)
                     {
                         memmove(&m_dbInfo.m_members[i],
                                 &m_dbInfo.m_members[i + 1],
-                                ((unsigned int)cnt - (unsigned int)i - 1) * 0x41);
+                                ((unsigned int)*cnt - i - 1) * 0x41);
                     }
-                    cnt--;
-                    if (300 < cnt)
+                    (*cnt)--;
+                    if (300 < *cnt)
                     {
-                        cnt = 0;
+                        *cnt = 0;
                     }
-                    m_totalCnt = cnt;
-                    m_dbInfo.m_info.m_totalCnt = cnt;
+                    m_totalCnt = *cnt;
+                    m_dbInfo.m_info.m_totalCnt = *cnt;
                     return;
                 }
             }
@@ -1791,33 +1850,32 @@ void CGuild::SecedeProxyMember(ST_Notice_Guild_Secede& info)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0112 | guild | 与ORIG差异=DIFF | CGuild::ChangeGuildMaster | 详见 function_reports/guild/_ZN6CGuild17ChangeGuildMasterEP14CServerHandlerP5CUserj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0112 已消除）
 bool CGuild::ChangeGuildMaster(CServerHandler* handler, CUser* user, unsigned int charNo)
 {
-    if ((m_guildDBFlag & 4) == 0 || charNo == 0)
+    if ((m_guildDBFlag & 4) != 0 && charNo != 0)
     {
-        return 0;
-    }
-    m_dbInfo.m_info.m_masterId = charNo;
-    ChangeUnconnectedGuildMemberGrade(charNo, 1);
-    CUser* member = FindGuildMember(charNo);
-    if (member == 0)
-    {
-        char* name = getUnconnectedGuildMemberName(charNo);
-        GetGuildBoard()->sendMessageToDBMW_GuildMasterChanging(handler, user, name);
-        if (getUnconnectedGuildMemberName(charNo) != 0)
+        m_dbInfo.m_info.m_masterId = charNo;
+        ChangeUnconnectedGuildMemberGrade(charNo, 1);
+        CUser* member;
+        if ((member = FindGuildMember(charNo)) != 0)
         {
-            strncpy(m_dbInfo.m_info.m_masterName, getUnconnectedGuildMemberName(charNo), 0x14);
+            member->ChangeGuildMemberGrade(1);
+            GetGuildBoard()->sendMessageToDBMW_GuildMasterChanging(
+                handler, user, member->GetCharName());
+            strncpy(m_dbInfo.m_info.m_masterName, member->GetCharName(), 0x14);
         }
+        else
+        {
+            GetGuildBoard()->sendMessageToDBMW_GuildMasterChanging(handler, user, getUnconnectedGuildMemberName(charNo));
+            if (getUnconnectedGuildMemberName(charNo) != 0)
+            {
+                strncpy(m_dbInfo.m_info.m_masterName, getUnconnectedGuildMemberName(charNo), 0x14);
+            }
+        }
+        return 1;
     }
-    else
-    {
-        member->ChangeGuildMemberGrade(1);
-        GetGuildBoard()->sendMessageToDBMW_GuildMasterChanging(
-            handler, user, member->GetCharName());
-        strncpy(m_dbInfo.m_info.m_masterName, member->GetCharName(), 0x14);
-    }
-    return 1;
+    return 0;
 }
 
 bool CGuild::ChangeGuildName(char* name, int flag)
@@ -1831,24 +1889,23 @@ bool CGuild::ChangeGuildName(char* name, int flag)
     return false;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0015 | guild | 与ORIG差异=NEAR | CGuild::ChangeUnconnectedGuildMemberGrade | 详见 function_reports/guild/_ZN6CGuild33ChangeUnconnectedGuildMemberGradeEji.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-NEAR-0015 已消除）
 void CGuild::ChangeUnconnectedGuildMemberGrade(unsigned int charNo, int grade)
 {
     if ((m_guildDBFlag & 4) != 0 && (m_guildDBFlag & 0x10) != 0)
     {
         for (int i = 0; i < m_totalCnt; i++)
         {
-            if (((CGuildMemberMainArray*)this)->m_members[i].m_charNo == charNo)
+            if (m_dbInfo.m_members[i].m_no == charNo)
             {
-                ((CGuildMemberExtraArray*)this)->m_members[i].m_grade =
-                    (unsigned char)grade;
+                m_dbInfo.m_members[i].m_grade = (unsigned char)grade;
                 return;
             }
         }
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0014 | guild | 与ORIG差异=NEAR | CGuild::getUnconnectedGuildMemberName | 详见 function_reports/guild/_ZN6CGuild29getUnconnectedGuildMemberNameEj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-NEAR-0014 已消除）
 char* CGuild::getUnconnectedGuildMemberName(unsigned int charNo)
 {
     if ((m_guildDBFlag & 4) != 0)
@@ -1857,7 +1914,7 @@ char* CGuild::getUnconnectedGuildMemberName(unsigned int charNo)
         {
             for (int i = 0; i < m_totalCnt; i++)
             {
-                if (((CGuildMemberMainArray*)this)->m_members[i].m_charNo == charNo)
+                if (m_dbInfo.m_members[i].m_no == charNo)
                 {
                     return m_dbInfo.m_members[i].m_name;
                 }
@@ -1937,17 +1994,19 @@ void CGuild::SetGuildMessage(char* msg)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0135 | guild | 与ORIG差异=DIFF | CGuild::NotifyMessageToGuildMember | 详见 function_reports/guild/_ZN6CGuild26NotifyMessageToGuildMemberEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0135 已消除）| CGuild::NotifyMessageToGuildMember | 详见 function_reports/guild/_ZN6CGuild26NotifyMessageToGuildMemberEv.md
 void CGuild::NotifyMessageToGuildMember()
 {
     if ((m_guildDBFlag & 4) != 0)
     {
         if (m_members.empty())
         {
+            return;
         }
         else
         {
             Packet_Guild_Notify_Message_To_Guild_Mem pkt;
+            CUser* u;
             int len = strlen(m_guildMessage);
             if (len <= 100)
             {
@@ -1960,7 +2019,6 @@ void CGuild::NotifyMessageToGuildMember()
             for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
                  it != m_members.end(); ++it)
             {
-                CUser* u;
                 if ((u = it->second) == 0) { continue; }
                 pkt.m_channel = u->GetIdByChannel();
                 pkt.m_charNo = u->GetUniqCharNo();
@@ -2001,46 +2059,46 @@ bool CGuild::InsertGuildMemberChanglableInfo(unsigned int charNo)
     return m_changable.insert(std::make_pair(charNo, info)).second;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0151 | guild | 与ORIG差异=DIFF | CGuild::PopGuildMemberChanglableInfo | 详见 function_reports/guild/_ZNK6CGuild28PopGuildMemberChanglableInfoEjR26STGuildMemberChangableInfo.md
-int CGuild::PopGuildMemberChanglableInfo(unsigned int charNo,
-                                         STGuildMemberChangableInfo& info) const
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0151 已消除）
+bool CGuild::PopGuildMemberChanglableInfo(unsigned int charNo,
+                                          STGuildMemberChangableInfo& info) const
 {
     if (m_changable.empty())
     {
-        return 0;
+        return false;
     }
     std::map<unsigned int, STGuildMemberChangableInfo>::const_iterator it =
         m_changable.find(charNo);
-    if (it != m_changable.end())
+    if (m_changable.end() != it)
     {
         // ORIG：仅拷贝 map 值的首 dword（其余字段 ORIG 未初始化/不使用）
-        *(unsigned int*)&info = *(unsigned int*)&it->second;
-        return 1;
+        info = it->second;
+        return true;
     }
-    return 0;
+    return false;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0137 | guild | 与ORIG差异=DIFF | CGuild::UpdateChangableInfoProcess | 详见 function_reports/guild/_ZN6CGuild26UpdateChangableInfoProcessEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0137 已消除）
 void CGuild::UpdateChangableInfoProcess()
 {
     if (IsSetGuildDBFlag(4) && IsSetGuildDBFlag(0x10))
     {
         m_changableTickCnt++;
-        if (9 < (unsigned char)m_changableTickCnt)
+        // ORIG 该条件位把比较结果 bool 物化（seta %al; test %al,%al; je）——
+        // 4.4 仅在 while/for 条件位物化，故用 while+break 复现（P225/P351）。
+        while (9 < (unsigned char)m_changableTickCnt)
         {
             for (int i = 0; i < m_totalCnt; i++)
             {
                 STGuildMemberChangableInfo info;
-                if (PopGuildMemberChanglableInfo(
-                        ((CGuildMemberMainArray*)this)->m_members[i].m_charNo,
-                        info) != 0)
+                if (PopGuildMemberChanglableInfo(m_dbInfo.m_members[i].m_no, info) != 0)
                 {
-                    ((CGuildMemberExtraArray*)this)->m_members[i].m_changableTime =
-                        info.m_time;
+                    m_dbInfo.m_members[i].m_lastPlayTime = info.m_time;
                 }
             }
             m_changable.clear();
             m_changableTickCnt = 0;
+            break;
         }
     }
 }
@@ -2055,25 +2113,25 @@ bool CGuild::CheckPowerSecedeTime()
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0130 | guild | 与ORIG差异=DIFF | CGuild::ChangeGuildMemberCharName | 详见 function_reports/guild/_ZN6CGuild25ChangeGuildMemberCharNameEjPc.md
-int CGuild::ChangeGuildMemberCharName(unsigned int charNo, char* name)
+bool CGuild::ChangeGuildMemberCharName(unsigned int charNo, char* name)
 {
     bool result = false;
     if (IsSetGuildDBFlag(4))
     {
         for (int i = 0; i <= 299; i++)
         {
-            if (((CGuildMemberMainArray*)this)->m_members[i].m_charNo == charNo)
+            if (m_dbInfo.m_members[i].m_no == charNo)
             {
-                memset(((CGuildMemberMainArray*)this)->m_members[i].m_name, 0, 0x1e);
-                memcpy(((CGuildMemberMainArray*)this)->m_members[i].m_name, name, 0x1d);
+                memset(m_dbInfo.m_members[i].m_name, 0, 0x1e);
+                memcpy(m_dbInfo.m_members[i].m_name, name, 0x1d);
                 result = true;
             }
         }
-        CGuildBoard::TodayMemberBlock* todayBlock = &m_board.m_today;
-        if (todayBlock->m_charNo == charNo)
+        if (m_board.m_today.m_charNo == charNo)
         {
-            memset(&todayBlock->m_name0, 0, 0x1e);
-            strncpy((char*)&todayBlock->m_name0, name, 0x1d);
+            memset(&m_board.m_today.m_name0, 0, 0x1e);
+            // （`m_name0` 是 unsigned int ⇒ 该 cast 必需；试过去掉会编译失败，已回退）
+            strncpy((char*)&m_board.m_today.m_name0, name, 0x1d);
             result = true;
             NotifyAllTodayGuildMember();
         }
@@ -2100,7 +2158,7 @@ void CGuild::DBSaveGuildMemberUnChangableInfo(CServerHandler* handler, unsigned 
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0121 | guild | 与ORIG差异=DIFF | CGuild::WriteGuildMemberMemo | 详见 function_reports/guild/_ZN6CGuild20WriteGuildMemberMemoEP5CUserPKc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0121 已消除）
 void CGuild::WriteGuildMemberMemo(CUser* user, const char* memo)
 {
     if (user == 0 || memo == 0)
@@ -2112,11 +2170,11 @@ void CGuild::WriteGuildMemberMemo(CUser* user, const char* memo)
     {
         for (int i = 0; i < 300; i++)
         {
-            if (((CGuildMemberMainArray*)this)->m_members[i].m_charNo ==
-                (unsigned int)user->GetUniqCharNo())
+            // [N] ORIG `mov 0xd(%eax),%ebx` 单段直落；register/内联两形均反劣（2→12）⇒ 封顶
+            if (m_dbInfo.m_members[i].m_no == user->GetUniqCharNo())
             {
-                memset(((CGuildMemberExtraArray*)this)->m_members[i].m_memo, 0, 0x15);
-                memcpy(((CGuildMemberExtraArray*)this)->m_members[i].m_memo, memo, 0x14);
+                memset(m_dbInfo.m_members[i].m_memo, 0, 0x15);
+                memcpy(m_dbInfo.m_members[i].m_memo, memo, 0x14);
                 return;
             }
         }
@@ -2202,7 +2260,7 @@ void CGuild::SetGuildAgitInfo(STGuildAgitDBInfo& info)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0136 | guild | 与ORIG差异=DIFF | CGuild::SendGuildAgitInfoToMembers | 详见 function_reports/guild/_ZN6CGuild26SendGuildAgitInfoToMembersEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0136 已消除）
 void CGuild::SendGuildAgitInfoToMembers()
 {
     Packet_Channel_Guild_Agit_Info pkt;
@@ -2211,62 +2269,64 @@ void CGuild::SendGuildAgitInfoToMembers()
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {
-        CUser* u = it->second;
-        if (u != 0)
+        CUser* u;
+        if ((u = it->second) == 0)
         {
+            continue;
+        }
+        pkt.m_channel = u->GetIdByChannel();
+        pkt.m_charNo = u->GetUniqCharNo();
+        u->SendToGameserver((char*)&pkt, 0x17);
+    }
+}
+
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0143 已消除）
+void CGuild::NotifyCreateGuildAgitToGuildMember(unsigned int charNo)
+{
+    // [P-nested-guard] 两个独立早返会让 4.4 各发一个尾岛（ORIG 4.1 只留 1 个）：
+    //   改「首个守卫正向包裹 + 内层早返」复现 ORIG 单岛 + 守卫直跳 epilogue。
+    if ((m_guildDBFlag & 4) != 0)
+    {
+        if (m_members.empty())
+        {
+            return;
+        }
+        Packet_Channel_Create_Guild_Agit pkt;
+        pkt.m_charNo = charNo;
+        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+             it != m_members.end(); ++it)
+        {
+            CUser* u;
+            if ((u = it->second) == 0) { continue; }
             pkt.m_channel = u->GetIdByChannel();
-            pkt.m_charNo = u->GetUniqCharNo();
-            u->SendToGameserver((char*)&pkt, 0x17);
+            pkt.m_charNo2 = u->GetUniqCharNo();
+            u->SendToGameserver((char*)&pkt, 0x16);
         }
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0143 | guild | 与ORIG差异=DIFF | CGuild::NotifyCreateGuildAgitToGuildMember | 详见 function_reports/guild/_ZN6CGuild34NotifyCreateGuildAgitToGuildMemberEj.md
-void CGuild::NotifyCreateGuildAgitToGuildMember(unsigned int charNo)
-{
-    if ((m_guildDBFlag & 4) == 0)
-    {
-        return;
-    }
-    if (m_members.empty())
-    {
-        return;
-    }
-    Packet_Channel_Create_Guild_Agit pkt;
-    pkt.m_charNo = charNo;
-    for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-         it != m_members.end(); ++it)
-    {
-        CUser* u;
-        if ((u = it->second) == 0) { continue; }
-        pkt.m_channel = u->GetIdByChannel();
-        pkt.m_charNo2 = u->GetUniqCharNo();
-        u->SendToGameserver((char*)&pkt, 0x16);
-    }
-}
-
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0144 | guild | 与ORIG差异=DIFF | CGuild::NotifyDeleteGuildAgitToGuildMember | 详见 function_reports/guild/_ZN6CGuild34NotifyDeleteGuildAgitToGuildMemberEj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0144 已消除）
 void CGuild::NotifyDeleteGuildAgitToGuildMember(unsigned int charNo)
 {
-    if ((m_guildDBFlag & 4) == 0)
+    // [P-nested-guard] 双早返 → 单尾岛復现（同 NotifyCreateGuildAgitToGuildMember）
+    if ((m_guildDBFlag & 4) != 0)
     {
-        return;
-    }
-    if (m_members.empty())
-    {
-        return;
-    }
-    Packet_Channel_Delete_Guild_Agit pkt;
-    pkt.m12 = charNo;
-    pkt.m16 = 0;
-    for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-         it != m_members.end(); ++it)
-    {
-        CUser* u;
-        if ((u = it->second) == 0) { continue; }
-        pkt.ma = u->GetIdByChannel();
-        pkt.me = u->GetUniqCharNo();
-        u->SendToGameserver((char*)&pkt, 0x17);
+        if (m_members.empty())
+        {
+            return;
+        }
+        Packet_Channel_Delete_Guild_Agit pkt;
+        pkt.m12 = charNo;
+        pkt.m16 = 0;
+        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+             it != m_members.end(); ++it)
+        {
+            CUser* u;
+            if ((u = it->second) == 0) { continue; }
+            pkt.ma = u->GetIdByChannel();
+            pkt.me = u->GetUniqCharNo();
+            u->SendToGameserver((char*)&pkt, 0x17);
+        }
     }
 }
 
@@ -2324,11 +2384,20 @@ bool CGuild::IsCompleteGuildFund()
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-NEAR-0012 | guild | 与ORIG差异=NEAR | CGuild::AddGuildFund | 详见 function_reports/guild/_ZN6CGuild12AddGuildFundEj.md
+// [已试 2026-09-15 StaticsRest2] 两个分支的 CMyFileLog 临时槽整体镜像：ORIG `-0x28`（if 分支）/`-0x30`（else），
+//   我方反之。帧相同、槽集合相同 ⇒「槽互换族」，改声明位置不适用（log 为构造临时）⇒ 登记死胡同。
 void CGuild::AddGuildFund(unsigned int fund)
 {
     if ((m_guildDBFlag & 4) != 0)
     {
         m_dBSaveFlag = 1;
+    // [2026-09-15 StaticsRest2] 本件差异（`lea -0x28/-0x30` 两个 log 临时槽镜像）经四步判据：
+    //   ① 空差集 ✓ ② 差异落在槽操作数 ✓ ⇒ 名义上属互换族/B3。**但实测 B3 变体劣化**：
+    //   交换 `fundPtr`/`levelPtr` 声明次序 ⇒ ndiff 4→**15**（已回退）。
+    //   回退后复查发现真差异是**求值序**：ORIG `add $0xc0,%eax`（= &m_guildLevel，level 先）
+    //   vs 我方 `add $0x3b,%eax`（= &m_guildFund，fund 先）⇒ 即 `*levelPtr` 与 `*fundPtr`
+    //   地址求值的先后，属**求值序族**，与声明次序无关（交换后 GCC 仍先算 fundPtr）
+    //   ⇒ 登记为「求值序族」，B3 在本件无靶点。
         unsigned int* fundPtr = &m_dbInfo.m_info.m_guildFund;
         unsigned char* levelPtr = &m_dbInfo.m_info.m_guildLevel;
         *fundPtr += fund;
@@ -2412,28 +2481,18 @@ unsigned int CGuild::IsAddableGuildFund(unsigned int fund)
     return 0x5f;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0132 | guild | 与ORIG差异=DIFF | CGuild::NotifyAllTodayGuildMember | 详见 function_reports/guild/_ZN6CGuild25NotifyAllTodayGuildMemberEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0132 已消除）
 void CGuild::NotifyAllTodayGuildMember()
 {
     CUser* user = 0;
     Packet_Notify_Today_Guild_Member pkt;
     pkt.m_guildKey = m_guildKey;
-    pkt.m_member0 = m_board.m_today.m_charNo;
-    pkt.m_member1 = m_board.m_today.m_name0;
-    pkt.m_member2 = m_board.m_today.m_name1;
-    pkt.m_member3 = m_board.m_today.m_name2;
-    pkt.m_member4 = m_board.m_today.m_name3;
-    pkt.m_member5 = m_board.m_today.m_name4;
-    pkt.m_member6 = m_board.m_today.m_name5;
-    pkt.m_member7 = m_board.m_today.m_name6;
-    pkt.m_member8 = m_board.m_today.m_name7;
-    pkt.m_memberA = m_board.m_today.m_field24;
-    pkt.m_memberC = (char)m_board.m_today.m_field26;
+    // ORIG：整块 0x27 字节结构拷贝（单次 this 装载 + %edx 中转），非逐字段赋值
+    pkt.m_today = m_board.m_today;
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {
-        user = it->second;
-        if (user == NULL)
+        if ((user = it->second) == 0)
         {
             continue;
         }
@@ -2443,22 +2502,13 @@ void CGuild::NotifyAllTodayGuildMember()
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0122 | guild | 与ORIG差异=DIFF | CGuild::NotifyTodayGuildMember | 详见 function_reports/guild/_ZN6CGuild22NotifyTodayGuildMemberEP5CUser.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0122 已消除）
 void CGuild::NotifyTodayGuildMember(CUser* user)
 {
     Packet_Notify_Today_Guild_Member pkt;
     pkt.m_guildKey = m_guildKey;
-    pkt.m_member0 = m_board.m_today.m_charNo;
-    pkt.m_member1 = m_board.m_today.m_name0;
-    pkt.m_member2 = m_board.m_today.m_name1;
-    pkt.m_member3 = m_board.m_today.m_name2;
-    pkt.m_member4 = m_board.m_today.m_name3;
-    pkt.m_member5 = m_board.m_today.m_name4;
-    pkt.m_member6 = m_board.m_today.m_name5;
-    pkt.m_member7 = m_board.m_today.m_name6;
-    pkt.m_member8 = m_board.m_today.m_name7;
-    pkt.m_memberA = m_board.m_today.m_field24;
-    pkt.m_memberC = (char)m_board.m_today.m_field26;
+    // ORIG：整块 0x27 字节结构拷贝（单次 this 装载 + %edx 中转），非逐字段赋值
+    pkt.m_today = m_board.m_today;
     pkt.m_channel = user->GetIdByChannel();
     pkt.m_charNo = user->GetUniqCharNo();
     user->SendToGameserver((char*)&pkt, 0x3d);
@@ -2471,7 +2521,7 @@ void CGuild::QueryTodayGuildMember(CServerHandler* handler)
     handler->SendToDB(&pkt);
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0134 | guild | 与ORIG差异=DIFF | CGuild::NotifyAllAchieveAttendance | 详见 function_reports/guild/_ZN6CGuild26NotifyAllAchieveAttendanceEjj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0134 已消除）
 void CGuild::NotifyAllAchieveAttendance(unsigned int charNo, unsigned int phase)
 {
     CUser* user = 0;
@@ -2481,13 +2531,13 @@ void CGuild::NotifyAllAchieveAttendance(unsigned int charNo, unsigned int phase)
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {
-        user = it->second;
-        if (user)
+        if ((user = it->second) == 0)
         {
-            pkt.m_channel = user->GetIdByChannel();
-            pkt.m_charNo2 = user->GetUniqCharNo();
-            user->SendToGameserver((char*)&pkt, 0x1a);
+            continue;
         }
+        pkt.m_channel = user->GetIdByChannel();
+        pkt.m_charNo2 = user->GetUniqCharNo();
+        user->SendToGameserver((char*)&pkt, 0x1a);
     }
 }
 
@@ -2497,7 +2547,7 @@ STGuildSkill::STGuildSkill()
     m4 = 0xff;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0101、DNF-GLD-DIFF-0102 | guild | 与ORIG差异=DIFF | STGuildDBInfoOnly::STGuildDBInfoOnly | 详见 function_reports/guild/_ZN17STGuildDBInfoOnlyC1Ev.md、function_reports/guild/_ZN17STGuildDBInfoOnlyC2Ev.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0101、DNF-GLD-DIFF-0102 已消除）
 STGuildDBInfoOnly::STGuildDBInfoOnly()
     : m_masterId(0), m_guildLevel(0), m_field1e(0), m_totalCnt(0),
       m_guildPoint(0), m_guildRank(0), m_guildExp(0), m_subMasterCnt(0),
@@ -2512,8 +2562,17 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
     m_fieldB9 = 0;
     memset(m_subGuildMaster, 0, 0x14);
     memset(m_guildName, 0, 0x17);
-    m_flags = (unsigned char)(m_flags | 1);
-    m_flags = (unsigned char)(m_flags & 0xfd);
+    // [位域具名视图] ORIG = `movzbl 0x1c(%eax),%edx; or/and; mov %dl,0x1c(%eax)` 就地掩码
+    //   （dbmw 侧同源实现已验证 identical）
+    struct GuildAbilityView
+    {
+        char h[0x1c];
+        unsigned char b0 : 1;  // +0x1c bit0
+        unsigned char b1 : 1;  // +0x1c bit1
+        unsigned char pad : 6; // +0x1c bits2-7
+    } __attribute__((packed));
+    ((GuildAbilityView*)this)->b0 = 1;
+    ((GuildAbilityView*)this)->b1 = 0;
     memset((char*)m_skills, 0, 0x50);
     memset(m_masterName, 0, 0x15);
 }

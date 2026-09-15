@@ -19,7 +19,7 @@ class CTableBase
 public:
     CTableBase();
     virtual ~CTableBase();
-    virtual int Load_Table(const std::string& fileName) = 0;   // vptr+0x8
+    virtual void Load_Table(const std::string& fileName) = 0;  // vptr+0x8（ORIG 尾无 %eax 装载 ⇒ void）
     virtual bool Parse_Table(char* data, int size) = 0;        // vptr+0xc（ORIG 返回 bool）
     int Load_Txt_Table_Data(const char* fileName, int idx);    // 非虚
 };

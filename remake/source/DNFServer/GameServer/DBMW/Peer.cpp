@@ -229,12 +229,23 @@ int CPeer::send_packet(char* buf, int len)
 bool CPeer::parsing(int len)
 {
     PacketHeader hdr(0, 0);
+    // R40：栈槽声明顺序按 ORIG 布局（qsize -0x28 / parsinglength -0x24 /
+    // size -0x20 / headerSize -0x1c），与 Manager 同源版一致。
+    // [UserLane] ndiff 75 → 55（保留最优）：**B1 分支布局反转** —— 原
+    //   `if (parsinglength < size) { log; goto out; }` 改为
+    //   `if (parsinglength >= size) { body } else { log; goto out; }`，
+    //   对齐 ORIG 的 `jb <#213>`（then 体在远处的布局）。
+    //   已试并回退：D 形态（out: 段 `if (parsinglength<=0) { return 1; }` + 裸复合块）⇒ 55→57 劣化 ✓；
+    //   余 55 条为中转 mov 族 + EH 结构 + 全局 +1 条，属第一筛子 v4 不可调族（长度方向相反，不适用 D）。
+    int qsize;
     int parsinglength = m_recvLen + len;
+    unsigned int size;
     int headerSize = 10;
     (void)headerSize;
+    (void)qsize;
     if (parsinglength <= 9)
     {
-        m_recvLen += len;
+        m_recvLen = m_recvLen + len;
         m_sendBuf += len;
         DNF_LOG_SCOPE_LINE(0xbb, "./log/TcpRecv",
             "(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d] ",
@@ -246,7 +257,7 @@ bool CPeer::parsing(int len)
         if (m_recvLen != 0)
             m_sendBuf -= m_recvLen;
         memcpy(&hdr, m_sendBuf, 10);
-        unsigned int size = hdr.packetSize;
+        size = hdr.packetSize;
         if (size <= 9 || size > 0x1800)
         {
             DNF_LOG_SCOPE_LINE(0xd0, "./log/TcpRecv",
@@ -256,30 +267,34 @@ bool CPeer::parsing(int len)
             m_recvLen = 0;
             return 0;
         }
-        if (parsinglength < size)
+        if (parsinglength >= size)
+        {
+            CTcpRecvBuffer* buf;
+            {
+                CGuard<CMutex> guard(m_sendBLock);
+                buf = new CTcpRecvBuffer;
+            }
+            memcpy(buf, m_sendBuf, size);
+            buf->m_header.m_connNo = getHandle();
+            {
+                CGuard<CMutex> guard(m_sendQLock);
+                m_recvQ->push(buf);
+                qsize = (int)m_recvQ->size();
+            }
+            parsinglength -= size;
+            m_sendBuf += size;
+            m_recvLen = 0;
+            if (parsinglength == 0)
+            {
+                m_sendBuf = m_gap1c;
+                goto out;
+            }
+        }
+        else
         {
             DNF_LOG_SCOPE_LINE(0x100, "./log/TcpRecv",
                 "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",
                 parsinglength);
-            goto out;
-        }
-        CTcpRecvBuffer* buf;
-        {
-            CGuard<CMutex> guard(m_sendBLock);
-            buf = new CTcpRecvBuffer;
-        }
-        memcpy(buf, m_sendBuf, size);
-        buf->m_header.m_connNo = getHandle();
-        {
-            CGuard<CMutex> guard(m_sendQLock);
-            m_recvQ->push(buf);
-        }
-        parsinglength -= size;
-        m_sendBuf += size;
-        m_recvLen = 0;
-        if (parsinglength == 0)
-        {
-            m_sendBuf = m_gap1c;
             goto out;
         }
     } while (parsinglength > 9);

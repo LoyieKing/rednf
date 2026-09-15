@@ -240,7 +240,7 @@ struct stUserHuntingPoint;
 class CInnerMsgHandler
 {
 public:
-    CInnerMsgHandler();
+    CInnerMsgHandler() throw();
     ~CInnerMsgHandler();
     void SendStopNetworkThread();
     char m_data[1];

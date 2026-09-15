@@ -4,11 +4,11 @@
 // 其余函数留在 DNFProhibitUser.cpp（c6444r 编译，保持已 identical 不回退）。
 #include "DNFProhibitUser.h"
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0041 | monitor | 与ORIG差异=DIFF | CDNFProhibitUser::IsTimeOutConnectable | 详见 function_reports/monitor/_ZN16CDNFProhibitUser20IsTimeOutConnectableEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0041 已消除）
 bool CDNFProhibitUser::IsTimeOutConnectable()
 {
     m_remain--;
-    if ((short)m_remain <= 0)
+    while ((short)m_remain <= 0)
     {
         return true;
     }

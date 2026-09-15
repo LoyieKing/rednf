@@ -250,7 +250,7 @@ public:
                     std::allocator<CUdpRecvBuffer*> > >* q);
     void SetTCPQueue(std::queue<CTcpRecvBuffer*, std::deque<CTcpRecvBuffer*,
                     std::allocator<CTcpRecvBuffer*> > >* q);
-    char MsgDecode(PacketHeader* pkt);
+    bool MsgDecode(PacketHeader* pkt);
     void* m_udpParseQ;                      // +0（Attach: app->Get_UdpPacketParseQ()）
     void* m_udpQLock;                       // +4（Attach: app->Get_UdpQLock()）
     union {
@@ -260,10 +260,10 @@ public:
             void* m_parseQ;     // +0xc
             void* m_recvQ;      // +0x10
             void* m_bLock;      // +0x14
-            void* m_handler;    // +0x18
+            CServerHandler* m_handler;  // +0x18（ORIG：单段直落 ebx）
         } m_net;
     };
-    void* m_handlers[(0xa020 - 0x1c) / 4];  // +0x1c
+    void (*m_handlers[(0xa020 - 0x1c) / 4])(PacketHeader*);  // +0x1c
 };
 
 CPacketDecoder* CPacketDecoderInstance();

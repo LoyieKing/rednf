@@ -252,7 +252,9 @@ class CTableBase
 public:
     CTableBase() throw();
     virtual ~CTableBase();
-    virtual void Load_Table(const std::string& path);
+    // ORIG _ZTV10CTableBase slot[2] = __cxa_pure_virtual，且 ORIG 无
+    // _ZN10CTableBase10Load_TableERKSs 符号 ⇒ 纯接口（派生类全部覆写）
+    virtual void Load_Table(const std::string& path) = 0;
     virtual bool Parse_Table(char* line, int idx) = 0;
     int Load_Txt_Table_Data(const char* path, int maxCount);
 };

@@ -87,14 +87,15 @@ CUdpHandler::CUdpHandler()
     m_clientSock = -1;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0008 | guild | 与ORIG差异=DIFF | CUdpHandler::InitServerSocket | 详见 function_reports/guild/_ZN11CUdpHandler16InitServerSocketEi.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0008 | guild | 与ORIG差异=DIFF | CUdpHandler::InitServerSocket | 详见 function_reports/guild/_ZN11CUdpHandler16InitServerSocketEi.md
 int CUdpHandler::InitServerSocket(int port)
 {
     int err;
+    sockaddr_in local;
     int bufsize;
     m_sock = socket(2, 2, 0x11);
     if (m_sock == -1) { err = getErrno(); printf("Could not create a UDP socket : %d\n", err); return -1; }
-    sockaddr_in local; memset(&local, 0, 0x10);
+    memset((char*)&local, 0, 0x10);
     local.sin_family = 2; local.sin_addr.s_addr = htonl(0);
     local.sin_port = htons((unsigned short)port);
     if (bind(m_sock, (sockaddr*)&local, 0x10) != 0) {
@@ -178,8 +179,8 @@ bool CUdpHandler::RecvFromClient(char* buf, int* len, unsigned int* ip,
     return 1;
 }
 
-int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, char const* ip,
-                              unsigned int ipaddr) const
+bool CUdpHandler::SendToClient(char* buf, int len, unsigned short port, char const* ip,
+                               unsigned int ipaddr) const
 {
     if (ip == 0 && ipaddr == 0)
     {
@@ -305,7 +306,7 @@ int CUdpHandler::RecvFromServer(char* buf, int* len, unsigned int* ip,
     return 1;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0150 | guild | 与ORIG差异=DIFF | CUdpHandler::SendToServer | 详见 function_reports/guild/_ZNK11CUdpHandler12SendToServerEPcitPKc.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0150 | guild | 与ORIG差异=DIFF | CUdpHandler::SendToServer | 详见 function_reports/guild/_ZNK11CUdpHandler12SendToServerEPcitPKc.md
 int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, char const* ip) const
 {
     if (m_clientSock == -1)
@@ -323,7 +324,7 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, char cons
     else
     {
         sockaddr_in to;
-        memset(&to, 0, 0x10);
+        memset((char*)&to, 0, 0x10);
         to.sin_family = 2;
         to.sin_port = htons(port);
         to.sin_addr.s_addr = inet_addr(ip);

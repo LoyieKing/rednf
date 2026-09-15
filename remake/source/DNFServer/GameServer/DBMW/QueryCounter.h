@@ -17,7 +17,7 @@ public:
     int LoadQueryIdTable(int queryId);
     int m_field0;                     // +0
     bool m_used[0x141];               // +4
-    unsigned int m_counts[0x141];     // +0x148（0x504 字节）
+    int m_counts[0x141];              // +0x148（0x504 字节；ORIG int 数组直接入 edx 形态）
     double m_responseTimes[0x141];    // +0x64c（0xa08 字节）
     int m_interval;                   // +0x1054
     CDnFTimer* m_timer;               // +0x1058（ORIG：基类指针，赋值产生

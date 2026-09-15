@@ -241,8 +241,8 @@ class CAppLoadChecker
 {
 public:
     CAppLoadChecker();
-    char CheckTcpRecvQ(int size);
-    char CheckUdpRecvQ(int size);
+    bool CheckTcpRecvQ(int size);
+    bool CheckUdpRecvQ(int size);
     char CheckTcpSendQ(int size);
     bool checkTcpRecvLoad(int size);
     bool checkUdpRecvLoad(int size);

@@ -24,7 +24,7 @@ public:
     bool RecvPacket();
     char m_gap1c[0x1800];   // +0x1c（收包缓冲区：this+0x1c..this+0x181c，代码以指针算术访问，无成员）
     char* m_sendBuf;        // +0x181c
-    int m_recvLen;          // +0x1820
+    unsigned int m_recvLen; // +0x1820（ORIG 无符号：+int 时生成 edx=mem;eax=len;lea 序列）
     int m_sendLen;          // +0x1824
     TcpRecvQueue* m_recvQ;  // +0x1828
     CMutex* m_sendBLock;    // +0x182c

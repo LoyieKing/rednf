@@ -40,7 +40,7 @@ TCPSocket::~TCPSocket()
     close();
 }
 
-char TCPSocket::open()
+bool TCPSocket::open()
 {
     m_fd = socket(2, 1, 0);
     if (m_fd == -1)
@@ -52,7 +52,7 @@ char TCPSocket::open()
     return 1;
 }
 
-char TCPSocket::connect(const char* ip, unsigned short port)
+bool TCPSocket::connect(const char* ip, unsigned short port)
 {
     sockaddr_in addr;
     memset(&addr, 0, 0x10);
@@ -82,7 +82,7 @@ char TCPSocket::setOptNonBlock()
     return 1;
 }
 
-char TCPSocket::bind(unsigned short port, bool flag)
+bool TCPSocket::bind(unsigned short port, bool flag)
 {
     setOptReuseAdrs(true);
     sockaddr_in addr;
@@ -103,7 +103,7 @@ char TCPSocket::bind(unsigned short port, bool flag)
     return 1;
 }
 
-char TCPSocket::listen(int backlog)
+bool TCPSocket::listen(int backlog)
 {
     if (::listen(m_fd, backlog) < 0)
     {
@@ -113,7 +113,7 @@ char TCPSocket::listen(int backlog)
     return 1;
 }
 
-char TCPSocket::pollReadEvent() const
+bool TCPSocket::pollReadEvent() const
 {
     fd_set readfds;
     // ORIG 用 RHEL5 风格 FD_ZERO 循环（__arr/__i 槽位 + setbe 终止）；
@@ -134,8 +134,8 @@ char TCPSocket::pollReadEvent() const
         return 0;
     }
     // ORIG FD_ISSET 形态：(fds_bits[fd>>5] >> (fd&31)) & 1（sar）
-    return (char)((readfds.fds_bits[(unsigned int)m_fd >> 5] >>
-                   ((unsigned int)m_fd & 0x1f)) & 1);
+    return ((readfds.fds_bits[(unsigned int)m_fd >> 5] >>
+             ((unsigned int)m_fd & 0x1f)) & 1) != 0;
 }
 
 char TCPSocket::pollWriteEvent() const
@@ -227,7 +227,7 @@ int TCPSocket::pollReadWriteErrEvent() const
     return flag;
 }
 
-char TCPSocket::accept(TCPSocket& sock)
+bool TCPSocket::accept(TCPSocket& sock)
 {
     socklen_t len = 0x10;
     sock.m_fd = ::accept(m_fd, (sockaddr*)&sock.m_addr, &len);

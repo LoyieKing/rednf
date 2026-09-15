@@ -32,7 +32,7 @@ StackBufferContext::~StackBufferContext() {}
 // 直接 GS 寻址 mov %gs:0xfffffffc,%eax。
 static __thread StackBufferContext* g_stackBufferContext;
 
-// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0001 | dbmw | 与ORIG差异=NEAR | allocStackBuffer | 详见 function_reports/dbmw/_ZL16allocStackBufferjPPhPi.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-NEAR-0001 已消除）
 static bool allocStackBuffer(unsigned int size, unsigned char** buf, int* end)
 {
     if (!g_stackBufferContext)
@@ -104,7 +104,7 @@ static void freeStackBuffer(unsigned char* buf, int end)
             (unsigned)b.m_offset + (unsigned)b.m_size;
     }
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0001 | dbmw | 与ORIG差异=DIFF | freeAllStackBuffers | 详见 function_reports/dbmw/_ZL19freeAllStackBuffersv.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-DBM-DIFF-0001 | dbmw | 与ORIG差异=DIFF | freeAllStackBuffers | 详见 function_reports/dbmw/_ZL19freeAllStackBuffersv.md
 static void freeAllStackBuffers()
 {
     if (!g_stackBufferContext)
@@ -123,8 +123,7 @@ static void freeAllStackBuffers()
             unsigned char** p = &*it;
             goto inner_cond;
         inner_body:
-            if (*p)
-                delete[] *p;
+            delete[] *p;
             runOnce = false;
         inner_cond:
             if (runOnce)
@@ -132,12 +131,8 @@ static void freeAllStackBuffers()
             it++;
         }
     foreach_cond:
-        if (it != e)
-        {
-            runOnce = (bool)(runOnce ^ 1);
-            if (runOnce)
-                goto foreach_body;
-        }
+        if (it != e && (runOnce = (bool)(runOnce ^ 1)))
+            goto foreach_body;
     }
 free_ctx:
     delete g_stackBufferContext;

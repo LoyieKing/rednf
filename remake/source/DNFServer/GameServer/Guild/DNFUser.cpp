@@ -250,7 +250,7 @@ void CUser::AttachGuild(CGuild* guild)
     m_guild = guild;
 }
 
-void CUser::ResetGuild()
+void CUser::ResetGuild() throw()
 {
     DetachGuild();
     memset((void*)&m_guildDBInfo, 0, 0x1a);
@@ -445,21 +445,30 @@ void CUser::GetBlackList(unsigned char& count, unsigned int* list)
 
 void CUser::RegisterToCashBlackList(std::map<unsigned int, CBlackUser*>& map)
 {
+    if (map.empty())
+    {
+        return;
+    }
+    m_blackList.clear();
     for (std::map<unsigned int, CBlackUser*>::iterator it = map.begin();
          it != map.end(); ++it)
     {
-        m_blackList[it->first] = it->second;
+        m_blackList.insert(std::make_pair(it->first, it->second));
     }
 }
 
-int CUser::IsBlackUser(unsigned int charNo)
+bool CUser::IsBlackUser(unsigned int charNo)
 {
     if (m_blackList.empty())
     {
         return 0;
     }
     UserBlackMap::iterator it = m_blackList.find(charNo);
-    return it != m_blackList.end() ? 1 : 0;
+    if (it != m_blackList.end())
+    {
+        return true;
+    }
+    return false;
 }
 
 int CUser::GetBlackListSize()
@@ -642,9 +651,9 @@ unsigned char CUser::GetGrowthType()
     return m_growthType;
 }
 
-unsigned char CUser::GetLevel()
+unsigned short CUser::GetLevel()
 {
-    return (unsigned char)m_guildMemFlag;
+    return m_guildMemFlag;
 }
 
 void CUser::SetSex(unsigned char sex)

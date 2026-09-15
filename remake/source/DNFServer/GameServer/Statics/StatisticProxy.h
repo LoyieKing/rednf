@@ -79,7 +79,7 @@ public:
                          const std::string& cond);
     bool MakeUpdateQuery(char* out, const char* table, const std::string& key,
                          const std::string& cond);
-    void getUpdateCondition(const std::string& key, const std::string& cond);
+    const char* getUpdateCondition(const std::string& key, const std::string& cond);
     void add(const char* name, unsigned int value);
     void reset();
     std::map<std::string, unsigned long long> m_fields;  // +0

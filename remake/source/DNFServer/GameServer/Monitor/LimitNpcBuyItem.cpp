@@ -116,7 +116,7 @@ void LimitNpcBuyItemManager::getNpcLimitBuyItemInfoAll(LimitNpcBuyItemInfoAll* o
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0129 | monitor | 与ORIG差异=DIFF | LimitNpcBuyItemManager::getNpcLimitBuyItemCount | 详见 function_reports/monitor/_ZN22LimitNpcBuyItemManager23getNpcLimitBuyItemCountEjR25LimitNpcBuyItemChangeInfo.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0129 已消除）
 void LimitNpcBuyItemManager::getNpcLimitBuyItemCount(unsigned int itemId,
                                                      LimitNpcBuyItemChangeInfo& out)
 {
@@ -126,9 +126,7 @@ void LimitNpcBuyItemManager::getNpcLimitBuyItemCount(unsigned int itemId,
         return;
     }
     out.m_itemId = itemId;
-    register int maxCount = (int)it->second.m_maxCount;
-    register int sellCount = (int)it->second.m_sellCount;
-    out.m_remainCount = maxCount - sellCount;
+    out.m_remainCount = (int)(it->second.m_maxCount - it->second.m_sellCount);
 }
 
 LimitNpcBuyItemChangeInfo::LimitNpcBuyItemChangeInfo() : PacketHeader(0x27db, 0x12)

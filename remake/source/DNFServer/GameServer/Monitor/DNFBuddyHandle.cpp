@@ -46,6 +46,10 @@ CBuddyHandle::~CBuddyHandle() { reset(0, 0); }
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0009 | monitor | 与ORIG差异=DIFF | CBuddyHandle::addDB | 详见 function_reports/monitor/_ZN12CBuddyHandle5addDBEP14CServerHandlerPc.md
 int CBuddyHandle::addDB(CServerHandler* handler, char* name)
 {
+    // [MonitorRest 本轮] 150/161 DIFF ndiff=68（未归零）：ORIG 的 std::string key 槽 -0x14/alloc -0xd，
+    //   我方 key=-0x10/alloc=-0x19；且 log 分支 ORIG `mov $0x1,%eax` vs 我方 `%ebx`（EH 路径寄存器选择）。
+    //   已试无效/劣化：① 删 `std::allocator<char> alloc` 改用默认构造（68→71）；
+    //   ② string 具名→临时。登记为「EH 清理路径寄存器/槽分配」族。
     if (m_prUser == 0 || m_prUser->GetUniqCharNo() == 0)
     {
         DNF_LOG_SCOPE_LINE(0x5a, "./log/buddy", "Buddy::addDB m_prUser is NULL");
@@ -115,13 +119,16 @@ void CBuddyHandle::setBuddyCharName(int charNo, const std::string& newName)
     for (std::map<std::string, CBuddy*>::iterator it = m_buddies.begin();
          it != m_buddies.end(); ++it)
     {
-        if (it->second != 0 &&
-            charNo == ((STBuddyDBInfo*)it->second->getBuddyDBInfo())->m_characNo)
+        // P0 槽-局部律：ORIG 该值经具名槽 -0x2c 往返 ⇒ 源码有具名局部且声明在 if 之前。
+        CBuddy* buddy = it->second;
+        if (buddy != 0)
         {
-            CBuddy* buddy = it->second;
-            m_buddies.erase(it);
-            m_buddies.insert(std::pair<const std::string, CBuddy*>(newName, buddy));
-            break;
+            if (charNo == ((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_characNo)
+            {
+                m_buddies.erase(it);
+                m_buddies.insert(std::make_pair(newName, buddy));
+                break;
+            }
         }
     }
 }
@@ -191,8 +198,8 @@ int CBuddyHandle::del(std::string name)
     return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0007 | monitor | 与ORIG差异=DIFF | CBuddyHandle::addFromCash | 详见 function_reports/monitor/_ZN12CBuddyHandle11addFromCashEP6CBuddy.md
-int CBuddyHandle::addFromCash(CBuddy* buddy)
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0007 已消除）
+bool CBuddyHandle::addFromCash(CBuddy* buddy)
 {
     if (m_buddies.size() > 0x1f)
     {
@@ -244,12 +251,15 @@ CBuddy* CBuddyHandle::findBuddyByCharNo(unsigned int charNo)
     return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0008 | monitor | 与ORIG差异=DIFF | CBuddyHandle::printBuddys | 详见 function_reports/monitor/_ZN12CBuddyHandle11printBuddysEPc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0008 已消除）
 void CBuddyHandle::printBuddys(char* out)
 {
     if (m_prUser != 0)
     {
-        if (!m_buddies.empty())
+        if (m_buddies.empty())
+        {
+        }
+        else
         {
             std::map<std::string, CBuddy*>::iterator it = m_buddies.begin();
             std::map<std::string, CBuddy*>::iterator end = m_buddies.end();
@@ -269,15 +279,25 @@ void CBuddyHandle::printBuddys(char* out)
             }
         }
     }
+    return;
 }
 
 int CBuddyHandle::add(std::string name, STBuddyDBInfo& info)
 {
-    if (m_buddies.size() < 0x20)
+    // [MonitorRest 本轮] 103/104 DIFF ndiff=18（未归零）：唯一差异是 buddy 局部槽位
+    //   （ORIG buddy=-0x34 最深，我方=-0x2c；两侧槽集合完全相同）。
+    //   已试无效：① `buddy` 声明下移到 try 内；② insert 返回 pair 拆成先声明后赋值（→113 劣化）；
+    //   ③ 恢复外层块包裹。登记为「BIND/临时对象分配顺序」族。
+    if (m_buddies.size() > 0x1f)
     {
-        CBuddy* buddy = new CBuddy(info);
+        return 0;
+    }
+    CBuddy* buddy;
+    try
+    {
+        buddy = new CBuddy(info);
         std::pair<std::map<std::string, CBuddy*>::iterator, bool> r =
-            m_buddies.insert(std::pair<const std::string, CBuddy*>(name, buddy));
+            m_buddies.insert(std::make_pair(name, buddy));
         if (!r.second)
         {
             delete buddy;
@@ -285,7 +305,10 @@ int CBuddyHandle::add(std::string name, STBuddyDBInfo& info)
         }
         return 1;
     }
-    return 0;
+    catch (...)
+    {
+        return 0;
+    }
 }
 
 void CBuddyHandle::reset(CUser* user, bool flag)

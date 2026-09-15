@@ -115,7 +115,7 @@ bool CUserManager::InsertUser(const unsigned int dbid, CUser* user)
     return 0;
 }
 
-int CUserManager::DeleteUser(unsigned int dbid)
+bool CUserManager::DeleteUser(unsigned int dbid)
 {
     if (m_users.empty())
     {
@@ -140,7 +140,7 @@ int CUserManager::DeleteUser(unsigned int dbid)
     return 0;
 }
 
-int CUserManager::DeleteUser(CUser* user)
+bool CUserManager::DeleteUser(CUser* user)
 {
     if (m_users.empty())
     {
@@ -314,7 +314,7 @@ CUser* CUserManager::CreateUser(unsigned int dbid, unsigned int charNo, char* ch
     return user;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0004 | guild | 与ORIG差异=NEAR | CUserManager::InsertUser_CharNo | 详见 function_reports/guild/_ZN12CUserManager17InsertUser_CharNoEjP5CUser.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-NEAR-0004 | guild | 与ORIG差异=NEAR | CUserManager::InsertUser_CharNo | 详见 function_reports/guild/_ZN12CUserManager17InsertUser_CharNoEjP5CUser.md
 bool CUserManager::InsertUser_CharNo(unsigned int charNo, CUser* user)
 {
     if (user != 0)
@@ -323,18 +323,14 @@ bool CUserManager::InsertUser_CharNo(unsigned int charNo, CUser* user)
         {
             return 1;
         }
-        register char* name = user->GetCharName();
-        register unsigned int dbid = user->GetDBID();
-        register unsigned int nCharNo = charNo;
-        CMyFileLog log(__FUNCTION__, 0x163);
-        log("./log/Except",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x163, "./log/Except",
             "[INSERT_ERR]Already Exist!\tChar No : %d\tDB No : %d\tChar_Name : %s\n",
-            nCharNo, dbid, name);
+            charNo, user->GetDBID(), user->GetCharName());
     }
     return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0003 | guild | 与ORIG差异=NEAR | CUserManager::DeleteUser_CharNo | 详见 function_reports/guild/_ZN12CUserManager17DeleteUser_CharNoEj.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-NEAR-0003 | guild | 与ORIG差异=NEAR | CUserManager::DeleteUser_CharNo | 详见 function_reports/guild/_ZN12CUserManager17DeleteUser_CharNoEj.md
 int CUserManager::DeleteUser_CharNo(unsigned int charNo)
 {
     if (m_charNoUsers.empty() || charNo == 0)
@@ -345,12 +341,9 @@ int CUserManager::DeleteUser_CharNo(unsigned int charNo)
     {
         return 1;
     }
-    register int nSize = m_charNoUsers.size();
-    register unsigned int nCharNo = charNo;
-    CMyFileLog log(__FUNCTION__, 0x17e);
-    log("./log/User",
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x17e, "./log/User",
         "[EXCEPT]CUserManager::DeleteUser_CharNo() : Erase Fail!\tChar No : %d\tChar_No Map Count : %d\n",
-        nCharNo, nSize);
+        charNo, m_charNoUsers.size());
     return 0;
 }
 
@@ -360,7 +353,7 @@ CUser* CUserManager::FindUser_CharNo(unsigned int charNo) const
     return it == m_charNoUsers.end() ? 0 : it->second;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0005 | guild | 与ORIG差异=NEAR | CUserManager::InsertUser_CharName | 详见 function_reports/guild/_ZN12CUserManager19InsertUser_CharNameEPcP5CUser.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-NEAR-0005 | guild | 与ORIG差异=NEAR | CUserManager::InsertUser_CharName | 详见 function_reports/guild/_ZN12CUserManager19InsertUser_CharNameEPcP5CUser.md
 bool CUserManager::InsertUser_CharName(char* name, CUser* user)
 {
     if (user != 0)
@@ -369,11 +362,9 @@ bool CUserManager::InsertUser_CharName(char* name, CUser* user)
         {
             return 1;
         }
-        register unsigned int dbid = user->GetDBID();
-        register char* nName = name;
-        CMyFileLog log(__FUNCTION__, 0x1a6);
-        log("./log/Except", "[INSERT_ERR]Already Exist!\tChar Name : %s\tDB No : %d\n",
-            nName, dbid);
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x1a6, "./log/Except",
+            "[INSERT_ERR]Already Exist!\tChar Name : %s\tDB No : %d\n",
+            name, user->GetDBID());
     }
     return 0;
 }
@@ -388,8 +379,7 @@ int CUserManager::DeleteUser_CharName(std::string name)
     {
         return 1;
     }
-    CMyFileLog log("DeleteUser_CharName", 0x1c1);
-    log("./log/Except",
+    DNF_LOG_SCOPE_AT("DeleteUser_CharName", 0x1c1, "./log/Except",
         "[EXCEPT]CUserManager::DeleteUser_CharNo() : Erase Fail!\tChar Name : %s\tChar_No Map Count : %d\n",
         name.c_str(), m_charNoUsers.size());
     return 0;

@@ -46,10 +46,6 @@ CTableBase::~CTableBase()
 {
 }
 
-void CTableBase::Load_Table(const std::string& path)
-{
-}
-
 int CTableBase::Load_Txt_Table_Data(const char* path, int maxCount)
 {
     int count = 0;

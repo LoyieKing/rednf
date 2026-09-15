@@ -241,7 +241,7 @@ struct stUserHuntingPoint;
 class TowerOfDespairReloadAPC_Task : public CTaskScheduler::CTask
 {
 public:
-    TowerOfDespairReloadAPC_Task(unsigned int a, unsigned int b);
+    TowerOfDespairReloadAPC_Task(unsigned int a, unsigned int b) throw();
     ~TowerOfDespairReloadAPC_Task();
     void _DoExecute();
     static bool isReturnedMessage();

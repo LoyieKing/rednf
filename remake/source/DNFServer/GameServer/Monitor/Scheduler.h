@@ -243,7 +243,7 @@ public:
     CScheduler();
     ~CScheduler();
     char IsOnTimeSpecialDayHour(int day, int hour, int min);
-    char IsOnTimeSpecialHour(int day, int hour);
+    bool IsOnTimeSpecialHour(int day, int hour);
     void SetSpecialHour(int hour);
     void SetSpecialDayHour(int day, int hour);
     char m_data[4];             // +0..3

@@ -30,8 +30,8 @@ public:
     int Size();
     CUser* CreateUser(unsigned int dbid, unsigned int charNo, char* charName, int channel,
                       CGameServer* server);
-    int DeleteUser(unsigned int dbid);
-    int DeleteUser(CUser* user);
+    bool DeleteUser(unsigned int dbid);
+    bool DeleteUser(CUser* user);
     int DeleteUser_CharNo(unsigned int charNo);
     int DeleteUser_CharName(std::string name);
     bool InsertUser(unsigned int dbid, CUser* user);

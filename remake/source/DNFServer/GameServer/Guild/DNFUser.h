@@ -74,9 +74,11 @@ public:
     void SetSex(unsigned char sex);
     void SetSsn(char* ssn);
     char* GetSsn();
-    unsigned char GetLevel();
+    unsigned short GetLevel();
     unsigned int GetGuildKey();
-    void ResetGuild();
+    // [P374] ORIG 的 `CUser::D1Ev` 无 EH landing pad（40 条直落 epilogue）⇒
+    //   body 内唯一的调用 `ResetGuild()` 为 nothrow（其体仅 DetachGuild + memset）。
+    void ResetGuild() throw();
     void AttachGuild(CGuild* guild);
     void DetachGuild();
     unsigned short GetGuildMemFlag();
@@ -108,7 +110,7 @@ public:
     bool RegisterToBlackList(unsigned int charNo, char* name, unsigned int param);
     bool DeleteToBlackList(unsigned int charNo);
     void ResetBlackList();
-    int IsBlackUser(unsigned int charNo);
+    bool IsBlackUser(unsigned int charNo);
     void GetBlackList(unsigned char& count, STBlackUserDBType* list);
     void GetBlackList(unsigned char& count, unsigned int* list);
     int GetBlackListSize();

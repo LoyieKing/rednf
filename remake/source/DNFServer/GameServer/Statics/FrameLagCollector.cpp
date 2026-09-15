@@ -11,6 +11,8 @@
 #include "DNFFunctionLib.h"
 #include "UdpCharacteristic.h"
 #include "Packet_Frame_Lag_Statistic_Add.h"
+#include "Packet_Frame_Lag_Statistic_Result_Load_Spec.h"
+#include "Packet_Frame_Lag_Statistic_Result_Reload_Spec.h"
 
 struct PairView { int m_key; int m_f0; char m_rest[0x1c]; };
 struct PktView { char m_pad[0xa]; int m_a; } __attribute__((packed));
@@ -52,6 +54,15 @@ struct FrameLagSpecView
     char m_field1e[6];  // +0xdf
 } __attribute__((packed));
 
+// Load/Reload Spec 的 m_modifyTime 在 ORIG 侧按 int 读取：ORIG 为
+// `mov 0xb(%eax,%edx,4),%edx` 单段直落；共享头写 unsigned int 会多一条
+// int←unsigned 转换中转（4.4 实测量：mov mem,%eax; mov %eax,%edx）。
+struct FrameLagModifyTimeInt
+{
+    char m_pad[0x2b];
+    int m_modifyTime[6];    // +0x2b
+} __attribute__((packed));
+
 // FrameLag Statistic_Add 包：每 0x38 字节一个 item，v0..v3 位于 item 内 +0x24..0x2a；
 // 用 (char*)pkt + i*0x38 + 0x20 的基址 + item 内 +4..0xa 成员，复现 ORIG 的
 // add $0x20 + movzwl 0x4(%eax) 拆分形态。
@@ -62,15 +73,18 @@ struct FrameLagAddItem
     short m_v1;         // +0x06
     short m_v2;         // +0x08
     short m_v3;         // +0x0a
-    char m_rest[0x2e];  // 补齐至 0x38
+    char m_rest[0x2c];  // 使 sizeof 恰为 0x38（与 ORIG 的 item 步长一致）
 } __attribute__((packed));
+struct FrameLagAddItems { char m_pad[0x20]; FrameLagAddItem m_items[6]; } __attribute__((packed));
 
 // FrameLag Statistic_Add 包：+0xc 起 8 字节步长的子项（int + float），
 // 复现 ORIG 的 mov 0xc(%ecx,%eax,8) / mov 0x10(%ecx,%eax,8) 形态。
 struct FrameLagAddSub
 {
     char m_pad[0xc];       // +0x00
-    struct FrameLagAddSubItem { int m_i; float m_f; } m_sub[0x100];  // +0x0c，步长 8
+    // 三维拆分（末维为 1）：索引仍等价于 i*7 + (j+4)，但让 GCC 用
+    //   独立下标展开（base 提前、j 进寄存器、末尾 add $0x4），对齐 ORIG。
+    struct FrameLagAddSubItem { int m_i; float m_f; } m_sub[6][7][1];  // +0x0c，步长 8
 } __attribute__((packed));
 
 // FrameLag Statistic_Add 包尾：+0x174 起 char[6] + short[6]（used memory 上报），
@@ -91,20 +105,7 @@ struct FrameLagAccItem
     short m_v2;         // +0x04
     short m_v3;         // +0x06
     struct Sub { int m_i; float m_f; } m_sub[6];  // +0x08，步长 8
-    char m_rest[0x28];  // 补齐至 0x38
-} __attribute__((packed));
-
-// SaveFrameLagData 写出包：短整型从 +0x27 起按 item 步长 0x1c；
-// pair 从 +0x0f 起按 ORIG 的 (k*7+j+4)*2 下标，避免 packed Item 物化指针。
-struct WriteLagShorts
-{
-    char m_pad[0x27];
-    short m[0x200];
-} __attribute__((packed));
-struct WriteLagPairs
-{
-    char m_pad[0xf];
-    int m[0x200];
+    char m_rest[0x28];  // 补齐至 0x60（访问一律走 char* + i*0x38，不依赖本结构步长）
 } __attribute__((packed));
 
 int FrameLagCollector::GetCollectInterval()
@@ -227,6 +228,10 @@ int FrameLagCollector::ReLoadSpec(CServerHandler* handler)
 // [DNF-NONIDENTICAL] DNF-STA-DIFF-0021 | statics | 与ORIG差异=DIFF | FrameLagCollector::PushOneFrameLagData | 详见 function_reports/statics/_ZN17FrameLagCollector19PushOneFrameLagDataEP30Packet_Frame_Lag_Statistic_Add.md
 int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
 {
+    // [2026-09-15 P372 实验] ORIG 为 C 风格函数体顶部前置声明：char 局部
+    //   match 落 -0xd、循环变量 i 落 -0xc（我方原为 -0x9 / -0x10）。
+    unsigned char match;
+    int i;
     if (m_field4 != 2)
     {
         return 2;
@@ -237,7 +242,7 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
     }
     m_field6c++;
     m_directx.add_cnt(((FrameLagPktHeader*)pkt)->m_directx);
-    for (int i = 0; i < 6; i++)
+    for (i = 0; i < 6; i++)
     {
         m_memory[i].SetUsedMemory((char)((FrameLagMemView*)pkt)->m_used[i],
                                   ((FrameLagMemView*)pkt)->m_val[i]);
@@ -247,7 +252,7 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
     it = m_monitor.begin();
     for (; it != m_monitor.end(); ++it)
     {
-        char match = 1;
+        match = 1;
         if ((int)match == 1)
         {
             if (!(it->second.m_cpuVendor == -1 ||
@@ -281,15 +286,15 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
                 goto MATCH_DONE;
             }
             if (!(it->second.m_videocardVendor == -1 ||
-                  (unsigned int)it->second.m_videocardVendor ==
-                      (unsigned int)((FrameLagPktHeader*)pkt)->m_field_12))
+                  it->second.m_videocardVendor ==
+                      ((FrameLagPktHeader*)pkt)->m_field_12))
             {
                 match = 0;
                 goto MATCH_DONE;
             }
             if (!(it->second.m_videocardDevice == -1 ||
-                  (unsigned int)it->second.m_videocardDevice ==
-                      (unsigned int)((FrameLagPktHeader*)pkt)->m_field_14))
+                  it->second.m_videocardDevice ==
+                      ((FrameLagPktHeader*)pkt)->m_field_14))
             {
                 match = 0;
                 goto MATCH_DONE;
@@ -357,44 +362,44 @@ int FrameLagCollector::PopMonitoringSpecData(Packet_Frame_Lag_Spec_Delete_Notify
     }
     return 0;
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0022 | statics | 与ORIG差异=DIFF | FrameLagCollector::PushMonitoringSpecData | 详见 function_reports/statics/_ZN17FrameLagCollector22PushMonitoringSpecDataEP43Packet_Frame_Lag_Statistic_Result_Load_Spec.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0022 已消除）
 int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_Load_Spec* pkt)
 {
     if (m_field4 != 1)
     {
         return 3;
     }
-    if (m_field18 == ((FrameLagSpecView*)pkt)->m_fieldA)
+    if (m_field18 == pkt->m_loadSeq)
     {
-        if (m_map1c.find(((FrameLagSpecIntsB*)pkt)->m[0]) == m_map1c.end())
+        if (m_map1c.find(*(int*)((char*)pkt + 0xb)) == m_map1c.end())
         {
-            m_map1c[((FrameLagSpecIntsB*)pkt)->m[0]] = 1;
+            m_map1c[*(int*)((char*)pkt + 0xb)] = 1;
             for (int i = 0; i <= 5; i++)
             {
-                if (((FrameLagSpecInts3*)pkt)->m[i + 4] == -1)
+                if (pkt->m_uniqueId[i] == -1)
                 {
                     break;
                 }
-                if (m_field4c < ((FrameLagSpecIntsB*)pkt)->m[i + 8])
+                if (m_field4c < pkt->m_modifyTimeInt[i])
                 {
-                    m_field4c = ((FrameLagSpecIntsB*)pkt)->m[i + 8];
+                    m_field4c = pkt->m_modifyTimeInt[i];
                 }
                 MonitoringSpecCase mc;
-                mc.m_specId = ((FrameLagSpecInts3*)pkt)->m[i + 0x10];
-                mc.m_cpuVendor = ((FrameLagSpecView*)pkt)->m_field4[i];
-                mc.m_cpuProcessorNum = ((FrameLagSpecView*)pkt)->m_field5[i];
-                mc.m_aboveCpuClock = ((FrameLagSpecInts7*)pkt)->m[i + 0x18];
-                mc.m_belowCpuClock = ((FrameLagSpecIntsF*)pkt)->m[i + 0x1c];
-                mc.m_ram = ((FrameLagSpecShorts7*)pkt)->m[i + 0x48];
-                mc.m_videocardVendor = ((FrameLagSpecInts3*)pkt)->m[i + 0x28];
-                mc.m_videocardDevice = ((FrameLagSpecIntsB*)pkt)->m[i + 0x2c];
-                mc.m_videocardTextureMem = ((FrameLagSpecShorts3*)pkt)->m[i + 0x68];
-                mc.m_osVersion = ((FrameLagSpecView*)pkt)->m_field1e[i];
-                m_monitor[((FrameLagSpecInts3*)pkt)->m[i + 4]] = mc;
+                mc.m_specId = pkt->m_specId[i];
+                mc.m_cpuVendor = pkt->m_cpuVendor[i];
+                mc.m_cpuProcessorNum = pkt->m_cpuProcessorNum[i];
+                mc.m_aboveCpuClock = pkt->m_aboveCpuClock[i];
+                mc.m_belowCpuClock = pkt->m_belowCpuClock[i];
+                mc.m_ram = pkt->m_ram[i];
+                mc.m_videocardVendor = pkt->m_videocardVendor[i];
+                mc.m_videocardDevice = pkt->m_videocardDevice[i];
+                mc.m_videocardTextureMem = pkt->m_videocardTextureMem[i];
+                mc.m_osVersion = pkt->m_osVersion[i];
+                m_monitor[pkt->m_uniqueId[i]] = mc;
                 FrameLagDataStruct fd;
                 m_data[mc.m_specId] = fd;
             }
-            if (m_map1c.size() == ((FrameLagSpecIntsF*)pkt)->m[0])
+            if (m_map1c.size() == (size_t)pkt->m_count)
             {
                 m_field4 = 2;
                 puts("============FirstSpecLoad Complete!!!==========");
@@ -403,65 +408,63 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
     }
     return 0;
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0023 | statics | 与ORIG差异=DIFF | FrameLagCollector::PushMonitoringSpecData | 详见 function_reports/statics/_ZN17FrameLagCollector22PushMonitoringSpecDataEP45Packet_Frame_Lag_Statistic_Result_Reload_Spec.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0023 已消除）
 int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_Reload_Spec* pkt)
 {
     if (m_field4 != 2)
     {
         return 2;
     }
-    if (m_field19 == ((FrameLagSpecView*)pkt)->m_fieldA)
+    if (m_field19 == pkt->m_loadSeq)
     {
         std::map<int, char>::iterator e = m_map34.end();
-        std::map<int, char>::iterator found =
-            m_map34.find(*(int*)((char*)pkt + 0xb));
-        if (found == e)
+        if (m_map34.find(*(int*)((char*)pkt + 0xb)) == e)
         {
             m_map34[*(int*)((char*)pkt + 0xb)] = 1;
             for (int i = 0; i <= 5; i++)
             {
-                if (((FrameLagSpecInts3*)pkt)->m[i + 4] == -1)
+                if (pkt->m_uniqueId[i] == -1)
                 {
                     break;
                 }
-                if (m_field50 < ((FrameLagSpecIntsB*)pkt)->m[i + 8])
+                if (m_field50 < pkt->m_modifyTimeInt[i])
                 {
-                    m_field50 = ((FrameLagSpecIntsB*)pkt)->m[i + 8];
+                    m_field50 = pkt->m_modifyTimeInt[i];
                 }
                 std::map<int, MonitoringSpecCase>::iterator it;
-                it = m_monitor.find(((FrameLagSpecInts3*)pkt)->m[i + 4]);
+                it = m_monitor.find(pkt->m_uniqueId[i]);
                 if (it == m_monitor.end())
                 {
                     MonitoringSpecCase mc;
-                    mc.m_specId = ((FrameLagSpecInts3*)pkt)->m[i + 0x10];
-                    mc.m_cpuVendor = ((FrameLagSpecView*)pkt)->m_field4[i];
-                    mc.m_cpuProcessorNum = ((FrameLagSpecView*)pkt)->m_field5[i];
-                    mc.m_aboveCpuClock = ((FrameLagSpecInts7*)pkt)->m[i + 0x18];
-                    mc.m_belowCpuClock = ((FrameLagSpecIntsF*)pkt)->m[i + 0x1c];
-                    mc.m_ram = ((FrameLagSpecShorts7*)pkt)->m[i + 0x48];
-                    mc.m_videocardVendor = ((FrameLagSpecInts3*)pkt)->m[i + 0x28];
-                    mc.m_videocardDevice = ((FrameLagSpecIntsB*)pkt)->m[i + 0x2c];
-                    mc.m_videocardTextureMem = ((FrameLagSpecShorts3*)pkt)->m[i + 0x68];
-                    mc.m_osVersion = ((FrameLagSpecView*)pkt)->m_field1e[i];
-                    m_monitor[((FrameLagSpecInts3*)pkt)->m[i + 4]] = mc;
+                    mc.m_specId = pkt->m_specId[i];
+                    mc.m_cpuVendor = pkt->m_cpuVendor[i];
+                    mc.m_cpuProcessorNum = pkt->m_cpuProcessorNum[i];
+                    mc.m_aboveCpuClock = pkt->m_aboveCpuClock[i];
+                    mc.m_belowCpuClock = pkt->m_belowCpuClock[i];
+                    mc.m_ram = pkt->m_ram[i];
+                    mc.m_videocardVendor = pkt->m_videocardVendor[i];
+                    mc.m_videocardDevice = pkt->m_videocardDevice[i];
+                    mc.m_videocardTextureMem = pkt->m_videocardTextureMem[i];
+                    mc.m_osVersion = pkt->m_osVersion[i];
+                    m_monitor[pkt->m_uniqueId[i]] = mc;
                 }
                 else
                 {
-                    it->second.m_specId = ((FrameLagSpecInts3*)pkt)->m[i + 0x10];
-                    it->second.m_cpuVendor = ((FrameLagSpecView*)pkt)->m_field4[i];
-                    it->second.m_cpuProcessorNum = ((FrameLagSpecView*)pkt)->m_field5[i];
-                    it->second.m_aboveCpuClock = ((FrameLagSpecInts7*)pkt)->m[i + 0x18];
-                    it->second.m_belowCpuClock = ((FrameLagSpecIntsF*)pkt)->m[i + 0x1c];
-                    it->second.m_ram = ((FrameLagSpecShorts7*)pkt)->m[i + 0x48];
-                    it->second.m_videocardVendor = ((FrameLagSpecInts3*)pkt)->m[i + 0x28];
-                    it->second.m_videocardDevice = ((FrameLagSpecIntsB*)pkt)->m[i + 0x2c];
-                    it->second.m_videocardTextureMem = ((FrameLagSpecShorts3*)pkt)->m[i + 0x68];
-                    it->second.m_osVersion = ((FrameLagSpecView*)pkt)->m_field1e[i];
+                    it->second.m_specId = pkt->m_specId[i];
+                    it->second.m_cpuVendor = pkt->m_cpuVendor[i];
+                    it->second.m_cpuProcessorNum = pkt->m_cpuProcessorNum[i];
+                    it->second.m_aboveCpuClock = pkt->m_aboveCpuClock[i];
+                    it->second.m_belowCpuClock = pkt->m_belowCpuClock[i];
+                    it->second.m_ram = pkt->m_ram[i];
+                    it->second.m_videocardVendor = pkt->m_videocardVendor[i];
+                    it->second.m_videocardDevice = pkt->m_videocardDevice[i];
+                    it->second.m_videocardTextureMem = pkt->m_videocardTextureMem[i];
+                    it->second.m_osVersion = pkt->m_osVersion[i];
                 }
                 FrameLagDataStruct fd;
-                m_data[((FrameLagSpecInts3*)pkt)->m[i + 0x10]] = fd;
+                m_data[pkt->m_specId[i]] = fd;
             }
-            if (m_map34.size() == ((FrameLagSpecIntsF*)pkt)->m[0])
+            if (m_map34.size() == (size_t)pkt->m_count)
             {
                 if (m_field50 > m_field4c)
                 {
@@ -509,8 +512,6 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
         pkt.m_serverGroup = (char)handler->GetServerGroupNo();
         time_t t;
         time(&t);
-        time_t now = t;
-        (void)now;
         std::map<int, FrameLagDataStruct>::iterator it;
         for (it = m_data.begin(); it != m_data.end(); ++it)
         {
@@ -563,8 +564,8 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
                 int j;
                 for (j = 0; j < 6; j++)
                 {
-                    pkt.m_items[k].m_pair[j][0] = it->second.m_i[k * 7 + j].m_words[0];
-                    pkt.m_items[k].m_pair[j][1] = it->second.m_i[k * 7 + j].m_words[1];
+                    pkt.m_items[k].m_pair[j][0] = it->second.m_i[k][j].m_words[0];
+                    pkt.m_items[k].m_pair[j][1] = it->second.m_i[k][j].m_words[1];
                 }
             }
             handler->SendToDB((PacketHeader*)&pkt);
@@ -581,7 +582,7 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
     }
     return 0;
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0025 | statics | 与ORIG差异=DIFF | FrameLagCollector::SaveCollectedDirectxVersion | 详见 function_reports/statics/_ZN17FrameLagCollector27SaveCollectedDirectxVersionEP14CServerHandler.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0025 已消除）
 int FrameLagCollector::SaveCollectedDirectxVersion(CServerHandler* handler)
 {
     if (m_field4 != 2)
@@ -597,10 +598,10 @@ int FrameLagCollector::SaveCollectedDirectxVersion(CServerHandler* handler)
     snprintf((char*)&pkt + 10, 0x400,
              "inSert into directx_version(occ_time,server_group,ver_etc,ver_8_x,ver_9_0,ver_9_0_a,ver_9_0_b,ver_9_0_c,ver_10_x,ver_11_x) values(from_unixtime(%d),%hhd,%u,%u,%u,%u,%u,%u,%u,%u)",
              (int)now, (signed char)handler->GetServerGroupNo(),
-             (unsigned int)m_directx.m_data[0], (unsigned int)m_directx.m_data[1],
-             (unsigned int)m_directx.m_data[2], (unsigned int)m_directx.m_data[3],
-             (unsigned int)m_directx.m_data[4], (unsigned int)m_directx.m_data[5],
-             (unsigned int)m_directx.m_data[6], (unsigned int)m_directx.m_data[7]);
+             m_directx.m_data[0], m_directx.m_data[1],
+             m_directx.m_data[2], m_directx.m_data[3],
+             m_directx.m_data[4], m_directx.m_data[5],
+             m_directx.m_data[6], m_directx.m_data[7]);
         handler->SendToDB((PacketHeader*)&pkt);
         m_directx.init();
     }
@@ -609,22 +610,26 @@ int FrameLagCollector::SaveCollectedDirectxVersion(CServerHandler* handler)
 // [DNF-NONIDENTICAL] DNF-STA-DIFF-0024 | statics | 与ORIG差异=DIFF | FrameLagCollector::is_valid_statistic_packet | 详见 function_reports/statics/_ZN17FrameLagCollector25is_valid_statistic_packetEP30Packet_Frame_Lag_Statistic_Add.md
 bool FrameLagCollector::is_valid_statistic_packet(Packet_Frame_Lag_Statistic_Add* pkt)
 {
+    // [2026-09-15 P372] ORIG 顶部前置声明：i 落 -0xc、j 落 -0x8（我方使用点
+    //   声明时被排成 -0x8/-0x4）。
+    int i;
+    int j;
     if ((char)((FrameLagPktHeader*)pkt)->m_module < 0 ||
         8 < (char)((FrameLagPktHeader*)pkt)->m_module)
     {
         return false;
     }
-    for (int i = 0; i < 6; i++)
+    for (i = 0; i < 6; i++)
     {
-        if (((FrameLagAddItem*)((char*)pkt + i * 0x38 + 0x20))->m_v0 < 0) return 0;
-        if (((FrameLagAddItem*)((char*)pkt + i * 0x38 + 0x20))->m_v1 < 0) return 0;
-        if (((FrameLagAddItem*)((char*)pkt + i * 0x38 + 0x20))->m_v2 < 0) return 0;
-        if (((FrameLagAddItem*)((char*)pkt + i * 0x38 + 0x20))->m_v3 < 0) return 0;
-        for (int j = 0; j < 6; j++)
+        if (((FrameLagAddItems*)pkt)->m_items[i].m_v0 < 0) return 0;
+        if (((FrameLagAddItems*)pkt)->m_items[i].m_v1 < 0) return 0;
+        if (((FrameLagAddItems*)pkt)->m_items[i].m_v2 < 0) return 0;
+        if (((FrameLagAddItems*)pkt)->m_items[i].m_v3 < 0) return 0;
+        for (j = 0; j < 6; j++)
         {
-            if (99999 < ((FrameLagAddSub*)pkt)->m_sub[i * 7 + j + 4].m_i) return 0;
-            if (((FrameLagAddSub*)pkt)->m_sub[i * 7 + j + 4].m_f == 0.0 &&
-                0 < ((FrameLagAddSub*)pkt)->m_sub[i * 7 + j + 4].m_i) return 0;
+            if (99999 < ((FrameLagAddSub*)pkt)->m_sub[i][j][4].m_i) return 0;
+            if (((FrameLagAddSub*)pkt)->m_sub[i][j][4].m_f == 0.0 &&
+                0 < ((FrameLagAddSub*)pkt)->m_sub[i][j][4].m_i) return 0;
         }
     }
     return 1;
@@ -632,53 +637,56 @@ bool FrameLagCollector::is_valid_statistic_packet(Packet_Frame_Lag_Statistic_Add
 // [DNF-NONIDENTICAL] DNF-STA-DIFF-0019 | statics | 与ORIG差异=DIFF | FrameLagCollector::accFrameLagStruct | 详见 function_reports/statics/_ZN17FrameLagCollector17accFrameLagStructERNS_18FrameLagDataStructEP14FrameLagStruct.md
 void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStruct* pkt)
 {
+    // [2026-09-15 实验] j 提升到函数作用域（i 仍在 for 内）使 ORIG 的寄存器
+    //   分配形态部分复现：ndiff 312→260（ORIG 用 ebx/esi/edi 承载 i/j/data）。
+    int j;
     for (int i = 0; i < 6; i++)
     {
         if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v0)
         {
             data.m_d[i] +=
                 (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v0;
-            data.m_h[i][0] += 1;
+            ++data.m_h[i][0];
         }
         if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v1)
         {
             data.m_e[i] +=
                 (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v1;
-            data.m_h[i][1] += 1;
+            ++data.m_h[i][1];
         }
         if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v2)
         {
             data.m_f[i] +=
                 (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v2;
-            data.m_h[i][2] += 1;
+            ++data.m_h[i][2];
         }
         if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v3)
         {
             data.m_g[i] +=
                 (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v3;
-            data.m_h[i][3] += 1;
+            ++data.m_h[i][3];
         }
-        for (int j = 0; j < 6; j++)
+        for (j = 0; j < 6; j++)
         {
-            data.m_i[i * 7 + j].s.m_i =
+            data.m_i[i][j].s.m_i =
                 data.m_a[i] *
-                data.m_i[i * 7 + j].s.m_i;
-            data.m_i[i * 7 + j].s.m_f =
+                data.m_i[i][j].s.m_i;
+            data.m_i[i][j].s.m_f =
                 (float)(unsigned int)data.m_a[i] *
-                data.m_i[i * 7 + j].s.m_f;
-            data.m_i[i * 7 + j].s.m_i +=
+                data.m_i[i][j].s.m_f;
+            data.m_i[i][j].s.m_i +=
                 ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_sub[j].m_i;
-            data.m_i[i * 7 + j].s.m_f +=
+            data.m_i[i][j].s.m_f +=
                 ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_sub[j].m_f;
-            data.m_i[i * 7 + j].s.m_i /=
+            data.m_i[i][j].s.m_i /=
                 data.m_a[i] + 1U;
-            data.m_i[i * 7 + j].s.m_f /=
+            data.m_i[i][j].s.m_f /=
                 (float)(data.m_a[i] + 1U);
         }
-        data.m_a[i] += 1;
+        ++data.m_a[i];
     }
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0017 | statics | 与ORIG差异=DIFF | FrameLagCollector::SaveUsedMemory | 详见 function_reports/statics/_ZN17FrameLagCollector14SaveUsedMemoryEP14CServerHandler.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0017 已消除）
 int FrameLagCollector::SaveUsedMemory(CServerHandler* handler)
 {
     m_field1e4++;
@@ -716,15 +724,22 @@ FrameLagCollector::FrameLagDataStruct::FrameLagDataStruct()
 // [DNF-NONIDENTICAL] DNF-STA-DIFF-0020 | statics | 与ORIG差异=DIFF | FrameLagCollector::FrameLagDataStruct::init | 详见 function_reports/statics/_ZN17FrameLagCollector18FrameLagDataStruct4initEv.md
 void FrameLagCollector::FrameLagDataStruct::init()
 {
+    // [2026-09-15 P372] ORIG 顶部前置声明（槽深→浅 i/-0x10、k/-0xc、j/-0x8）；
+    //   使用点声明会被 4.4 排成 -0xc/-0x8/-0x4（整体浅 4）。
+    // [2026-09-15 实验] 内层 `m_i[k][j]` 写成二维后 ORIG 的 %ebx 承载 j 的形态复现
+    //   （ndiff 44→2，仅剩 m_i 基址 disp 的 0x8/0x10 拆分差）。
+    int i;
+    int k;
+    int j;
     m0 = 0;
-    for (int i = 0; i < 8; i++)
+    for (i = 0; i < 8; i++)
     {
         m_b[i] = 0;
     }
     m_c[0] = 0;
     m_c[1] = 0;
     m_c[2] = 0;
-    for (int k = 0; k < 6; k++)
+    for (k = 0; k < 6; k++)
     {
         m_a[k] = 0;
         m_d[k] = 0;
@@ -735,10 +750,10 @@ void FrameLagCollector::FrameLagDataStruct::init()
         m_h[k][1] = 0;
         m_h[k][2] = 0;
         m_h[k][3] = 0;
-        for (int j = 0; j < 6; j++)
+        for (j = 0; j < 6; j++)
         {
-            m_i[k * 7 + j].m_words[0] = 0;
-            m_i[k * 7 + j].m_words[1] = 0;
+            m_i[k][j].s.m_i = 0;
+            m_i[k][j].s.m_f = 0.0f;
         }
     }
 }

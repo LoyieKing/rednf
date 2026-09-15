@@ -265,7 +265,7 @@ public:
     void SetPort(unsigned short port);
     int* GetSockRef();
     int GetSock();
-    char IsValidServer();
+    bool IsValidServer();
     const char* GetIP();
     unsigned short GetPort();
     void SendHeartbeat(unsigned char group);

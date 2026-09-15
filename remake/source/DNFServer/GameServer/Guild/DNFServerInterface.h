@@ -18,7 +18,7 @@ public:
     ~CServerInterface();
     bool IsValidServer();
     bool IsConnected();
-    int IsHeartBeatTimeOver();
+    bool IsHeartBeatTimeOver();
     void ResetHeartBeat();
     void OnDisconnect();
     int SendToServer(char* buf, int len);

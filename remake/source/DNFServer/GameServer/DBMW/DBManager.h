@@ -9,7 +9,7 @@ class CDBManager
 public:
     CDBManager();
     ~CDBManager();
-    char Open(ENUM_DB_HANDLE_IDX idx, const char* host, unsigned int port,
+    bool Open(ENUM_DB_HANDLE_IDX idx, const char* host, unsigned int port,
               const char* user, const char* pass, const char* db);
     void Init(ENUM_DB_KIND kind, CApplication* app);
     void Close();
@@ -270,7 +270,7 @@ public:
     char OnTechnicalReportCommonQuery(
         Packet_DBMW_TechnicalReport_Common_Query* packet);
     char SunAhWriteQuery(Packet_Frame_Lag_Statistic_Write_Query* packet);
-    char Open(ENUM_DB_HANDLE_IDX idx, const char* host, const char* user,
+    bool Open(ENUM_DB_HANDLE_IDX idx, const char* host, const char* user,
               const char* pass, const char* db);
     unsigned int GetIdentity(CDBHandle* h);
     CDBHandle* m_handles[0x11];  // +0（0x44 字节，17 个槽）

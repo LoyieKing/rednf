@@ -109,24 +109,19 @@ CSwapQueueBase::~CSwapQueueBase()
 template<class T, int N>
 CSwapQueue<T, N>::CSwapQueue()
 {
-    for (int i = 0; i < N; i++)
-    {
-        new (m_data + 8 + i * 0x28) T();
-    }
+    // [2026-09-15 修复] ORIG 0x08053dd8 `CSwapQueue<Tcp,2>::C1`（0xb8）：元素由
+    //   **数组成员隐式构造**（GCC 倒计数循环 `mov $0x1,%ebx; … add $0x28,%edi`）
+    //   产出，非本地的 placement new 循环（后者多 3 条、EH 段形状不同）。
+    //   ⇒ 成员改为真实数组 `T m_queue[N]`（+8，元素 0x28），此处只调 Init()。
     Init();
 }
 
 template<class T, int N>
 CSwapQueue<T, N>::~CSwapQueue()
 {
-    // [2026-09-14 修复] ORIG df_guild_r 0x08053e90 `~CSwapQueue<Tcp,2>`（0x34 字节，
-    //   func_size_audit.py 扫出本地只有 0x5 的空壳）：**逆序析构 N 个就地构造的 T**
-    //   ——元素位于 `m_data + 8 + i*0x28`（与本地构造函数里的 placement new 位置一致）。
-    //   ORIG 反汇编：`ebx = this+0x58; loop { cmp ebx,this+8; je done; ebx -= 0x28;
-    //   ((T*)ebx)->~T(); }`（先尾后头）。本地空实现 ⇒ 两条队列（含 std::deque 的
-    //   缓冲区）永不释放。
-    for (int i = N - 1; i >= 0; i--)
-        ((T*)(m_data + 8 + i * 0x28))->~T();
+    // [2026-09-15 修复] ORIG 0x08053e90 `~CSwapQueue<Tcp,2>`（0x34 字节）= 编译器为
+    //   数组成员 `T m_queue[N]` 发射的**逆序析构循环**（`ebx=this+0x58; loop{cmp
+    //   ebx,this+8; je done; ebx-=0x28; call ~T();}`）⇒ 保留用户空析构体即可。
 }
 
 template<class T, int N>
@@ -140,36 +135,39 @@ void CSwapQueue<T, N>::Pop()
 }
 
 template<class T, int N>
-void CSwapQueue<T, N>::Init()
+void CSwapQueue<T, N>::Init() throw()
 {
-    *(unsigned int*)(m_data + 0) = 0;
-    *(unsigned int*)(m_data + 4) = 1;
+    m_recv = 0;
+    m_parse = 1;
 }
 
 template<class T, int N>
 T* CSwapQueue<T, N>::GetRecvQ()
 {
-    return (T*)(m_data + 8 + *(unsigned int*)(m_data + 0) * 0x28);
+    // ORIG 0x080542dc（0x1a）：`mov (%eax),%edx; shl$2/add/shl$3; add this; add $8`
+    //   = 成员数组下标寻址 `&m_queue[m_recv]`（本地旧式裸偏移写法多 2 条 mov）。
+    return &m_queue[m_recv];
 }
 
 template<class T, int N>
 T* CSwapQueue<T, N>::GetParseQ()
 {
-    return (T*)(m_data + 8 + *(unsigned int*)(m_data + 4) * 0x28);
+    return &m_queue[m_parse];
 }
 
 template<class T, int N>
 void CSwapQueue<T, N>::SwapQ()
 {
-    unsigned int tmp = *(unsigned int*)(m_data + 0);
-    *(unsigned int*)(m_data + 0) = *(unsigned int*)(m_data + 4);
-    *(unsigned int*)(m_data + 4) = tmp;
+    unsigned int tmp = m_recv;
+    m_recv = m_parse;
+    m_parse = tmp;
 }
 
 template<class T>
-IQueue<T>::IQueue()
+IQueue<T>::IQueue() throw()
 {
-    memset(m_data, 0, sizeof(m_data));
+    // [2026-09-15 修复] ORIG 0x0806435a `IQueue<Tcp>::C1` 仅 0x5 字节（push/mov/pop/ret，
+    //   即空体）⇒ 不得 memset（本地旧实现 10 条，且把 Get() 的静态局部构造撑出 EH 段）。
 }
 
 template<class T>
@@ -187,28 +185,29 @@ IQueue<T>* IQueue<T>::Get()
 template<class T>
 void IQueue<T>::InitQueue(T* recv, T* parse)
 {
-    *(T**)(m_data + 0) = recv;
-    *(T**)(m_data + 4) = parse;
+    m_recv = recv;
+    m_parse = parse;
 }
 
 template<class T>
 bool IQueue<T>::SwitchQueue()
 {
-    T* recv = *(T**)(m_data + 0);
-    if (recv->empty())
+    // [2026-09-15 修复] ORIG 0x080641f8（0x41）：`empty()` 调用点直接读 `(%eax)`（m_recv），
+    //   具名局部 recv 在**守卫之后**才落槽（-0xc）⇒ 不要把 recv 提到 empty() 之前（P0 槽律）。
+    if (m_recv->empty())
     {
         return false;
     }
-    T* parse = *(T**)(m_data + 4);
-    *(T**)(m_data + 0) = parse;
-    *(T**)(m_data + 4) = recv;
+    T* recv = m_recv;
+    m_recv = m_parse;
+    m_parse = recv;
     return true;
 }
 
 template<class T>
 T* IQueue<T>::GetParseQueue()
 {
-    return *(T**)(m_data + 4);
+    return m_parse;
 }
 
 typedef std::queue<CTcpRecvBuffer*> TcpRecvQueue;
@@ -492,8 +491,7 @@ void CTcpNetSystem::CleanTcpSendPacketQ()
             delete p;
         }
     }
-    CMyFileLog log(__FUNCTION__, 0x16b);
-    log("./log/TcpSend", "Clean Tcp Send Queue Complete !");
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x16b, "./log/TcpSend", "Clean Tcp Send Queue Complete !");
 }
 
 void CTcpNetSystem::CleanPeers()

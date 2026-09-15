@@ -32,6 +32,15 @@
 #include "DNFServerHandler.h"
 #include "OnTimeEventManager.h"
 
+// ORIG 里 Packet_Monitor_Event_Start 的 +0xe 字段是按 EventParam(4 字节聚合) 复制的，
+// GCC 4.4 对 4 字节聚合赋值生成「先取 LHS 地址」的序列（uint 成员赋值则相反：先取 RHS）。
+// 本地视图复刻该偏移与聚合赋值语义，避免改动共享头 DNFPacketTranslater.h。
+struct Packet_Monitor_Event_StartParamView
+{
+    char m_pad[0xe];
+    EventParam m_eventParam;
+};
+
 CBaseEventAction::~CBaseEventAction() {}
 
 void CBaseEventAction::onStartAction(EventParam& param) {}
@@ -65,7 +74,7 @@ void CBaseEventAction::OnEndEvent()
     onEndAction();
 }
 
-CNullEventAction::CNullEventAction() {}
+CNullEventAction::CNullEventAction() throw() {}
 
 CNullEventAction::~CNullEventAction() {}
 
@@ -79,7 +88,7 @@ void CNullEventAction::onEndAction()
     puts("Test Event Action : On End Null Event Action");
 }
 
-COnTimeEventAction::COnTimeEventAction() {}
+COnTimeEventAction::COnTimeEventAction() throw() {}
 
 COnTimeEventAction::~COnTimeEventAction() {}
 
@@ -116,7 +125,7 @@ CEventActionManager::~CEventActionManager()
     destroy();
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0122 | monitor | 与ORIG差异=DIFF | CEventActionManager::init | 详见 function_reports/monitor/_ZN19CEventActionManager4initEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0122 已消除）
 void CEventActionManager::init()
 {
     for (int i = 0; i < 0xa6; i++)
@@ -142,7 +151,6 @@ void CEventActionManager::destroy()
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-NEAR-0010 | monitor | 与ORIG差异=NEAR | CEventActionManager::OnStartAction | 详见 function_reports/monitor/_ZN19CEventActionManager13OnStartActionEP26Packet_Monitor_Event_Start.md
 void CEventActionManager::OnStartAction(Packet_Monitor_Event_Start* pkt)
 {
     unsigned int code = pkt->m_eventCode;
@@ -151,7 +159,7 @@ void CEventActionManager::OnStartAction(Packet_Monitor_Event_Start* pkt)
         union { unsigned int u; EventParam e; } param;
         param.u = pkt->m_eventParam;
         m_actions[code]->OnStartEvent(param.e);
-        pkt->m_eventParam = param.u;
+        ((Packet_Monitor_Event_StartParamView*)pkt)->m_eventParam = param.e;
     }
     return;
 }

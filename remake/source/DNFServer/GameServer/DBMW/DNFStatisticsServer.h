@@ -20,7 +20,7 @@ public:
     std::string m_name;  // +4
     unsigned short m_port;  // +8
     char m_padA;         // +0xa
-    char m_flag;         // +0xb
+    unsigned char m_flag; // +0xb（与 Init 形参 unsigned char 同型：ORIG store 为 LHS-first）
     CUdpHandler* m_udpHandler;  // +0xc
 };
 

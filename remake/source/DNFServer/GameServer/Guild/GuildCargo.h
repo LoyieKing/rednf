@@ -55,7 +55,7 @@ public:
     void SetCapacity(unsigned int capacity);
     bool IsValidSlot(int slot);
     void SetGuildInfo(int guildKey);
-    unsigned char IsLoadComplete();
+    bool IsLoadComplete();
     int CalcItemCount();
     bool IsEmpty();
     void* GetGuildCargoDBInfo();
@@ -80,7 +80,7 @@ public:
     STGuildCargoDBInfo m_info;      // +0（0x18dc）
     int m_itemCount;                // +0x18dc
     int m_guildKey;                 // +0x18e0
-    unsigned char m_load;           // +0x18e4
+    bool m_load;                    // +0x18e4
     char m_pad[3];                  // +0x18e5
     std::deque<STGuildCargoLog> m_history;   // +0x18e8
 };

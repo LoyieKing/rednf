@@ -262,7 +262,7 @@ public:
     void DeleteBuddys();
     void DeleteBlackUsers();
     void ClearBuddys();
-    char IsLifeTimeOut();
+    bool IsLifeTimeOut();
     std::map<unsigned int, class CBlackUser*>* GetBlackUsersObject();
     void ClearMapBlackUsers();
     unsigned int m_lifeTime;        // +0

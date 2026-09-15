@@ -247,16 +247,17 @@ public:
     void IncrementPacketCount(int id);
     void BeforeProcess();
     void AfterProcess(int id);
-    int m_totalCount;             // +0
+    unsigned int m_totalCount;    // +0
     int m_startTime;              // +4
     unsigned int m_packetCount[0x2418];  // +8
-    int m_packetTime[0x2418];     // +0x9068
+    unsigned int m_packetTime[0x2418];  // +0x9068
     char m_packetFlag[0x2418];    // +0x120c8
-    int m_packetTotal[0x2418];    // +0x144e0
+    unsigned int m_packetTotal[0x2418];  // +0x144e0
     char m_path[0x100];           // +0x1d540
     bool m_flagInit;              // +0x1d640
     char m_flag2;                 // +0x1d641
-    char m_pad[6];                // +0x1d642
+    char m_pad[0x22];             // +0x1d642（ORIG 尾部 0x22 字节：全无引用，
+                                  //  按 nm 尺寸 0x1d664 对齐；原 pad[6] 少 0x1c）
 };
 
 // ---- template impls: CPacketCounter impls ----
@@ -306,31 +307,33 @@ void CPacketCounter<A, B>::BeforeProcess()
         m_packetTime[0] = 0;
     }
 }
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0033 | monitor | 与ORIG差异=DIFF | CPacketCounter<1000, 10240>::AfterProcess | 详见 function_reports/monitor/_ZN14CPacketCounterILi1000ELi10240EE12AfterProcessEi.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0033 | monitor | 与ORIG差异=DIFF | CPacketCounter<1000, 10240>::AfterProcess | 详见 function_reports/monitor/_ZN14CPacketCounterILi1000ELi10240EE12AfterProcessEi.md
 template<int A, int B>
 void CPacketCounter<A, B>::AfterProcess(int id)
 {
-    if (id > 0x27ff) return;
-    if (id < 0x3e8) return;
-    if (!m_flagInit && m_packetCount[id - 0x3e8] > 10) return;
-    int v;
-    if ((v = m_totalCount) == -1)
+    // P375（monitor 侧与 statics/guild/dbmw ORIG 同源，clean=80）：statics 实现映射
+    //（成员已对齐其符号性：m_totalCount/m_packetTime/m_packetTotal 为 unsigned）。
+    if (id >= 0x2800) return;
+    if (id <= 999) return;
+    if (!m_flagInit && m_packetCount[id - 1000] >= 0xb) return;
+    int diff = (int)m_totalCount;
+    while (diff == -1)
     {
-        v = 0;
+        diff = 0;
         return;
     }
-    int diff;
+    int diff2;
     if (m_flagInit)
     {
-        diff = v - m_packetTime[0];
+        diff2 = diff - (int)m_packetTime[0];
     }
     else
     {
-        diff = v - m_packetTime[id - 0x3e8];
-        m_packetCount[id - 0x3e8]++;
-        m_packetFlag[id - 0x3e8] = 0;
+        diff2 = diff - (int)m_packetTime[id - 1000];
+        ++m_packetCount[id - 1000];
+        m_packetFlag[id - 1000] = 0;
     }
-    m_packetTotal[id - 0x3e8] += diff;
+    m_packetTotal[id - 1000] += diff2;
 }
 template class CPacketCounter<1000, 10240>;
 

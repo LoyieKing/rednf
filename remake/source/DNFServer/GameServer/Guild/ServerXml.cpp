@@ -113,11 +113,14 @@ void CServerXml::StrLoading(std::string path)
 {
     InitString();
     m_path = path;
-    TiXmlDocument* doc = &m_doc;
-    doc->Clear();
-    if (doc->LoadFile(m_path.c_str(), TIXML_ENCODING_UNKNOWN))
+    m_doc.Clear();
+    if (!m_doc.LoadFile(m_path, TIXML_ENCODING_UNKNOWN))
     {
-        TiXmlNode* xml = doc->FirstChild("xml");
+        printf("[CServerXml] Load Fail File : %s\n", "server_str.xml");
+    }
+    else
+    {
+        TiXmlNode* xml = m_doc.FirstChild("xml");
         if (xml == 0)
         {
             puts("[CServerXml] <xml> Tag Error");
@@ -129,28 +132,25 @@ void CServerXml::StrLoading(std::string path)
             ProcessLoad(xml);
         }
     }
-    else
-    {
-        printf("[CServerXml] Load Fail File : %s\n", "server_str.xml");
-    }
 }
 
 void CServerXml::CharsetInit(TiXmlNode* node)
 {
-    TiXmlNode* opt = node->FirstChild("option");
+    const char* type = 0;
+    TiXmlNode* opt = 0;
+    opt = node->FirstChild("option");
     if (opt == 0)
     {
         puts("[CServerXml] <option> Tag Error");
         exit(-1);
     }
-    TiXmlNode* charset = opt->FirstChild("charset");
-    if (charset == 0)
+    opt = opt->FirstChild("charset");
+    if (opt == 0)
     {
         puts("[CServerXml] <charset> Tag Error");
         exit(-1);
     }
-    TiXmlElement* e = charset->ToElement();
-    const char* type = e->Attribute("type");
+    type = opt->ToElement()->Attribute("type");
     if (type == 0)
     {
         puts("[CServerXml] <type> Tag Error");
@@ -186,7 +186,8 @@ void CServerXml::CharsetInit(TiXmlNode* node)
 
 void CServerXml::EventLoad(TiXmlNode* node)
 {
-    TiXmlNode* ev = node->FirstChild("event_str");
+    TiXmlNode* ev = 0;
+    ev = node->FirstChild("event_str");
     if (ev == 0)
     {
         puts("[CServerXml] <event_str> Tag Skip!!");
@@ -201,49 +202,50 @@ void CServerXml::EventLoad(TiXmlNode* node)
     for (; ev != 0; ev = ev->NextSibling())
     {
         int id = 0;
-        TiXmlElement* e = ev->ToElement();
-        e->Attribute("id", &id);
+        TiXmlElement* e = 0;
+        const char* msg = 0;
+        TiXmlNode* text = 0;
+        ev->ToElement()->Attribute("id", &id);
         RGBALoad(id, ev);
-        TiXmlNode* text = ev->FirstChild((const char*)this);
+        text = ev->FirstChild((const char*)this);
         if (text == 0)
         {
             printf("%s Tag Error\n", (char*)this);
             exit(-1);
         }
-        TiXmlElement* e2 = text->ToElement();
-        StrPunish(id, e2->Attribute("start_msg"), (_eStringType)1);
-        e2 = text->ToElement();
-        StrPunish(id, e2->Attribute("end_msg"), (_eStringType)2);
+        msg = text->ToElement()->Attribute("start_msg");
+        StrPunish(id, msg, (_eStringType)1);
+        msg = text->ToElement()->Attribute("end_msg");
+        StrPunish(id, msg, (_eStringType)2);
     }
 }
 
 void CServerXml::RGBALoad(int idx, TiXmlNode* node)
 {
-    TiXmlNode* color = node->FirstChild("color");
+    TiXmlNode* color = 0;
+    color = node->FirstChild("color");
     if (color == 0)
     {
         printf("%s Tag Error\n", (char*)this);
         exit(-1);
     }
-    unsigned int rgba = 0;
-    TiXmlElement* e = color->ToElement();
-    int r = atoi(e->Attribute("red"));
-    rgba = (rgba & 0xffffff00U) | ((unsigned int)(unsigned char)r);
-    e = color->ToElement();
-    int g = atoi(e->Attribute("green"));
-    rgba = (rgba & 0xffff00ffU) | (((unsigned int)(unsigned char)g) << 8);
-    e = color->ToElement();
-    int b = atoi(e->Attribute("blue"));
-    rgba = (rgba & 0xff00ffffU) | (((unsigned int)(unsigned char)b) << 16);
-    e = color->ToElement();
-    int a = atoi(e->Attribute("alpha"));
-    rgba = (rgba & 0x00ffffffU) | (((unsigned int)(unsigned char)a) << 24);
-    m_rgba.insert(std::make_pair(idx, (int)rgba));
+    union
+    {
+        int color;
+        char c[4];
+    } rgba;
+    rgba.color = 0;
+    rgba.c[0] = (char)atoi(color->ToElement()->Attribute("red"));
+    rgba.c[1] = (char)atoi(color->ToElement()->Attribute("green"));
+    rgba.c[2] = (char)atoi(color->ToElement()->Attribute("blue"));
+    rgba.c[3] = (char)atoi(color->ToElement()->Attribute("alpha"));
+    m_rgba.insert(std::pair<int, int>(idx, rgba.color));
 }
 
 void CServerXml::ProcessLoad(TiXmlNode* node)
 {
-    TiXmlNode* str = node->FirstChild("str");
+    TiXmlNode* str = 0;
+    str = node->FirstChild("str");
     if (str == 0)
     {
         puts("[CServerXml] <str> Tag Skip!!");
@@ -258,20 +260,22 @@ void CServerXml::ProcessLoad(TiXmlNode* node)
     for (; str != 0; str = str->NextSibling())
     {
         int id = 0;
-        TiXmlElement* e = str->ToElement();
-        e->Attribute("id", &id);
-        TiXmlNode* text = str->FirstChild((const char*)this);
+        TiXmlElement* e = 0;
+        const char* msg = 0;
+        TiXmlNode* text = 0;
+        str->ToElement()->Attribute("id", &id);
+        text = str->FirstChild((const char*)this);
         if (text == 0)
         {
             printf("%s Tag Error\n", (char*)this);
             return;
         }
-        TiXmlElement* e2 = text->ToElement();
-        StrPunish(id, e2->Attribute("text"), (_eStringType)0);
+        msg = text->ToElement()->Attribute("text");
+        StrPunish(id, msg, (_eStringType)0);
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0019 | guild | 与ORIG差异=DIFF | CServerXml::StrPunish | 详见 function_reports/guild/_ZN13np_server_xml10CServerXml9StrPunishEiPKcNS_12_eStringTypeE.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0019 | guild | 与ORIG差异=DIFF | CServerXml::StrPunish | 详见 function_reports/guild/_ZN13np_server_xml10CServerXml9StrPunishEiPKcNS_12_eStringTypeE.md
 void CServerXml::StrPunish(int idx, const char* str, _eStringType type)
 {
     if (str != 0)

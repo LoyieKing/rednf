@@ -246,7 +246,7 @@ struct ST_MemberConfig
     int m_c;  // +8
 };
 
-class CMemberConfig : public CTableBase
+class CMemberConfig : private CTableBase
 {
 public:
     CMemberConfig() throw();
@@ -257,7 +257,7 @@ public:
     ST_MemberConfig m_table[10];  // +4
 };
 
-class CMemberExpTbl : public CTableBase
+class CMemberExpTbl : private CTableBase
 {
 public:
     CMemberExpTbl() throw();
@@ -271,7 +271,7 @@ public:
     unsigned char IsMemberExpLevelUp(unsigned int exp);
     unsigned char m_count; // +4（vptr@0）
     char m_pad4[3];        // +5
-    int m_table[11];       // +8（ORIG Parse_Table 接受 idx 0..10，new 尺寸 0x34）
+    unsigned int m_table[11];  // +8（ORIG Parse_Table 接受 idx 0..10，new 尺寸 0x34）
 };
 
 #endif  // MONITOR_DNFMEMBERCONFIG_H_

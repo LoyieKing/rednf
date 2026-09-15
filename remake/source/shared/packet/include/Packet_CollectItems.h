@@ -10,7 +10,9 @@
 
 class Packet_CollectItems : public PacketHeader {
 public:
-    unsigned int m_idByChannel;  // +0xa
+    int m_idByChannel;           // +0xa（ORIG CPacketTranslater::onCollectItems 把它作为
+                                 //      SendColletItemsReward(unsigned int, int, ...) 的第 2 实参时
+                                 //      直接 `mov 0xa(%eax),%edx`，无 unsigned→int 中转 ⇒ int）
     unsigned int m_accId;        // +0xe（process: CUser::get_acc_id）
     int m_itemCount;             // +0x12（process: (uint)*(ushort*)(msg+0x10) = delete_item 数量）
     unsigned int m_characNo;     // +0x16（process: CUser::get_charac_no(param_1,-1)）

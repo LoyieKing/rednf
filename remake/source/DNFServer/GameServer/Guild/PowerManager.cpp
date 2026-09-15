@@ -210,10 +210,7 @@ int CPowerManager::ComputeWinnerSide()
 
 void CPowerManager::EndPowerWarEvent()
 {
-    {
-        CMyFileLog logTop(__FUNCTION__, 0xd5);
-        logTop("./log/Power", "CPowerManager::EndPowerWarEvent TOP");
-    }
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0xd5, "./log/Power", "CPowerManager::EndPowerWarEvent TOP");
     SetWinnerSide(ComputeWinnerSide());
     RewardBonusPoint();
     SaveDBPowerWarPoint();
@@ -225,8 +222,7 @@ void CPowerManager::EndPowerWarEvent()
     SendPowerWarEndInfo();
     CleanPowerWar();
     m_powerWar.CPowerWar::resetEvent();
-    CMyFileLog logBottom(__FUNCTION__, 0xfd);
-    logBottom("./log/Power", "CPowerManager::EndPowerWarEvent BOTTOM");
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0xfd, "./log/Power", "CPowerManager::EndPowerWarEvent BOTTOM");
 }
 
 void CPowerManager::CleanPowerWar()
@@ -260,8 +256,7 @@ void CPowerManager::CalcPowerWarRank(bool flag)
 
 void CPowerManager::RewardGuildPowerWarPoint()
 {
-    CMyFileLog logTop(__FUNCTION__, 0x198);
-    logTop("./log/PowerResult", "CPowerManager::RewardGuildPowerWarPoint");
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x198, "./log/PowerResult", "CPowerManager::RewardGuildPowerWarPoint");
     if (m_winnerSide == 0 || m_winnerSide > 2)
     {
         DNF_LOG_SCOPE_LINE(0x19c, "./log/PowerResult", "invalid winner side income(%d)", (int)m_winnerSide);
@@ -285,16 +280,42 @@ void CPowerManager::RewardGuildPowerWarPoint()
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0016 | guild | 与ORIG差异=DIFF | CPowerManager::SaveDBPowerWarRank | 详见 function_reports/guild/_ZN13CPowerManager18SaveDBPowerWarRankEv.md
+// 2026-09-15 HWSpecSend：最佳 ndiff=190（ours 394 / orig 388，较 GuildB base 230 改善 40，已保留其「删 winnerSide/app + 内联 m_winnerSide」轴）。
+// 已穷举并劣化/无效的轴（勿重复）：W×A×S 三维 8 格矩阵（GuildB：230/232/384/392/477/485/379/387，全劣于 190 基线）；
+// 局部上移 `users` 到函数首部=197；补 `((unsigned int*)noticePkt.m_data)[i]=*(unsigned int*)users.at(i)->m_data;`（双次 at(i)）+
+// 日志第 3 实参改读 `statuePkt.m_rankers[i]` =410；两者组合=412；`int reservedSlot` 占位=512。
+// 帧已与 ORIG 逐字节相同（`push %ebp; mov; push %esi; push %ebx; sub $0x1850,%esp`）⇒ 非帧轴问题；
+// 槽集合为「两侧各有独占槽」的混合态（ORIG 独占 -0x34/-0x3c/-0x44/-0x54/-0x5c/-0x64/-0x74/-0x75/-0x7f/-0x878/-0x87c..-0x87f/-0x8b/-0x95/-0xa4，
+// 我方独占 -0x28/-0x2d/-0x38/-0x48/-0x50/-0x58/-0x60/-0x70/-0x7c/-0x7d/-0x87/-0x884/-0x88a/-0x88b/-0x895/-0x9d/-0xac/-0xb0）
+// ⇒ 按判据表属「反向平移/混合态」，占位与补语句均无效，登记为强耦合复合族。
+// 2026-09-15 HWSpecSend（第二轮诊断，用 call 符号序列比对 —— 该方法不受错位假信号影响）：
+//   ORIG 比本形态**多 1 次 `Packet_DB_Save_Power_War_Guild_Rank::C1Ev`** 与 **1 次 `vector::at`**（其余 20 个符号计数逐项相同）。
+//   根因：ORIG 的两个 packet ctor 作用在**同一栈地址**（`lea -0x889(%ebp)` 后分别 call User_RankC1/Guild_RankC1）
+//   ⇒ 原源码是「两个**独立作用域块**内的大局部」，由 4.1.2 系编译器**复用栈槽**（4.4.6 不合并，故我方用引用别名替代）。
+//   三种复现尝试全部劣化并回退：①`{userPkt…}` 块 + 块外独立 `guildPkt` = .o 386；②仅独立 `guildPkt`（无块）= 386；
+//   ③placement new（`::new ((void*)&userPkt) Packet_DB_Save_Power_War_Guild_Rank();` + 7 处 `->` + 1 处 SendToDB 实参）= **538**。
+//   ⇒ 该 ctor/at 计数差异属「**编译器栈槽复用行为族**」，在本工具链下源码不可调；维持 190 为最佳形态，勿再试独立大局部。
 void CPowerManager::SaveDBPowerWarRank()
 {
-    char winnerSide = m_winnerSide;
-    if (winnerSide != 0 && winnerSide < 3)
+    // [2026-09-15 GuildA] 「局部语句缺失 + 双向平移」复合族，二维矩阵实测（A 轴=内联重建期
+    //   局部，B 轴=补 ORIG 的逐项写入）。全部 9 格 + 7 个扩展格均记录，最优 = A3B0（保留）：
+    //        B0 不补语句 | B1 补两次 users.at(i) 写入 | B2 补写入(单次 at)
+    //   A0 保留 winnerSide+app : 230 | 399 | 236
+    //   A1 内联 winnerSide     : 477 | 393 |  —
+    //   A2 内联 app            : 195 | 415 |  —
+    //   A3 两者都内联          : 190 ← 保留 | 410 |  —
+    //   扩展（A3 基）：内联 s1/s2=192、内联 group=190、内联 characInfo=319、
+    //   内联 guildInfo=415、合并两处循环 side=390、side 改名对照=190。
+    //   ORIG 真实形态（已逐条读出 0x80a4757..0x80a47b9）：对每个 i **调用 users.at(i) 两次**
+    //   —— 第一次写 statuePkt.m_rankers[i](-0x74+i*4)，第二次写 noticePkt.m_data[i](-0x8b+i*4)，
+    //   日志第 3 实参再读回 -0x74；补回该语句（B1）反而劣化 ⇒ 本件是「语句缺失 × 栈布局平移」
+    //   的复合，单轴不可解（GuildB 单轴基线 399/236 与本矩阵一致）。
+    //   保留最优形态后剩余 ndiff 190（orig 388 / ours 394），登记为复合族。
+    if (m_winnerSide != 0 && m_winnerSide < 3)
     {
-        CMyFileLog logStart(__FUNCTION__, 0x1b6);
-        logStart("./log/PowerResult", "POWER WAR RESULT DB SAVE START");
-        CApplication* app = *(CApplication**)&m_app;
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x1b6, "./log/PowerResult", "POWER WAR RESULT DB SAVE START");
         Packet_DB_Save_Power_War_User_Rank userPkt;
-        unsigned char group = app->Get_ServerHandler()->GetServerGroupNo();
+        unsigned char group = (*(CApplication**)&m_app)->Get_ServerHandler()->GetServerGroupNo();
         userPkt.m_b = group;
         STUserRank userRanks[500];
         for (int side = 1; side < 3; side++)
@@ -319,19 +340,19 @@ void CPowerManager::SaveDBPowerWarRank()
                 userPkt.m_a = 1;
                 userPkt.m_e = count;
                 memcpy(userPkt.m_ranks, userRanks, count << 3);
-                app->Get_ServerHandler()->SendToDB(&userPkt);
+                (*(CApplication**)&m_app)->Get_ServerHandler()->SendToDB(&userPkt);
             }
             else
             {
                 userPkt.m_a = (unsigned char)(side == 1);
                 userPkt.m_e = 0xfa;
                 memcpy(userPkt.m_ranks, userRanks, 2000);
-                app->Get_ServerHandler()->SendToDB(&userPkt);
+                (*(CApplication**)&m_app)->Get_ServerHandler()->SendToDB(&userPkt);
                 userPkt.m_c = 0xfb;
                 userPkt.m_a = 0;
                 userPkt.m_e = count - 0xfa;
                 memcpy(userPkt.m_ranks, (char*)userRanks + 2000, (count - 0xfa) * 8);
-                app->Get_ServerHandler()->SendToDB(&userPkt);
+                (*(CApplication**)&m_app)->Get_ServerHandler()->SendToDB(&userPkt);
             }
         }
         // ORIG 复用 userPkt 栈槽（4.1.2 合并不相交生命周期大局部，4.4.6 不合并）：
@@ -340,7 +361,7 @@ void CPowerManager::SaveDBPowerWarRank()
             *(Packet_DB_Save_Power_War_Guild_Rank*)&userPkt;
         guildPkt.packetId = 0x6d6;
         guildPkt.packetSize = 0x330;
-        guildPkt.m_a = app->Get_ServerHandler()->GetServerGroupNo();
+        guildPkt.m_a = (*(CApplication**)&m_app)->Get_ServerHandler()->GetServerGroupNo();
         for (int side = 1; side < 3; side++)
         {
             guildPkt.m_b = (unsigned char)side;
@@ -350,7 +371,7 @@ void CPowerManager::SaveDBPowerWarRank()
                 m_power[side].GetPowerWarGuildInfo();
             guildInfo->GetAllGuildRankingInfo(
                 *(int*)&guildPkt.m_c, (STGuildRank*)((char*)&guildPkt + 0x10));
-            app->Get_ServerHandler()->SendToDB(&guildPkt);
+            (*(CApplication**)&m_app)->Get_ServerHandler()->SendToDB(&guildPkt);
             {
                 DNF_LOG_SCOPE_LINE(0x248,"./log/PowerResult",
                     "SaveDBPowerWarRank() SEND Packet_DB_Save_Power_War_Guild_Rank Power:%d", side);
@@ -359,7 +380,7 @@ void CPowerManager::SaveDBPowerWarRank()
         Packet_DB_Save_Power_War_Statue_Ranker statuePkt;
         Packet_Notice_Power_War_Rank noticePkt;
         (void)noticePkt;
-        statuePkt.m_group = app->Get_ServerHandler()->GetServerGroupNo();
+        statuePkt.m_group = (*(CApplication**)&m_app)->Get_ServerHandler()->GetServerGroupNo();
         std::vector<STPowerWarCharacInfo*> users;
         CPowerWarCharacInfo* s1 = m_power[1].GetPowerWarCharacInfo();
         CPowerWarCharacInfo* s2 = m_power[2].GetPowerWarCharacInfo();
@@ -379,11 +400,12 @@ void CPowerManager::SaveDBPowerWarRank()
             DNF_LOG_SCOPE_LINE(0x277,"./log/PowerResult",
                 "SaveDBPowerWarRank() SEND Packet_DB_Save_Power_War_Statue_Ranker");
         }
-        app->Get_ServerHandler()->SendToDB(&statuePkt);
+        (*(CApplication**)&m_app)->Get_ServerHandler()->SendToDB(&statuePkt);
         {
             DNF_LOG_SCOPE_LINE(0x27b, "./log/PowerResult", "POWER WAR RESULT DB SAVE END");
         }
     }
+    return;
 }
 
 void CPowerManager::SaveDBPowerWarPoint()
@@ -513,17 +535,15 @@ unsigned int CPowerManager::GetUserRankingInPower(ENUM_POWER_SIDE_TYPE side, uns
 
 void CPowerManager::PrintDebugInfo()
 {
-    {
-        CMyFileLog logA(__FUNCTION__, 0x3c9);
-        logA("./log/PowerResult", "----- POWER A");
-    }
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x3c9, "./log/PowerResult", "----- POWER A");
     m_power[1].GetPowerWarGuildInfo()->PrintDebugInfo();
-    CMyFileLog logB(__FUNCTION__, 0x3cf);
-    logB("./log/PowerResult", "----- POWER B");
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x3cf, "./log/PowerResult", "----- POWER B");
     m_power[2].GetPowerWarGuildInfo()->PrintDebugInfo();
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0017 | guild | 与ORIG差异=DIFF | CPowerManager::SendPowerWarProcessInfo | 详见 function_reports/guild/_ZN13CPowerManager23SendPowerWarProcessInfoEj.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0017 已消除）| CPowerManager::SendPowerWarProcessInfo
+// 2026-09-15 HWSpecSend：已归零（ndiff 5→0）。修法 = `unsigned int guildKey` → `int guildKey = (int)user->GetGuildKey();`
+// （P2/U4 signedness 族：目标类型决定跨调用保活寄存器与载入序；`register unsigned int` 反而 28、`const`/cast-to-uint 均 5）。
 void CPowerManager::SendPowerWarProcessInfo(unsigned int charNo)
 {
     CUser* user =
@@ -534,7 +554,7 @@ void CPowerManager::SendPowerWarProcessInfo(unsigned int charNo)
             charNo);
         return;
     }
-    unsigned int guildKey = user->GetGuildKey();
+    int guildKey = (int)user->GetGuildKey();
     CGuild* guild = ((CApplication*)m_app)->Get_GuildManager()->FindGuild(guildKey);
     if (guild == 0)
     {
@@ -589,15 +609,16 @@ void CPowerManager::SendPowerWarEndInfo()
     DNF_LOG_SCOPE_LINE(0x41f, "./log/PowerResult", "SEND POWER WAR END INFO END");
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0018 | guild | 与ORIG差异=DIFF | CPowerManager::SendPowerWarEndInfoInSpecificPower | 详见 function_reports/guild/_ZN13CPowerManager34SendPowerWarEndInfoInSpecificPowerEc.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-GLD-DIFF-0018 已消除）| CPowerManager::SendPowerWarEndInfoInSpecificPower
 void CPowerManager::SendPowerWarEndInfoInSpecificPower(char side)
 {
     DNF_LOG_SCOPE_LINE(0x42a, "./log/Power", "SEND POWER WAR END INFO %d Power START", side);
-    unsigned int charNo = 0;
+    CUser* user = 0;
     CGuild* guild = 0;
     unsigned char isWinner = 0;
-    unsigned int guildRank = 0;
+    unsigned int charNo = 0;
     unsigned int userRank = 1;
+    unsigned int guildRank = 0;
     unsigned int guildKey = 0;
     STPowerWarCharacInfo* characInfo = 0;
     STPowerWarGuildInfo* guildInfo = 0;
@@ -612,43 +633,44 @@ void CPowerManager::SendPowerWarEndInfoInSpecificPower(char side)
     for (; it != vec->end(); ++it)
     {
         characInfo = *it;
-        if (characInfo == 0)
+        if (characInfo != 0)
         {
-            DNF_LOG_SCOPE_LINE(0x463, "./log/PowerResult", "CharacInfo is NULL");
-        }
-        else
-        {
-            CUser* user = (*(CApplication**)&m_app)->Get_UserManager()
+
+            CUser* user = ((CApplication*)m_app)->Get_UserManager()
                 ->FindUser_CharNo(*(unsigned int*)characInfo->m_data);
             if (user != 0)
             {
-                guild = (*(CApplication**)&m_app)->Get_GuildManager()
+                guild = ((CApplication*)m_app)->Get_GuildManager()
                     ->FindGuild(user->GetGuildKey());
                 if (guild != 0)
                 {
                     charNo = user->GetUniqCharNo();
                     guildKey = user->GetGuildKey();
-                    isWinner = (guild->GetPowerSide() == GetWinnerSide()) ? 1 : 0;
-                    CPower* power = &m_power[side];
-                    guildRank = power->GetPowerWarGuildInfo()->GetGuildRanking(guildKey);
-                    guildInfo = power->GetPowerWarGuildInfo()->GetSpecificGuildInfo(guildKey);
+                    isWinner = (guild->GetPowerSide() == GetWinnerSide());
+                    guildRank = m_power[side].GetPowerWarGuildInfo()->GetGuildRanking(guildKey);
+                    guildInfo = m_power[side].GetPowerWarGuildInfo()->GetSpecificGuildInfo(guildKey);
                     if (guildInfo != 0)
                     {
                         SendPowerWarEndInfoToSpecificUser(user, charNo, isWinner,
-                            *(unsigned int*)(characInfo->m_data + 4), userRank,
-                            *(unsigned int*)(guildInfo->m_data + 4),
-                            *(unsigned int*)(guildInfo->m_data + 8), guildRank);
+                            characInfo->m_field[1], userRank,
+                            guildInfo->m_field[1],
+                            guildInfo->m_field[2], guildRank);
                     }
                     else
                     {
                         DNF_LOG_SCOPE_LINE(0x45c, "./log/PowerResult",
                             "DBID(%d) CharacNo(%d) UserPP(%d) UserRank(%d)",
-                            user->GetDBID(), charNo, *(unsigned int*)(characInfo->m_data + 4),
+                            user->GetDBID(), charNo, characInfo->m_field[1],
                             userRank);
                     }
                 }
             }
         }
+        else
+        {
+            DNF_LOG_SCOPE_LINE(0x463, "./log/PowerResult", "CharacInfo is NULL");
+        }
+
         userRank++;
     }
     {

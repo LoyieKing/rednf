@@ -11,12 +11,12 @@ public:
     void InitFrameCountInfo(CApplication* app, unsigned int a, unsigned short b);
     void SaveProcess();
     void SaveProcess(int n);
-    void* GetFrameCountInfo();
+    CFrameCountHandler* GetFrameCountInfo();
     char m_field0[4];   // +0
     unsigned int m_field4;   // +4
     unsigned int m_field8;   // +8
     unsigned int m_fieldC;   // +0xc
-    int m_field10;      // +0x10
+    unsigned int m_field10;  // +0x10（P342：ORIG 为 unsigned，复现单段装载与 jbe）
     unsigned int m_field14;  // +0x14
     unsigned int m_field18;  // +0x18
     char m_pad1C[4];    // +0x1c

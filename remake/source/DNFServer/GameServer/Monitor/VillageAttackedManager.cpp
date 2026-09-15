@@ -39,7 +39,9 @@ bool compareTime(int const& a, int const& b)
 
 namespace village_attacked
 {
-int village_attacked_scheduler[18];
+// ORIG 以 8 字节元素（2 个 int）寻址该表：索引形态 (3*k+c)*8 而非展平的 (6*k+c)*4。
+// 二维声明才能让 gimplify 保留该索引分解（一维声明 + cast 视图无效）。
+int village_attacked_scheduler[9][2];
 int MAX_SCHEDULER_COUNT;
 int HUNTING_POINT_WEIGTH_CONST;
 static int HuntingPointMultiplier[0x12] = {0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
@@ -78,24 +80,24 @@ int GetNextSchedule(tm t, int wday, int hour, int min)
 
 void SetRealConfig()
 {
-    village_attacked_scheduler[0] = 2;
-    village_attacked_scheduler[1] = 0x15;
-    village_attacked_scheduler[2] = 0x1e;
-    village_attacked_scheduler[3] = 2;
-    village_attacked_scheduler[4] = 0x16;
-    village_attacked_scheduler[5] = 0x1e;
-    village_attacked_scheduler[6] = 6;
-    village_attacked_scheduler[7] = 0x15;
-    village_attacked_scheduler[8] = 0x1e;
-    village_attacked_scheduler[9] = 6;
-    village_attacked_scheduler[10] = 0x16;
-    village_attacked_scheduler[11] = 0x1e;
-    village_attacked_scheduler[12] = -1;
-    village_attacked_scheduler[13] = -1;
-    village_attacked_scheduler[14] = -1;
-    village_attacked_scheduler[15] = -1;
-    village_attacked_scheduler[16] = -1;
-    village_attacked_scheduler[17] = -1;
+    village_attacked_scheduler[0][0] = 2;
+    village_attacked_scheduler[0][1] = 0x15;
+    village_attacked_scheduler[1][0] = 0x1e;
+    village_attacked_scheduler[1][1] = 2;
+    village_attacked_scheduler[2][0] = 0x16;
+    village_attacked_scheduler[2][1] = 0x1e;
+    village_attacked_scheduler[3][0] = 6;
+    village_attacked_scheduler[3][1] = 0x15;
+    village_attacked_scheduler[4][0] = 0x1e;
+    village_attacked_scheduler[4][1] = 6;
+    village_attacked_scheduler[5][0] = 0x16;
+    village_attacked_scheduler[5][1] = 0x1e;
+    village_attacked_scheduler[6][0] = -1;
+    village_attacked_scheduler[6][1] = -1;
+    village_attacked_scheduler[7][0] = -1;
+    village_attacked_scheduler[7][1] = -1;
+    village_attacked_scheduler[8][0] = -1;
+    village_attacked_scheduler[8][1] = -1;
     MAX_SCHEDULER_COUNT = tRealConfig[0];
     HUNTING_POINT_WEIGTH_CONST = tRealConfig[1];
     REWARD_BUFF_TIME = tRealConfig[2];
@@ -138,12 +140,12 @@ void SetGMConfig(unsigned int a, unsigned int b, unsigned int c)
     tm t2;
     localtime_r(&start, &t1);
     localtime_r(&end, &t2);
-    village_attacked_scheduler[12] = t1.tm_wday;
-    village_attacked_scheduler[13] = t1.tm_hour;
-    village_attacked_scheduler[14] = t1.tm_min;
-    village_attacked_scheduler[15] = t2.tm_wday;
-    village_attacked_scheduler[16] = t2.tm_hour;
-    village_attacked_scheduler[17] = t2.tm_min;
+    village_attacked_scheduler[6][0] = t1.tm_wday;
+    village_attacked_scheduler[6][1] = t1.tm_hour;
+    village_attacked_scheduler[7][0] = t1.tm_min;
+    village_attacked_scheduler[7][1] = t2.tm_wday;
+    village_attacked_scheduler[8][0] = t2.tm_hour;
+    village_attacked_scheduler[8][1] = t2.tm_min;
     MAX_SCHEDULER_COUNT = tGMConfig[0];
     HUNTING_POINT_WEIGTH_CONST = tGMConfig[1];
     REWARD_BUFF_TIME = b;
@@ -173,7 +175,7 @@ void CVillageAttackedManager::SendFirstRankerRewardJpn(CUser* user, int rank)
     user->SendToGameserver((char*)&pkt, pkt.packetSize);
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0046 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::InsertTimer | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager11InsertTimerEii.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0046 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::InsertTimer | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager11InsertTimerEii.md
 void CVillageAttackedManager::InsertTimer(int startTime, int endTime)
 {
     m_startTime = startTime;
@@ -191,28 +193,31 @@ void CVillageAttackedManager::InsertTimer(int startTime, int endTime)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0045 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::OnSchedule | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager10OnScheduleEv.md
+// 已试（ndiff 23→22，最优 22）：二维声明 [9][2] 已对齐 (3k+c)*8 / (6k+c)*4 两处；
+// 余差含 `[i*3][0]` 的 ORIG「shl $3 + disp(base)」编码（GCC 对此恒选 index 形式）与尾部布局。
 void CVillageAttackedManager::OnSchedule()
 {
     time_t now = GetNowTime();
     tm* t = localtime(&now);
+    int s = 0;
     int bestIdx = 0;
-    int bestTime = ::GetNextSchedule(*t, village_attacked_scheduler[0],
-                                     village_attacked_scheduler[1],
-                                     village_attacked_scheduler[2]);
+    int bestTime = ::GetNextSchedule(*t, village_attacked_scheduler[0][0],
+                                     village_attacked_scheduler[0][1],
+                                     village_attacked_scheduler[1][0]);
     for (int i = 1; i < MAX_SCHEDULER_COUNT; i++)
     {
-        int s = ::GetNextSchedule(*t, village_attacked_scheduler[i * 6],
-                                  village_attacked_scheduler[i * 6 + 1],
-                                  village_attacked_scheduler[i * 6 + 2]);
-        if (s < bestTime)
+        s = ::GetNextSchedule(*t, village_attacked_scheduler[i * 3][0],
+                              village_attacked_scheduler[i * 3][1],
+                              village_attacked_scheduler[i * 3 + 1][0]);
+        if (bestTime > s)
         {
-            bestIdx = i;
             bestTime = s;
+            bestIdx = i;
         }
     }
-    int end = ::GetNextSchedule(*t, village_attacked_scheduler[bestIdx * 6 + 3],
-                                village_attacked_scheduler[bestIdx * 6 + 4],
-                                village_attacked_scheduler[bestIdx * 6 + 5]);
+    int end = ::GetNextSchedule(*t, village_attacked_scheduler[bestIdx * 3 + 1][1],
+                                village_attacked_scheduler[bestIdx * 3 + 2][0],
+                                village_attacked_scheduler[bestIdx * 3 + 2][1]);
     InsertTimer(bestTime, end);
     tm* t2 = localtime((time_t*)&end);
     t2->tm_sec = 0;
@@ -326,7 +331,7 @@ void CVillageAttackedManager::Reset()
     m_startTime = 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0049 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::OnEndVillageAttacked | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager20OnEndVillageAttackedEv.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0049 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::OnEndVillageAttacked | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager20OnEndVillageAttackedEv.md
 void CVillageAttackedManager::OnEndVillageAttacked()
 {
     if (!m_state24)
@@ -337,16 +342,14 @@ void CVillageAttackedManager::OnEndVillageAttacked()
     if ((unsigned int)m_curHuntingPoint >= (unsigned int)m_maxHuntingPoint)
     {
         m_rewardType = 1;
-        CVillageAttackedReward* task =
-            new CVillageAttackedReward(REWARD_BUFF_TIME + now, 0, this);
-        m_app->GetTaskScheduler()->AddTask(task);
+        m_app->GetTaskScheduler()->AddTask(
+            new CVillageAttackedReward(REWARD_BUFF_TIME + now, 0, this));
     }
     else
     {
         m_rewardType = 2;
-        CVillageAttackedReward* task =
-            new CVillageAttackedReward(REWARD_PENALTY_TIME + now, 0, this);
-        m_app->GetTaskScheduler()->AddTask(task);
+        m_app->GetTaskScheduler()->AddTask(
+            new CVillageAttackedReward(REWARD_PENALTY_TIME + now, 0, this));
     }
     m_state24 = 0;
     SetRewardCloseTime((ENUM_VILLAGE_ATTACKED_REWARD)m_rewardType);
@@ -364,11 +367,6 @@ void CVillageAttackedManager::OnRewardVillageAttacked()
     m_app->Get_ServerHandler()->SendAllToGameServer(
         (char*)&pkt, (unsigned int)pkt.packetSize);
     m_rewardType = 0;
-}
-
-unsigned int CVillageAttackedManager::GetDungeonRemainTime()
-{
-    return m_rewardCloseTime;
 }
 
 void CVillageAttackedManager::SendVillageAttackedEnd()
@@ -472,6 +470,7 @@ void CVillageAttackedManager::SendMinTime()
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0051 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::OnServerGroupRewardVillageAttacked | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager34OnServerGroupRewardVillageAttackedEv.md
+// 已试（ndiff 10→8，最优 8）：二维声明对齐两处访问；余 1 处同上 shl/base 编码差（试过 3*i、(i*3)、(i*3)+0、char* 算术、取址解引用视图，均生成 index 形式）。
 void CVillageAttackedManager::OnServerGroupRewardVillageAttacked()
 {
     Packet_DB_VillageAttackedRank pkt;
@@ -481,9 +480,9 @@ void CVillageAttackedManager::OnServerGroupRewardVillageAttacked()
     int times[MAX_SCHEDULER_COUNT];
     for (int i = 0; i < MAX_SCHEDULER_COUNT; i++)
     {
-        times[i] = GetPrevSchedule(*pt, village_attacked_scheduler[i * 6],
-                                   village_attacked_scheduler[i * 6 + 1],
-                                   village_attacked_scheduler[i * 6 + 2]);
+        times[i] = GetPrevSchedule(*pt, village_attacked_scheduler[i * 3][0],
+                                   village_attacked_scheduler[i * 3][1],
+                                   village_attacked_scheduler[i * 3 + 1][0]);
     }
     std::sort(&times[0], &times[MAX_SCHEDULER_COUNT], compareTime);
     pkt.m_time0a = times[0];
@@ -504,14 +503,26 @@ void CVillageAttackedManager::ClearDungeonCloseTime()
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0048 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::UpdateHuntingPoint | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager18UpdateHuntingPointEPP5CUserbPiPj.md
+// 已试（ndiff 8→7→3，长度 158→161 vs ORIG 160）：
+// ①末尾 return 补回 SendMinTime 后的 join jmp+nop（落点 A）；
+// ②循环体改为「early-continue + 裸复合块」（落点 D，Main 广播的新可调落点）⇒ 复现了循环体末尾那条 join jmp+nop，为本族第 4 个正例；
+// 余 3 条 = 尾部被 GCC 生成两条相同目标的 jmp（两级嵌套 join 各一条，ORIG 仅一条）；
+// 已试无效：return 移到最外层 / `if(1) return;` / 去掉 return（变 0 条）/ goto end_loop 自跳（语义错、已弃）。
 void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, int* a,
                                                  unsigned int* charNos)
 {
-    if (m_state24 == 1)
+    if (m_state24 != 1)
+    {
+    }
+    else
     {
         for (int i = 0; i < 4; i++)
         {
-            if (users[i] != 0)
+            // 落点 D：early-continue + 裸复合块，复现 ORIG 循环体末尾那条 join jmp+nop
+            if (users[i] == 0)
+            {
+                continue;
+            }
             {
                 int total = 0;
                 stHuntingPoint* hp = GetHuntingPoint(charNos[i]);
@@ -538,8 +549,8 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
                     {
                         p.m_bonusPoint++;
                     }
-                    m_huntingPoints.insert(std::make_pair(charNos[i], p));
                     total = 1;  // 复刻 ORIG：hp==0 时 total 置 1（ORIG 死变量，保留）
+                    m_huntingPoints.insert(std::make_pair(charNos[i], p));
                 }
                 if (success)
                 {
@@ -547,7 +558,9 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
                     SendVillageAttackedRewardJpn(users[i], cur->m_huntingPoint);
                     DNF_LOG_SCOPE_AT(__FUNCTION__, 0x3ae,"./log/village", "Send Success Count [charac:%u][count:%d]",
                         charNos[i], cur->m_huntingPoint);
+                    goto next_loop;
                 }
+            next_loop:;
             }
         }
         if (success)
@@ -557,35 +570,50 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
         if (m_curHuntingPoint == m_maxHuntingPoint)
         {
             SendMinTime();
+            goto end_loop;
         }
+    end_loop:;
     }
+    // ORIG 在 if/else 之后、函数块内还有一条 return（生成末尾 jmp+nop 的 join 残留）
+    return;
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0047 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::SendCharacRank | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager14SendCharacRankEv.md
+// 已试（ndiff 135→14，长度 237→269 = ORIG）：①memset→`char sql[0xff] = {0}`（复现 rep stos + push edi）；
+// ②sql 声明点移到 for 之后；③S5 占位 `int reservedSlot/reservedSlot2`（浅区容器槽由此对齐 -0x48/-0x58/-0x60）；
+// ④`serverGroup` 改 unsigned int 且声明点移入块内；⑤`p.m_characNo`/`p.m_huntingPoint` 赋值次序对调；
+// ⑥条件写成 `m_curHuntingPoint >= m_maxHuntingPoint`（复现先载 +0x1c 后载 +0x20、末尾 jb）。
+// 余 14 条 = 深区（sql/pkt）槽仍深 8 字节（浅区已对齐，两组在单一占位下互斥，见 Main S5 规约）+ 日志段寄存器选择。
 void CVillageAttackedManager::SendCharacRank()
 {
-    unsigned char serverGroup = 0;
+    // S5：ORIG 含声明但从未引用的局部占位（反汇编中不可见），它决定后续变量的槽起点。
+    // 实测补齐 8 字节后本函数与 ORIG 的槽偏移一致（不补则整体错位 8）。
+    int reservedSlot;
+    int reservedSlot2;
     if (m_huntingPoints.empty())
     {
         return;
     }
     {
-        Packet_DBMW_Query_Msg pkt;
-        char sql[0xff];
         std::priority_queue<stUserHuntingPoint> pq;
         for (std::map<unsigned int, stHuntingPoint>::iterator it = m_huntingPoints.begin();
              it != m_huntingPoints.end(); ++it)
         {
             stUserHuntingPoint p;
-            p.m_huntingPoint = it->second.m_huntingPoint;
+            // ORIG 先写 m_characNo（pair +0）后写 m_huntingPoint（pair +4）
             p.m_characNo = it->first;
+            p.m_huntingPoint = it->second.m_huntingPoint;
             pq.push(p);
         }
+        // ORIG 内联零填（rep stos）且声明点在 for 之后 ⇒ 用初始化器写在此处
+        char sql[0xff] = {0};
         std::string query;
+        // ORIG 是 4 字节无符号（Get_ServerGroup() 返回值零扩展后存入 4 字节槽），且声明点在块内
+        unsigned int serverGroup;
         serverGroup = m_app->Get_ServerGroup();
         unsigned int now = GetNowTime();
-        memset(sql, 0, 0xff);
-        if ((unsigned int)m_maxHuntingPoint <= (unsigned int)m_curHuntingPoint)
+        // ORIG 左操作数是 m_curHuntingPoint（先载 +0x1c 再载 +0x20，末尾 jb）
+        if ((unsigned int)m_curHuntingPoint >= (unsigned int)m_maxHuntingPoint)
         {
             int rank = 0;
             int count = 0;
@@ -619,6 +647,7 @@ void CVillageAttackedManager::SendCharacRank()
                 count++;
             }
         }
+        Packet_DBMW_Query_Msg pkt;
         pkt.m_handleIdx = 6;
         pkt.m_queryId = 0x4ee4;
         sprintf(pkt.m_sql,
@@ -630,7 +659,7 @@ void CVillageAttackedManager::SendCharacRank()
 
 CVillageAttackedCountdownFirst::CVillageAttackedCountdownFirst(unsigned int time,
                                                                unsigned int flag,
-                                                               CVillageAttackedManager* mgr)
+                                                               CVillageAttackedManager* mgr) throw()
     : CTask(time, flag)
 {
     m_mgr = mgr;
@@ -640,7 +669,7 @@ CVillageAttackedCountdownFirst::~CVillageAttackedCountdownFirst() {}
 
 CVillageAttackedCountdownSecond::CVillageAttackedCountdownSecond(unsigned int time,
                                                                  unsigned int flag,
-                                                                 CVillageAttackedManager* mgr)
+                                                                 CVillageAttackedManager* mgr) throw()
     : CTask(time, flag)
 {
     m_mgr = mgr;
@@ -650,7 +679,7 @@ CVillageAttackedCountdownSecond::~CVillageAttackedCountdownSecond() {}
 
 CVillageAttackedCountdownThird::CVillageAttackedCountdownThird(unsigned int time,
                                                                unsigned int flag,
-                                                               CVillageAttackedManager* mgr)
+                                                               CVillageAttackedManager* mgr) throw()
     : CTask(time, flag)
 {
     m_mgr = mgr;
@@ -659,7 +688,7 @@ CVillageAttackedCountdownThird::CVillageAttackedCountdownThird(unsigned int time
 CVillageAttackedCountdownThird::~CVillageAttackedCountdownThird() {}
 
 CVillageAttackedStart::CVillageAttackedStart(unsigned int time, unsigned int flag,
-                                             CVillageAttackedManager* mgr)
+                                             CVillageAttackedManager* mgr) throw()
     : CTask(time, flag)
 {
     m_mgr = mgr;
@@ -668,7 +697,7 @@ CVillageAttackedStart::CVillageAttackedStart(unsigned int time, unsigned int fla
 CVillageAttackedStart::~CVillageAttackedStart() {}
 
 CVillageAttackedEnd::CVillageAttackedEnd(unsigned int time, unsigned int flag,
-                                         CVillageAttackedManager* mgr)
+                                         CVillageAttackedManager* mgr) throw()
     : CTask(time, flag)
 {
     m_mgr = mgr;
@@ -677,7 +706,7 @@ CVillageAttackedEnd::CVillageAttackedEnd(unsigned int time, unsigned int flag,
 CVillageAttackedEnd::~CVillageAttackedEnd() {}
 
 CVillageAttackedReward::CVillageAttackedReward(unsigned int time, unsigned int flag,
-                                               CVillageAttackedManager* mgr)
+                                               CVillageAttackedManager* mgr) throw()
     : CTask(time, flag)
 {
     m_mgr = mgr;
@@ -703,12 +732,17 @@ void CVillageAttackedManager::RequestEventPenaltyEnd()
     OnRewardVillageAttacked();
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0050 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::SendRequestRevengeDungeon | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager25SendRequestRevengeDungeonEPc.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0050 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::SendRequestRevengeDungeon | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager25SendRequestRevengeDungeonEPc.md
 void CVillageAttackedManager::SendRequestRevengeDungeon(char* pkt)
 {
     Packet_Request_Revenge_Dungeon* p = (Packet_Request_Revenge_Dungeon*)pkt;
     p->m_rewardType = m_rewardType;
     p->m_remainTime = GetDungeonRemainTime();
+}
+
+unsigned int CVillageAttackedManager::GetDungeonRemainTime()
+{
+    return m_rewardCloseTime;
 }
 
 void CVillageAttackedManager::ProcessByMinute()

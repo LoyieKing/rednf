@@ -271,7 +271,7 @@ public:
 class CNullEventAction : public CBaseEventAction
 {
 public:
-    CNullEventAction();
+    CNullEventAction() throw();   // P374：ORIG init 无 ctor LP ⇒ ctor 声明 throw()
     virtual ~CNullEventAction();
     virtual void onStartAction(EventParam& param);
     virtual void onEndAction();
@@ -280,7 +280,7 @@ public:
 class COnTimeEventAction : public CBaseEventAction
 {
 public:
-    COnTimeEventAction();
+    COnTimeEventAction() throw();   // P374：同 CNullEventAction
     virtual ~COnTimeEventAction();
     virtual void onStartAction(EventParam& param);
     virtual void onEndAction();

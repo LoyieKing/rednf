@@ -58,25 +58,30 @@ void CMemberManager::Init(CApplication* app, CUserManager* userMgr, CMemberConfi
     m_memberExpTbl = memberExpTbl;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0032 | monitor | 与ORIG差异=DIFF | CMemberManager::MemberRegisterFlagProcess | 详见 function_reports/monitor/_ZN14CMemberManager25MemberRegisterFlagProcessEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0032 CMemberManager::MemberRegisterFlagProcess 已消除）
 void CMemberManager::MemberRegisterFlagProcess()
 {
     time_t t = time(0);
+    CMember* member;
     struct tm* lt = localtime(&t);
-    if (m_scheduler.IsOnTimeSpecialHour(lt->tm_hour, lt->tm_min))
+    if (!m_scheduler.IsOnTimeSpecialHour(lt->tm_hour, lt->tm_min))
+    {
+    }
+    else
     {
         for (std::map<unsigned int, CMember*>::iterator it = m_members.begin();
              it != m_members.end(); ++it)
         {
-            CMember* member = it->second;
+            member = it->second;
             member->CheckMemberRegisterFlag();
         }
         register int min = lt->tm_min;
         register int hour = lt->tm_hour;
-        CMyFileLog log(__FUNCTION__, 0x19a);
-        log("./log/MemberModify", "CMemberManager::MemberRegisterFlagProcess(%d,%d)",
-            hour, min);
+        CMyFileLog(__FUNCTION__, 0x19a)("./log/MemberModify",
+                                        "CMemberManager::MemberRegisterFlagProcess(%d,%d)", hour,
+                                        min);
     }
+    return;
 }
 
 char CMemberManager::LoadMemberFromCash(CUser* user, CMember* member)
@@ -91,8 +96,8 @@ char CMemberManager::LoadMemberFromCash(CUser* user, CMember* member)
     return 1;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0024 | monitor | 与ORIG差异=DIFF | CMemberManager::DeleteMember | 详见 function_reports/monitor/_ZN14CMemberManager12DeleteMemberEjb.md
-int CMemberManager::DeleteMember(unsigned int key, bool cash)
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0024 CMemberManager::DeleteMember 已消除）
+bool CMemberManager::DeleteMember(unsigned int key, bool cash)
 {
     if (m_members.empty())
     {
@@ -114,13 +119,13 @@ int CMemberManager::DeleteMember(unsigned int key, bool cash)
     }
     if (cash)
     {
-        CMyFileLog log(__FUNCTION__, 0xbb);
-        log("./log/Member", "[DELETE_CASH_PROCESS] Member Key : %d", key);
+        CMyFileLog(__FUNCTION__, 0xbb)("./log/Member", "[DELETE_CASH_PROCESS] Member Key : %d",
+                                       key);
     }
     return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0028 | monitor | 与ORIG差异=DIFF | CMemberManager::MemberMemLogout | 详见 function_reports/monitor/_ZN14CMemberManager15MemberMemLogoutEjP5CUserb.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0028 CMemberManager::MemberMemLogout 已消除）
 void CMemberManager::MemberMemLogout(unsigned int key, CUser* user, bool cash)
 {
     if (user == 0 || m_app == 0)
@@ -134,16 +139,15 @@ void CMemberManager::MemberMemLogout(unsigned int key, CUser* user, bool cash)
             user->GetUniqCharNo());
         return;
     }
-    CMember* member = FindMember(key);
-    if (member == 0)
+    CMember* member;
+    if ((member = FindMember(key)) == 0)
     {
         DNF_LOG_SCOPE_LINE(0x241,"./log/Except",
             "CMemberManager::MemberMemLogout()\t0 == pclMember\tMemberKey(%d)", key);
         return;
     }
     member->NoticeMemberLogin_Out(user, 0);
-    char ok = (char)DeleteMember(key, cash);
-    if (ok != 1)
+    if (DeleteMember(key, cash) != 1)
     {
         DNF_LOG_SCOPE_LINE(0x24b,"./log/MemberMember",
             "<Delete Member Error> CMemberManager::MemberMemLogout\tdeleteOrCash(%d), Member Key(%d)",
@@ -174,7 +178,7 @@ unsigned int CMemberManager::GetLowerMemberEnterLimit(unsigned int level)
     return (unsigned int)info[idx].m_c;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0030 | monitor | 与ORIG差异=DIFF | CMemberManager::IsPossableMemberEnter | 详见 function_reports/monitor/_ZN14CMemberManager21IsPossableMemberEnterEP5CUserP7CMemberS1_S3_i.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0030 CMemberManager::IsPossableMemberEnter 已消除）
 int CMemberManager::IsPossableMemberEnter(CUser* u1, CMember* m1, CUser* u2, CMember* m2,
                                           int mode)
 {
@@ -190,7 +194,11 @@ int CMemberManager::IsPossableMemberEnter(CUser* u1, CMember* m1, CUser* u2, CMe
     {
         if (m2->IsThereUpper())
         {
-            return (mode == 2) ? 0x35 : 0x2b;
+            if (mode == 2)
+            {
+                return 0x35;
+            }
+            return 0x2b;
         }
         int upper = m2->GetUpperMember_CharId();
         if (upper == 0)
@@ -199,61 +207,73 @@ int CMemberManager::IsPossableMemberEnter(CUser* u1, CMember* m1, CUser* u2, CMe
         }
         if (upper != -1 && 0 < upper)
         {
-            return (mode == 2) ? 0x35 : 0x2b;
+            if (mode == 2)
+            {
+                return 0x35;
+            }
+            return 0x2b;
         }
     }
     if (m1 != 0)
     {
-        unsigned int charNo = u2->GetUniqCharNo();
-        if (m1->FindLowerMember(charNo))
+        if (m1->FindLowerMember(u2->GetUniqCharNo()))
         {
-            return (mode == 2) ? 0x33 : 0x32;
+            if (mode == 2)
+            {
+                return 0x33;
+            }
+            return 0x32;
         }
-        unsigned int lowerCount = m1->GetLowerMemberCount();
-        short level = u1->GetLevel();
-        unsigned int limit = GetLowerMemberEnterLimit((unsigned int)level);
-        if (limit <= lowerCount)
+        if (m1->GetLowerMemberCount() >=
+            GetLowerMemberEnterLimit((unsigned int)u1->GetLevel()))
         {
-            return (mode == 2) ? 0x2a : 0x34;
+            if (mode == 2)
+            {
+                return 0x2a;
+            }
+            return 0x34;
         }
     }
     return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0023 | monitor | 与ORIG差异=DIFF | CMemberManager::LoadMember | 详见 function_reports/monitor/_ZN14CMemberManager10LoadMemberEjR14STMemberDBInfojjP14CServerHandler.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0023 CMemberManager::LoadMember 已消除）
 bool CMemberManager::LoadMember(unsigned int key, STMemberDBInfo& info, unsigned int a,
                                 unsigned int b, CServerHandler* handler)
 {
-    CMember* member = FindMember(key);
-    if (member == 0)
+    CMember* member;
+    if ((member = FindMember(key)) == 0)
     {
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0x26d,"./log/Except",
             "[MEMBER]\tCMemberManager::LoadMember()\tpclMember is Null, member key(%d)\n", key);
         return 0;
     }
-    CUser* user = FindMemberUser(key);
-    if (user == 0)
+    CUser* user;
+    if ((user = FindMemberUser(key)) == 0)
     {
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0x273,"./log/Except",
             "[MEMBER]\tCMemberManager::LoadMember()\tpclUser is Null, member key(%d)\n", key);
         return 0;
     }
     member->LoadMember(info, user->GetLevel(), a, b);
-    if (!member->IsEmpty())
+    if (member->IsEmpty())
+    {
+        Packet_Monitor_Notice_Delete_Member_Id pkt;
+        pkt.m_idByChannel = user->GetIdByChannel();
+        pkt.m_uniqCharNo = user->GetUniqCharNo();
+        user->SendToGameserver((char*)&pkt, 0x12);
+        SendToDBMemberUpdateCharInfo(handler, key, 0);
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x285,"./log/Except",
+            "CMemberManager::LoadMember, true == pclMember->IsEmpty()\tChar id(%d), Member Key(%d)",
+            user->GetUniqCharNo(), key);
+        DeleteMember(user->GetUniqCharNo(), true);
+        return 0;
+    }
+    else
     {
         member->NoticeMemberLogin_Out(user, 1);
         return 1;
     }
-    Packet_Monitor_Notice_Delete_Member_Id pkt;
-    pkt.m_idByChannel = user->GetIdByChannel();
-    pkt.m_uniqCharNo = user->GetUniqCharNo();
-    user->SendToGameserver((char*)&pkt, 0x12);
-    SendToDBMemberUpdateCharInfo(handler, key, 0);
-    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x285,"./log/Except",
-        "CMemberManager::LoadMember, true == pclMember->IsEmpty()\tChar id(%d), Member Key(%d)",
-        user->GetUniqCharNo(), key);
-    DeleteMember(user->GetUniqCharNo(), true);
-    return 0;
 }
 
 CMember* CMemberManager::FindMember(unsigned int key)
@@ -342,14 +362,17 @@ CMember* CMemberManager::CreateMemberQuery(unsigned int key, CUser* user, CServe
     return member;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0025 | monitor | 与ORIG差异=DIFF | CMemberManager::InsertMember | 详见 function_reports/monitor/_ZN14CMemberManager12InsertMemberEjP7CMember.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0025 CMemberManager::InsertMember 已消除）
 int CMemberManager::InsertMember(unsigned int key, CMember* member)
 {
     if (member != 0)
     {
         std::pair<std::map<unsigned int, CMember*>::iterator, bool> r =
             m_members.insert(std::make_pair(key, member));
-        if (!r.second)
+        if (r.second)
+        {
+        }
+        else
         {
             DNF_LOG_SCOPE_LINE(0x83, "./log/Member", "[INSERT_ERR] Member Key : %d\tAlready Member Exist", key);
         }
@@ -359,11 +382,22 @@ int CMemberManager::InsertMember(unsigned int key, CMember* member)
     return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0029 | monitor | 与ORIG差异=DIFF | CMemberManager::SaveMemberOnConnect | 详见 function_reports/monitor/_ZN14CMemberManager19SaveMemberOnConnectEP14CServerHandlerP5CUserS3_h.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0029 CMemberManager::SaveMemberOnConnect 已消除）
 void CMemberManager::SaveMemberOnConnect(CServerHandler* handler, CUser* u1, CUser* u2,
                                         unsigned char flag)
 {
-    if (handler != 0 && u1 != 0 && u2 != 0)
+    if (handler == 0)
+    {
+        goto L1;
+    }
+    if (u1 == 0)
+    {
+        goto L2;
+    }
+    if (u2 == 0)
+    {
+        goto L3;
+    }
     {
         Packet_Monitor_SAVE_Member pkt;
         pkt.m_flag = flag;
@@ -383,13 +417,22 @@ void CMemberManager::SaveMemberOnConnect(CServerHandler* handler, CUser* u1, CUs
         }
         else
         {
-            return;
+            goto L4;
         }
         handler->SendToDB(&pkt);
     }
+L1:;
+L2:;
+L3:;
+L4:;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0031 | monitor | 与ORIG差异=DIFF | CMemberManager::SaveMemberOnUnConnect | 详见 function_reports/monitor/_ZN14CMemberManager21SaveMemberOnUnConnectEP14CServerHandlerjjjh.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0031 CMemberManager::SaveMemberOnUnConnect 已消除）
+// ORIG _ZL12MEMBER_UPPER @0x813300d (1B) = 0x01 / _ZL12MEMBER_LOWER @0x813300e (1B) = 0x02
+// （SaveMemberOnUnConnect 经 .rodata 直读，非立即数）
+static const unsigned char MEMBER_UPPER = 0x01;
+static const unsigned char MEMBER_LOWER = 0x02;
+
 void CMemberManager::SaveMemberOnUnConnect(CServerHandler* handler, unsigned int a,
                                           unsigned int b, unsigned int c, unsigned char flag)
 {
@@ -397,30 +440,33 @@ void CMemberManager::SaveMemberOnUnConnect(CServerHandler* handler, unsigned int
     {
         Packet_Monitor_SAVE_Member pkt;
         pkt.m_flag = flag;
+        pkt.m_type = (c == 1) ? MEMBER_LOWER : MEMBER_UPPER;
         if (c == 1)
         {
             pkt.m_upperCharNo = b;
             pkt.m_lowerCharNo = a;
-            pkt.m_type = 1;
         }
-        else
+        else if (c == 2)
         {
-            pkt.m_type = 2;
-            if (c != 2)
-            {
-                DNF_LOG_SCOPE_AT(__FUNCTION__, 0x137,"./log/Member",
-                    "CMemberManager::SaveMemberOnUnConnect , isSecederUpperOrLower == 0");
-                return;
-            }
             pkt.m_upperCharNo = a;
             pkt.m_lowerCharNo = b;
         }
+        else
+        {
+            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x137,"./log/Member",
+                "CMemberManager::SaveMemberOnUnConnect , isSecederUpperOrLower == 0");
+            return;
+        }
         handler->SendToDB(&pkt);
+    }
+    else
+    {
+        return;
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0027 | monitor | 与ORIG差异=DIFF | CMemberManager::RegisterMember | 详见 function_reports/monitor/_ZN14CMemberManager14RegisterMemberEP7CMembersP5CUserb.md
-int CMemberManager::RegisterMember(CMember* member, short level, CUser* user, bool flag)
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0027 CMemberManager::RegisterMember 已消除）
+bool CMemberManager::RegisterMember(CMember* member, short level, CUser* user, bool flag)
 {
     if (member == 0 || user == 0)
     {
@@ -518,7 +564,7 @@ void CMemberManager::GetMemberExpNextLevelNeedExpLevel(unsigned int& exp,
     expNext = expNext - needExp;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0026 | monitor | 与ORIG差异=DIFF | CMemberManager::MemerMemLogin | 详见 function_reports/monitor/_ZN14CMemberManager13MemerMemLoginEjP5CUser.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0026 CMemberManager::MemerMemLogin 已消除）
 int CMemberManager::MemerMemLogin(unsigned int key, CUser* user)
 {
     if (user == 0 || m_app == 0)
@@ -535,22 +581,22 @@ int CMemberManager::MemerMemLogin(unsigned int key, CUser* user)
             "CMemberManager::MemerMemLogin() : pclUser->GetUniqCharNo() != uMemberKey\tmember key(%d), char id(%d)",
             key, user->GetUniqCharNo());
     }
-    CServerHandler* handler = m_app->Get_ServerHandler();
-    if (handler == 0)
+    CMember* member;
+    CServerHandler* handler;
+    if ((handler = m_app->Get_ServerHandler()) == 0)
     {
         throw CDNFException("CMemberManager::MemerMemLogin() pclServerHandler == NULL\n");
     }
-    int result = 0;
-    if (FindMember(key) == 0)
+    if ((member = FindMember(key)) == 0)
     {
-        result = (int)CreateMemberQuery(key, user, handler);
+        member = CreateMemberQuery(key, user, handler);
     }
     else
     {
         DNF_LOG_SCOPE_LINE(0x21a,"../log/Member", "CMemberManager::MemerMemLogin() ( is already member error ) : %d",
             key);
     }
-    return result;
+    return (int)member;
 }
 
 int CMemberManager::IsThereUpperMember(unsigned int charNo)

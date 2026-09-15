@@ -21,14 +21,16 @@ struct STBlackUserDBType
     STBlackUserDBType();
     int m_field0;       // +0
     char m_name[0x20];  // +4
-    int m_occurTime;    // +0x24（总大小 0x28）
+    unsigned int m_occurTime;   // +0x24（总大小 0x28）
 };
 
 // from GuildDomain.h
 class CBlackUser
 {
 public:
-    CBlackUser();
+    // [P374] ORIG 的 RegisterToBlackList 两处调用点均无 ctor-fail landing pad
+    //   （`call _ZN10CBlackUserdlEPv` 的 EH cleanup）⇒ ORIG 的 ctor 为 nothrow。
+    CBlackUser() throw();
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);

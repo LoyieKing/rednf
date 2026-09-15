@@ -78,7 +78,7 @@ struct __attribute__((packed)) STGuildSkill
 struct __attribute__((packed)) STGuildMemberProxy
 {
     STGuildMemberProxy();
-    int m_no;               // +0（SQL charac_no）
+    unsigned int m_no;      // +0（SQL charac_no；[P342] 与 GetUniqCharNo 同型 ⇒ 单段直落）
     char m_name[0x1e];      // +4（charac_name，SQL get_str 0x1d）
     unsigned char m_job;    // +0x22（SQL job）
     unsigned char m_growType;// +0x23（SQL grow_type）
@@ -307,7 +307,7 @@ public:
     unsigned short GetTotalCnt_Of_GuildDBInfo();
     void DecTotalCnt_Of_GuildDBInfo();
     bool CheckPowerSecedeTime();
-    int ChangeGuildMemberCharName(unsigned int charNo, char* name);
+    bool ChangeGuildMemberCharName(unsigned int charNo, char* name);
     void AddGuildPoint(unsigned short point);
     void SetGuildAgitInfo(STGuildAgitDBInfo& info);
     void SetGuildAgitLevelUp();
@@ -340,8 +340,8 @@ public:
     void QueryGuildAllMembersProxy(CServerHandler* handler, unsigned int charNo);
     void LoadGuildAllMembersProxy(STGuildMemberProxy* proxy, unsigned char flag,
                               unsigned char param);
-    int PopGuildMemberChanglableInfo(unsigned int charNo,
-                                     STGuildMemberChangableInfo& info) const;
+    bool PopGuildMemberChanglableInfo(unsigned int charNo,
+                                      STGuildMemberChangableInfo& info) const;
     int ReplyGuildMembersToWeb(STGuildMemberWebConnInfo* info);
     void DBSaveGuildMemberUnChangableInfo(CServerHandler* handler, unsigned int a,
                                       unsigned int b, char* name);
@@ -478,7 +478,8 @@ public:
     unsigned int m_charNo;   // +0xa
     int m_channel;           // +0xe
     char m_name[0x1d];       // +0x12
-};
+} __attribute__((aligned(4)));  // [2026-09-15] ORIG 该类的栈分配起点为 4 对齐的 -0x4c
+                                //（我方因 packed 基类被按 1 对齐放到 -0x4b）；仅钉对齐，不改布局
 
 // from GuildPackets.h
 class Packet_Guild_Notice_Guild_Name_Change : public PacketHeader {
@@ -518,8 +519,7 @@ public:
     char m_name[0x1d];        // +0x12
     char m_pad0;              // +0x2f
     unsigned char m_len;      // +0x30
-    char m_msg[1];            // +0x31
-    char m_pad[0x100];        // +0x32
+    char m_msg[0x100];        // +0x31（ORIG ctor memset 0x100；总长 0x131）
 };
 
 // from GuildPackets.h
@@ -533,8 +533,7 @@ public:
     unsigned char m_type;     // +0x30
     char m_items[0x138];      // +0x31..0x168
     char m_len;               // +0x169
-    char m_msg[1];            // +0x16a
-    char m_pad[0x110];        // +0x16b
+    char m_msg[0x100];        // +0x16a（ORIG ctor memset 0x100；总长 0x26a）
 };
 
 // from GuildPackets.h
@@ -612,17 +611,23 @@ public:
     unsigned int m_guildKey;   // +0xa
     unsigned int m_charNo;     // +0xe
     unsigned int m_channel;    // +0x12
-    unsigned int m_member0;    // +0x16
-    unsigned int m_member1;    // +0x1a
-    unsigned int m_member2;    // +0x1e
-    unsigned int m_member3;    // +0x22
-    unsigned int m_member4;    // +0x26
-    unsigned int m_member5;    // +0x2a
-    unsigned int m_member6;    // +0x2e
-    unsigned int m_member7;    // +0x32
-    unsigned int m_member8;    // +0x36
-    unsigned short m_memberA;  // +0x3a
-    char m_memberC;            // +0x3c
+    // [P235] 与 CGuildBoard::TodayMemberBlock 双视角：整块拷贝用同型具名成员（sizeof/偏移不变）
+    union {
+        struct {
+            unsigned int m_member0;    // +0x16
+            unsigned int m_member1;    // +0x1a
+            unsigned int m_member2;    // +0x1e
+            unsigned int m_member3;    // +0x22
+            unsigned int m_member4;    // +0x26
+            unsigned int m_member5;    // +0x2a
+            unsigned int m_member6;    // +0x2e
+            unsigned int m_member7;    // +0x32
+            unsigned int m_member8;    // +0x36
+            unsigned short m_memberA;  // +0x3a
+            char m_memberC;            // +0x3c
+        };
+        CGuildBoard::TodayMemberBlock m_today;   // +0x16（0x27 字节同布局）
+    };
 };
 
 // from GuildPackets.h

@@ -22,7 +22,9 @@ public:
     {
     }
     virtual ~IHandler();
-    virtual void init();
+    // ORIG：IHandler::init 是纯虚（各 vtable 槽 = __cxa_pure_virtual），但保留类外定义
+    // （ORIG 有 _ZN3nsl8IHandler4initEv 符号，供派生类显式限定调用）
+    virtual void init() = 0;
     void setSendThread(TCPSendThread* pSendThread);
 
 protected:

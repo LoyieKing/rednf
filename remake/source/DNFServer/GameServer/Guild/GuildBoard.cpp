@@ -168,6 +168,12 @@ void CGuildBoard::setGuildBoardData(unsigned int a, unsigned int b, CGuild* guil
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0001 | guild | 与ORIG差异=DIFF | CGuildBoard::sendGuildBoardData | 详见 function_reports/guild/_ZN11CGuildBoard18sendGuildBoardDataEjjjP5CUser.md
+// 2026-09-15 HWSpecSend：最佳 ndiff=8（现形态 `char reservedSlot[4]`，GuildB 所加）。残差为「槽浅 4」平移：
+// ORIG `lea -0x3c(%ebp)`/`-0x40(%ebp)` vs 我方 `-0x40`/`-0x44`，且 ORIG 另有一条 `mov -0x3c(%ebp),%eax; mov %eax,-0x44(%ebp)` 复制语句我方缺失。
+// 已试 7 个占位形态全部劣化：加 `int`/`char[4]`/两变量/`int+char4` = 14~78（**帧从 0xd74 涨到 0xd84，+0x10**），
+// `char[8]`=72、`int` 单变量=14 ⇒ 该件加任何占位都会破帧对齐，属「槽浅 4 但帧不可变」的受限平移，占位法不可用，登记。
+// 反向轴（T2 定稿「我方深 ⇒ 删局部」）亦已试：删掉现存的 `char reservedSlot[4]` ⇒ ndiff 8→70（劣化），
+// 故该占位是必要的，维持 8 为最佳（与 AuctionPoint 的「混合态」复核结论一致）。
 void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned int c,
                                      CUser* user)
 {
@@ -175,11 +181,11 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
     {
         return;
     }
+    char reservedSlot[4];
     int total = (int)m_board.size();
-    Packet_Guild_Reply_Guild_Board reply;
-    Packet_Guild_Reply_Guild_Board replyR;
     if (total == 0)
     {
+        Packet_Guild_Reply_Guild_Board reply;
         reply.m_c = (unsigned short)c;
         reply.m_f = user->GetIdByChannel();
         reply.m_13 = user->GetUniqCharNo();
@@ -196,12 +202,13 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
     }
     int fullPages = total / 10;
     int remainder = total % 10;
-    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator it =
-        m_board.begin();
     std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator endit =
         m_board.end();
+    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator it =
+        m_board.begin();
     for (int page = 0; page < fullPages; page++)
     {
+        Packet_Guild_Reply_Guild_Board reply;
         reply.m_c = (unsigned short)c;
         reply.m_f = user->GetIdByChannel();
         reply.m_13 = user->GetUniqCharNo();
@@ -220,6 +227,7 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0xa5,"./log/GuildBoard", "SEND SUCCESS - CODE TYPE:%u, GUILD:%u, CHARAC:%u, COUNT:%u",
             c, a, b, total, 10);
     }
+    Packet_Guild_Reply_Guild_Board replyR;
     if (remainder != 0)
     {
         replyR.m_c = (unsigned short)c;
@@ -235,7 +243,7 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
             replyR.m_boards[i].m_writerCharNo = it->second.m_writerCharNo;
             memcpy(&replyR.m_boards[i].m_char, &it->second.m_char, 0x21);
             ++it;
-            if (it == endit)
+            if (endit == it)
             {
                 break;
             }
@@ -244,6 +252,7 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0xcb,"./log/GuildBoard", "SEND SUCCESS - CODE TYPE:%u, GUILD:%u, CHARAC:%u, COUNT:%u",
             c, a, b, total, remainder);
     }
+    return;
 }
 
 void CGuildBoard::deleteGuildBoardData(unsigned int a, unsigned int b, unsigned int c)

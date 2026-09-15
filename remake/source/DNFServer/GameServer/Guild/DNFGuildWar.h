@@ -46,7 +46,7 @@ public:
     void AddGuildWarPoint(unsigned int guildId, int point);
     bool Rank();
     void RankProcess();
-    int SameRankWork();
+    bool SameRankWork();
     void printGuildWarRank();
     void GetGuildWarInfo(unsigned int* a, unsigned int* b, unsigned short* c);
     void GetGuildWarInfo(ST_Guild_War_Rank_Info* info);

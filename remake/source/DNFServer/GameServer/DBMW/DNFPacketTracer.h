@@ -19,7 +19,7 @@ public:
     void ResetPacketProcessLog();
     int m_field0;      // +0
     std::string m_log; // +4
-    CUnixTimer* m_timer;  // +8
+    CDnFTimer* m_timer;  // +8（ORIG：基类指针，赋值产生 mov ebx,eax; mov eax,edx 形态）
     std::map<unsigned int, stPacketProcess> m_processMap;  // +0xc
     int m_processCount;   // +0x24
 };

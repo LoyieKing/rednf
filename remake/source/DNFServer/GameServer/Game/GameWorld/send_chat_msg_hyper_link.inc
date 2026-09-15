@@ -253,8 +253,10 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from,
             // 0x86ca6ac 怪癖：+0xa 槽(local_53a)先写 guildkey、+0xe 槽(local_536)
             // 后写 characNo，与头文件字段名相反；SendPacket 长度 0x14c+textLen）。
             Packet_Monitor_Guild_Chat_Hyper_Link pkt;
-            pkt.m_charNo = from->get_charac_guildkey();
-            pkt.m_guildKey = from->getCurCharacNo();
+            // [P-GPT] 头已按 ORIG 校正成员名（m_guildKey@+0xa / m_charNo@+0xe）⇒ 直接按名字写，
+            //         写入的字节偏移与改名前逐个相同（+0xa 收 guildkey、+0xe 收 characNo）。
+            pkt.m_guildKey = from->get_charac_guildkey();
+            pkt.m_charNo = from->getCurCharacNo();
             pkt.m_itemCount = msg.m_linkCount13b;
             for (int i = 0; i < (unsigned char)msg.m_linkCount13b; i++)
             {

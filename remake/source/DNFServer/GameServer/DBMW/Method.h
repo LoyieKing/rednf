@@ -9,6 +9,12 @@ class IMethod
 public:
     IMethod();
     virtual ~IMethod();
+    // ORIG vtable 槽序（_ZTV7IMethod = 0x20）：[D1,D0,Signature,Encrypt,Decrypt,ResetChain]
+    // —— 这 4 个在 ORIG 是 IMethod 的纯虚函数、由 CTEA 覆写（_ZTV4CTEA 同序）
+    virtual int Signature(char* digest) = 0;
+    virtual int Encrypt(char const* src, char* dst, unsigned int len) = 0;
+    virtual int Decrypt(char const* src, char* dst, unsigned int len) = 0;
+    virtual int ResetChain() = 0;
     int Xor(char* a, char const* b);
     int SetMode(int mode);
     int SetPadding(int padding);

@@ -154,13 +154,13 @@ void CAppConfig::Check_FileName(const std::string& filename)
     std::string pid = "./pid/" + filename + ".pid";
     if (access(cfg.c_str(), 0) != 0)
     {
-        DNF_LOG_SCOPE_LINE(0x6a, "./log/Init", "Check_FileName - %s,%s\n", cfg.c_str(), pid.c_str());
+        DNF_LOG_SCOPE_LINE(0xcb, "./log/Init", "Check_FileName - %s,%s\n", cfg.c_str(), pid.c_str());
         throw CDNFException(
             "CAppConfig::Set_FileName() There is no cfg file Exception Break! Check ./cfg/*.cfg files");
     }
     if (access(pid.c_str(), 0) == 0)
     {
-        DNF_LOG_SCOPE_LINE(0x74, "./log/Init", "Check_FileName - %s,%s\n", cfg.c_str(), pid.c_str());
+        DNF_LOG_SCOPE_LINE(0xd4, "./log/Init", "Check_FileName - %s,%s\n", cfg.c_str(), pid.c_str());
         throw CDNFException(
             "CAppConfig::Set_FileName() There is already pid file! Exception Break! Check ./pid/*.pid files");
     }

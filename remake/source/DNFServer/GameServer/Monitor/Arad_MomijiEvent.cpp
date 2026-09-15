@@ -185,7 +185,7 @@ void EventManager::EndEvent()
     Init();
 }
 
-EventAction::EventAction() {}
+EventAction::EventAction() throw() {}
 
 void EventAction::onStartAction(EventParam& param)
 {

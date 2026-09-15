@@ -246,7 +246,7 @@ class StartEffectTask : public CTaskScheduler::CTask
 public:
     StartEffectTask(unsigned int time, unsigned int flag);
     ~StartEffectTask();
-    void _DoExecute();
+    void _DoExecute();   // [P374-未定] ORIG 该函数无 new 失败清理，但同 TU EventManager::StartEvent 有；单一 ctor spec 无法同时满足，待解
     unsigned char m_flag;   // +0x10
     char m_pad[3];          // +0x11
 };
@@ -256,6 +256,12 @@ class EndEffectTask : public CTaskScheduler::CTask
 public:
     EndEffectTask(unsigned int time, unsigned int flag);
     ~EndEffectTask();
+    // [P374-未定] ORIG 中本函数内 `new StartEffectTask` 无 EH 清理，而同 TU 的
+    // EventManager::StartEvent 内同一 ctor 调用却有清理（已核对 ORIG 两处 call 目标均为
+    // 805c43c <StartEffectTaskC1Ejj>，同 .o：地址连续且以 _GLOBAL__I_ 结尾）。
+    // 已试无效：ctor 加 throw()（本件归零但 StartEvent 由 identical 劣化为 159/150）、
+    // 本函数加 throw()（无变化）、内联/删除具名局部（对照 ORIG 已具名 task 于 -0x20）。
+    // 结论：单一 ctor spec 无法同时满足两处，属编译单元划分差异，暂保留现状（ndiff=10）。
     void _DoExecute();
     unsigned char m_flag;   // +0x10
     char m_pad[3];          // +0x11
@@ -287,7 +293,7 @@ public:
 class EventAction : public CBaseEventAction
 {
 public:
-    EventAction();
+    EventAction() throw();   // P374：ORIG init 无该 ctor 的 LP（仅本 TU 外 1 处 new）
     virtual ~EventAction() {}
     virtual void onStartAction(EventParam& param);
     virtual void onEndAction();

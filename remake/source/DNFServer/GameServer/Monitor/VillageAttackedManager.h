@@ -327,7 +327,7 @@ public:
 class CVillageAttackedCountdownFirst : public CTaskScheduler::CTask
 {
 public:
-    CVillageAttackedCountdownFirst(unsigned int time, unsigned int flag, CVillageAttackedManager* mgr);
+    CVillageAttackedCountdownFirst(unsigned int time, unsigned int flag, CVillageAttackedManager* mgr) throw();
     ~CVillageAttackedCountdownFirst();
     void _DoExecute();
     CVillageAttackedManager* m_mgr;  // +0x10
@@ -336,7 +336,7 @@ public:
 class CVillageAttackedCountdownSecond : public CTaskScheduler::CTask
 {
 public:
-    CVillageAttackedCountdownSecond(unsigned int time, unsigned int flag, CVillageAttackedManager* mgr);
+    CVillageAttackedCountdownSecond(unsigned int time, unsigned int flag, CVillageAttackedManager* mgr) throw();
     ~CVillageAttackedCountdownSecond();
     void _DoExecute();
     CVillageAttackedManager* m_mgr;  // +0x10
@@ -345,7 +345,7 @@ public:
 class CVillageAttackedCountdownThird : public CTaskScheduler::CTask
 {
 public:
-    CVillageAttackedCountdownThird(unsigned int time, unsigned int flag, CVillageAttackedManager* mgr);
+    CVillageAttackedCountdownThird(unsigned int time, unsigned int flag, CVillageAttackedManager* mgr) throw();
     ~CVillageAttackedCountdownThird();
     void _DoExecute();
     CVillageAttackedManager* m_mgr;  // +0x10
@@ -354,7 +354,7 @@ public:
 class CVillageAttackedStart : public CTaskScheduler::CTask
 {
 public:
-    CVillageAttackedStart(unsigned int time, unsigned int flag, CVillageAttackedManager* mgr);
+    CVillageAttackedStart(unsigned int time, unsigned int flag, CVillageAttackedManager* mgr) throw();
     ~CVillageAttackedStart();
     void _DoExecute();
     CVillageAttackedManager* m_mgr;  // +0x10
@@ -363,7 +363,7 @@ public:
 class CVillageAttackedEnd : public CTaskScheduler::CTask
 {
 public:
-    CVillageAttackedEnd(unsigned int time, unsigned int flag, CVillageAttackedManager* mgr);
+    CVillageAttackedEnd(unsigned int time, unsigned int flag, CVillageAttackedManager* mgr) throw();
     ~CVillageAttackedEnd();
     void _DoExecute();
     CVillageAttackedManager* m_mgr;  // +0x10
@@ -372,7 +372,7 @@ public:
 class CVillageAttackedReward : public CTaskScheduler::CTask
 {
 public:
-    CVillageAttackedReward(unsigned int time, unsigned int flag, CVillageAttackedManager* mgr);
+    CVillageAttackedReward(unsigned int time, unsigned int flag, CVillageAttackedManager* mgr) throw();
     ~CVillageAttackedReward();
     void _DoExecute();
     CVillageAttackedManager* m_mgr;  // +0x10

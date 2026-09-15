@@ -5,17 +5,17 @@
 #include "MemoryCashManager.h"
 #include "DNFFileLog.h"
 
-// [DNF-NONIDENTICAL] DNF-MON-NEAR-0009 | monitor | 与ORIG差异=NEAR | CMemoryCashManager::ProcessCashDataPrint | 详见 function_reports/monitor/_ZN18CMemoryCashManager20ProcessCashDataPrintEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-NEAR-0009 已消除）
 void CMemoryCashManager::ProcessCashDataPrint()
 {
     m_cashCnt34--;
-    register bool b = (m_cashCnt34 <= 0);
-    if (b)
+    while (m_cashCnt34 <= 0)
     {
         DNF_LOG_SCOPE_LINE(0x4e, "./log/cashmem",
             "buddy(%d/%d)  member(%d/%d)  black(%d/%d)",
             m_buddyCashHitCnt, m_buddyCashCnt, m_memberCashHitCnt, m_memberCashCnt, m_blackListCashHitCnt,
             m_blackListCashCnt);
         resetCashCnt();
+        break;
     }
 }

@@ -254,13 +254,13 @@ public:
     void GetSchoolCount(unsigned int school, unsigned int* out, unsigned char& idx);
     CUser* FindUser_CharName(std::string name) const;
     void ChangeBlackListCharName(unsigned int dbid, char* name);
-    int DeleteProhibitUser(unsigned int dbid, char channel);
+    bool DeleteProhibitUser(unsigned int dbid, char channel);
     void DeleteBlackUserOnCharacDelete(unsigned int charNo);
     void ResetBlackList(unsigned int charNo);
     void ResetBuddyList(unsigned int charNo);
     unsigned int GetSizeOfCharnoUsers();
     unsigned int Size();
-    int DeleteUser_CharNo(unsigned int charNo);
+    bool DeleteUser_CharNo(unsigned int charNo);
     int DeleteUser_CharName(std::string name);
     CUser* CreateUser(unsigned int dbid, unsigned int charNo, char* charName, int channel,
                       CGameServer* server);
@@ -271,8 +271,8 @@ public:
     CUser* FindUser(unsigned int dbid) const;
     bool InsertProhibitUser(const unsigned int dbid, class CDNFProhibitUser* pu);
     void ResetMemberInfo(unsigned int charNo);
-    int DeleteUser(unsigned int dbid);
-    int DeleteUser(CUser* user);
+    bool DeleteUser(unsigned int dbid);
+    bool DeleteUser(CUser* user);
     std::map<const unsigned int, std::map<unsigned char, unsigned int> > m_mapSchools;  // +0
     std::map<unsigned int, CUser*> m_users;             // +0x18
     std::map<const unsigned int, CUser*> m_charNoUsers; // +0x30

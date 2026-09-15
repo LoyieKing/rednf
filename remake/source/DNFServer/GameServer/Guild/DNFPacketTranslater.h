@@ -421,8 +421,10 @@ public:
 class Packet_DB_Write_Guild_Member_Memo : public PacketHeader {
 public:
     Packet_DB_Write_Guild_Member_Memo();
-    unsigned int m_charNo;            // +0xa
-    unsigned int m_guildKey;          // +0xe
+    // [P-GPT] ORIG 实测（OnWriteGuildMemberMemo）：dbPkt+0xa 收 pb->m_guildKey(+0xa)、
+    // dbPkt+0xe 收 pb->m_charNo(+0xe) ⇒ 本类成员序与 Packet_Guild_* 相反
+    unsigned int m_guildKey;          // +0xa
+    unsigned int m_charNo;            // +0xe
     char m_memo[0x15];                // +0x12
 };
 

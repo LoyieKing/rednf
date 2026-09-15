@@ -41,8 +41,8 @@ public:
     unsigned short getPowerWarEndKillPoint();
     unsigned short getPowerWarEndKillPoint() const;
     void setPowerWarEndKillPoint(unsigned short point);
-    virtual void resetEvent();
     virtual void setEvent();
+    virtual void resetEvent();
     void setProlongTime();
     void GetPowerWarConfigTbl(unsigned char& a, unsigned char& b, unsigned char& c,
                               unsigned char& d);

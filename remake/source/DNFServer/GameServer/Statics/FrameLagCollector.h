@@ -36,8 +36,8 @@ public:
     public:
         void init();
         void SetUsedMemory(char idx, short value);
-        int m_counts[6];   // +0
-        int m_sums[6];     // +0x18
+        unsigned int m_counts[6];   // +0（ORIG 除法为 divl：字段为 unsigned）
+        unsigned int m_sums[6];     // +0x18
     };
     class DirectxVersionStruct
     {
@@ -60,7 +60,6 @@ public:
         int m_f[6];          // +0x68
         int m_g[6];          // +0x80
         int m_h[6][4];       // +0x98
-        int m_pad[2];        // +0xf8
         union Pair
         {
             struct
@@ -70,7 +69,12 @@ public:
             } s;
             int m_words[2];      // 用于按 ORIG 的 int 位模式读写
         };
-        Pair m_i[41];        // +0x100（总计 0x248）
+        // ORIG 的 m_i 基址 = 0x100、容量 41 个 Pair（0x100 + 41*8 = 0x248 = ORIG 的
+        //   rep movsl 146-ints 锚定值）。两侧不可兼得：要复现 ORIG 的**二维展开**
+        //   （内层 j 走 %ebx）就必须让类型真为二维，而 41 是质数无法分解 ⇒ 实测取舍：
+        //   二维 [6][7] 从 0xf8（本声明，init 2 / Save 44 / acc 196）
+        //   vs 一维 [41] 从 0x100（init 44 / Save 167 / acc 278，全量退化）。
+        Pair m_i[6][7];      // +0xf8（类大小保持 0x248）
     };
     class MonitoringSpecCase
     {
@@ -112,8 +116,8 @@ public:
     int m_fieldc;                       // +0xc
     int m_field10;                      // +0x10
     int m_field14;                      // +0x14
-    char m_field18;                     // +0x18
-    char m_field19;                     // +0x19
+    unsigned char m_field18;            // +0x18（ORIG 以 movzbl 载入后按无符号 byte 比较）
+    unsigned char m_field19;            // +0x19
     std::map<int, char> m_map1c;        // +0x1c
     std::map<int, char> m_map34;        // +0x34
     int m_field4c;                      // +0x4c

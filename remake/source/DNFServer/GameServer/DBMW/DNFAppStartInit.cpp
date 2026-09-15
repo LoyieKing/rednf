@@ -28,14 +28,15 @@ CAppStartInit::CAppStartInit() {}
 CAppStartInit::~CAppStartInit() {}
 bool CAppStartInit::Save_pid(const std::string& path)
 {
-    std::string full = std::string("./pid/") + path + std::string(".pid");
+    std::string full = "./pid/" + path + ".pid";
+    int n;
     int fd = open(full.c_str(), 0x42, 0x1a4);
     if (fd < 0)
         return 0;
     char buf[0x400];
     memset(buf, 0, 0x400);
     sprintf(buf, "%ld\n", (long)getpid());
-    int n = write(fd, buf, strlen(buf));
+    n = write(fd, buf, strlen(buf));
     if (n < 0)
     {
         close(fd);

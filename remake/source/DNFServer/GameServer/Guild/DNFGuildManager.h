@@ -14,6 +14,7 @@
 #include "DNFGuildManager.h"
 #include "DNFGuildWar.h"
 #include "Scheduler.h"
+#include "GuildBoard.h"
 
 class CApplication;
 class CGuild;
@@ -31,14 +32,36 @@ struct ST_Notice_Guild_Secede;
 // 结构体总大小 0x28；与 DBMW DNFPacket.h 字段布局一致（charac_no + name[0x1e] + 5 uchar）。
 struct STTodayGuildMember
 {
-    char m_data[0x28];
+    // [P235 双视角] m_today 视图与 CGuildBoard::TodayMemberBlock 同型 —— SetTodayGuildMember
+    // 的同型赋值复现 ORIG 的 LHS-first 装载序；sizeof 仍 0x28（char 数组视角保留）。
+    union
+    {
+        char m_data[0x27];
+        CGuildBoard::TodayMemberBlock m_today;
+    };
 };
 
 // from GuildDomain.h
 struct STAttendanceInfo
 {
     STAttendanceInfo();
-    char m_data[0x1c];
+    // [P235 双视角] 具名字段视图与 char 数组同 union（偏移/大小不变）—— ORIG 源码为
+    // 具名成员访问，GetAttendanceInfo 的 LHS 简单成员访问复现 ORIG 的 rhs-first 装载序
+    // （我方原 cast 形会把 &info 提前读入 callee-saved 跨 call 保活，多 push/pop esi）。
+    union
+    {
+        char m_data[0x1c];
+        struct
+        {
+            unsigned int m0;  // +0
+            unsigned int m1;  // +4
+            unsigned int m2;  // +8
+            unsigned int m3;  // +0xc
+            unsigned int m4;  // +0x10
+            unsigned int m5;  // +0x14
+            int m6;           // +0x18
+        };
+    };
 };
 
 // from GuildDomain.h
@@ -90,11 +113,11 @@ public:
     CGuildWar* GetGuildWar();
     void CargoLock();
     void CargoUnlock();
-    unsigned char IsCargoLock();
+    bool IsCargoLock();
     CApplication* m_app;          // +0
     std::map<unsigned int, CGuild*> m_guilds;  // +4
     CScheduler m_scheduler;       // +0x1c
-    unsigned char m_cargoLock;    // +0x40（CargoLock/CargoUnlock/IsCargoLock）
+    bool m_cargoLock;             // +0x40（CargoLock/CargoUnlock/IsCargoLock）
     char m_pad41[3];              // +0x41（对齐）
     CGuildWar m_guildWar;         // +0x44
     std::map<unsigned int, STTodayGuildMember> m_todayMembers;  // +0x58

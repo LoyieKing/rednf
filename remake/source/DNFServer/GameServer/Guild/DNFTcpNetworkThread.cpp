@@ -104,20 +104,20 @@ void CTcpNetworkThread::dispatch(void* param)
         {
             errno = 0;
             DNFFLib::Sleep_Ext(0, 5);
-            if (m_net == 0)
-            {
+            if (!m_net)
                 continue;
-            }
             m_net->SetEpollAcceptedPeers();
             m_net->SendPacket();
             eventCount = m_net->WaitForEvent();
             if (eventCount == 0)
-            {
                 continue;
-            }
-            if (eventCount < 0 && errno != EINTR && errno != 0)
+            if (eventCount < 0)
             {
-                break;
+                if (errno != 4)
+                {
+                    if (errno != 0)
+                        return;
+                }
             }
             for (int i = 0; i < eventCount; i++)
             {

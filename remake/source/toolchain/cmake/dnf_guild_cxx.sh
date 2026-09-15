@@ -33,6 +33,10 @@ for a in "$@"; do
     prev="$a"
 done
 case "$(basename "$src" .cpp)" in
+    # GuildCargo：Main 批准（2026-09-15）为属主 TU 追加 -march=i486 -mtune=generic
+    # （x87 比较 lowering；上一轮 61 TU 四数零回归、GuildCargo +1）。仅本 TU，勿扩面。
+    GuildCargo)
+        exec "$C6446R" "$@" -march=i486 -mtune=generic ;;
     DNFTableBase)
         filtered=""
         for a in "$@"; do

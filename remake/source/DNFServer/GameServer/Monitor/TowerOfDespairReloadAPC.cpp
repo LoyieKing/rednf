@@ -31,7 +31,7 @@
 
 bool TowerOfDespairReloadAPC_Task::returnUpdateMessageFromGameServer = false;
 
-TowerOfDespairReloadAPC_Task::TowerOfDespairReloadAPC_Task(unsigned int a, unsigned int b)
+TowerOfDespairReloadAPC_Task::TowerOfDespairReloadAPC_Task(unsigned int a, unsigned int b) throw()
     : CTaskScheduler::CTask(a, b)
 {
 }
@@ -65,16 +65,16 @@ TowerOfDespairWaitGameServerResponse_Task::TowerOfDespairWaitGameServerResponse_
 
 TowerOfDespairWaitGameServerResponse_Task::~TowerOfDespairWaitGameServerResponse_Task() {}
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0130 | monitor | 与ORIG差异=DIFF | TowerOfDespairWaitGameServerResponse_Task::_DoExecute | 详见 function_reports/monitor/_ZN41TowerOfDespairWaitGameServerResponse_Task10_DoExecuteEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0130 已消除）
 void TowerOfDespairWaitGameServerResponse_Task::_DoExecute()
 {
     DNF_LOG_SCOPE_LINE(0x46, "./log/GameServer", "TOD : Waiting main GameServer Response...");
     if (TowerOfDespairReloadAPC_Task::isReturnedMessage() != 1)
     {
         TowerOfDespairReloadAPC_Task::SendRequest_DoRandomSelectUserAPC();
-        unsigned int t = (unsigned int)time(0);
+        int t = (int)time(0);
         ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(
-            new TowerOfDespairWaitGameServerResponse_Task(t + 0x3c, 0));
+            new TowerOfDespairWaitGameServerResponse_Task((unsigned int)(t + 0x3c), 0));
     }
 }
 

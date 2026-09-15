@@ -44,8 +44,11 @@ void CServerXml::StrLoading(std::string path)
     InitString();
     m_str54 = path;
     m_doc.Clear();
-    char ok = (char)m_doc.LoadFile(m_str54, (TiXmlEncoding)0);
-    if (ok == 1)
+    if (!m_doc.LoadFile(m_str54, (TiXmlEncoding)0))
+    {
+        printf("[CServerXml] Load Fail File : %s\n", "server_str.xml");
+    }
+    else
     {
         TiXmlNode* root = m_doc.FirstChild("xml");
         if (root == 0)
@@ -58,10 +61,6 @@ void CServerXml::StrLoading(std::string path)
             EventLoad(root);
             ProcessLoad(root);
         }
-    }
-    else
-    {
-        printf("[CServerXml] Load Fail File : %s\n", "server_str.xml");
     }
     __asm__ __volatile__("nop");
 }
@@ -160,7 +159,7 @@ void CServerXml::EventLoad(TiXmlNode* node)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0022 | monitor | 与ORIG差异=DIFF | np_server_xml::CServerXml::StrPunish | 详见 function_reports/monitor/_ZN13np_server_xml10CServerXml9StrPunishEiPKcNS_12_eStringTypeE.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0022 已消除）
 void CServerXml::StrPunish(int idx, const char* str, _eStringType type)
 {
     if (str != 0)

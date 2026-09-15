@@ -26,14 +26,15 @@ int getErrno();
 // CTableBase / CAppInit / CAppConfig / CServerConfig
 CServerConfig::CServerConfig() {}
 CServerConfig::~CServerConfig() {}
-int CServerConfig::Load_Table(const std::string& fileName)
+void CServerConfig::Load_Table(const std::string& fileName)
 {
     int n = Load_Txt_Table_Data(fileName.c_str(), 0xff);
-    if (n >= 0 && n <= 0xfe)
-        return n;
-    CMyFileLog log("Load_Table", 0x39);
-    log("./log/TableError.log", "Server Config Table - ReturnCode = %d\n", n);
-    throw CDNFException("CServerConfig::Load_Setup_Table() Exception Break!");
+    if (n < 0 || n > 0xfe)
+    {
+        CMyFileLog log("Load_Table", 0x39);
+        log("./log/TableError.log", "Server Config Table - ReturnCode = %d\n", n);
+        throw CDNFException("CServerConfig::Load_Setup_Table() Exception Break!");
+    }
 }
 bool CServerConfig::Parse_Table(char* data, int size)
 {
@@ -58,4 +59,4 @@ bool CServerConfig::Parse_Table(char* data, int size)
 ST_ServerInfo::ST_ServerInfo()
     : m_type(0), m_flag(0), m_idx(0xff), m_name(), m_port(0) {}
 ST_ServerInfo::~ST_ServerInfo() {}
-void* CServerConfig::GetServerInfo() { return &m_servers; }
+ST_ServerInfo* CServerConfig::GetServerInfo() { return m_servers; }

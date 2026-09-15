@@ -22,7 +22,9 @@ struct ST_KillUSRConfig
 };
 
 // from GuildTable.h
-class CKillUSRConfig : public CTableBase
+// [P377/RTTI 轴] ORIG 的 `_ZTI14CKillUSRConfig` 为 24B（__vmi_class_type_info）
+//   ⇒ CTableBase 是非 public 基类（我方原写 public ⇒ 退化为 12B __si_class_type_info）。
+class CKillUSRConfig : private CTableBase
 {
 public:
     CKillUSRConfig();

@@ -52,12 +52,20 @@ namespace nsl {
             {
                 G_TraceLog()->sysLog(7,
                     "DB : \xbf\xac\xb0\xe1\xc0\xcc \xb2\xf7\xbe\xee\xc1\xb3\xbd\xc0\xb4\xcf\xb4\xd9.");
-                // ORIG（df_game_r）不发射 INTERNALMSG_SERVICE_UNAVAILABLE 的 ctor
+#ifdef DNF_SERVERLIB_AUCTION_SHAPE
+                // df_auction_r/df_point_r ORIG 实证：0x80b95dd-0x80b95e3 先 lea 局部再
+                // call _ZN31INTERNALMSG_SERVICE_UNAVAILABLEC1Ev ⇒ 原码是普通具名对象 +
+                // 单条 reason 赋值（auction/point 的 CMake 定义本宏）。
+                INTERNALMSG_SERVICE_UNAVAILABLE svc;
+                svc.reason = 2;
+                Message* pNewMsg = pApp->super_DataPools.getCommonDataPool(tlsThreadId)->createMessage(1);
+                CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
+                *pNewCell << &svc;
+#else
+                // df_game_r ORIG：不发射 INTERNALMSG_SERVICE_UNAVAILABLE 的 ctor
                 // （无 _ZN31INTERNALMSG_SERVICE_UNAVAILABLEC[12]Ev，也无
                 //  nsl::INTERNALMSG_HEADER::setCategory/setInternalMsgID/setSize）
-                // ⇒ 该消息体在 ORIG 里是「零指令 POD 视图 + 显式字段写入」。
-                // 头内 ctor 服务于其它二进制（Auction），不能删；本 TU 改以字节
-                // 缓冲承载，逐条复现 ctor 体的写入序，不 odr-use 任何 inline 成员。
+                // ⇒ 该消息体在 game 的 ORIG 里是「零指令 POD 视图 + 显式字段写入」。
                 unsigned char svcRaw[sizeof(INTERNALMSG_SERVICE_UNAVAILABLE)];
                 INTERNALMSG_SERVICE_UNAVAILABLE* pSvc =
                     reinterpret_cast<INTERNALMSG_SERVICE_UNAVAILABLE*>(svcRaw);
@@ -73,6 +81,7 @@ namespace nsl {
                 Message* pNewMsg = pApp->super_DataPools.getCommonDataPool(tlsThreadId)->createMessage(1);
                 CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
                 *pNewCell << pSvc;
+#endif
                 pApp->super_Threads.getWorkThread(pNewMsg->getCellFromMessage()->GetInternalMsg()->workIndex)->PushTransaction(pNewMsg);
             }
         }

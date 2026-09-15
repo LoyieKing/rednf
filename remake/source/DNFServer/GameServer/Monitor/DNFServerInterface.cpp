@@ -88,20 +88,19 @@ bool CServerInterface::IsValidServer()
 
 bool CServerInterface::IsConnected() { return m_connected; }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0043 | monitor | 与ORIG差异=DIFF | CServerInterface::IsHeartBeatTimeOver | 详见 function_reports/monitor/_ZN16CServerInterface19IsHeartBeatTimeOverEv.md
-char CServerInterface::IsHeartBeatTimeOver()
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0043 已消除）
+bool CServerInterface::IsHeartBeatTimeOver()
 {
     m_heart = m_heart - 1;
-    register bool b = (m_heart == 0);
-    if (b)
+    while (m_heart == 0)
     {
         ++m_padA[0];
-        register bool b2 = (m_padA[0] > 0x14);
-        if (b2)
+        while (m_padA[0] > 0x14)
         {
             return 1;
         }
         m_heart = 0x14;
+        break;
     }
     return 0;
 }

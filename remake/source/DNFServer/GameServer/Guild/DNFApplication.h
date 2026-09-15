@@ -26,6 +26,7 @@ class CGMAccounts;
 class CGameServer;
 class CInnerMsgHandler;
 class CKillUSRConfig;
+class CTableBase;
 class CMemoryCashManager;
 class CServerConfig;
 class CServerHandler;
@@ -99,15 +100,15 @@ public:
     int m_reserved8;                    // +8
     CAppInit* m_appInit;                // +0xc
     CUserManager m_userManager;         // +0x10
-    CAppConfig* m_appConfig;            // +0x5c
-    CServerConfig* m_serverConfig;      // +0x60
+    CTableBase* m_appConfig;            // +0x5c base-ptr upcast form
+    CTableBase* m_serverConfig;          // +0x60 base-ptr upcast form
     CKillUSRConfig* m_killConfig;       // +0x64
     CServerHandler* m_serverHandler;    // +0x68
     CFrameCountHandler m_frameCount;    // +0x6c
     CInnerMsgHandler* m_innerMsgHandler;  // +0x9c
     CSwapQueue<std::queue<CUdpRecvBuffer*, std::deque<CUdpRecvBuffer*> >, 2> m_swapQueue;  // +0xa0
     CUdpHandler* m_udpHandler;          // +0xf8
-    CUdpNetworkThread* m_udpThread;     // +0xfc
+    CThreadInterface* m_udpThread;      // +0xfc（ORIG：基类指针赋值产生 mov ebx,eax;mov eax,edx 形态）
     CMutex m_udpQLock;                  // +0x100
     CMutex m_udpBLock;                  // +0x118
     CTcpNetSystem m_tcpNetSystem;       // +0x130

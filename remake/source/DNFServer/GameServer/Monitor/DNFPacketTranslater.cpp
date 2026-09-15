@@ -122,7 +122,8 @@ struct __attribute__((packed)) MonitorBlackListRecord
 
 struct __attribute__((packed)) MonitorResponseBlackListPkt
 {
-    char m_base[0xe];
+    char m_base[0xa];
+    unsigned int m_dbid;                // +0xa（ORIG 0x80c0f0d 经同一指针读）
     MonitorBlackListRecord m_items[1];  // +0xe
 };
 
@@ -172,7 +173,7 @@ struct __attribute__((packed)) MonitorItemSellEndPkt
 struct __attribute__((packed)) MonitorVillageFightPkt
 {
     char m_base[10];
-    unsigned int m_keys[8];     // +0xa
+    unsigned int m_keys[8][1][1];   // +0xa（外壳维全 1，元素数/大小不变；ORIG 的 i+4 索引分解需要真多维声明）
 };
 
 struct __attribute__((packed)) MonitorEmergencyPatchPkt
@@ -290,7 +291,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
         try
         {
             Packet_Monitor_UDP_Login* login = (Packet_Monitor_UDP_Login*)pkt;
-            unsigned int channel = (unsigned int)(unsigned char)login->m_channel;
+            int channel = (int)(unsigned int)(unsigned char)login->m_channel;
             CTcpGameServer* tcpGs =
                 (CTcpGameServer*)m_pclApp->FindTcpGameServer(login->m_connNo);
             if (tcpGs != 0)
@@ -333,8 +334,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                             user->SetTcpGameServer(tcpGs);
                             out->m_sex = 1;
                             char* dbid = NumberToString(login->m_dbid, 0);
-                            CMyFileLog log2(__FUNCTION__, 0x1a5);
-                            log2("./log/User",
+                            DNF_LOG_SCOPE_LINE(0x1a5, "./log/User",
                                  "Current user count : %d\tConnected User DB ID : %s\n",
                                  userMgr->Size(), dbid);
                             CLoginLogoutStatistics* stats2 =
@@ -413,6 +413,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                     }
                 }
             }
+        return;
         }
         catch (CDNFException& e)
         {
@@ -428,10 +429,8 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0113 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnLogout | 详见 function_reports/monitor/_ZN17CPacketTranslater8OnLogoutEP12PacketHeader.md
 void CPacketTranslater::OnLogout(PacketHeader* pkt)
 {
-    if (m_pclApp == 0)
+    if (m_pclApp != 0)
     {
-        return;
-    }
     try
     {
         Packet_Monitor_UDP_Logout* logout = (Packet_Monitor_UDP_Logout*)pkt;
@@ -494,8 +493,7 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
                 cacheType.m_field0 = logout->m_cache0;
                 cacheType.m_field4 = (int)(unsigned char)logout->m_channel;
                 char* dbid2 = NumberToString(logout->m_dbid, 0);
-                CMyFileLog log2(__FUNCTION__, 0x290);
-                log2("./log/ExchangeServer", "CacheCharacter() (%s,%d,%d)\n", dbid2,
+                DNF_LOG_SCOPE_LINE(0x290, "./log/ExchangeServer", "CacheCharacter() (%s,%d,%d)\n", dbid2,
                      cacheType.m_field0, cacheType.m_field4);
                 if (logout->m_cacheFlag != 0)
                 {
@@ -570,6 +568,7 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
         puts("CPacketTranslater::OnLogout() Exception Break");
         DNF_LOG_SCOPE_LINE(0x2f1, "./log/Except", "CPacketTranslater::OnLogout() Exception Break\n");
     }
+    }
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0059 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnReplyUserInfo | 详见 function_reports/monitor/_ZN17CPacketTranslater15OnReplyUserInfoEP12PacketHeader.md
@@ -641,6 +640,7 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
                 }
             }
         }
+    return;
     }
     catch (CDNFException& e)
     {
@@ -960,6 +960,7 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
             (unsigned short)((unsigned char)chat->m_msgLen + 0x37);
         receiver->SendToGameserver((char*)&reply, reply.packetSize);
     }
+    return;
 
 
     }
@@ -995,6 +996,7 @@ void CPacketTranslater::OnCeraUpdate(PacketHeader* pkt)
                 "CPacketTranslater::OnCeraUpdate : pUser->GetGameServer() == 0");
         }
     }
+    return;
 
 
     }
@@ -1015,6 +1017,7 @@ void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
 {
     try
     {
+        int reservedSlot;   // S5: 槽组整体浅 4，补 4 字节占位
         Packet_Event_Item_Update* item = (Packet_Event_Item_Update*)pkt;
         CUser* user =
             (&m_pclApp->m_userManager)->FindUser(item->m_dbid);
@@ -1534,90 +1537,92 @@ void CPacketTranslater::OnMemberSecede(PacketHeader* pkt)
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0060 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnCallMemberList | 详见 function_reports/monitor/_ZN17CPacketTranslater16OnCallMemberListEP12PacketHeader.md
 void CPacketTranslater::OnCallMemberList(PacketHeader* pkt)
 {
-    if (m_pclApp != 0)
+    if (m_pclApp == 0)
+    {
+        return;
+    }
     {
         try
         {
+            CUser* user;
+            CUser* pUser;
+            CMember* member;
+            Packet_Monitor_Call_Member_List* p = (Packet_Monitor_Call_Member_List*)pkt;
             CUserManager* userMgr = &m_pclApp->m_userManager;
             CMemberManager* memberMgr = &m_pclApp->m_memberManager;
-            CUser* user = userMgr->FindUser_CharNo(((Packet_Monitor_Call_Member_List*)pkt)->m_charNo);
-            if (user != 0)
+            if ((user = userMgr->FindUser_CharNo(p->m_charNo)) == 0)
             {
-                CMember* member = memberMgr->FindMember(user->GetUniqCharNo());
-                if (member != 0)
+                return;
+            }
+            if ((member = memberMgr->FindMember(user->GetUniqCharNo())) == 0)
+            {
+                return;
+            }
                 {
                     Packet_Monitor_Call_Member_List_ToUser rpkt;
                     rpkt.m_idByChannel = user->GetIdByChannel();
                     rpkt.m_uniqCharNo = user->GetUniqCharNo();
                     STMemberDBInfo* db = (STMemberDBInfo*)member->GetMemberDBInfo();
-                    CUser* upperUser = userMgr->FindUser_CharNo(db->m_member.m_charNo);
-                    if (upperUser == 0)
+                    ST_MemberInfo* info = &rpkt.m_memberList.m_info;
+                    if ((pUser = userMgr->FindUser_CharNo(db->m_member.m_charNo)) == 0)
                     {
-                        rpkt.m_memberList.m_info.m_channelNo = 0xff;
+                        info->m_channelNo = 0xff;
                     }
-                    else if (upperUser->GetGameServer() == 0)
+                    else if (pUser->GetGameServer() != 0)
                     {
-                        rpkt.m_memberList.m_info.m_channelNo = 0xff;
+                        if (pUser->IsBlackUser(user->GetUniqCharNo()))
+                        {
+                            info->m_blackFlag = 1;
+                        }
+                        info->m_channelNo =
+                            ((CServerInterface*)pUser->GetGameServer())->GetChannelNo();
                     }
                     else
                     {
-                        if (upperUser->IsBlackUser(user->GetUniqCharNo()) != 0)
-                        {
-                            rpkt.m_memberList.m_info.m_blackFlag = 1;
-                        }
-                        rpkt.m_memberList.m_info.m_channelNo =
-                            ((CServerInterface*)upperUser->GetGameServer())->GetChannelNo();
+                        info->m_channelNo = 0xff;
                     }
-                    rpkt.m_memberList.m_info.m_flag = db->m_member.m_flag4;
-                    memcpy(rpkt.m_memberList.m_info.m_name, db->m_member.m_name, 0x1d);
-                    rpkt.m_memberList.m_info.m_exp = db->m_member.m_exp;
-                    unsigned int upperExp = rpkt.m_memberList.m_info.m_exp;
-                    unsigned int upperExpNext = rpkt.m_memberList.m_info.m_expNext;
-                    unsigned char upperExpLevel = rpkt.m_memberList.m_info.m_level;
+                    info->m_flag = db->m_member.m_flag4;
+                    memcpy(info->m_name, db->m_member.m_name, 0x1d);
+                    info->m_exp = db->m_member.m_exp;
+                    // ST_MemberInfo 为 pack(1)：具名字段无法绑定 unsigned int&（GCC 报错），
+                    // 故对具名成员取址后再解引用成左值（成员名仍是权威字段名）。
+                    // ORIG 该调用点按 +0x22/+0x26/+0x21 逐实参重算地址（0x80822a1..b9）。
                     memberMgr->GetMemberExpNextLevelNeedExpLevel(
-                        upperExp, upperExpNext, upperExpLevel);
-                    rpkt.m_memberList.m_info.m_exp = upperExp;
-                    rpkt.m_memberList.m_info.m_expNext = upperExpNext;
-                    rpkt.m_memberList.m_info.m_level = upperExpLevel;
+                        *(unsigned int*)(&info->m_exp),
+                        *(unsigned int*)(&info->m_expNext),
+                        *(unsigned char*)(&info->m_level));
+                    ST_MemberInfo* members = rpkt.m_memberList.m_members;
                     rpkt.m_memberList.m_count = db->m_count27;
                     for (int i = 0; i < (int)(unsigned int)db->m_count27; i++)
                     {
-                        ST_MemberInfo* entry = &rpkt.m_memberList.m_members[i];
-                        unsigned int lowerCharNo = db->m_lowers[i].m_charNo;
-                        CUser* lowerUser = userMgr->FindUser_CharNo(lowerCharNo);
-                        if (lowerUser == 0)
+                        if ((pUser = userMgr->FindUser_CharNo(db->m_lowers[i].m_charNo)) == 0)
                         {
-                            entry->m_channelNo = 0xff;
+                            members[i].m_channelNo = 0xff;
                         }
-                        else if (lowerUser->GetGameServer() == 0)
+                        else if (pUser->GetGameServer() != 0)
                         {
-                            entry->m_channelNo = 0xff;
+                            if (pUser->IsBlackUser(user->GetUniqCharNo()))
+                            {
+                                members[i].m_blackFlag = 1;
+                            }
+                            members[i].m_channelNo =
+                                ((CServerInterface*)pUser->GetGameServer())->GetChannelNo();
                         }
                         else
                         {
-                            if (lowerUser->IsBlackUser(user->GetUniqCharNo()) != 0)
-                            {
-                                entry->m_blackFlag = 1;
-                            }
-                            entry->m_channelNo =
-                                ((CServerInterface*)lowerUser->GetGameServer())->GetChannelNo();
+                            members[i].m_channelNo = 0xff;
                         }
-                        entry->m_flag = db->m_lowers[i].m_flag4;
-                        memcpy(entry->m_name, db->m_lowers[i].m_name, 0x1d);
-                        entry->m_exp = db->m_lowers[i].m_exp;
-                        unsigned int exp = entry->m_exp;
-                        unsigned int expNext = entry->m_expNext;
-                        unsigned char expLevel = entry->m_level;
+                        members[i].m_flag = db->m_lowers[i].m_flag4;
+                        memcpy(members[i].m_name, db->m_lowers[i].m_name, 0x1d);
+                        members[i].m_exp = db->m_lowers[i].m_exp;
                         memberMgr->GetMemberExpNextLevelNeedExpLevel(
-                            exp, expNext, expLevel);
-                        entry->m_exp = exp;
-                        entry->m_expNext = expNext;
-                        entry->m_level = expLevel;
+                            *(unsigned int*)(&members[i].m_exp),
+                            *(unsigned int*)(&members[i].m_expNext),
+                            *(unsigned char*)(&members[i].m_level));
                     }
                     int size = (int)(unsigned int)db->m_count27 * 0x2a + 0x3d;
                     user->SendToGameserver((char*)&rpkt, size);
                 }
-            }
         }
         catch (CDNFException& e)
         {
@@ -1637,34 +1642,33 @@ void CPacketTranslater::OnCallMemberList(PacketHeader* pkt)
 void CPacketTranslater::OnNoticeMemberChatMsg(PacketHeader* pkt)
 {try
 {
+    CUser* user;
+    CMember* member;
+    Packet_Monitor_Member_Chat* chat;
 
 
     if (m_pclApp == 0)
     {
         throw CDNFException("CPacketTranslater::OnNoticeMemberChatMsg : 0 == m_pclApp");
     }
-    Packet_Monitor_Member_Chat* chat = (Packet_Monitor_Member_Chat*)pkt;
+    chat = (Packet_Monitor_Member_Chat*)pkt;
     if (chat->m_memberId != 0 && chat->m_msgLen != 0)
     {
-        CUser* user =
-            (&m_pclApp->m_userManager)->FindUser_CharNo(
-                chat->m_memberId);
-        if (user != 0)
+        if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(chat->m_memberId)) != 0)
         {
-            CMember* member =
-                (&m_pclApp->m_memberManager)->FindMember(
-                    chat->m_memberId);
-            if (member != 0)
+            if ((member = (&m_pclApp->m_memberManager)->FindMember(chat->m_memberId)) != 0)
             {
                 member->NoticeChatMsgToMemberMembers(
                     chat->m_msg, (unsigned int)(unsigned char)chat->m_msgLen,
                     user);
             }
         }
-        return;
     }
-    throw CDNFException(
-        "CPacketTranslater::OnNoticeMemberChatMsg : packet->m_uMemberID && packet->m_msgLen");
+    else
+    {
+        throw CDNFException(
+            "CPacketTranslater::OnNoticeMemberChatMsg : packet->m_uMemberID && packet->m_msgLen");
+    }
 
 
     }
@@ -1689,10 +1693,10 @@ void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::OnPayTaxToUpper : 0 == m_pclApp");
         }
-        CMemberManager* memberMgr = &m_pclApp->m_memberManager;
-        CUserManager* userMgr = &m_pclApp->m_userManager;
         Packet_Monitor_Member_Pay_Tax* tax = (Packet_Monitor_Member_Pay_Tax*)pkt;
-        CMember* member = memberMgr->FindMember(tax->m_charNo);
+        CMember* member = (&m_pclApp->m_memberManager)->FindMember(tax->m_charNo);
+        CUserManager* userMgr = &m_pclApp->m_userManager;
+        CMemberManager* memberMgr = &m_pclApp->m_memberManager;
         if (member == 0)
         {
             DNF_LOG_SCOPE_LINE(0x842,"./log/Except",
@@ -1750,6 +1754,7 @@ void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
                 }
             }
         }
+    return;
     }
     catch (CDNFException& e)
     {
@@ -1880,6 +1885,7 @@ onend:
 void CPacketTranslater::OnCharacterDelete(PacketHeader* pkt)
 {try
 {
+    int reservedSlot;   // S5: ORIG 含未引用 4 字节占位（槽组整体浅 4）
 
 
     if (m_pclApp == 0)
@@ -1896,6 +1902,7 @@ void CPacketTranslater::OnCharacterDelete(PacketHeader* pkt)
         dbPkt.m_charNo = del->m_charNo;
         handler->SendToDB(&dbPkt);
     }
+    return;
 
 
     }
@@ -1988,15 +1995,16 @@ void CPacketTranslater::OnNotifyNewMail(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0075 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnWebQueryUserState | 详见 function_reports/monitor/_ZN17CPacketTranslater19OnWebQueryUserStateEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0075 已消除）| CPacketTranslater::OnWebQueryUserState
 void CPacketTranslater::OnWebQueryUserState(PacketHeader* pkt)
 {try
 {
 
 
-    CUserManager* userMgr = &m_pclApp->m_userManager;
     Packet_Web_Query_User_State* q = (Packet_Web_Query_User_State*)pkt;
-    if (userMgr->FindUser(q->m_dbid) == 0)
+    CUserManager* userMgr = &m_pclApp->m_userManager;
+    CUser* user = userMgr->FindUser(q->m_dbid);
+    if (user == 0)
     {
         q->m_online = 0;
     }
@@ -2004,12 +2012,9 @@ void CPacketTranslater::OnWebQueryUserState(PacketHeader* pkt)
     {
         q->m_online = 1;
     }
-    const char* state = q->m_online == 1 ? "true" : "false";
-    char* dbid = NumberToString(q->m_dbid, 0);
-    DNF_LOG_SCOPE_LINE(0xb78, "./log/User", "WebQueryUserState Result[m_id: %s] : [%s] : %d\n", dbid, state);
-    unsigned int addr = q->m_connNo;
-    unsigned short port = q->reversed1;
-    if (m_pclApp->Get_UdpHandler()->SendToClient((char*)pkt, 0x13, port, (char*)0, addr) != 1)
+    DNF_LOG_SCOPE_LINE(0xb78, "./log/User", "WebQueryUserState Result[m_id: %s] : [%s] : %d\n",
+        NumberToString(q->m_dbid, 0), q->m_online == 1 ? "true" : "false");
+    if (!m_pclApp->Get_UdpHandler()->SendToClient((char*)q, 0x13, (unsigned short)q->reversed1, (char*)0, (unsigned int)q->m_connNo))
     {
         throw CDNFException(strerror(errno));
     }
@@ -2057,26 +2062,26 @@ void CPacketTranslater::OnRelayServerUserCheck(PacketHeader* pkt)
 {
 
 
+    Packet_Relay_Server_User_Check* p;
+    p = (Packet_Relay_Server_User_Check*)pkt;
     CUserManager* userMgr = &m_pclApp->m_userManager;
-    CUser* user =
-        userMgr->FindUser(((Packet_Relay_Server_User_Check*)pkt)->m_dbid);
-    unsigned int channel =
-        (unsigned int)(unsigned char)((Packet_Relay_Server_User_Check*)pkt)->m_channel;
-    if (user != 0)
+    CUser* user = userMgr->FindUser(p->m_dbid);
+    unsigned int channel = (unsigned int)(unsigned char)p->m_channel;
+    if (user == 0)
     {
-        ((Packet_Relay_Server_User_Check*)pkt)->m_channel = 1;
+        p->m_channel = 0;
     }
     else
     {
-        ((Packet_Relay_Server_User_Check*)pkt)->m_channel = 0;
+        p->m_channel = 1;
     }
     CServerInterface* gs =
-        (CServerInterface*)m_pclApp->FindGameServer((int)channel);
+        (CServerInterface*)m_pclApp->FindGameServer(channel);
     if (gs == 0)
     {
         throw CDNFException(strerror(errno));
     }
-    gs->SendToServer((char*)pkt, 0xf);
+    gs->SendToServer((char*)p, 0xf);
 
 
     }
@@ -2342,6 +2347,9 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
 void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
 {try
 {
+    CUser* target;
+    CUser* user;
+    Packet_Delete_To_BlackList* p = (Packet_Delete_To_BlackList*)pkt;
 
 
     if (m_pclApp == 0)
@@ -2351,22 +2359,18 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
     }
     Packet_DMBW_Delete_To_BlackList dbPkt;
     Packet_Delete_To_BlackList_Result result;
-    dbPkt.m_charNo = ((Packet_Delete_To_BlackList*)pkt)->m_dbid;
-    memcpy(dbPkt.m_name, ((Packet_Delete_To_BlackList*)pkt)->m_name, 0x1d);
-    CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(
-        ((Packet_Delete_To_BlackList*)pkt)->m_name);
-    if (target != 0)
+    dbPkt.m_charNo = p->m_dbid;
+    memcpy(dbPkt.m_name, p->m_name, 0x1d);
+    if ((target = (&m_pclApp->m_userManager)->FindUser_CharName(p->m_name)) != 0)
     {
-        CUser* user = (&m_pclApp->m_userManager)->FindUser(
-            ((Packet_Delete_To_BlackList*)pkt)->m_dbid);
-        if (user == 0)
+        if ((user = (&m_pclApp->m_userManager)->FindUser(p->m_dbid)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0xcb6, "./log/BlackList", "CPacketTranslater::OnDeleteToBlackList : 0 == pclUser");
             return;
         }
         result.m_idByChannel = user->GetIdByChannel();
         result.m_charNo = target->GetUniqCharNo();
-        memcpy(result.m_name, ((Packet_Delete_To_BlackList*)pkt)->m_name, 0x1d);
+        memcpy(result.m_name, p->m_name, 0x1d);
         if (user->DeleteToBlackList(target->GetUniqCharNo()) != 1)
         {
             result.m_result = 2;
@@ -2431,10 +2435,12 @@ void CPacketTranslater::OnRequestBlackList(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0091 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWResisterToBlackList | 详见 function_reports/monitor/_ZN17CPacketTranslater25OnDBMWResisterToBlackListEP12PacketHeader.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0091 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWResisterToBlackList | 详见 function_reports/monitor/_ZN17CPacketTranslater25OnDBMWResisterToBlackListEP12PacketHeader.md
 void CPacketTranslater::OnDBMWResisterToBlackList(PacketHeader* pkt)
 {try
 {
+    CUser* user;
+    Packet_DBMW_Register_To_BlackList* db = (Packet_DBMW_Register_To_BlackList*)pkt;
 
 
     if (m_pclApp == 0)
@@ -2443,10 +2449,7 @@ void CPacketTranslater::OnDBMWResisterToBlackList(PacketHeader* pkt)
     }
     else
     {
-        Packet_DBMW_Register_To_BlackList* db = (Packet_DBMW_Register_To_BlackList*)pkt;
-        CUser* user =
-            (&m_pclApp->m_userManager)->FindUser(db->m_charNo);
-        if (user == 0)
+        if ((user = (&m_pclApp->m_userManager)->FindUser(db->m_charNo)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0xd1f, "./log/BlackList", "CPacketTranslater::OnDBMWResisterToBlackList : 0 == pclUser");
         }
@@ -2465,21 +2468,21 @@ void CPacketTranslater::OnDBMWResisterToBlackList(PacketHeader* pkt)
                 result.m_result = 3;
                 user->SendToGameserver((char*)&result, result.packetSize);
             }
-            else if (user->IsBlackUser(db->m_charNo2) != 0)
+            else if (user->IsBlackUser(db->m_charNo2))
             {
                 result.m_result = 2;
                 user->SendToGameserver((char*)&result, result.packetSize);
             }
-            else if (user->GetBlackListSize() < 10)
+            else if ((int)user->GetBlackListSize() > 9)
             {
-                user->RegisterToBlackList(db->m_charNo2, db->m_name);
-                result.m_result = 1;
-                result.m_charNo = db->m_charNo2;
+                result.m_result = 4;
                 user->SendToGameserver((char*)&result, result.packetSize);
             }
             else
             {
-                result.m_result = 4;
+                user->RegisterToBlackList(db->m_charNo2, db->m_name);
+                result.m_result = 1;
+                result.m_charNo = db->m_charNo2;
                 user->SendToGameserver((char*)&result, result.packetSize);
             }
         }
@@ -2497,12 +2500,13 @@ void CPacketTranslater::OnDBMWResisterToBlackList(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0086 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWDeleteToBlackList | 详见 function_reports/monitor/_ZN17CPacketTranslater23OnDBMWDeleteToBlackListEP12PacketHeader.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0086 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWDeleteToBlackList | 详见 function_reports/monitor/_ZN17CPacketTranslater23OnDBMWDeleteToBlackListEP12PacketHeader.md
 void CPacketTranslater::OnDBMWDeleteToBlackList(PacketHeader* pkt)
 {try
 {
 
 
+    CUser* user;
     Packet_DMBW_Delete_To_BlackList* db = (Packet_DMBW_Delete_To_BlackList*)pkt;
     if (m_pclApp == 0)
     {
@@ -2510,9 +2514,7 @@ void CPacketTranslater::OnDBMWDeleteToBlackList(PacketHeader* pkt)
     }
     else
     {
-        CUser* user =
-            (&m_pclApp->m_userManager)->FindUser(db->m_charNo);
-        if (user == 0)
+        if ((user = (&m_pclApp->m_userManager)->FindUser(db->m_charNo)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0xd70, "./log/BlackList", "CPacketTranslater::OnDBMWDeleteToBlackList : 0 == pclUser");
         }
@@ -2597,11 +2599,13 @@ void CPacketTranslater::SendColletItemsReward(unsigned int charNo, int itemId,
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0104 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWResponseBlackListOnLogin | 详见 function_reports/monitor/_ZN17CPacketTranslater30OnDBMWResponseBlackListOnLoginEP12PacketHeader.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0104 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWResponseBlackListOnLogin | 详见 function_reports/monitor/_ZN17CPacketTranslater30OnDBMWResponseBlackListOnLoginEP12PacketHeader.md
 void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
 {try
 {
 
+    CUser* user;
+    MonitorResponseBlackListPkt* pb = (MonitorResponseBlackListPkt*)pkt;
 
     if (m_pclApp == 0)
     {
@@ -2610,17 +2614,13 @@ void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
     }
     else
     {
-        CUser* user =
-            (&m_pclApp->m_userManager)->FindUser(
-                ((Packet_Register_To_BlackList*)pkt)->m_dbid);
-        if (user == 0)
+        if ((user = (&m_pclApp->m_userManager)->FindUser(pb->m_dbid)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0xdcb,"./log/BlackList",
                 "CPacketTranslater::OnDBMWResponseBlackListOnLogin : 0 == pclUser");
         }
         else
         {
-            MonitorResponseBlackListPkt* pb = (MonitorResponseBlackListPkt*)pkt;
             for (int i = 0; pb->m_items[i].m_uniqCharNo != 0; i++)
             {
                 if (user->IsBlackUser(pb->m_items[i].m_charNo) != 1)
@@ -2651,6 +2651,7 @@ void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0077 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnExchangeServerInfo | 详见 function_reports/monitor/_ZN17CPacketTranslater20OnExchangeServerInfoEP12PacketHeader.md
 void CPacketTranslater::OnExchangeServerInfo(PacketHeader* pkt)
 {
+    char reservedSlot[4];   // S5：ORIG 含未引用 4 字节占位（槽组整体浅 4）
     try
     {
         if (m_pclApp == 0)
@@ -2693,83 +2694,90 @@ void CPacketTranslater::OnNoticeCharLiveOnTenMin(PacketHeader* pkt)
 {
     try
     {
-        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(((Packet_Monitor_Notice_Charac_Live_On_Ten_Min*)pkt)->m_charNo);
-        if (user != 0)
+        CUser* user;
+        CMember* member;
+        CMember* lowerMember;
+        Packet_Monitor_Notice_Charac_Live_On_Ten_Min* p;
+        CUserManager* userMgr;
+        CMemberManager* memberMgr;
+        CServerHandler* handler;
+        int idx;
+        unsigned int lowerCount;
+        unsigned int* proxy;
+        unsigned int newExp;
+        CUser* upperUser;
+        CMember* upperMember;
+        unsigned int lowerNew;
+        p = (Packet_Monitor_Notice_Charac_Live_On_Ten_Min*)pkt;
+        userMgr = &m_pclApp->m_userManager;
+        memberMgr = &m_pclApp->m_memberManager;
+        if ((user = userMgr->FindUser_CharNo(p->m_charNo)) != 0)
         {
-            CMember* member = user->GetMember();
-            if (member != 0 && m_pclApp->m_serverHandler2 != 0)
+            if ((member = user->GetMember()) == 0)
             {
-                if ((&m_pclApp->m_memberManager)->FindMemberUser(
+                return;
+            }
+            handler = m_pclApp->m_serverHandler2;
+            if (handler == 0)
+            {
+                return;
+            }
+                if (memberMgr->FindMemberUser(
                         (unsigned int)member->GetUpperMember_CharId()) != 0)
                 {
-                    unsigned int maxExp =
-                        (&m_pclApp->m_memberManager)->GetMemberExpTable()->GetMaxMemberExp();
-                    unsigned int newExp =
-                        (unsigned int)member->IncConnUpperMemberExp(maxExp);
-                    if (newExp != 0)
+                    if ((newExp = (unsigned int)member->IncConnUpperMemberExp(
+                             memberMgr->GetMemberExpTable()->GetMaxMemberExp())) != 0)
                     {
-                        unsigned int upperCharId =
-                            (unsigned int)member->GetUpperMember_CharId();
-                        CUser* upperUser = (&m_pclApp->m_userManager)->FindUser_CharNo(upperCharId);
+                        upperUser = userMgr->FindUser_CharNo(
+                            (unsigned int)member->GetUpperMember_CharId());
                         if (upperUser != 0)
                         {
-                            CMember* upperMember = upperUser->GetMember();
+                            upperMember = upperUser->GetMember();
                             if (upperMember != 0)
                             {
-                                unsigned int max2 =
-                                    (&m_pclApp->m_memberManager)->GetMemberExpTable()->GetMaxMemberExp();
-                                unsigned int memberKey =
-                                    (unsigned int)member->GetMemberKey();
-                                upperMember->IncConnLowerMemberExp(memberKey, max2);
+                                upperMember->IncConnLowerMemberExp(
+                                    (unsigned int)member->GetMemberKey(),
+                                    memberMgr->GetMemberExpTable()->GetMaxMemberExp());
                             }
                         }
-                        unsigned int upperId =
-                            (unsigned int)member->GetUpperMember_CharId();
-                        unsigned int key = (unsigned int)member->GetMemberKey();
-                        (&m_pclApp->m_memberManager)->SaveMemberExp(m_pclApp->m_serverHandler2, key, upperId, newExp);
-                        if ((&m_pclApp->m_memberManager)->IsMemberExpLevelUp(newExp))
+                        memberMgr->SaveMemberExp(
+                            handler, (unsigned int)member->GetMemberKey(),
+                            (unsigned int)member->GetUpperMember_CharId(), newExp);
+                        if (memberMgr->IsMemberExpLevelUp(newExp))
                         {
-                            unsigned int u = (unsigned int)member->GetUpperMember_CharId();
-                            (&m_pclApp->m_memberManager)->NoticeLevelUpToLowers(u, newExp);
+                            memberMgr->NoticeLevelUpToLowers(
+                                (unsigned int)member->GetUpperMember_CharId(), newExp);
                         }
                     }
                 }
-                int idx = 0;
-                unsigned int lowerCount = member->GetLowerMemberCount();
-                unsigned int* proxy = member->GetLowerMember_Proxy();
+                idx = 0;
+                lowerCount = member->GetLowerMemberCount();
+                proxy = member->GetLowerMember_Proxy();
                 while (lowerCount != 0)
                 {
                     lowerCount--;
-                    CMember* lowerMember = (&m_pclApp->m_memberManager)->FindMember(*proxy);
+                    lowerMember = memberMgr->FindMember(*proxy);
                     if (lowerMember != 0)
                     {
-                        unsigned int maxE =
-                            (&m_pclApp->m_memberManager)->GetMemberExpTable()->GetMaxMemberExp();
-                        unsigned int lowerNew =
-                            (unsigned int)lowerMember->IncConnUpperMemberExp(maxE);
-                        if (lowerNew != 0)
+                        if ((lowerNew = (unsigned int)lowerMember->IncConnUpperMemberExp(
+                                 memberMgr->GetMemberExpTable()->GetMaxMemberExp())) != 0)
                         {
-                            unsigned int maxE2 =
-                                (&m_pclApp->m_memberManager)->GetMemberExpTable()->GetMaxMemberExp();
-                            member->IncConnLowerMemberExp(idx, *proxy, maxE2);
-                            unsigned int lowerUpperId =
-                                (unsigned int)lowerMember->GetUpperMember_CharId();
-                            unsigned int lowerKey =
-                                (unsigned int)lowerMember->GetMemberKey();
-                            (&m_pclApp->m_memberManager)->SaveMemberExp(m_pclApp->m_serverHandler2, lowerKey, lowerUpperId,
-                                                     lowerNew);
-                            if ((&m_pclApp->m_memberManager)->IsMemberExpLevelUp(lowerNew))
+                            member->IncConnLowerMemberExp(
+                                idx, *proxy,
+                                memberMgr->GetMemberExpTable()->GetMaxMemberExp());
+                            memberMgr->SaveMemberExp(
+                                handler, (unsigned int)lowerMember->GetMemberKey(),
+                                (unsigned int)lowerMember->GetUpperMember_CharId(), lowerNew);
+                            if (memberMgr->IsMemberExpLevelUp(lowerNew))
                             {
-                                unsigned int lu =
-                                    (unsigned int)lowerMember->GetUpperMember_CharId();
-                                (&m_pclApp->m_memberManager)->NoticeLevelUpToLowers(lu, lowerNew);
+                                memberMgr->NoticeLevelUpToLowers(
+                                    (unsigned int)lowerMember->GetUpperMember_CharId(), lowerNew);
                             }
                         }
                     }
                     idx++;
                     proxy = (unsigned int*)((char*)proxy + 0x27);
                 }
-            }
         }
     }
     catch (CDNFException& e)
@@ -2855,11 +2863,14 @@ void CPacketTranslater::OnAddBuddy(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0064 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnAddBuddyDBReply | 详见 function_reports/monitor/_ZN17CPacketTranslater17OnAddBuddyDBReplyEP12PacketHeader.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0064 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnAddBuddyDBReply | 详见 function_reports/monitor/_ZN17CPacketTranslater17OnAddBuddyDBReplyEP12PacketHeader.md
 void CPacketTranslater::OnAddBuddyDBReply(PacketHeader* pkt)
 {
     try
     {
+        CUser* user;
+        CUser* other;
+        Packet_DBMW_Add_Buddy_Reply* db = (Packet_DBMW_Add_Buddy_Reply*)pkt;
         if (m_pclApp == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1032, "./log/buddy", "CPacketTranslater::OnAddBuddyDBReply : 0 == m_pclApp");
@@ -2867,13 +2878,7 @@ void CPacketTranslater::OnAddBuddyDBReply(PacketHeader* pkt)
         else
         {
             CUserManager* userMgr = &m_pclApp->m_userManager;
-            Packet_DBMW_Add_Buddy_Reply* db = (Packet_DBMW_Add_Buddy_Reply*)pkt;
-            CUser* user = userMgr->FindUser_CharNo(db->m_charNo);
-            if (user == 0)
-            {
-                DNF_LOG_SCOPE_LINE(0x105f, "./log/buddy", "CPacketTranslater::OnAddBuddyDBReply\tpclUser is NULL");
-            }
-            else
+            if ((user = userMgr->FindUser_CharNo(db->m_charNo)) != 0)
             {
                 Packet_Monitor_Add_Buddy_Reply reply;
                 reply.m_charNo = db->m_charNo;
@@ -2882,20 +2887,21 @@ void CPacketTranslater::OnAddBuddyDBReply(PacketHeader* pkt)
                 {
                     user->AddBuddy(db->m_buddy);
                     memcpy(reply.m_name, db->m_buddy.m_name, 0x27);
-                    CUser* other =
-                        userMgr->FindUser_CharNo(db->m_buddy.m_characNo);
-                    if (other == 0)
+                    if ((other = userMgr->FindUser_CharNo(db->m_buddy.m_characNo)) != 0)
                     {
-                        reply.m_channel = 0xff;
-                    }
-                    else if (other->GetGameServer() == 0)
-                    {
-                        reply.m_channel = 0xff;
+                        if (other->GetGameServer() != 0)
+                        {
+                            reply.m_channel =
+                                ((CServerInterface*)other->GetGameServer())->GetChannelNo();
+                        }
+                        else
+                        {
+                            reply.m_channel = 0xff;
+                        }
                     }
                     else
                     {
-                        reply.m_channel =
-                            ((CServerInterface*)other->GetGameServer())->GetChannelNo();
+                        reply.m_channel = 0xff;
                     }
                     reply.m_result = (unsigned char)db->m_result;
                     (&m_pclApp->m_buddyMgr)
@@ -2907,6 +2913,10 @@ void CPacketTranslater::OnAddBuddyDBReply(PacketHeader* pkt)
                     reply.m_result = (unsigned char)db->m_result;
                 }
                 user->SendToGameserver((char*)&reply, reply.packetSize);
+            }
+            else
+            {
+                DNF_LOG_SCOPE_LINE(0x105f, "./log/buddy", "CPacketTranslater::OnAddBuddyDBReply\tpclUser is NULL");
             }
         }
     }
@@ -2967,11 +2977,13 @@ void CPacketTranslater::OnDelBuddy(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0066 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDelBuddyDBReply | 详见 function_reports/monitor/_ZN17CPacketTranslater17OnDelBuddyDBReplyEP12PacketHeader.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0066 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDelBuddyDBReply | 详见 function_reports/monitor/_ZN17CPacketTranslater17OnDelBuddyDBReplyEP12PacketHeader.md
 void CPacketTranslater::OnDelBuddyDBReply(PacketHeader* pkt)
 {
     try
     {
+        CUser* user;
+        Packet_DBMW_Del_Buddy_Reply* db = (Packet_DBMW_Del_Buddy_Reply*)pkt;
         if (m_pclApp == 0)
         {
             DNF_LOG_SCOPE_LINE(0x10b1, "./log/buddy", "CPacketTranslater::OnDelBuddyDBReply : 0 == m_pclApp");
@@ -2979,13 +2991,7 @@ void CPacketTranslater::OnDelBuddyDBReply(PacketHeader* pkt)
         else
         {
             CUserManager* userMgr = &m_pclApp->m_userManager;
-            Packet_DBMW_Del_Buddy_Reply* db = (Packet_DBMW_Del_Buddy_Reply*)pkt;
-            CUser* user = userMgr->FindUser_CharNo(db->m_charNo);
-            if (user == 0)
-            {
-                DNF_LOG_SCOPE_LINE(0x10cf, "./log/buddy", "CPacketTranslater::OnDelBuddyDBReply\tpclUser is NULL");
-            }
-            else
+            if ((user = userMgr->FindUser_CharNo(db->m_charNo)) != 0)
             {
                 Packet_Monitor_Del_Buddy_Reply reply;
                 reply.m_charNo = db->m_charNo;
@@ -2995,15 +3001,18 @@ void CPacketTranslater::OnDelBuddyDBReply(PacketHeader* pkt)
                     user->DelBuddy(db->m_name);
                     memcpy(reply.m_name, db->m_name, 0x1d);
                     reply.m_result = (unsigned char)db->m_result;
-                    unsigned int uniq = user->GetUniqCharNo();
                     (&m_pclApp->m_buddyMgr)
-                        ->delBuddyRegister(db->m_buddyCharNo, uniq);
+                        ->delBuddyRegister(db->m_buddyCharNo, user->GetUniqCharNo());
                 }
                 else
                 {
                     reply.m_result = 3;
                 }
                 user->SendToGameserver((char*)&reply, reply.packetSize);
+            }
+            else
+            {
+                DNF_LOG_SCOPE_LINE(0x10cf, "./log/buddy", "CPacketTranslater::OnDelBuddyDBReply\tpclUser is NULL");
             }
         }
     }
@@ -3019,11 +3028,14 @@ void CPacketTranslater::OnDelBuddyDBReply(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0087 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnQueryBuddyInfoDBReply | 详见 function_reports/monitor/_ZN17CPacketTranslater23OnQueryBuddyInfoDBReplyEP12PacketHeader.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0087 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnQueryBuddyInfoDBReply | 详见 function_reports/monitor/_ZN17CPacketTranslater23OnQueryBuddyInfoDBReplyEP12PacketHeader.md
 void CPacketTranslater::OnQueryBuddyInfoDBReply(PacketHeader* pkt)
 {
     try
     {
+        CUser* user;
+        Packet_DBMW_Query_Buddy_Info_Reply* pb =
+            (Packet_DBMW_Query_Buddy_Info_Reply*)pkt;
         if (m_pclApp == 0)
         {
             DNF_LOG_SCOPE_LINE(0x10f0, "./log/buddy", "CPacketTranslater::OnQueryBuddyInfoDBReply : 0 == m_pclApp");
@@ -3031,19 +3043,11 @@ void CPacketTranslater::OnQueryBuddyInfoDBReply(PacketHeader* pkt)
         else
         {
             CUserManager* userMgr = &m_pclApp->m_userManager;
-            Packet_DBMW_Query_Buddy_Info_Reply* pb =
-                (Packet_DBMW_Query_Buddy_Info_Reply*)pkt;
             if (0x20 < pb->m_count)
             {
                 pb->m_count = 0x20;
             }
-            CUser* user = userMgr->FindUser_CharNo(pb->m_charNo);
-            if (user == 0)
-            {
-                DNF_LOG_SCOPE_LINE(0x1112,"./log/buddy",
-                    "CPacketTranslater::OnQueryBuddyInfoDBReply\t  pclUser is NULL");
-            }
-            else
+            if ((user = userMgr->FindUser_CharNo(pb->m_charNo)) != 0)
             {
                 for (int i = 0; i < (int)(unsigned int)pb->m_count; i++)
                 {
@@ -3057,6 +3061,11 @@ void CPacketTranslater::OnQueryBuddyInfoDBReply(PacketHeader* pkt)
                     userMgr->SendConnectedBuddysList(user);
                 }
                 user->SetBuddyDBFlag(4);
+            }
+            else
+            {
+                DNF_LOG_SCOPE_LINE(0x1112,"./log/buddy",
+                    "CPacketTranslater::OnQueryBuddyInfoDBReply\t  pclUser is NULL");
             }
         }
     }
@@ -3072,7 +3081,7 @@ void CPacketTranslater::OnQueryBuddyInfoDBReply(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0088 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnWebChangeUserHandicap | 详见 function_reports/monitor/_ZN17CPacketTranslater23OnWebChangeUserHandicapEP12PacketHeader.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0088 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnWebChangeUserHandicap | 详见 function_reports/monitor/_ZN17CPacketTranslater23OnWebChangeUserHandicapEP12PacketHeader.md
 void CPacketTranslater::OnWebChangeUserHandicap(PacketHeader* pkt)
 {
     PacketHeader* pktLocal = pkt;
@@ -3084,8 +3093,13 @@ void CPacketTranslater::OnWebChangeUserHandicap(PacketHeader* pkt)
     {
         CUser* user = 0;
         CUserManager* mgr = &m_pclApp->m_userManager;
-        user = mgr->FindUser(((Packet_Change_User_Handicap*)pktLocal)->m_charNo);
-        if (user != 0)
+        // [推断] ORIG 0x80883a3 为 sete/test/jne 物化形（P352 赋值内嵌条件）：
+        //        原码把赋值写在 if 条件里且取早返分支。
+        if ((user = mgr->FindUser(((Packet_Change_User_Handicap*)pktLocal)->m_charNo)) == 0)
+        {
+            return;
+        }
+        else
         {
             Packet_Change_User_Handicap reply;
             reply.m_charNo = ((Packet_Change_User_Handicap*)pktLocal)->m_charNo;
@@ -3096,7 +3110,7 @@ void CPacketTranslater::OnWebChangeUserHandicap(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0055 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnGMRequestMid | 详见 function_reports/monitor/_ZN17CPacketTranslater14OnGMRequestMidEP12PacketHeader.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0055 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnGMRequestMid | 详见 function_reports/monitor/_ZN17CPacketTranslater14OnGMRequestMidEP12PacketHeader.md
 void CPacketTranslater::OnGMRequestMid(PacketHeader* pkt)
 {try
 {
@@ -3112,13 +3126,13 @@ void CPacketTranslater::OnGMRequestMid(PacketHeader* pkt)
         CUser* user = 0;
         CUser* target = 0;
         CUserManager* userMgr = &m_pclApp->m_userManager;
-        user = userMgr->FindUser(p->m_dbid);
-        if (user == 0) goto end;
+        // [推断] ORIG 0x8088678-87 = 赋值内嵌条件的 sete/test/jne 物化（P352）
+        if ((user = userMgr->FindUser(p->m_dbid)) == 0) goto end;
         Packet_GM_Request_Mid reply;
         reply.m_gmId = p->m_gmId;
         memcpy(reply.m_name, p->m_name, 0x1d);
-        target = userMgr->FindUser_CharName(p->m_name);
-        if (target == 0)
+        // [推断] ORIG 0x80887b4-bb = target 赋值内嵌条件的 sete/test/je 物化（P352）
+        if ((target = userMgr->FindUser_CharName(p->m_name)) == 0)
         {
             reply.m_dbid = 0xffffffff;
             user->SendToGameserver((char*)&reply, reply.packetSize);
@@ -3145,31 +3159,37 @@ end:
     ;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0084 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnUserRepelByCharName | 详见 function_reports/monitor/_ZN17CPacketTranslater21OnUserRepelByCharNameEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0084 已消除）| CPacketTranslater::OnUserRepelByCharName
 void CPacketTranslater::OnUserRepelByCharName(PacketHeader* pkt)
 {try
 {
 
 
-    CUserManager* userMgr = 0;
-    Packet_Monitor_User_Repel_ByCharName* repel = 0;
+    CUser* user = 0;
+    CUser* target = 0;
+    Packet_Monitor_User_Repel_ByCharName* repel;
+    CUserManager* userMgr;
     if (m_pclApp == 0)
     {
         throw CDNFException("CPacketTranslater::OnUserRepel : 0 == m_pclApp");
     }
-    userMgr = &m_pclApp->m_userManager;
     repel = (Packet_Monitor_User_Repel_ByCharName*)pkt;
-    CUser* user = userMgr->FindUser(repel->m_dbid);
-    if (user != 0)
+    userMgr = &m_pclApp->m_userManager;
+    // [推断] ORIG 0x8083e5e-66 = 赋值内嵌条件 (user = FindUser(...)) == 0 的
+    //        sete/test/jne 物化（P352）+ 尾标签早退（P223）。
+    if ((user = userMgr->FindUser(repel->m_dbid)) == 0) goto on_user_repel_end;
     {
         Packet_Monitor_User_Repel reply;
-        CUser* target = userMgr->FindUser_CharName(repel->m_name);
-        if (target != 0)
+        if ((target = userMgr->FindUser_CharName(repel->m_name)) == 0)
+        {
+        }
+        else
         {
             reply.m_idByChannel = target->GetIdByChannel();
             target->SendToGameserver((char*)&reply, 0x12);
         }
     }
+on_user_repel_end:;
 
 
     }
@@ -3185,7 +3205,9 @@ void CPacketTranslater::OnUserRepelByCharName(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0090 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onReplyLoadTowerFullRank | 详见 function_reports/monitor/_ZN17CPacketTranslater24onReplyLoadTowerFullRankEP12PacketHeader.md
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0090 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onReplyLoadTowerFullRank
+// [已试 2026-09-15 NetThreadDispatch] ①`MonitorTowerFullRankRec* rec` 从 for 内提升到循环外（B3/R4 轴）⇒ ELF 口径 44→**40 改善，已保留**。
+//   槽集合仍为混合态（ORIG-only -0x3c/-0x34/-0x2c；OURS-only -0x40/-0x38/-0x30/-0x28），jmp 目标差异属循环 join 错位（(c) 类）。 | 详见 function_reports/monitor/_ZN17CPacketTranslater24onReplyLoadTowerFullRankEP12PacketHeader.md
 void CPacketTranslater::onReplyLoadTowerFullRank(PacketHeader* pkt)
 {
     try
@@ -3198,9 +3220,10 @@ void CPacketTranslater::onReplyLoadTowerFullRank(PacketHeader* pkt)
         }
         DNF_LOG_SCOPE_LINE(0x1172,"./log/DeathTower", "%d/%d\n", rank->m_count,
             rank->m_total);
+        MonitorTowerFullRankRec* rec;
         for (unsigned int i = 0; i < rank->m_count; i++)
         {
-            MonitorTowerFullRankRec* rec = (MonitorTowerFullRankRec*)pkt + i;
+            rec = (MonitorTowerFullRankRec*)pkt + i;
             ((CTowerRank*)m_pclApp->getTowerRank())->registRank(
                 (unsigned int)(unsigned char)rec->m_field1b,
                 (unsigned int)rec->m_field17,
@@ -3239,6 +3262,7 @@ void CPacketTranslater::onRequestCharacTowerUpdateRank(PacketHeader* pkt)
         CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
         tower->registCharacRank(c, name, b, a);
     }
+    return;
 
 
     }
@@ -3370,27 +3394,28 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
         }
         else
         {
-            if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == (int)pkt->m_connNo)
+            PacketHeader* lpkt = pkt;
+            if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == (int)lpkt->m_connNo)
             {
                 m_pclApp->Get_ServerHandler()->GetTcpDBServer()->DisConnected();
             }
             else
             {
-                if (m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->GetSock() == (int)pkt->m_connNo)
+                if (m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->GetSock() == (int)lpkt->m_connNo)
                 {
                     m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->DisConnected();
                 }
                 else
                 {
                     CTcpGameServer* tcp = (CTcpGameServer*)m_pclApp->FindTcpGameServer(
-                        pkt->m_connNo);
+                        lpkt->m_connNo);
                     m_pclApp->OnTcpGameServerDown(tcp);
                     unsigned char channel = tcp->GetChannelNo();
                     if (channel != 0)
                     {
                         m_pclApp->Get_ServerHandler()->UnregistGameServer((unsigned int)channel);
                     }
-                    m_pclApp->Get_ServerHandler()->DeleteTcpGameServer(pkt->m_connNo);
+                    m_pclApp->Get_ServerHandler()->DeleteTcpGameServer(lpkt->m_connNo);
                     DNF_LOG_SCOPE_LINE(0x12af, "./log/Tcp", "OnInnerPacketLogout : Network system (%x)", m_pclApp->Get_TcpNetSystem());
                 }
             }
@@ -3510,15 +3535,18 @@ void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
             pkt2.m_charNo = rpkt->m_charNo;
             memcpy(pkt2.m_name, rpkt->m_name, 0x1d);
             m_pclApp->Get_ServerHandler()->SendToDB(&pkt2);
-            CUserManager* userMgr = m_pclApp->Get_UserManager();
-            userMgr->ChangeBlackListCharName(rpkt->m_charNo, rpkt->m_name);
+            m_pclApp->Get_UserManager()
+                ->ChangeBlackListCharName(rpkt->m_charNo, rpkt->m_name);
+            CUserManager* userMgr = &m_pclApp->m_userManager;
             std::vector<unsigned int> vec;
             (&m_pclApp->m_buddyMgr)
                 ->findBuddyRegister(rpkt->m_charNo, vec);
             for (std::vector<unsigned int>::iterator it = vec.begin(); it != vec.end(); ++it)
             {
-                CUser* user = userMgr->FindUser_CharNo(*it);
-                if (user != 0)
+                // [推断] ORIG 0x808997c-8089988 = 赋值内嵌条件的 setne/test/je 物化
+                //        （P352）；原码把 FindUser_CharNo 写在 if 条件里。
+                CUser* user;
+                if ((user = userMgr->FindUser_CharNo(*it)) != 0)
                 {
                     std::string name(rpkt->m_name);
                     user->SetBuddyCharName((int)rpkt->m_charNo, name);
@@ -3560,7 +3588,7 @@ void CPacketTranslater::OnNotifyAuctionMail(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-NEAR-0008 | monitor | 与ORIG差异=NEAR | CPacketTranslater::OnPvPChannelInfo | 详见 function_reports/monitor/_ZN17CPacketTranslater16OnPvPChannelInfoEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-NEAR-0008 已消除）| CPacketTranslater::OnPvPChannelInfo
 void CPacketTranslater::OnPvPChannelInfo(PacketHeader* pkt)
 {
     try
@@ -3573,8 +3601,7 @@ void CPacketTranslater::OnPvPChannelInfo(PacketHeader* pkt)
             pkt2.m_charNo = info->m_charNo;
             pkt2.m_uid = info->m_uid;
             pkt2.m_schoolNo = info->m_schoolNo;
-            unsigned int sg = m_pclApp->Get_ServerGroup();
-            (void)sg;
+            pkt2.m_pad1e = m_pclApp->Get_ServerGroup();
             int count = m_pclApp->m_serverHandler2->SendAllTcpGameServer(
                 &pkt2, (int)(unsigned char)info->m_channelCount);
             user->ResetChannelUserCount(count);
@@ -3602,9 +3629,8 @@ void CPacketTranslater::OnPvPChannelUserCount(PacketHeader* pkt)
 {
     try
     {
-        CUserManager* userMgr = &m_pclApp->m_userManager;
         Packet_PvPChannelUserCount* cnt = (Packet_PvPChannelUserCount*)pkt;
-        CUser* user = userMgr->FindUser_CharNo(cnt->m_charNo);
+        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(cnt->m_charNo);
         if (user != 0)
         {
             user->SetChannelUserCount(cnt->m_countA, cnt->m_countB,
@@ -3813,8 +3839,8 @@ void CPacketTranslater::onItemLimitEditionLoadDataRpy(PacketHeader* pkt)
             }
             for (unsigned int i = 0; i < rpy->m_count; i++)
             {
-                unsigned int ipgno = rpy->m_items[i].m_ipgno;
-                if (ipgno > 799999 && ipgno < 1000000)
+                if (rpy->m_items[i].m_ipgno > 799999 &&
+                    rpy->m_items[i].m_ipgno < 1000000)
                 {
                     m_pclApp->getItemLimitEditionMgr()->registItem(
                         *(stItemLimitEditionItemInfo_t*)&rpy->m_items[i]);
@@ -3864,6 +3890,7 @@ void CPacketTranslater::onItemLimitEditionLoadDataRpy(PacketHeader* pkt)
                 m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(&pkt2);
             }
         }
+    return;
     }
     catch (CDNFException& e)
     {
@@ -3885,15 +3912,22 @@ void CPacketTranslater::onItemLimitEditionSellEnd(PacketHeader* pkt)
     {
         Packet_Item_Limit_Edition_Sell_end* end =
             (Packet_Item_Limit_Edition_Sell_end*)pkt;
-        if (end->m_serverType == ((unsigned int)m_pclApp->Get_ServerGroup() & 0xff))
+        if (end->m_serverType != ((unsigned int)m_pclApp->Get_ServerGroup() & 0xff))
+        {
+            DNF_LOG_SCOPE_LINE(0x150a, "./log/ItemLimitEdition", "(Ignore another server msg: %d)", end->m_serverType);
+        }
+        else
         {
             for (unsigned int i = 0; i < end->m_sellEndNum; i++)
             {
-                if (m_pclApp->getItemLimitEditionMgr()->getItemInfo(end->m_ipgNo[i]) != 0)
+                if (m_pclApp->getItemLimitEditionMgr()->getItemInfo(end->m_ipgNo[i]) == 0)
                 {
-                    m_pclApp->getItemLimitEditionMgr()->removeItem(
-                        end->m_ipgNo[i]);
+                    goto skip_remove;
                 }
+                m_pclApp->getItemLimitEditionMgr()->removeItem(
+                    end->m_ipgNo[i]);
+            skip_remove:;
+                ;
             }
             DNF_LOG_SCOPE_LINE(0x1519,"./log/ItemLimitEdition",
                 "(ServerType: %d, SellEndNum: %d, IPGNO: "
@@ -3912,10 +3946,6 @@ void CPacketTranslater::onItemLimitEditionSellEnd(PacketHeader* pkt)
                 end->m_ipgNo[20], end->m_ipgNo[21],
                 end->m_ipgNo[22], end->m_ipgNo[23]);
             m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(pkt);
-        }
-        else
-        {
-            DNF_LOG_SCOPE_LINE(0x150a, "./log/ItemLimitEdition", "(Ignore another server msg: %d)", end->m_serverType);
         }
     }
     catch (CDNFException& e)
@@ -3936,12 +3966,12 @@ void CPacketTranslater::onItemLimitEditionBuyableRequest(PacketHeader* pkt)
 {
     try
     {
-        Packet_Item_Limit_Edition_Buyable_Query* q =
-            (Packet_Item_Limit_Edition_Buyable_Query*)pkt;
         CTcpGameServer* tcp = (CTcpGameServer*)m_pclApp->FindTcpGameServer(
-            q->m_connNo);
+            ((Packet_Item_Limit_Edition_Buyable_Query*)pkt)->m_connNo);
         if (tcp != 0)
         {
+            Packet_Item_Limit_Edition_Buyable_Query* q =
+                (Packet_Item_Limit_Edition_Buyable_Query*)pkt;
             time_t now = time(0);
             char* buf = tcp->makePacketHeader(0x100a, 0x1e1);
             if (buf != 0)
@@ -4074,8 +4104,9 @@ void CPacketTranslater::OnSetCleanPadPoint(PacketHeader* pkt)
         }
         int charNo = 0;
         Packet_Request_Set_CleanPad_Point* req = (Packet_Request_Set_CleanPad_Point*)pkt;
-        CUser* user = (&m_pclApp->m_userManager)->FindUser(req->m_dbid);
-        if (user != 0)
+        // [推断] ORIG 0x808bc48 段 setne/test/je = 赋值内嵌条件物化（P352）
+        CUser* user;
+        if ((user = m_pclApp->m_userManager.FindUser(req->m_dbid)) != 0)
         {
             charNo = (int)user->GetUniqCharNo();
         }
@@ -4083,19 +4114,22 @@ void CPacketTranslater::OnSetCleanPadPoint(PacketHeader* pkt)
         {
             charNo = -1;
         }
-        if (charNo == 0)
+        if (charNo != 0)
+        {
+            CUser* target = 0;
+            Packet_Set_CleanPad_Point reply;
+            // [推断] ORIG 0x808bfbc 段 setne/test/je = 赋值内嵌条件物化（P352）
+            if ((target = m_pclApp->m_userManager.FindUser_CharNo((unsigned int)charNo)) != 0)
+            {
+                reply.m_idByChannel = target->GetIdByChannel();
+                reply.m_point = req->m_point;
+                reply.packetSize = 0x10;
+                target->SendToGameserver((char*)&reply, reply.packetSize);
+            }
+        }
+        else
         {
             throw CDNFException("CPacketTranslater::OnSetCleanPadPoint");
-        }
-        CUser* target = 0;
-        Packet_Set_CleanPad_Point reply;
-        target = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)charNo);
-        if (target != 0)
-        {
-            reply.m_idByChannel = target->GetIdByChannel();
-            reply.m_point = req->m_point;
-            reply.packetSize = 0x10;
-            target->SendToGameserver((char*)&reply, reply.packetSize);
         }
     }
     catch (CDNFException& e)
@@ -4170,7 +4204,9 @@ void CPacketTranslater::OnResponseFullIPCounterList(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0063 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnTakeScreenShot | 详见 function_reports/monitor/_ZN17CPacketTranslater16OnTakeScreenShotEP12PacketHeader.md
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0063 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnTakeScreenShot
+// [已试 2026-09-15 NetThreadDispatch] ①补中间指针局部 `pShot = (Packet_Monitor_Take_Screen_Shot*)pkt`（ORIG 有 `mov %eax,-0x20(%ebp)` 再读回）⇒ ELF 口径 43→76 劣化，已回退。
+//   族属：混合态（两侧各有独占槽）+ jmp 目标错位（ORIG `jmp <#123>` vs 我方 `<#117>`，(b)/(c) 类）⇒ 不可调。 | 详见 function_reports/monitor/_ZN17CPacketTranslater16OnTakeScreenShotEP12PacketHeader.md
 void CPacketTranslater::OnTakeScreenShot(PacketHeader* pkt)
 {
     try
@@ -4207,19 +4243,20 @@ void CPacketTranslater::OnTakeScreenShot(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0099 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnVillageMonsterFightResult | 详见 function_reports/monitor/_ZN17CPacketTranslater27OnVillageMonsterFightResultEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0099 已消除）| CPacketTranslater::OnVillageMonsterFightResult
 void CPacketTranslater::OnVillageMonsterFightResult(PacketHeader* pkt)
 {try
 {
 
 
-    unsigned int users[4] = {0, 0, 0, 0};
+    MonitorVillageFightPkt* pkt2 = (MonitorVillageFightPkt*)pkt;
     CUserManager* userMgr = &m_pclApp->m_userManager;
+    unsigned int users[4] = {0, 0, 0, 0};
     for (int i = 0; i < 4; i++)
     {
-        if (((MonitorVillageFightPkt*)pkt)->m_keys[i + 4] != 0)
+        if (pkt2->m_keys[i][0][4] != 0)
         {
-            users[i] = (unsigned int)userMgr->FindUser_CharNo(((MonitorVillageFightPkt*)pkt)->m_keys[i + 4]);
+            users[i] = (unsigned int)userMgr->FindUser_CharNo(pkt2->m_keys[i][0][4]);
         }
     }
 
@@ -4298,7 +4335,7 @@ void CPacketTranslater::OnSetARSInfo(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0076 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnWebRequestARSInfo | 详见 function_reports/monitor/_ZN17CPacketTranslater19OnWebRequestARSInfoEP12PacketHeader.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0076 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnWebRequestARSInfo | 详见 function_reports/monitor/_ZN17CPacketTranslater19OnWebRequestARSInfoEP12PacketHeader.md
 void CPacketTranslater::OnWebRequestARSInfo(PacketHeader* pkt)
 {try
 {
@@ -4315,6 +4352,7 @@ void CPacketTranslater::OnWebRequestARSInfo(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x181d, "./log/Secu", "[ARS_INFO] Web -> Monitor -> DBMW");
         handler->SendDBMWRequestARSInfo(p->m_flag);
     }
+    return;
 
 
     }
@@ -4387,15 +4425,13 @@ void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
                         (unsigned int)(unsigned char)info->m_group);
                 gs->SetSocket(regist->m_connNo);
                 out[0xb] = 0;
-                CMyFileLog log2(__FUNCTION__, 0x1930);
-                log2("./log/GameServer", "Game server regist success. Channel: %d",
+                DNF_LOG_SCOPE_LINE(0x1930, "./log/GameServer", "Game server regist success. Channel: %d",
                      (unsigned int)(unsigned char)info->m_group);
             }
             else
             {
                 out[0xb] = 1;
-                CMyFileLog log2(__FUNCTION__, 0x1923);
-                log2("./log/GameServer",
+                DNF_LOG_SCOPE_LINE(0x1923, "./log/GameServer",
                      "Game server regist failed. Channel: %d is already exist.",
                      (unsigned int)(unsigned char)info->m_group);
             }
@@ -4639,29 +4675,26 @@ void CPacketTranslater::OnRegisterEventItem(PacketHeader* pkt)
     try
     {
         Packet_Register_Event_Item* rpkt = (Packet_Register_Event_Item*)pkt;
-        unsigned int errortype = (unsigned int)(unsigned short)rpkt->m_errortype;
-        unsigned int cnt = rpkt->m_cnt;
-        unsigned int idx = rpkt->m_idx;
+        register unsigned int errortype = (unsigned int)(unsigned short)rpkt->m_errortype;
+        register unsigned int cnt = rpkt->m_cnt;
+        register unsigned int idx = rpkt->m_idx;
         DNF_LOG_SCOPE_LINE(0x1a5a,"./log/OnTimeEvent", "OnRegisterEventItem:idx = %u , cnt = %u, errortype = %d",
             idx, cnt, errortype);
-        if (rpkt->m_errortype == 0)
+        if (rpkt->m_errortype != 0)
         {
-            if ((int)rpkt->m_idx == 0 || (int)rpkt->m_cnt == 0)
-            {
-                CMyFileLog log2(__FUNCTION__, 0x1a66);
-                log2("./log/OnTimeEvent", "wrong item data", idx, cnt, errortype);
-            }
-            else if (m_pclApp != 0)
-            {
-                COnTimeEventManager* mgr = m_pclApp->m_onTimeEventMgr;
-                mgr->SetEventItem(rpkt->m_idx, rpkt->m_cnt);
-                mgr->StartEvent();
-            }
+            DNF_LOG_SCOPE_LINE(0x1a60, "./log/OnTimeEvent", "db error not item");
         }
         else
         {
-            CMyFileLog log3(__FUNCTION__, 0x1a60);
-            log3("./log/OnTimeEvent", "db error not item", idx, cnt, errortype);
+            if ((int)rpkt->m_idx == 0 || (int)rpkt->m_cnt == 0)
+            {
+                DNF_LOG_SCOPE_LINE(0x1a66, "./log/OnTimeEvent", "wrong item data");
+            }
+            else if (m_pclApp != 0)
+            {
+                m_pclApp->m_onTimeEventMgr->SetEventItem(rpkt->m_idx, rpkt->m_cnt);
+                m_pclApp->m_onTimeEventMgr->StartEvent();
+            }
         }
     }
     catch (CDNFException& e)
@@ -4751,15 +4784,14 @@ void CPacketTranslater::OnMonitorPunishCancel(PacketHeader* pkt)
         Packet_Punish_Cancel* in = (Packet_Punish_Cancel*)pkt;
         Packet_Punish_Cancel reply;
         int charNo = 0;
-        CUser* user =
-            (&m_pclApp->m_userManager)->FindUser(in->m_idByChannel);
-        if (user == 0)
+        CUser* user;
+        if ((user = (&m_pclApp->m_userManager)->FindUser(in->m_idByChannel)) != 0)
         {
-            charNo = -1;
+            charNo = (int)user->GetUniqCharNo();
         }
         else
         {
-            charNo = (int)user->GetUniqCharNo();
+            charNo = -1;
         }
         if (charNo != 0)
         {
@@ -4828,32 +4860,32 @@ void CPacketTranslater::OnMonitorSecuServiceConnWeb(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::OnMonitorSecuServiceConnWeb : 0 == m_pclApp");
         }
-        Packet_SecuService_Connect_Web* in = (Packet_SecuService_Connect_Web*)pkt;
         int charNo = 0;
-        CUser* user =
-            (&m_pclApp->m_userManager)->FindUser(in->m_idByChannel);
-        if (user == 0)
-        {
-            charNo = -1;
-        }
-        else
+        Packet_SecuService_Connect_Web* in = (Packet_SecuService_Connect_Web*)pkt;
+        CUser* user;
+        if ((user = (&m_pclApp->m_userManager)->FindUser(in->m_idByChannel)) != 0)
         {
             charNo = (int)user->GetUniqCharNo();
         }
+        else
+        {
+            charNo = -1;
+        }
         if (charNo != 0)
         {
-            CUser* target = (&m_pclApp->m_userManager)
-                                ->FindUser_CharNo((unsigned int)charNo);
-            if (target != 0)
+            CUser* target = 0;
+            Packet_SecuService_Connect_Web reply;
+            if ((target = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo)) != 0)
             {
-                Packet_SecuService_Connect_Web reply;
-                memcpy(&reply, pkt, 0x15);
+                memcpy(&reply, in, 0x15);
                 reply.m_idByChannel = target->GetIdByChannel();
                 target->SendToGameserver((char*)&reply, reply.packetSize);
             }
-            return;
         }
-        throw CDNFException("CPacketTranslater::OnMonitorSecuServiceConnWeb");
+        else
+        {
+            throw CDNFException("CPacketTranslater::OnMonitorSecuServiceConnWeb");
+        }
     }
     catch (CDNFException& e)
     {
@@ -4879,23 +4911,21 @@ void CPacketTranslater::OnResetTODAPCInfo(PacketHeader* pkt)
 void CPacketTranslater::OnNoticeMemberChatMsgHyperLink(PacketHeader* pkt)
 {try
 {
+    CUser* user;
+    CMember* member;
+    Packet_Monitor_Member_Chat_Hyper_Link* chat;
 
 
     if (m_pclApp == 0)
     {
         throw CDNFException("CPacketTranslater::OnNoticeMemberChatMsgHyperLink : 0 == m_pclApp");
     }
-    Packet_Monitor_Member_Chat_Hyper_Link* chat =
-        (Packet_Monitor_Member_Chat_Hyper_Link*)pkt;
+    chat = (Packet_Monitor_Member_Chat_Hyper_Link*)pkt;
     if (chat->m_memberId != 0 && chat->m_msgLen != 0)
     {
-        CUser* user =
-            (&m_pclApp->m_userManager)->FindUser_CharNo(chat->m_memberId);
-        if (user != 0)
+        if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(chat->m_memberId)) != 0)
         {
-            CMember* member =
-                (&m_pclApp->m_memberManager)->FindMember(chat->m_memberId);
-            if (member != 0)
+            if ((member = (&m_pclApp->m_memberManager)->FindMember(chat->m_memberId)) != 0)
             {
                 member->NoticeChatMsgToMemberMembersHyperLink(
                     chat->m_msg,
@@ -4904,11 +4934,13 @@ void CPacketTranslater::OnNoticeMemberChatMsgHyperLink(PacketHeader* pkt)
                     (hyperlink_item_info*)chat->m_items, user);
             }
         }
-        return;
     }
-    throw CDNFException(
-        "CPacketTranslater::OnNoticeMemberChatMsgHyperLink : packet->m_uMemberID && "
-        "packet->m_msgLen");
+    else
+    {
+        throw CDNFException(
+            "CPacketTranslater::OnNoticeMemberChatMsgHyperLink : packet->m_uMemberID && "
+            "packet->m_msgLen");
+    }
 
 
     }
@@ -5109,15 +5141,16 @@ void CPacketTranslater::onSocialEventRewardItemResponse(PacketHeader* pkt)
         unsigned int i = 0;
         while (i < rpkt->m_count && i < 0x1e)
         {
-            m_pclApp->getLimitNpcBuyItemManager()->registItem(*(NpcBuyLimitItem*)&rpkt->m_items[i]);
+            m_pclApp->getLimitNpcBuyItemManager()->registItem(
+                *(NpcBuyLimitItem*)&rpkt->m_items[i].m_itemId);
             DNF_LOG_SCOPE_LINE(0x1dd0,"./log/NpcBuyLimitItem", "Load-> itemId: %d, maxCount: %d, sellCount: %d)",
-                ((NpcBuyLimitItem*)&rpkt->m_items[i])->m_itemId,
-                ((NpcBuyLimitItem*)&rpkt->m_items[i])->m_maxCount,
-                ((NpcBuyLimitItem*)&rpkt->m_items[i])->m_sellCount);
+                rpkt->m_items[i].m_itemId,
+                rpkt->m_items[i].m_maxCount,
+                rpkt->m_items[i].m_sellCount);
             i++;
         }
         (m_pclApp->m_serverHandler2)
-            ->SendAllTcpGameServer(pkt);
+            ->SendAllTcpGameServer((PacketHeader*)rpkt);
     }
     catch (CDNFException& e)
     {
@@ -5142,9 +5175,8 @@ void CPacketTranslater::onSocialEventRewardItemInfo(PacketHeader* pkt)
             throw CDNFException("CPacketTranslater::onSocialEventRewardItemInfo");
         }
         LimitNpcBuyItemInfo* rpkt = (LimitNpcBuyItemInfo*)pkt;
-        CUser* user =
-            (&m_pclApp->m_userManager)->FindUser(rpkt->m_dbid);
-        if (user == 0)
+        CUser* user;
+        if ((user = (&m_pclApp->m_userManager)->FindUser(rpkt->m_dbid)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1dee,"./log/Except",
                 "CPacketTranslater::onSocialEventRewardItemInfo(), buyUser(%s), "
@@ -5154,18 +5186,18 @@ void CPacketTranslater::onSocialEventRewardItemInfo(PacketHeader* pkt)
                 "CPacketTranslater::onSocialEventRewardItemInfo : Not Exist User characNo");
         }
         int result = m_pclApp->getLimitNpcBuyItemManager()->sellNpcLimitBuyItem(rpkt);
-        if (result < 1)
-        {
-            user->SendTcpGameserver(pkt);
-        }
-        else
+        if (result >= 1)
         {
             rpkt->m_count = 0;
             rpkt->m_errorNo = (unsigned int)result;
-            user->SendTcpGameserver(pkt);
+            user->SendTcpGameserver((PacketHeader*)rpkt);
             DNF_LOG_SCOPE_LINE(0x1dfc,"./log/NpcBuyLimitItem",
                 "don\'t sell-> characNo: %u, errorNo: %u, itemId: %u, buyCount: %u)",
                 rpkt->m_charNo, rpkt->m_errorNo, rpkt->m_itemId, rpkt->m_count);
+        }
+        else
+        {
+            user->SendTcpGameserver((PacketHeader*)rpkt);
         }
     }
     catch (CDNFException& e)
@@ -5181,7 +5213,7 @@ void CPacketTranslater::onSocialEventRewardItemInfo(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0107 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onSocialEventRewardItemInfoAll | 详见 function_reports/monitor/_ZN17CPacketTranslater30onSocialEventRewardItemInfoAllEP12PacketHeader.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0107 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onSocialEventRewardItemInfoAll | 详见 function_reports/monitor/_ZN17CPacketTranslater30onSocialEventRewardItemInfoAllEP12PacketHeader.md
 void CPacketTranslater::onSocialEventRewardItemInfoAll(PacketHeader* pkt)
 {
     try
@@ -5191,21 +5223,18 @@ void CPacketTranslater::onSocialEventRewardItemInfoAll(PacketHeader* pkt)
             throw CDNFException("CPacketTranslater::onSocialEventRewardItemInfoAll");
         }
         LimitNpcBuyItemInfoAll* rpkt = (LimitNpcBuyItemInfoAll*)pkt;
-        CUser* user =
-            (&m_pclApp->m_userManager)->FindUser(rpkt->m_dbid);
-        if (user == 0)
+        CUser* user;
+        if ((user = (&m_pclApp->m_userManager)->FindUser(rpkt->m_dbid)) == 0)
         {
-            unsigned int cn = rpkt->m_charNo;
-            char* s = NumberToString(rpkt->m_dbid, 0);
             DNF_LOG_SCOPE_LINE(0x1e1c,"./log/Except",
                 "CPacketTranslater::onSocialEventRewardItemInfoAll(), buyUser(%s), "
                 "characNo(%u)",
-                s, cn);
+                NumberToString(rpkt->m_dbid, 0), rpkt->m_charNo);
             throw CDNFException(
                 "CPacketTranslater::onSocialEventRewardItemInfoAll : Not Exist User");
         }
         m_pclApp->getLimitNpcBuyItemManager()->getNpcLimitBuyItemInfoAll(rpkt);
-        user->SendTcpGameserver(pkt);
+        user->SendTcpGameserver((PacketHeader*)rpkt);
     }
     catch (CDNFException& e)
     {
@@ -5220,7 +5249,7 @@ void CPacketTranslater::onSocialEventRewardItemInfoAll(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0103 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onSocialEventRewardItemUpdate | 详见 function_reports/monitor/_ZN17CPacketTranslater29onSocialEventRewardItemUpdateEP12PacketHeader.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0103 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onSocialEventRewardItemUpdate | 详见 function_reports/monitor/_ZN17CPacketTranslater29onSocialEventRewardItemUpdateEP12PacketHeader.md
 void CPacketTranslater::onSocialEventRewardItemUpdate(PacketHeader* pkt)
 {
     try
@@ -5231,20 +5260,20 @@ void CPacketTranslater::onSocialEventRewardItemUpdate(PacketHeader* pkt)
         }
         LimitNpcBuyItemUpdate* rpkt = (LimitNpcBuyItemUpdate*)pkt;
         LimitNpcBuyItemChangeInfo change;
-        if ((int)rpkt->m_errorNo == 0)
+        if ((int)rpkt->m_errorNo != 0)
+        {
+            m_pclApp->getLimitNpcBuyItemManager()->undoNpcLimitBuyItem(
+                (LimitNpcBuyItemUpdate*)rpkt);
+        }
+        else
         {
             m_pclApp->getLimitNpcBuyItemManager()->getNpcLimitBuyItemCount(rpkt->m_itemId, change);
             (m_pclApp->m_serverHandler2)
                 ->SendAllTcpGameServer(&change);
-            (m_pclApp->m_serverHandler2)->SendToDB(pkt);
+            (m_pclApp->m_serverHandler2)->SendToDB((PacketHeader*)rpkt);
             DNF_LOG_SCOPE_LINE(0x1e46,"./log/NpcBuyLimitItem",
                 "DB Update-> characNo: %u, itemId: %u, buyCount: %u)", rpkt->m_charNo, rpkt->m_itemId,
                 rpkt->m_cancelCount);
-        }
-        else
-        {
-            m_pclApp->getLimitNpcBuyItemManager()->undoNpcLimitBuyItem(
-                (LimitNpcBuyItemUpdate*)pkt);
         }
     }
     catch (CDNFException& e)
@@ -5345,8 +5374,11 @@ void CPacketTranslater::onCollectItems(PacketHeader* pkt)
             throw CDNFException("CPacketTranslater::onCollectItems");
         }
         Packet_CollectItems* req = (Packet_CollectItems*)pkt;
-        if (((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current <
+        if (((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current >=
             ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_total)
+        {
+        }
+        else
         {
             if (((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current == 0)
             {
@@ -5375,10 +5407,10 @@ void CPacketTranslater::onCollectItems(PacketHeader* pkt)
                     }
                 }
             }
-            ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current =
-                ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current +
+            ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current +=
                 req->m_itemCount;
         }
+    return;
     }
     catch (CDNFException& e)
     {
@@ -5490,19 +5522,18 @@ void CPacketTranslater::OnWebEmergencyPatchMessage(PacketHeader* pkt)
         {
             if (rpkt->m_channels[i] != 0)
             {
-                unsigned char ch = (unsigned char)rpkt->m_channels[i];
                 CTcpGameServer* tcp =
-                    m_pclApp->Get_ServerHandler()->GetTcpGameServerByCh(ch);
+                    m_pclApp->Get_ServerHandler()->GetTcpGameServerByCh(
+                        (unsigned char)rpkt->m_channels[i]);
                 if (tcp != 0)
                 {
                     char* buf = tcp->makePacketHeader(0x27f2, 0x10a);
                     if (buf != 0)
                     {
                         *(char*)(buf + 10) = (char)rpkt->m_len;
-                        char* out = buf;
                         memset(buf + 0xb, 0, 0xff);
-                        memcpy(out + 0xb, rpkt->m_text, (unsigned int)rpkt->m_len);
-                        tcp->SendToGameServer(out);
+                        memcpy(buf + 0xb, rpkt->m_text, (unsigned int)rpkt->m_len);
+                        tcp->SendToGameServer(buf);
                     }
                 }
             }
@@ -5522,7 +5553,7 @@ void CPacketTranslater::OnWebEmergencyPatchMessage(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0083 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnUpdateMiniCraneSeed | 详见 function_reports/monitor/_ZN17CPacketTranslater21OnUpdateMiniCraneSeedEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0083 已消除）| CPacketTranslater::OnUpdateMiniCraneSeed
 void CPacketTranslater::OnUpdateMiniCraneSeed(PacketHeader* pkt)
 {
     try
@@ -5534,12 +5565,11 @@ void CPacketTranslater::OnUpdateMiniCraneSeed(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::OnUpdateMiniCraneSeed, packet is null");
         }
-        if (m_pclApp != 0 && m_pclApp->m_serverHandler2 != 0)
+        if (m_pclApp == 0 || m_pclApp->m_serverHandler2 == 0)
         {
-            m_pclApp->m_serverHandler2->SendAllToGameServer((char*)local_pkt, local_pkt->packetSize);
-            return;
+            throw CDNFException("CPacketTranslater::OnUpdateMiniCraneSeed m_pclApp or m_pclServerHandler is null");
         }
-        throw CDNFException("CPacketTranslater::OnUpdateMiniCraneSeed m_pclApp or m_pclServerHandler is null");
+        m_pclApp->m_serverHandler2->SendAllToGameServer((char*)local_pkt, local_pkt->packetSize);
     }
     catch (CDNFException& e)
     {

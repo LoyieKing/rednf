@@ -45,7 +45,7 @@ void CHWSpecResearcher::WriteSpecStatics(unsigned char param, const HWSpec& spec
         it->second += 1;
     }
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0014 | statics | 与ORIG差异=DIFF | CHWSpecResearcher::SendDBMWHWSpec | 详见 function_reports/statics/_ZN17CHWSpecResearcher14SendDBMWHWSpecEP14CServerHandlerh.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0014 已消除）| statics | CHWSpecResearcher::SendDBMWHWSpec | 详见 function_reports/statics/_ZN17CHWSpecResearcher14SendDBMWHWSpecEP14CServerHandlerh.md
 void CHWSpecResearcher::SendDBMWHWSpec(CServerHandler* handler, unsigned char param)
 {
     Packet_DBMW_Save_Client_Spec_Statistic pkt;
@@ -58,7 +58,7 @@ void CHWSpecResearcher::SendDBMWHWSpec(CServerHandler* handler, unsigned char pa
              it != pMap->end(); ++it)
         {
             const STSpecStatic* pSpec = &it->first;
-            memcpy(&pkt.m_items[count].m_spec, (const void*)pSpec, 0xc);
+            memcpy((char*)&pkt.m_items[count].m_spec, (const char*)pSpec, 0xc);
             pkt.m_items[count].m_total = (short)it->second;
             if (0x1b3U < (++count))
             {
@@ -110,7 +110,7 @@ void CHWSpecResearcher::WriteErrorLineStatics(unsigned short param, int value)
         it->second += 1;
     }
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0015 | statics | 与ORIG差异=DIFF | CHWSpecResearcher::SendDBMWErrorLine | 详见 function_reports/statics/_ZN17CHWSpecResearcher17SendDBMWErrorLineEP14CServerHandler.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0015 已消除）| statics | CHWSpecResearcher::SendDBMWErrorLine | 详见 function_reports/statics/_ZN17CHWSpecResearcher17SendDBMWErrorLineEP14CServerHandler.md
 void CHWSpecResearcher::SendDBMWErrorLine(CServerHandler* handler)
 {
     Packet_DBMW_Save_Error_Line_Statistic pkt;

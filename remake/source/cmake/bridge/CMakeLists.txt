@@ -95,10 +95,11 @@ dnf_service(bridge
     LIBS
         ${DNF_SRC}/../build/manager/mysqlclient/libmysqlclient.a
         # [2026-09-14] 改用 c6root 驱动（--sysroot -nostdlib）后 C++ 运行时不再由宿主
-        #   驱动隐式带上 ⇒ 显式列出静态 libstdc++/libgcc；zlib 也必须放在对象之后。
-        ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a
+        #   驱动隐式带上 ⇒ 显式列出 libgcc；zlib 也必须放在对象之后。
+        # [2026-09-15] ORIG df_bridge_r 的 NEEDED 含 libstdc++.so.6（动态），原先误链静态
+        #   libstdc++.a ⇒ 我方多 .tbss 0x8 / TLS 常量位移，与 auction/point 同款根因。
+        ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.so
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libgcc_eh.a
-        ${DF_C5R52I}/usr/lib/gcc/i386-redhat-linux/4.1.1/libstdc++.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
         ${DF_ZLIB32}/lib/libz.a

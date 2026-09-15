@@ -252,7 +252,7 @@ public:
     static void operator delete(void* p, unsigned int size);
     TCPSocket* GetTcpSocket();
     int recv_packet();
-    int RecvPacket();
+    bool RecvPacket();
     void DisConnSig();
     unsigned int get_remain_sendlen();
     int send_packet();
@@ -262,12 +262,12 @@ public:
     bool parsing(int recvLen);
     char m_data[0x1800];   // +0x1c..+0x181b
     char* m_buf;           // +0x181c
-    int m_remainLen;       // +0x1820
+    unsigned int m_remainLen;  // +0x1820（Manager/Peer.h 同源版：unsigned int m_recvLen）
     int m_alreadyRead;     // +0x1824
     void* m_recvQ;         // +0x1828
     void* m_bLock;         // +0x182c
     void* m_qLock;         // +0x1830
-    int m_sendRemain;      // +0x1834
+    unsigned int m_sendRemain;  // +0x1834（ORIG P274：unsigned 字段 + int 形参 ⇒ 三段装载）
     char* m_sendPtr;       // +0x1838
     char m_sendBuf[0x96000];  // +0x183c
     unsigned int m_field9783c;  // +0x9783c（发送缓冲区尾部字段，无使用证据，保留）

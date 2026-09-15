@@ -312,7 +312,7 @@ public:
 class CInitAccusationList : public CTaskScheduler::CTask
 {
 public:
-    CInitAccusationList(unsigned int time, unsigned int flag, CInitAccusationListMgr* mgr);
+    CInitAccusationList(unsigned int time, unsigned int flag, CInitAccusationListMgr* mgr) throw();
     ~CInitAccusationList();
     void _DoExecute();
     CInitAccusationListMgr* m_mgr;  // +0x10
@@ -368,7 +368,7 @@ public:
     CUdpHandler* Get_UdpHandler();
     void* Get_UdpQLock();
     void* Get_UdpBLock();
-    char Send_Term_Signal(const std::string& file);
+    bool Send_Term_Signal(const std::string& file);
     void Send_Suspend_Signal(const std::string& file);
     void App_Stop();
     void TranslateSignal();
@@ -384,7 +384,7 @@ public:
     void* getIPCounter();
     void* getTowerRank();
     int getMiniCraneSeed() const;
-    void* getCollectItems();
+    CollectItms* getCollectItems();
     void* FindGameServer(int id);
     void* FindTcpGameServer(unsigned int id);
     void OnTcpGameServerDown(CTcpGameServer* tcpGameServer);
@@ -401,7 +401,7 @@ public:
     int m_reserved8;                    // +8
     CAppInit* m_appInit;                // +0xc
     CUserManager m_userManager;         // +0x10
-    CAppConfig* m_appConfig;            // +0x8c
+    CTableBase* m_appConfig;            // +0x8c base-ptr upcast form
     void* m_field90;                    // +0x90
     CMemberConfig* m_memberConfig;      // +0x94
     CMemberExpTbl* m_memberExpTbl;      // +0x98
@@ -411,7 +411,7 @@ public:
     CInnerMsgHandler* m_innerMsgHandler;  // +0xd4
     CSwapQueue<UdpRecvQueue, 2> m_udpSwapQueue;  // +0xd8
     CUdpHandler* m_udpHandler;          // +0x130
-    CUdpNetworkThread* m_udpThread;     // +0x134
+    CThreadInterface* m_udpThread;      // +0x134（ORIG: 基类指针 ⇒ new 赋值有指针调整）
     CMutex m_udpQLock;                  // +0x138
     CMutex m_udpBLock;                  // +0x150
     CTcpNetSystem m_tcpNetSystem;       // +0x168
@@ -432,7 +432,7 @@ public:
     std::map<unsigned int, std::list<unsigned int> > m_map368;  // +0x368
     CPeriodicMessageMgr* m_periodicMsg; // +0x380
     LimitNpcBuyItemManager* m_limitNpc; // +0x384
-    void* m_collectItms;                   // +0x388
+    CollectItms* m_collectItms;            // +0x388（C1 修法①：去 cast 层，同宽同偏移）
     int m_miniCraneSeed;                // +0x38c
     short m_timeSyncHour;               // +0x390
 };

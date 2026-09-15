@@ -253,7 +253,7 @@ public:
     int MemerMemLogin(unsigned int key, CUser* user);
     char LoadMemberFromCash(CUser* user, CMember* member);
     void MemberMemLogout(unsigned int key, CUser* user, bool cash);
-    int DeleteMember(unsigned int key, bool cash);
+    bool DeleteMember(unsigned int key, bool cash);
     int IsPossableMemberEnter(CUser* u1, CMember* m1, CUser* u2, CMember* m2, int mode);
     unsigned int GetLowerMemberEnterLimit(unsigned int level);
     int IsThereUpperMember(unsigned int charNo);
@@ -264,7 +264,7 @@ public:
     void SaveMemberOnConnect(CServerHandler* handler, CUser* u1, CUser* u2, unsigned char flag);
     void SaveMemberOnUnConnect(CServerHandler* handler, unsigned int a, unsigned int b,
                                unsigned int c, unsigned char flag);
-    int RegisterMember(CMember* member, short level, CUser* user, bool flag);
+    bool RegisterMember(CMember* member, short level, CUser* user, bool flag);
     CMember* CreateMemberInJoin(CUser* user);
     int CheckMemberEnter(CUser* u1, CMember* m1, CUser* u2, CMember* m2);
     char CheckEmptyMember(CMember* member, CUser* user);

@@ -37,7 +37,7 @@ public:
     void TranslateSignal();
     void SwitchQueueTCP();
     void SwitchQueueUDP();
-    int Send_Suspend_Signal(const std::string& msg);
+    void Send_Suspend_Signal(const std::string& msg);
     bool Send_Term_Signal(const std::string& msg);
     void AttachAppInitor(char** argv);
     CServerHandler* Get_ServerHandler();
@@ -65,7 +65,7 @@ public:
     CKillUSRConfig* m_killUsrConfig;    // +0x4c（原版为 CKillUSRConfig*）
     CDBManager m_dbManager;             // +0x50（0x48 字节，17 个 handle）
     CUdpHandler* m_udpHandler;          // +0x98
-    CNetworkThread* m_networkThread;    // +0x9c
+    CThreadInterface* m_networkThread;  // +0x9c（ORIG：基类指针，赋值 upcast 形 ebx→eax→edx）
     CSwapQueue<UdpRecvQueue, 2> m_udpSwapQueue;  // +0xa0（0x58）
     CMutex m_mutexF8;                   // +0xf8
     CMutex m_mutex110;                  // +0x110

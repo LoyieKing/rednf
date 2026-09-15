@@ -121,7 +121,7 @@ CScheduler::CScheduler()
 
 CScheduler::~CScheduler() {}
 
-char CScheduler::IsOnTimeSpecialHour(int day, int hour)
+bool CScheduler::IsOnTimeSpecialHour(int day, int hour)
 {
     if ((char)m_data[2] == day && (char)m_data[1] == hour)
     {

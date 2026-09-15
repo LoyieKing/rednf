@@ -138,46 +138,65 @@ bool Field::MakeInsertQuery(char* out, const char* table, const std::string& key
 {
     snprintf(out, 0x800, "inSert into %s(%s,%s) values(%s,%s)", table, cond.c_str(),
              getFieldName(), key.c_str(), getFieldValue());
-    return strlen(out) < 0x800;
+    // [2026-09-15] ORIG 为分支物化形（cmp $0x7ff/jbe → mov $1/jmp → mov $0），
+    // 非 setbe；真分支落在后方 ⇒ 条件写负极性早返（P56/P347）。
+    if (strlen(out) > 0x7ff)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool Field::MakeUpdateQuery(char* out, const char* table, const std::string& key,
                             const std::string& cond)
 {
-    getUpdateCondition(key, cond);
+    // [2026-09-15] ORIG 调用点实参序为 (cond, key)：反汇编实证
+    //   0x804cf93 mov 0x14(%ebp)->0x8(%esp) / 0x804cf9a mov 0x18(%ebp)->0x4(%esp)
+    //   ⇒ 第一实参 = cond（getUpdateCondition 内第一形参承担 substr 角色）。
+    //   返回 char*（原为 void + 全局缓冲），改函数级 static 以复现 ORIG 的
+    //   _ZZN..getUpdateCondition..E10queryPiece / _ZGVZ.. guard 组。
     snprintf(out, 0x800, "update %s set %s where %s", table, getUpdateValue(),
-             g_updateCondition.c_str());
-    return strlen(out) < 0x800;
+             getUpdateCondition(cond, key));
+    if (strlen(out) > 0x7ff)
+    {
+        return false;
+    }
+    return true;
 }
 
-void Field::getUpdateCondition(const std::string& key, const std::string& cond)
+const char* Field::getUpdateCondition(const std::string& key, const std::string& cond)
 {
-    g_updateCondition.clear();
-    size_t pos1 = key.find_first_of(",", 0);
-    size_t pos2 = cond.find_first_of(",", 0);
+    static std::string queryPiece;
+    queryPiece.clear();
+    // [2026-09-15] ORIG 声明/首次使用序为 prev1→prev2→pos1→pos2（反汇编实证：
+    //   0x804cae0 movl $0,-0x28 / 0x804cae7 movl $0,-0x24 先于两次 find_first_of），
+    //   4.4 与 4.1 均按"先声明更深"分配槽 ⇒ 顺序须照抄。
     size_t prev1 = 0;
     size_t prev2 = 0;
+    size_t pos1 = key.find_first_of(",", 0);
+    size_t pos2 = cond.find_first_of(",", 0);
     while (pos1 != std::string::npos && pos2 != std::string::npos)
     {
-        if (g_updateCondition.length() != 0)
+        if (queryPiece.length() != 0)
         {
-            g_updateCondition += " and ";
+            queryPiece += " and ";
         }
-        g_updateCondition += key.substr(prev1, pos1 - prev1);
-        g_updateCondition += "=";
-        g_updateCondition += cond.substr(prev2, pos2 - prev2);
+        queryPiece += key.substr(prev1, pos1 - prev1);
+        queryPiece += "=";
+        queryPiece += cond.substr(prev2, pos2 - prev2);
         prev1 = pos1 + 1;
         prev2 = pos2 + 1;
         pos2 = cond.find_first_of(",", pos2 + 1);
         pos1 = key.find_first_of(",", pos1 + 1);
     }
-    if (g_updateCondition.length() != 0)
+    if (queryPiece.length() != 0)
     {
-        g_updateCondition += " and ";
+        queryPiece += " and ";
     }
-    g_updateCondition += key.substr(prev1);
-    g_updateCondition += "=";
-    g_updateCondition += cond.substr(prev2);
+    queryPiece += key.substr(prev1);
+    queryPiece += "=";
+    queryPiece += cond.substr(prev2);
+    return queryPiece.c_str();
 }
 
 int Field::updateDatabase(const char* table, const std::string& key, const std::string& cond)

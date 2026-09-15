@@ -34,7 +34,7 @@
 #include "PacketCounter.h"
 #include "ServerLoadChecker.h"
 
-#define REG_HANDLER(id, fn) m_handlers[id] = (void*)CPacketTranslater::fn
+#define REG_HANDLER(id, fn) m_handlers[id] = CPacketTranslater::fn
 
 CPacketDecoder::CPacketDecoder()
 {
@@ -197,7 +197,7 @@ void CPacketDecoder::Process()
     TcpProcess();
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0034 | monitor | 与ORIG差异=DIFF | CPacketDecoder::TcpProcess | 详见 function_reports/monitor/_ZN14CPacketDecoder10TcpProcessEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0034 已消除）
 void CPacketDecoder::TcpProcess()
 {
     if (m_net.m_parseQ == 0 || m_net.m_recvQ == 0)
@@ -209,35 +209,34 @@ void CPacketDecoder::TcpProcess()
     {
         buf = ((std::queue<CTcpRecvBuffer*>*)m_net.m_parseQ)->front();
         ((std::queue<CTcpRecvBuffer*>*)m_net.m_parseQ)->pop();
-        if (buf == 0)
+        if (buf != 0)
         {
-            continue;
-        }
-        CTcpRecvBuffer* pkt = buf;
-        int qsize = (int)((std::queue<CTcpRecvBuffer*>*)m_net.m_parseQ)->size();
-        if (CAppLoadCheckerInstance()->CheckTcpRecvQ(qsize))
-        {
-            CAppLoadCheckerInstance()->RequestDB((CServerHandler*)m_net.m_handler, 1, qsize);
-        }
-        if (!MsgDecode((PacketHeader*)pkt))
-        {
+            CTcpRecvBuffer* pkt = buf;
+            int qsize = (int)((std::queue<CTcpRecvBuffer*>*)m_net.m_parseQ)->size();
+            if (CAppLoadCheckerInstance()->CheckTcpRecvQ(qsize))
+            {
+                CAppLoadCheckerInstance()->RequestDB(m_net.m_handler, 1, qsize);
+            }
+            if (!MsgDecode((PacketHeader*)pkt))
+            {
+                {
+                    CGuard<CMutex> g((CMutex*)m_net.m_bLock);
+                    CTcpRecvBuffer::operator delete(buf);
+                }
+                printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n", pkt,
+                       (unsigned int)*(unsigned short*)pkt);
+                throw CDNFException(
+                    "CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
+            }
             {
                 CGuard<CMutex> g((CMutex*)m_net.m_bLock);
                 CTcpRecvBuffer::operator delete(buf);
             }
-            printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n", pkt,
-                   (unsigned int)*(unsigned short*)pkt);
-            throw CDNFException(
-                "CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
-        }
-        {
-            CGuard<CMutex> g((CMutex*)m_net.m_bLock);
-            CTcpRecvBuffer::operator delete(buf);
         }
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0035 | monitor | 与ORIG差异=DIFF | CPacketDecoder::UdpProcess | 详见 function_reports/monitor/_ZN14CPacketDecoder10UdpProcessEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0035 已消除）
 void CPacketDecoder::UdpProcess()
 {
     if (m_udpParseQ == 0 || m_udpQLock == 0)
@@ -249,36 +248,35 @@ void CPacketDecoder::UdpProcess()
     {
         buf = ((std::queue<CUdpRecvBuffer*>*)m_udpParseQ)->front();
         ((std::queue<CUdpRecvBuffer*>*)m_udpParseQ)->pop();
-        if (buf == 0)
+        if (buf != 0)
         {
-            continue;
-        }
-        CUdpRecvBuffer* pkt = buf;
-        int qsize = (int)((std::queue<CUdpRecvBuffer*>*)m_udpParseQ)->size();
-        if (CAppLoadCheckerInstance()->CheckUdpRecvQ(qsize))
-        {
-            CAppLoadCheckerInstance()->RequestDB((CServerHandler*)m_net.m_handler, 2, qsize);
-        }
-        if (!MsgDecode((PacketHeader*)pkt))
-        {
+            CUdpRecvBuffer* pkt = buf;
+            int qsize = (int)((std::queue<CUdpRecvBuffer*>*)m_udpParseQ)->size();
+            if (CAppLoadCheckerInstance()->CheckUdpRecvQ(qsize))
+            {
+                CAppLoadCheckerInstance()->RequestDB(m_net.m_handler, 2, qsize);
+            }
+            if (!MsgDecode((PacketHeader*)pkt))
+            {
+                {
+                    CGuard<CMutex> g((CMutex*)m_net.m_udpBLock);
+                    CUdpRecvBuffer::operator delete(buf);
+                }
+                printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n", pkt,
+                       (unsigned int)*(unsigned short*)pkt);
+                throw CDNFException(
+                    "CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
+            }
             {
                 CGuard<CMutex> g((CMutex*)m_net.m_udpBLock);
                 CUdpRecvBuffer::operator delete(buf);
             }
-            printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n", pkt,
-                   (unsigned int)*(unsigned short*)pkt);
-            throw CDNFException(
-                "CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
-        }
-        {
-            CGuard<CMutex> g((CMutex*)m_net.m_udpBLock);
-            CUdpRecvBuffer::operator delete(buf);
         }
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0036 | monitor | 与ORIG差异=DIFF | CPacketDecoder::MsgDecode | 详见 function_reports/monitor/_ZN14CPacketDecoder9MsgDecodeEP12PacketHeader.md
-char CPacketDecoder::MsgDecode(PacketHeader* pkt)
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0036 已消除）
+bool CPacketDecoder::MsgDecode(PacketHeader* pkt)
 {
     if (pkt == 0)
     {
@@ -296,7 +294,7 @@ char CPacketDecoder::MsgDecode(PacketHeader* pkt)
             return 0;
         }
         packet_counter.BeforeProcess();
-        ((void(*)(PacketHeader*))m_handlers[*(unsigned short*)pkt])(pkt);
+        m_handlers[*(unsigned short*)pkt](pkt);
         packet_counter.AfterProcess(*(unsigned short*)pkt);
         return 1;
     }

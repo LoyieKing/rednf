@@ -151,7 +151,7 @@ CTcpServer* CServerHandler::GetTcpServer(unsigned int socket)
     }
     return 0;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0082 | dbmw | 与ORIG差异=DIFF | CServerHandler::SendAllTcpServer | 详见 function_reports/dbmw/_ZN14CServerHandler16SendAllTcpServerEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0082 已消除）
 void CServerHandler::SendAllTcpServer(PacketHeader* header)
 {
     CTcpServer* server = 0;
@@ -162,8 +162,9 @@ void CServerHandler::SendAllTcpServer(PacketHeader* header)
         server = it->second;
         if (server->IsValidServer())
         {
-            buf = (char*)server->makePacketHeader(header->packetId, header->packetSize);
-            memcpy((char*)buf + 0xa, (char*)header + 0xa, header->packetSize - 0xa);
+            buf = server->makePacketHeader(header->packetId, header->packetSize);
+            memcpy((char*)buf + 0xa, (char*)header + 0xa,
+                   (unsigned int)header->packetSize - 0xa);
             server->SendToServer(buf);
         }
     }
@@ -199,7 +200,7 @@ void CServerHandler::SendToTcpServer(PacketHeader* header, unsigned char idx)
     CTcpServer* server = GetTcpServer(idx);
     if (!server)
         return;
-    char* buf = (char*)server->makePacketHeader(header->packetId, header->packetSize);
+    char* buf = server->makePacketHeader(header->packetId, header->packetSize);
     memcpy(buf + 0xa, (char*)header + 0xa, header->packetSize - 0xa);
     server->SendToServer(buf);
 }

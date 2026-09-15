@@ -81,13 +81,14 @@ void CUserManager::MemberEnterProcess()
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-NEAR-0005 | monitor | 与ORIG差异=NEAR | CUserManager::ProcessByMinute | 详见 function_reports/monitor/_ZN12CUserManager15ProcessByMinuteEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-NEAR-0005 CUserManager::ProcessByMinute 已消除）
 void CUserManager::ProcessByMinute()
 {
     if (!m_prohibitUsers.empty())
     {
-        std::map<const unsigned int, CDNFProhibitUser*>::iterator it = m_prohibitUsers.begin();
-        while (it != m_prohibitUsers.end())
+        for (std::map<const unsigned int, CDNFProhibitUser*>::iterator it =
+                 m_prohibitUsers.begin();
+             it != m_prohibitUsers.end();)
         {
             CDNFProhibitUser* pu;
             if ((pu = (*it).second) != 0)
@@ -96,8 +97,7 @@ void CUserManager::ProcessByMinute()
                 {
                     register int remain = (short)pu->GetProhibitRemainTime();
                     register unsigned int dbid = pu->GetDBID();
-                    CMyFileLog log(__FUNCTION__, 0x292);
-                    log("./log/User",
+                    DNF_LOG_SCOPE_LINE(0x292, "./log/User",
                         "[PROHIBIT CONNECT USER TIME_OUT] Prohibit User DB ID : %d\t Remain time(%d)\n",
                         dbid, remain);
                     delete pu;
@@ -124,15 +124,12 @@ CUser* CUserManager::FindUser_CharNo(unsigned int charNo) const
 
 CUser* CUserManager::FindUser_CharName(std::string name) const
 {
-    if (!m_charNameUsers.empty())
+    std::map<const std::string, CUser*>::const_iterator it = m_charNameUsers.find(name);
+    if (it == m_charNameUsers.end())
     {
-        std::map<const std::string, CUser*>::const_iterator it = m_charNameUsers.find(name);
-        if (it != m_charNameUsers.end())
-        {
-            return it->second;
-        }
+        return 0;
     }
-    return 0;
+    return it->second;
 }
 
 void CUserManager::ChangeBlackListCharName(unsigned int dbid, char* name)
@@ -173,33 +170,44 @@ void CUserManager::ResetBuddyList(unsigned int charNo)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0012 | monitor | 与ORIG差异=DIFF | CUserManager::DeleteUsersOnGameServerDown | 详见 function_reports/monitor/_ZN12CUserManager27DeleteUsersOnGameServerDownEP11CGameServer.md
+// [UserLane tried] ndiff 34 → 18（保留最优形态，已核服务零回归）：
+//   ① 三处 `iterator cur = it++; erase(cur);` 改 `erase(it++);` —— ORIG 用的是后置自增的临时对象而非具名局部（判据：ORIG 的 `ppEi` 结果落在临时槽 -0x24）；此改动使槽集合与 ORIG 完全一致（34→29）；
+//   ② 函数首部加 `int reservedSlot;` 占位（S5）—— 29→18。本件实测 `int`(18) 优于 `char[4]`(20)，与 P7「差 4 优先 char[4]」不同，因余差非整齐的 4 字节平移；
+//   ③ 已试无效/劣化：it 提到函数首声明、块作用域 for(;cond;)、整体块包裹、while 形态、占位放 if 块后（同层不同序位结果相同）。
+//   余 18 条仍属槽序族（第三个循环 it++ 临时槽 -0x14 vs 我方 -0x34 等）。孪生 Tcp 版同样改动反而 34→36/38，故保持原样。
 int CUserManager::DeleteUsersOnGameServerDown(CGameServer* gameServer)
 {
     if (m_users.empty())
     {
         return 0;
     }
+    int reservedSlot;
     for (std::map<const unsigned int, CUser*>::iterator it = m_charNoUsers.begin();
          it != m_charNoUsers.end(); )
     {
-        if (it->second != 0 && it->second->GetGameServer() == gameServer)
+        if (it->second != 0)
         {
-            std::map<const unsigned int, CUser*>::iterator cur = it++;
-            m_charNoUsers.erase(cur);
-            continue;
+            if (it->second->GetGameServer() == gameServer)
+            {
+                m_charNoUsers.erase(it++);
+                continue;
+            }
+            ++it;
         }
-        ++it;
     }
     for (std::map<const std::string, CUser*>::iterator it = m_charNameUsers.begin();
          it != m_charNameUsers.end(); )
     {
-        if (it->second != 0 && it->second->GetGameServer() == gameServer)
+        if (it->second != 0)
         {
-            std::map<const std::string, CUser*>::iterator cur = it++;
-            m_charNameUsers.erase(cur);
-            continue;
+            if (it->second->GetGameServer() == gameServer)
+            {
+                std::map<const std::string, CUser*>::iterator cur = it++;
+                m_charNameUsers.erase(cur);
+                continue;
+            }
+            ++it;
         }
-        ++it;
     }
     for (std::map<unsigned int, CUser*>::iterator it = m_users.begin();
          it != m_users.end(); )
@@ -220,8 +228,7 @@ int CUserManager::DeleteUsersOnGameServerDown(CGameServer* gameServer)
                 {
                     delete user;
                 }
-                std::map<unsigned int, CUser*>::iterator cur = it++;
-                m_users.erase(cur);
+                m_users.erase(it++);
                 continue;
             }
             ++it;
@@ -231,6 +238,7 @@ int CUserManager::DeleteUsersOnGameServerDown(CGameServer* gameServer)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0013 | monitor | 与ORIG差异=DIFF | CUserManager::DeleteUsersOnTcpGameServerDown | 详见 function_reports/monitor/_ZN12CUserManager30DeleteUsersOnTcpGameServerDownEP14CTcpGameServer.md
+// [UserLane tried] 与 DeleteUsersOnGameServerDown 同源同形，但**不可**套用其有效改动：本件加 `erase(it++)`/`reservedSlot` 占位反而 34→36（含占位）或 →38（仅 erase），均已回退。差异可能来自本件 `(void*)tcpGameServer` 的 cast 层。保持原形态 ndiff=34。
 int CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer)
 {
     if (m_users.empty())
@@ -240,24 +248,30 @@ int CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer)
     for (std::map<const unsigned int, CUser*>::iterator it = m_charNoUsers.begin();
          it != m_charNoUsers.end(); )
     {
-        if (it->second != 0 && it->second->GetTcpGameServer() == (void*)tcpGameServer)
+        if (it->second != 0)
         {
-            std::map<const unsigned int, CUser*>::iterator cur = it++;
-            m_charNoUsers.erase(cur);
-            continue;
+            if (it->second->GetTcpGameServer() == (void*)tcpGameServer)
+            {
+                std::map<const unsigned int, CUser*>::iterator cur = it++;
+                m_charNoUsers.erase(cur);
+                continue;
+            }
+            ++it;
         }
-        ++it;
     }
     for (std::map<const std::string, CUser*>::iterator it = m_charNameUsers.begin();
          it != m_charNameUsers.end(); )
     {
-        if (it->second != 0 && it->second->GetTcpGameServer() == (void*)tcpGameServer)
+        if (it->second != 0)
         {
-            std::map<const std::string, CUser*>::iterator cur = it++;
-            m_charNameUsers.erase(cur);
-            continue;
+            if (it->second->GetTcpGameServer() == (void*)tcpGameServer)
+            {
+                std::map<const std::string, CUser*>::iterator cur = it++;
+                m_charNameUsers.erase(cur);
+                continue;
+            }
+            ++it;
         }
-        ++it;
     }
     for (std::map<unsigned int, CUser*>::iterator it = m_users.begin();
          it != m_users.end(); )
@@ -288,21 +302,21 @@ int CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer)
     return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0011 | monitor | 与ORIG差异=DIFF | CUserManager::SendConnectedBuddysList | 详见 function_reports/monitor/_ZN12CUserManager23SendConnectedBuddysListEP5CUser.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0011 CUserManager::SendConnectedBuddysList 已消除）
 void CUserManager::SendConnectedBuddysList(CUser* user)
 {
     if (user != 0)
     {
         Packet_Monitor_Reply_Buddy_List pkt;
+        CUser* buddyUser;
         int idx = 0;
         CBuddy* buddies[32];
         int count = user->GetBuddys(buddies);
         pkt.m_count = (char)count;
         while (count-- != 0)
         {
-            CUser* buddyUser = FindUser_CharNo(
-                ((STBuddyDBInfo*)buddies[idx]->getBuddyDBInfo())->m_characNo);
-            if (buddyUser != 0)
+            if ((buddyUser = FindUser_CharNo(
+                     ((STBuddyDBInfo*)buddies[idx]->getBuddyDBInfo())->m_characNo)) != 0)
             {
                 if (buddyUser->GetGameServer() != 0)
                 {
@@ -320,24 +334,25 @@ void CUserManager::SendConnectedBuddysList(CUser* user)
         }
         if (idx != 0)
         {
-            if (user->GetGameServer() == 0)
+            if (user->GetGameServer() != 0)
+            {
+                pkt.m_dbid = user->GetDBID();
+                pkt.packetSize = (unsigned short)(idx * 42 + 0xf);
+                int size = pkt.packetSize;
+                ((CServerInterface*)user->GetGameServer())
+                    ->SendToServer((char*)&pkt, size);
+            }
+            else
             {
                 DNF_LOG_SCOPE_LINE(0x34b,"./log/Except",
                     "CPacketTranslater::OnCheckBuddyList : pclCheckUser->GetGameServer() == 0");
             }
-            else
-            {
-                pkt.m_dbid = user->GetDBID();
-                unsigned short size =
-                    (unsigned short)((idx << 2) * 8 + idx * 10 + 0xf);
-                ((CServerInterface*)user->GetGameServer())
-                    ->SendToServer((char*)&pkt, (unsigned int)size);
-            }
         }
+        return;
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0010 | monitor | 与ORIG差异=DIFF | CUserManager::GetSchoolCount | 详见 function_reports/monitor/_ZN12CUserManager14GetSchoolCountEjPjRh.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0010 CUserManager::GetSchoolCount 已消除）
 void CUserManager::GetSchoolCount(unsigned int school, unsigned int* out, unsigned char& idx)
 {
     std::map<const unsigned int, std::map<unsigned char, unsigned int> >::iterator it =
@@ -349,20 +364,20 @@ void CUserManager::GetSchoolCount(unsigned int school, unsigned int* out, unsign
         int n = 0;
         std::map<unsigned char, unsigned int>* inner = &it->second;
         for (std::map<unsigned char, unsigned int>::iterator c = inner->begin();
-             c != inner->end() && n < (int)idx; ++c)
+             c != inner->end() && n < (int)idx;)
         {
             out[pos] = (unsigned int)c->first;
             pos++;
             out[pos] = c->second;
             pos++;
-            CMyFileLog log2(__FUNCTION__, 0x423);
-            log2("./log/School", "GetSchoolCount(%u) channelNo(%u) Count(%u)", school,
-                 out[pos - 2], out[pos - 1]);
+            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x423, "./log/School",
+                 "GetSchoolCount(%u) channelNo(%u) Count(%u)", school, out[pos - 2], out[pos - 1]);
+            ++c;
             n++;
         }
         idx = (unsigned char)n;
-        CMyFileLog log3(__FUNCTION__, 0x426);
-        log3("./log/School", "GetSchoolCount(%u) size(%d)", school, (unsigned int)idx);
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x426, "./log/School", "GetSchoolCount(%u) size(%d)",
+             school, (unsigned int)idx);
     }
 }
 
@@ -377,7 +392,7 @@ CDNFProhibitUser* CUserManager::FindProhibitUser(unsigned int dbid) const
     return it->second;
 }
 
-int CUserManager::DeleteProhibitUser(unsigned int dbid, char channel)
+bool CUserManager::DeleteProhibitUser(unsigned int dbid, char channel)
 {
     if (m_prohibitUsers.empty())
     {
@@ -428,7 +443,7 @@ bool CUserManager::InsertUser(const unsigned int dbid, CUser* user)
     return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-NEAR-0006 | monitor | 与ORIG差异=NEAR | CUserManager::InsertUser_CharNo | 详见 function_reports/monitor/_ZN12CUserManager17InsertUser_CharNoEjP5CUser.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-NEAR-0006 CUserManager::InsertUser_CharNo 已消除）
 bool CUserManager::InsertUser_CharNo(const unsigned int charNo, CUser* user)
 {
     if (user != 0)
@@ -437,21 +452,16 @@ bool CUserManager::InsertUser_CharNo(const unsigned int charNo, CUser* user)
         {
             return 1;
         }
-        register unsigned int dbid;
-        register char* charName;
-        register unsigned int cNo;
-        charName = user->GetCharName();
-        dbid = user->GetDBID();
-        cNo = charNo;
-        CMyFileLog log(__FUNCTION__, 0x1d0);
-        log("./log/Except",
+        // P375：guild 同族件（guild 侧已 identical）用内联实参 + 单表达式日志，
+        // 无 register 具名中间量（P373/P329 反向）。
+        DNF_LOG_SCOPE_LINE(0x1d0, "./log/Except",
             "[INSERT_ERR]Already Exist!\tChar No : %d\tDB No : %d\tChar_Name : %s\n",
-            cNo, dbid, charName);
+            charNo, user->GetDBID(), user->GetCharName());
     }
     return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-NEAR-0007 | monitor | 与ORIG差异=NEAR | CUserManager::InsertUser_CharName | 详见 function_reports/monitor/_ZN12CUserManager19InsertUser_CharNameEPcP5CUser.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-NEAR-0007 CUserManager::InsertUser_CharName 已消除）
 bool CUserManager::InsertUser_CharName(char* name, CUser* user)
 {
     if (user != 0)
@@ -460,11 +470,9 @@ bool CUserManager::InsertUser_CharName(char* name, CUser* user)
         {
             return 1;
         }
-        register unsigned int dbid = user->GetDBID();
-        register char* nm = name;
-        CMyFileLog log(__FUNCTION__, 0x211);
-        log("./log/Except", "[INSERT_ERR]Already Exist!\tChar Name : %s\tDB No : %d\n",
-            nm, dbid);
+        DNF_LOG_SCOPE_LINE(0x211, "./log/Except",
+            "[INSERT_ERR]Already Exist!\tChar Name : %s\tDB No : %d\n",
+            name, user->GetDBID());
     }
     return 0;
 }
@@ -512,7 +520,7 @@ bool CUserManager::InsertProhibitUser(const unsigned int dbid, CDNFProhibitUser*
     return 0;
 }
 
-int CUserManager::DeleteUser(unsigned int dbid)
+bool CUserManager::DeleteUser(unsigned int dbid)
 {
     if (m_users.empty())
     {
@@ -545,7 +553,7 @@ int CUserManager::DeleteUser(unsigned int dbid)
     return 0;
 }
 
-int CUserManager::DeleteUser(CUser* user)
+bool CUserManager::DeleteUser(CUser* user)
 {
     if (m_users.empty())
     {
@@ -579,6 +587,8 @@ int CUserManager::DeleteUser(CUser* user)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-NEAR-0004 | monitor | 与ORIG差异=NEAR | CUserManager::AddSchoolNo | 详见 function_reports/monitor/_ZN12CUserManager11AddSchoolNoEjh.md
+// [UserLane tried] ndiff=10 残留：仅 newInner 与 c 两局部槽互易（ORIG newInner=-0xd4/c=-0xbc，我方 c=-0xd4/newInner=-0xd0）。
+//   已试：直接初始化 c(...)、块作用域重排 —— 均无效（指令序列全同，纯 GCC-4.4 -O0 槽序）。属编译展开顺序族，勿再投入。
 void CUserManager::AddSchoolNo(unsigned int schoolNo, unsigned char channel)
 {
     std::map<const unsigned int, std::map<unsigned char, unsigned int> >::iterator it =
@@ -640,7 +650,7 @@ unsigned int CUserManager::Size()
     return (unsigned int)m_users.size();
 }
 
-int CUserManager::DeleteUser_CharNo(unsigned int charNo)
+bool CUserManager::DeleteUser_CharNo(unsigned int charNo)
 {
     if (m_charNoUsers.empty() || charNo == 0)
     {

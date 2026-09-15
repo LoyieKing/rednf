@@ -31,7 +31,7 @@ struct __attribute__((packed)) STGuildJoinInfo
     char m_pad39[3];           // +0x39
 };
 
-struct STTodayGuildMember
+struct __attribute__((packed)) STTodayGuildMember
 {
     unsigned int m_characNo; // +0（SQL charac_no）
     char m_name[0x1e];       // +4（charac_name，get_str 0x1d）
@@ -229,7 +229,7 @@ class Packet_DBMW_Request_BlackList : public PacketHeader
 public:
     unsigned int m_mid;      // +0xa
     char m_name[0x1e];       // +0xe
-    int m_characNo;          // +0x2c
+    unsigned int m_characNo; // +0x2c（P211：ORIG 单段装载，字段与局部同型）
     int m_result;            // +0x30（仅 Register 使用）
 } __attribute__((packed));
 
@@ -332,7 +332,7 @@ public:
     unsigned char m_a;            // +0xa
     unsigned int m_guildId;       // +0xb（SQL guild_id）
     unsigned int m_id;            // +0xf（SQL m_id；0 时清空 m_info.m_member.m_name）
-    unsigned int m_characNo;      // +0x13（SQL charac_no）
+    int m_characNo;               // +0x13（SQL charac_no；ORIG 与 BoardInfo::m_characNo 同型 int）
     BoardInfo m_info;             // +0x17
 } __attribute__((packed));
 
@@ -519,47 +519,9 @@ public:
     short m_intervalSec;     // +0xa（SQL collect_interval.value）
 } __attribute__((packed));
 
-class Packet_Frame_Lag_Statistic_Result_Reload_Spec : public PacketHeader
-{
-public:
-    Packet_Frame_Lag_Statistic_Result_Reload_Spec();
-    unsigned char m_loadSeq;             // +0xa（回显请求序号）
-    int m_batchIndex;                    // +0xb（每 6 条发送后自增）
-    int m_count;                         // +0xf
-    int m_uniqueId[6];                   // +0x13
-    unsigned int m_modifyTime[6];        // +0x2b
-    int m_specId[6];                     // +0x43
-    unsigned char m_cpuVendor[6];        // +0x5b
-    unsigned char m_cpuProcessorNum[6];  // +0x61
-    int m_aboveCpuClock[6];              // +0x67
-    int m_belowCpuClock[6];              // +0x7f
-    unsigned short m_ram[6];             // +0x97
-    int m_videocardVendor[6];            // +0xa3
-    int m_videocardDevice[6];            // +0xbb
-    unsigned short m_videocardTextureMem[6]; // +0xd3
-    unsigned char m_osVersion[6];        // +0xdf
-} __attribute__((packed));
-
-class Packet_Frame_Lag_Statistic_Result_Load_Spec : public PacketHeader
-{
-public:
-    Packet_Frame_Lag_Statistic_Result_Load_Spec();
-    unsigned char m_loadSeq;             // +0xa（回显请求序号）
-    int m_batchIndex;                    // +0xb（每 6 条发送后自增）
-    int m_count;                         // +0xf
-    int m_uniqueId[6];                   // +0x13
-    unsigned int m_modifyTime[6];        // +0x2b
-    int m_specId[6];                     // +0x43
-    unsigned char m_cpuVendor[6];        // +0x5b
-    unsigned char m_cpuProcessorNum[6];  // +0x61
-    int m_aboveCpuClock[6];              // +0x67
-    int m_belowCpuClock[6];              // +0x7f
-    unsigned short m_ram[6];             // +0x97
-    int m_videocardVendor[6];            // +0xa3
-    int m_videocardDevice[6];            // +0xbb
-    unsigned short m_videocardTextureMem[6]; // +0xd3
-    unsigned char m_osVersion[6];        // +0xdf（总大小 0xe5）
-} __attribute__((packed));
+// [2026-09-15] 唯一声明点已移到 shared/packet/include（statics 侧也要看真实类型）
+#include "Packet_Frame_Lag_Statistic_Result_Reload_Spec.h"
+#include "Packet_Frame_Lag_Statistic_Result_Load_Spec.h"
 
 class Packet_Frame_Lag_Statistic_Load_Spec : public PacketHeader
 {
@@ -631,9 +593,9 @@ class Packet_Response_IPCounterList : public PacketHeader
 {
 public:
     Packet_Response_IPCounterList();
-    char m_batchFlag;    // +0xa（0=首包 1=中间 2=末包）
-    char m_count;        // +0xb
-    char m_rest[0xbb8];  // 数据区（ORIG ctor size 0xbc4）
+    unsigned char m_batchFlag;   // +0xa（0=首包 1=中间 2=末包；R6 第三形态读取侧零扩展）
+    unsigned char m_count;   // +0xb（R6 第三形态：ORIG 读取侧 movzbl ⇒ 零扩展）
+    unsigned char m_rest[0xbb8];  // 数据区（ORIG ctor size 0xbc4；R6 第三形态：ORIG 读取侧零扩展）
 } __attribute__((packed));
 
 class Packet_DBMW_Reply_Guild_Create : public PacketHeader
@@ -650,7 +612,7 @@ class Packet_Reply_Today_Guild_Member : public PacketHeader
 {
 public:
     Packet_Reply_Today_Guild_Member();
-    int m_guildId;       // +0xa
+    unsigned int m_guildId;  // +0xa
     char m_data[0x27];   // +0xe（STTodayGuildMember，0x27 字节）
 } __attribute__((packed));
 
@@ -1044,7 +1006,7 @@ struct DnfItemInfo
 struct STGuildMemberCharacData
 {
     STGuildMemberCharacData();
-    unsigned char m_job;         // +0（OnWriteGuildBoard job）
+    signed char m_job;           // +0（OnWriteGuildBoard job；ORIG 两侧同型 signed char）
     unsigned char m_field1;      // +1（未定）
     unsigned char m_field2;      // +2（未定）
     char m_name[0x1e];           // +3（总大小 0x21）
@@ -1103,7 +1065,7 @@ struct st_full_ip_counter_list
     unsigned int m_cnt;       // +0x14（cnt）
 };
 
-struct stTowerRank_t
+struct __attribute__((packed)) stTowerRank_t
 {
     ~stTowerRank_t();
     unsigned int m_characNo;     // +0
@@ -1185,8 +1147,8 @@ class Packet_DBMW_Insert_Mail : public PacketHeader
 public:
     unsigned int m_characNo;  // +0xa
     unsigned int m_itemId;    // +0xe（InsertPostal item_id）
-    int m_addInfo;            // +0x12（InsertPostal add_info）
-    int m_extra;              // +0x16（InsertMail 第 7 参，ORIG 未使用）
+    unsigned int m_addInfo;   // +0x12（InsertPostal add_info；P211 异型：ORIG 装载经 eax→edi 中转）
+    unsigned int m_extra;     // +0x16（InsertMail 第 7 参，ORIG 未使用）
     char m_subject[0x15];     // +0x1a
     char m_content[0x100];    // +0x2f
     int m_delayHours;         // +0x12f
@@ -1607,7 +1569,7 @@ struct StackBufferContext
     {
         int m_blockIndex;  // +0
         int m_offset;      // +4
-        int m_size;        // +8
+        unsigned int m_size;  // +8（ORIG 与 allocStackBuffer 的 unsigned size 同型）
     };
     std::vector<Buffer> m_buffers;        // +0
     std::vector<unsigned char*> m_blocks; // +0xc
@@ -1699,7 +1661,7 @@ public:
 class Packet_Goldcard_Event_Statistic_STD : public PacketHeader
 {
 public:
-    GoldCardEventStatistic m_items[99]; // +0xa（99 * 0x9）
+    GoldCardEventStatistic m_items[99]; // +0xa（99 * 0x9；createCnt@+0xb、openCnt@+0xf）
 } __attribute__((packed));
 
 class Packet_DBMW_Packet_Overflow_Statistic : public PacketHeader
@@ -1753,8 +1715,55 @@ public:
 class Packet_DBMW_Loading_Time_Report : public PacketHeader
 {
 public:
-    char m_group[9];               // +0xa（server_id）
+    unsigned char m_group[9];      // +0xa（server_id；ORIG 读侧 movzbl ⇒ unsigned char）
     unsigned int m_value[9];       // +0x13（load_sec）
+} __attribute__((packed));
+
+// ---- 权力战（power war）DB 写包：ORIG 的类成员布局，供 DBManager 直接以真实成员访问 ----
+// 布局依据：Guild/PowerManager.h（ORIG 头镜像）+ DBManager 各函数的 ORIG 反汇编偏移
+// （function_reports/dbmw/_ZN10CDBManager25OnSavePowerWarPointReward*.md 等）。
+// 以真实具型参数 + 成员数组访问可复现 ORIG 的「先索引后基址」装载序（cast 表达式基址恒反序）。
+class Packet_DB_Save_Power_War_Point_Reward : public PacketHeader
+{
+public:
+    struct __attribute__((packed)) PointInfo
+    {
+        unsigned int m_guildId;  // +0
+        unsigned int m_point;    // +4
+    };
+    unsigned char m_a;            // +0xa（server_id）
+    unsigned int m_b;             // +0xb（count）
+    PointInfo m_points[0xfa];     // +0xf，步长 8
+} __attribute__((packed));
+
+class Packet_DB_Save_Power_War_User_Rank : public PacketHeader
+{
+public:
+    struct __attribute__((packed)) UserRankInfo
+    {
+        unsigned int m_characNo;  // +0
+        unsigned int m_point;     // +4
+    };
+    unsigned char m_a;            // +0xa（delete flag）
+    unsigned char m_b;            // +0xb（server_id）
+    unsigned char m_c;            // +0xc（power_side）
+    unsigned int m_d;             // +0xd（start rank）
+    unsigned int m_e;             // +0x11（count）
+    UserRankInfo m_ranks[0xfa];   // +0x15，步长 8
+} __attribute__((packed));
+
+class Packet_DB_Save_Power_War_Guild_Rank : public PacketHeader
+{
+public:
+    struct __attribute__((packed)) GuildRankInfo
+    {
+        unsigned int m_guildId;  // +0
+        unsigned int m_point;    // +4
+    };
+    unsigned char m_a;            // +0xa（server_id）
+    unsigned char m_b;            // +0xb（power_side）
+    unsigned int m_c;             // +0xc（count）
+    GuildRankInfo m_ranks[0x64];  // +0x10，步长 8
 } __attribute__((packed));
 
 #endif

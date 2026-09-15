@@ -106,7 +106,7 @@ int* CTcpDBServer::GetSockRef() { return &m_sock; }
 
 int CTcpDBServer::GetSock() { return m_sock; }
 
-char CTcpDBServer::IsValidServer()
+bool CTcpDBServer::IsValidServer()
 {
     if (m_sock != -1 && m_net != 0)
     {

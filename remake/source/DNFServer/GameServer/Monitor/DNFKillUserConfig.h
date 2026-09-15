@@ -238,7 +238,7 @@ struct stServerInfo;
 struct stTowerRankElement_t;
 struct stUserHuntingPoint;
 
-class CKillUSRConfig : public CTableBase
+class CKillUSRConfig : private CTableBase
 {
 public:
     CKillUSRConfig();

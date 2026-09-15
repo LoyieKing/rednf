@@ -69,29 +69,38 @@ unsigned char CServerHandler::GetServerGroupNo()
     return m_app->Get_ServerGroup();
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0038 | monitor | 与ORIG差异=DIFF | CServerHandler::Process | 详见 function_reports/monitor/_ZN14CServerHandler7ProcessEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原标记已消除，MonitorRest 翻正）| CServerHandler::Process | 详见 function_reports/monitor/_ZN14CServerHandler7ProcessEv.md
 void CServerHandler::Process()
 {
+    // [MonitorRest 本轮] 已归零（AE，327/327）。翻正手法：
+    //   ① 循环 update 改后置 `it++`（ORIG 为 ppEi + 临时槽）；② 三段 `if(!x) continue`
+    //   ③ `&&` 复合条件改嵌套 if（避免 bool 物化）④ 空 then(`{ } else {}`) 改正向 `!=0 && !=0`
+    //   ⑤ `gs` 用 `CGameServer*`（免 cast，对齐实参求值序）
+    //   ⑥ 返回类型 bool 化：CTcpManagerServer::IsValidServer / CTcpDBServer::IsValidServer
+    //      （char→bool，ORIG 为 `xor $0x1` 的 bool 语义）
     if (m_managerServer != 0 && m_managerHeartbeatCnt++ > 3)
     {
         m_managerServer->SendHeartBeat((int)(unsigned char)GetServerGroupNo());
         m_managerHeartbeatCnt = 0;
     }
     for (std::map<unsigned int, CGameServer*>::iterator it = m_gameServers.begin();
-         it != m_gameServers.end(); ++it)
+         it != m_gameServers.end(); it++)
     {
-        CServerInterface* gs = it->second;
+        CGameServer* gs = it->second;
         if (!gs->IsValidServer())
         {
             continue;
         }
-        if (gs->IsConnected() && gs->IsHeartBeatTimeOver())
+        if (gs->IsConnected())
         {
-            if (gs->GetChannelNo() <= 0xbd)
+            if (gs->IsHeartBeatTimeOver())
             {
-                m_app->OnGameServerDown((CGameServer*)gs);
+                if (gs->GetChannelNo() <= 0xbd)
+                {
+                    m_app->OnGameServerDown(gs);
+                }
+                gs->OnDisconnect();
             }
-            gs->OnDisconnect();
         }
     }
     if (m_dbServer == 0 || !m_dbServer->IsValidServer())
@@ -99,17 +108,17 @@ void CServerHandler::Process()
         return;
     }
     {
-        if (m_dbServer->IsConnected() && m_dbServer->IsHeartBeatTimeOver())
+        if (m_dbServer->IsConnected())
         {
-            m_dbServer->OnDisconnect();
-            DNF_LOG_SCOPE_LINE(0xdc, "./log/DBServerErr", "CServerHandler::Process() DB Server Down!\n");
+            if (m_dbServer->IsHeartBeatTimeOver())
+            {
+                m_dbServer->OnDisconnect();
+                DNF_LOG_SCOPE_LINE(0xdc, "./log/DBServerErr", "CServerHandler::Process() DB Server Down!\n");
+            }
         }
         if (m_tcpManagerServer.IsValidServer() != 1)
         {
-            if (*m_tcpManagerServer.GetIP() == '\0' || m_tcpManagerServer.GetPort() == 0)
-            {
-            }
-            else
+            if (*m_tcpManagerServer.GetIP() != '\0' && m_tcpManagerServer.GetPort() != 0)
             {
                 m_app->Get_TcpNetSystem()->OpenTcpService(*m_tcpManagerServer.GetSockRef(), m_tcpManagerServer.GetIP(),
                                     m_tcpManagerServer.GetPort());
@@ -124,10 +133,7 @@ void CServerHandler::Process()
         }
         if (m_tcpDbServer.IsValidServer() != 1)
         {
-            if (*m_tcpDbServer.GetIP() == '\0' || m_tcpDbServer.GetPort() == 0)
-            {
-            }
-            else
+            if (*m_tcpDbServer.GetIP() != '\0' && m_tcpDbServer.GetPort() != 0)
             {
                 m_app->Get_TcpNetSystem()->OpenTcpService(*m_tcpDbServer.GetSockRef(), m_tcpDbServer.GetIP(), m_tcpDbServer.GetPort());
                 DNF_LOG_SCOPE_LINE(0x13d,"./log/TcpServer", "try connect to DBMW(%s, %d)",
@@ -221,7 +227,7 @@ void* CServerHandler::GetTcpGameServer(unsigned int id)
     return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0037 | monitor | 与ORIG差异=DIFF | CServerHandler::GetTcpGameServerByCh | 详见 function_reports/monitor/_ZN14CServerHandler20GetTcpGameServerByChEh.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-MON-DIFF-0037 | monitor | 与ORIG差异=DIFF | CServerHandler::GetTcpGameServerByCh | 详见 function_reports/monitor/_ZN14CServerHandler20GetTcpGameServerByChEh.md
 CTcpGameServer* CServerHandler::GetTcpGameServerByCh(unsigned char channel)
 {
     for (std::map<unsigned int, CTcpGameServer*>::iterator it = m_tcpGameServers.begin();

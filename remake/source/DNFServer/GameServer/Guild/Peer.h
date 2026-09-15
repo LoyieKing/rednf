@@ -41,12 +41,12 @@ public:
     void ConnSig();
     char m_data[0x1800];        // +0x1c..+0x181b
     char* m_buf;                // +0x181c
-    int m_remainLen;            // +0x1820
+    unsigned int m_remainLen;   // +0x1820（ORIG unsigned：+= int 生成 edx=mem;eax=len;lea 序列）
     int m_alreadyRead;          // +0x1824
     void* m_recvQ;              // +0x1828
     void* m_bLock;              // +0x182c
     void* m_qLock;              // +0x1830
-    int m_sendRemain;           // +0x1834
+    unsigned int m_sendRemain;  // +0x1834
     char* m_sendPtr;            // +0x1838
     char m_sendBuf[0x96000];    // +0x183c
     unsigned int m_field9783c;  // +0x9783c

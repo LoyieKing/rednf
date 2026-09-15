@@ -251,7 +251,7 @@ public:
     void SetServerInfo(stServerInfo* info);
     bool IsValidServer();
     bool IsConnected();
-    char IsHeartBeatTimeOver();
+    bool IsHeartBeatTimeOver();
     unsigned char GetChannelNo();
     void OnDisconnect();
     void SetConnFlag(bool flag);

@@ -98,12 +98,9 @@ CServerHandler::~CServerHandler()
 
 void CServerHandler::Load(std::multimap<unsigned int, stServerInfo*>* map)
 {
-    if (map == 0)
-    {
-        return;
-    }
+    // [P349] ORIG 无 map 判空守卫（多余守卫会多发 2 条 + 尾 jmp）
     for (std::multimap<unsigned int, stServerInfo*>::iterator it = map->begin();
-         it != map->end(); ++it)
+         it != map->end(); it++)
     {
         stServerInfo* info = it->second;
         if (info->m_field2 == 1)
@@ -164,8 +161,7 @@ void CServerHandler::Load(std::multimap<unsigned int, stServerInfo*>* map)
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0025 | guild | 与ORIG差异=DIFF | CServerHandler::Process | 详见 function_reports/guild/_ZN14CServerHandler7ProcessEv.md
 void CServerHandler::Process()
 {
-    if (m_managerServer != 0 &&
-        (m_heartbeat = m_heartbeat + 1, !(m_heartbeat - 1 < 4)))
+    if (m_managerServer != 0 && m_heartbeat++ > 3)
     {
         m_managerServer->SendHeartBeat(GetServerGroupNo() & 0xff);
         m_heartbeat = 0;
@@ -174,23 +170,40 @@ void CServerHandler::Process()
          it != m_gameServers.end(); it++)
     {
         CGameServer* gs = it->second;
-        if (gs->IsValidServer() && gs->IsConnected() && gs->IsHeartBeatTimeOver())
+        if (!gs->IsValidServer())
         {
-            if (gs->GetChannelNo() < 0xbe)
+            continue;
+        }
+        if (gs->IsConnected())
+        {
+            if (gs->IsHeartBeatTimeOver())
             {
-                m_app->OnGameServerDown(gs);
+                if (gs->GetChannelNo() < 0xbe)
+                {
+                    m_app->OnGameServerDown(gs);
+                }
+                gs->OnDisconnect();
             }
-            gs->OnDisconnect();
         }
     }
     if (m_dbServer == 0 || !m_dbServer->IsValidServer())
     {
         return;
     }
-    if (m_dbServer->IsConnected() && m_dbServer->IsHeartBeatTimeOver())
+    // [2026-09-15 GuildA] 拆成嵌套 if 以复现 ORIG 的无物化短路：写成
+    //   `if (IsConnected() && IsHeartBeatTimeOver())` 时 GCC 4.4 -O0 会在此 `&&`
+    //   之后物化 bool（多 `mov $1,%eax; jmp; mov $0,%eax; test; je` 共 5 条）。
+    //   ORIG 无该物化（`test; je` 后直接 OnDisconnect）⇒ 原码即两层嵌套 if。
+    //   反例：同一函数里 `m_dbServer == 0 || !m_dbServer->IsValidServer()` 那处
+    //   ORIG **有**物化，必须保持 `||` 原样（拆开会劣化到 11）。
+    //   实测本件 ndiff 5 → 0（orig 236 / ours 236 / equal 236）。
+    if (m_dbServer->IsConnected())
     {
-        m_dbServer->OnDisconnect();
-        DNF_LOG_SCOPE_LINE(0xea, "./log/DBServerErr", "CServerHandler::Process() DB Server Down!\n");
+        if (m_dbServer->IsHeartBeatTimeOver())
+        {
+            m_dbServer->OnDisconnect();
+            DNF_LOG_SCOPE_LINE(0xea, "./log/DBServerErr", "CServerHandler::Process() DB Server Down!\n");
+        }
     }
     if (!m_tcpDbServer.IsValidServer())
     {
@@ -203,8 +216,7 @@ void CServerHandler::Process()
                 (unsigned int)m_tcpDbServer.GetPort());
         }
     }
-    m_hbCnt = m_hbCnt + 1;
-    if (m_hbCnt - 1 > 3)
+    if (m_hbCnt++ > 3)
     {
         m_tcpDbServer.SendHeartbeat();
         m_hbCnt = 0;

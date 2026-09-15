@@ -169,7 +169,7 @@ void* EpollHandler::GetEventPtr(int idx)
     return m_events[idx].data.ptr;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0006、DNF-GLD-DIFF-0007 | guild | 与ORIG差异=DIFF | CTcpHandler::CTcpHandler | 详见 function_reports/guild/_ZN11CTcpHandlerC1Ev.md、function_reports/guild/_ZN11CTcpHandlerC2Ev.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0006、DNF-GLD-DIFF-0007 | guild | 与ORIG差异=DIFF | CTcpHandler::CTcpHandler | 详见 function_reports/guild/_ZN11CTcpHandlerC1Ev.md、function_reports/guild/_ZN11CTcpHandlerC2Ev.md
 CTcpHandler::CTcpHandler()
 {
     m_epoll = new EpollHandler;

@@ -28,7 +28,7 @@
 #include "DNFPacketTranslater.h"
 #include "DNFServerHandler.h"
 
-char CAppLoadChecker::CheckTcpRecvQ(int size)
+bool CAppLoadChecker::CheckTcpRecvQ(int size)
 {
     if (checkTcpRecvLoad(size))
     {
@@ -38,7 +38,7 @@ char CAppLoadChecker::CheckTcpRecvQ(int size)
     return 0;
 }
 
-char CAppLoadChecker::CheckUdpRecvQ(int size)
+bool CAppLoadChecker::CheckUdpRecvQ(int size)
 {
     if (checkUdpRecvLoad(size))
     {

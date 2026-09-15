@@ -85,7 +85,10 @@ void CCashObject::SetBuddysObject(CBuddy** buddies, int count)
 
 void CCashObject::SetBlackUsersObject(std::map<unsigned int, CBlackUser*>& map)
 {
-    if (!map.empty())
+    if (map.empty())
+    {
+    }
+    else
     {
         m_blackUsers.clear();
         for (std::map<unsigned int, CBlackUser*>::iterator it = map.begin();
@@ -94,6 +97,7 @@ void CCashObject::SetBlackUsersObject(std::map<unsigned int, CBlackUser*>& map)
             m_blackUsers.insert(std::make_pair(it->first, it->second));
         }
     }
+    return;
 }
 
 void CCashObject::SetLifeTime(unsigned int lifeTime) { m_lifeTime = lifeTime; }
@@ -109,7 +113,21 @@ void CCashObject::DeleteMemberObject()
     m_memberObject = 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-NEAR-0003 | monitor | 与ORIG差异=NEAR | CCashObject::GetBuddysObject | 详见 function_reports/monitor/_ZN11CCashObject15GetBuddysObjectEPP6CBuddy.md
+// [P210 定义前置] ClearBuddys 的定义必须先于 GetBuddysObject：4.4 在调用点看不到体时
+// 按「可能抛出」预留 outgoing/EH 空间（帧 0x28、i 落 -0xc）；定义前置后与 ORIG 同形
+// （帧 0x14、i 落 -0x4）。逐条实证 /tmp/mon9/probe4.cpp g6 vs h1。
+void CCashObject::ClearBuddys()
+{
+    for (int i = 0; i <= 0x1f; i++)
+    {
+        if (m_buddys[i] != 0)
+        {
+            m_buddys[i] = 0;
+        }
+    }
+}
+
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-NEAR-0003 已消除）
 int CCashObject::GetBuddysObject(CBuddy** buddies)
 {
     int i = 0;
@@ -160,18 +178,7 @@ void CCashObject::DeleteBlackUsers()
     return;
 }
 
-void CCashObject::ClearBuddys()
-{
-    for (int i = 0; i <= 0x1f; i++)
-    {
-        if (m_buddys[i] != 0)
-        {
-            m_buddys[i] = 0;
-        }
-    }
-}
-
-char CCashObject::IsLifeTimeOut()
+bool CCashObject::IsLifeTimeOut()
 {
     if (m_lifeTime == -1)
     {

@@ -249,12 +249,12 @@ public:
     void incMemberCashCnt();
     void incBlackListCashCnt();
     char QueryCashMemoryMember(CUser* user);
-    int QueryCashMemoryBuddyInfo(CUser* user);
-    char QueryCashMemoryBlackList(CUser* user);
+    bool QueryCashMemoryBuddyInfo(CUser* user);
+    bool QueryCashMemoryBlackList(CUser* user);
     bool QueryUpdatedCharacName(unsigned int charNo, std::string& name);
     void InsertUpdatedCharacName(unsigned int dbid, const std::string& name);
     void DeleteCashObjecct(unsigned int dbid);
-    char IsRightObject(CUser* user, CMember* member, bool& flag1, bool& flag2, bool& flag3);
+    bool IsRightObject(CUser* user, CMember* member, bool& flag1, bool& flag2, bool& flag3);
     int InsertCashMemorySetCharacterObject(CUser* user, CMember* member, bool& flag1,
                                            bool& flag2);
     bool SetUserObject(CUser* user);

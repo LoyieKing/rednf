@@ -259,7 +259,7 @@ public:
     char GetGrowthType();
     unsigned int GetIdByChannel();
     char* GetCharName();
-    char IsBlackUser(unsigned int key);
+    bool IsBlackUser(unsigned int key);
     unsigned char GetUpperMemberExpLevel();
     int GetConnLowerMemberCnt();
     class CMember* GetMember();
@@ -291,7 +291,7 @@ public:
     void SetUserChangableInfo(short level, char flag);
     void ResetChannelUserCount(int count);
     void SetChannelUserCount(int a, int b, int c, int d);
-    char IsCompleteChannelUserCount();
+    bool IsCompleteChannelUserCount();
     void GetChannelUserCount(struct STPvPChannelInfo* out, unsigned char& count);
     void MemberEnterProcess();
     void ResetCharInfo(bool flag);
@@ -310,14 +310,14 @@ public:
     void GetBlackList(unsigned char& count, struct STBlackUserDBType* out);
     void GetBlackList(unsigned char& count, unsigned int* out);
     unsigned int GetBlackListSize();
-    char RegisterToBlackList(unsigned int charNo, char* name);
+    bool RegisterToBlackList(unsigned int charNo, char* name);
     char RegisterToBlackList(unsigned int charNo, char* name, unsigned int time);
-    int DeleteToBlackList(unsigned int charNo);
+    bool DeleteToBlackList(unsigned int charNo);
     void SendBlackList();
     unsigned int GetMemberEnterCallerId();
-    char CheckPrevCallMemberEnter();
+    bool CheckPrevCallMemberEnter();
     void ResetRequestMemberEnter();
-    char RecordCallMemberEnter(unsigned int callerId, unsigned short count);
+    bool RecordCallMemberEnter(unsigned int callerId, unsigned short count);
     unsigned short GetMemberDBFlag();
     void SetMemberRegisterFlag(bool flag);
     bool IsAbleToRegisterMember();

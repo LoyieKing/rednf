@@ -16,6 +16,7 @@
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
 
+#include "../Game/ST_Guild_War_Rank_Info.h"
 #include "DNFGuildWar.h"
 #include "BlackUser.h"
 #include "CashObject.h"
@@ -157,7 +158,7 @@ void CGuildWar::GetGuildWarInfo(unsigned int* a, unsigned int* b, unsigned short
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0149 | guild | 与ORIG差异=DIFF | CGuildWar::GetGuildWarInfo | 详见 function_reports/guild/_ZN9CGuildWar15GetGuildWarInfoEP22ST_Guild_War_Rank_Info.md
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0149 | guild | 与ORIG差异=DIFF | CGuildWar::GetGuildWarInfo | 详见 function_reports/guild/_ZN9CGuildWar15GetGuildWarInfoEP22ST_Guild_War_Rank_Info.md
 void CGuildWar::GetGuildWarInfo(ST_Guild_War_Rank_Info* info)
 {
     if (info == 0)
@@ -170,11 +171,10 @@ void CGuildWar::GetGuildWarInfo(ST_Guild_War_Rank_Info* info)
     {
         if (it->second != 0)
         {
-            *(unsigned int*)(count * 0x21 + (char*)info) = it->second->m_guildKey;
-            *(unsigned int*)(count * 0x21 + (char*)info + 4) = it->second->m_point;
-            memcpy(count * 0x21 + (char*)info + 10, it->second->m_data, 0x16);
-            // ORIG: count 字段写在“本条目”（旧 count 索引），值是 ++count
-            *(short*)(count * 0x21 + (char*)info + 8) = (short)++count;
+            info[count].m_field0 = it->second->m_guildKey;
+            info[count].m_field4 = it->second->m_point;
+            memcpy(info[count].m_pad0a, it->second->m_data, 0x16);
+            info[count].m_field8 = (short)++count;
         }
     }
 }
@@ -227,7 +227,10 @@ void CGuildWar::Clear_VtGuildWarInfo()
 bool GuildWarPairDataCompare(const std::pair<unsigned int, STGuildWarInfo*>& a,
                              const std::pair<unsigned int, STGuildWarInfo*>& b)
 {
-    return b.second->m_point < a.second->m_point;
+    // [2026-09-15 修复] ORIG 0x8066b34 先载 0x8(%ebp)（a）再载 0xc(%ebp)（b），
+    //   尾为 `cmp %eax,%edx; seta %al` ⇒ 原码是 `a > b`（写成 `b < a` 会反出
+    //   setb + 装载序颠倒；两者语义同为降序比较器）。
+    return a.second->m_point > b.second->m_point;
 }
 
 bool CGuildWar::Rank()
@@ -246,8 +249,8 @@ bool CGuildWar::Rank()
     return 0;
 }
 
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0147 | guild | 与ORIG差异=DIFF | CGuildWar::SameRankWork | 详见 function_reports/guild/_ZN9CGuildWar12SameRankWorkEv.md
-int CGuildWar::SameRankWork()
+// [DNF-IDENTICAL（2026-09-15 复核：已 identical ✓）] DNF-GLD-DIFF-0147 | guild | 与ORIG差异=DIFF | CGuildWar::SameRankWork | 详见 function_reports/guild/_ZN9CGuildWar12SameRankWorkEv.md
+bool CGuildWar::SameRankWork()
 {
     if (m_vtGuildWarInfo.empty())
     {
@@ -281,8 +284,10 @@ int CGuildWar::SameRankWork()
         std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator maxIt;
         std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it2;
         std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator maxItTmp;
-        it2 = m_vtGuildWarInfo.begin();
-        maxIt = it2;
+        // [2026-09-15 GuildA] ORIG 在 `maxIt = it2` 处经引用读 it2（lea+mov (%eax)）：
+        //   原码是**链式赋值** `maxIt = it2 = begin()`（GCC O0 对内层赋值结果经地址取）。
+        //   实测 ndiff 2→0。
+        maxIt = it2 = m_vtGuildWarInfo.begin();
         if ((*maxIt).second == 0)
         {
             return 0;
@@ -297,6 +302,9 @@ int CGuildWar::SameRankWork()
                 maxItTmp = it2;
             }
         }
+        // [2026-09-15 GuildA] X3 判据：ORIG 此处调 `_Rb_tree_iterator::operator*`（de），
+        //   写成 `maxIt->second` 会调 `operator->`（ptEv）⇒ 剥目标口径（.o, mdiff）看不到
+        //   该差异，服务级 `compare_svc_full`/`mdiff_ta` 判为 NEAR。改 `(*maxIt).second` 后对齐。
         if ((*maxIt).second->m_field[6] != maxVal)
         {
             DNFFLib::Swap<STGuildWarInfo>((*maxIt).second, (*maxItTmp).second);
@@ -366,6 +374,8 @@ void CGuildWar::DBSaveProcess(CApplication* app)
         return;
     }
     m_bSaveCnt++;
+    // [2026-09-15 实测] 删 `register` 使 ndiff 11→13（反而多 save %ebx）⇒ 保留关键字；
+    //   残余 push %ebx / `sete %bl` 与 ORIG（`sub $0x78` + `sete %al`）的差按 N7/N18a 封顶。
     register bool bZero = (m_bSaveCnt == 0);
     if (bZero)
     {

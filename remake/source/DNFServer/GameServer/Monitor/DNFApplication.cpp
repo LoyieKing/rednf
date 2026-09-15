@@ -153,7 +153,7 @@ CInitAccusationListMgr::CInitAccusationListMgr(CApplication& app)
 
 CInitAccusationListMgr::~CInitAccusationListMgr() {}
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0040 | monitor | 与ORIG差异=DIFF | init_accusation::CInitAccusationListMgr::setSchedule | 详见 function_reports/monitor/_ZN15init_accusation22CInitAccusationListMgr11setScheduleERKb.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0040 已消除）
 bool CInitAccusationListMgr::setSchedule(bool const& flag)
 {
     time_t t = GetNowTime();
@@ -164,10 +164,9 @@ bool CInitAccusationListMgr::setSchedule(bool const& flag)
     time_t next = mktime(lt);
     if (flag)
     {
-        next = next + 0x15180;
+        next = next + 86400u;  // ORIG: mov/add/mov(无符号常量阻止 add-mem 折叠)
     }
-    CInitAccusationList* list = new CInitAccusationList(next, 0, this);
-    m_app->GetTaskScheduler()->AddTask(list);
+    m_app->GetTaskScheduler()->AddTask(new CInitAccusationList(next, 0, this));
     return true;
 }
 
@@ -177,7 +176,7 @@ CApplication* CInitAccusationListMgr::getApp() const
 }
 
 CInitAccusationList::CInitAccusationList(unsigned int time, unsigned int flag,
-                                         CInitAccusationListMgr* mgr)
+                                         CInitAccusationListMgr* mgr) throw()
     : CTask(time, flag)
 {
     m_mgr = mgr;
@@ -279,14 +278,26 @@ void CApplication::Init(int argc, char** argv)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0006 | monitor | 与ORIG差异=DIFF | CApplication::Load | 详见 function_reports/monitor/_ZN12CApplication4LoadEiPPc.md
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0006 | monitor | 与ORIG差异=NEAR | CApplication::Load | 详见 function_reports/monitor/_ZN12CApplication4LoadEiPPc.md
+//   2026-09-15 AppLane 已消形态：三个 Packet_* 声明下移到各自用点 block（ORIG ctor 在 786/900/926 行）；
+//   CInnerMsgHandler 与 TowerOfDespairReloadAPC_Task 的 ctor 加 throw()（消除我方多余的 3 个
+//   _ZdlPv 清理块，16→13 与 ORIG 一致）；`(int)CTask_ChristmasEvent::getEventEndTime()`（setae→setge）；
+//   TowerOfDespairReloadAPC_Task* 具名局部 reloadTask；DNFApplication.h 的 m_udpThread 改基类指针
+//   CThreadInterface*（ORIG new 赋值处有 `mov %ebx,%eax; mov %eax,%edx` 指针调整）；
+//   try 首行补一个未引用的 `int reservedSlot;`（S5：ORIG 有此不可见占位，决定后续槽分配起点；
+//   放别处或换 char[4] 均劣化）。
+//   另去掉 Mgr/Db 两个 TCP 配置块的 `{}`（S1：块层级进槽分配，去掉后 -0x20..-0x38 区对齐，77→53→27）。
+//   余差 ndiff=27（orig/ours 均为 1110 条、帧同为 0x18c）：pt 区(-0xc0..-0xe8)、pkt1 区(-0x15c..-0x16b)、
+//   -0xae..-0xb8 区均**深 4**（占位引起的反向偏移，去掉占位则这些区对齐但浅区回退 ⇒ 66）。
+//   三连分诊（2026-09-15）：ORIG/我方槽集 46/46 相同、长度 1110/1110 相同、帧同为 0x18c
+//   ⇒ **排除「重建遗漏」族**，余差是单纯的整体槽偏移。
+//   已试无效（勿重复）：now/pt 四种声明位置（block 版 139）；占位换位置（外层/try 首/pt 之后/末位，非 try 首均 77）；
+//   第二个占位（try 首 142、mgr 块前 142、db 块内 118）；`char reservedSlot[4]`（S1 前 139 / S1 后 89）；去 pkt1 块花括号（27 不变）。
 void CApplication::Load(int argc, char** argv)
 {
-    Packet_Item_Limit_Edition_Load_Data_Req pktLoadItemLimit;
-    Packet_Load_Periodic_Message pktLoadPeriodic;
-    LimitNpcBuyItemRequestInfo pktLoadLimitNpc;
     try
     {
+        int reservedSlot;
         m_memoryCash = new CMemoryCashManager;
         m_memoryCash->Init(this);
         m_userManager.Init(this);
@@ -296,114 +307,109 @@ void CApplication::Load(int argc, char** argv)
         m_memberManager.Init(this, &m_userManager, m_memberConfig, m_memberExpTbl);
 
         m_appConfig->Load_Table(argv[1]);
-        m_frameCount.InitFrameCountInfo(this, m_appConfig->Get_FrameCountValue(), 0x3e8);
+        m_frameCount.InitFrameCountInfo(this, ((CAppConfig*)m_appConfig)->Get_FrameCountValue(), 0x3e8);
 
         m_udpHandler = new CUdpHandler;
-        if (m_udpHandler->InitServerSocket(m_appConfig->Get_ServerUdpPort()) == -1)
+        if (m_udpHandler->InitServerSocket(((CAppConfig*)m_appConfig)->Get_ServerUdpPort()) == -1)
         {
             throw CDNFException("CApplication::Load() Init Server Udp Socket Exception Break!");
         }
 
         m_serverHandler2 = new CServerHandler;
         m_serverHandler2->Attach(this);
-        m_serverHandler2->Load(m_appConfig->GetServerInfoMap());
+        m_serverHandler2->Load(((CAppConfig*)m_appConfig)->GetServerInfoMap());
         CPacketTranslater::attach(this);
         m_innerMsgHandler = new CInnerMsgHandler;
         CPacketDecoderInstance()->Attach(this);
         m_udpThread = new CUdpNetworkThread;
-        m_udpThread->attach(this);
+        ((CUdpNetworkThread*)m_udpThread)->attach(this);
         if (!m_udpThread->begin())
         {
             throw;
         }
 
-        m_tcpNetSystem.Init(m_appConfig->Get_ServerTcpPort());
+        m_tcpNetSystem.Init(((CAppConfig*)m_appConfig)->Get_ServerTcpPort());
         {
             DNF_LOG_SCOPE_LINE(0x1ba, "./log/Tcp", "App Load : Network system (%x)", &m_tcpNetSystem);
         }
 
+        const char* mgrIp = ((CAppConfig*)m_appConfig)->Get_ManagerTcpIP();
+        unsigned short mgrPort = ((CAppConfig*)m_appConfig)->Get_ManagerTcpPort();
+        CTcpManagerServer* mgr = m_serverHandler2->GetTcpManagerServer();
+        if (*mgrIp != '\0' && mgrPort != 0)
         {
-            const char* mgrIp = m_appConfig->Get_ManagerTcpIP();
-            unsigned short mgrPort = m_appConfig->Get_ManagerTcpPort();
-            CTcpManagerServer* mgr = (CTcpManagerServer*)m_serverHandler2->GetTcpManagerServer();
-            if (*mgrIp != '\0' && mgrPort != 0)
+            mgr->Init(&m_tcpNetSystem);
+            mgr->SetIP(mgrIp);
+            mgr->SetPort(mgrPort);
+            // [2026-09-14 修复] 极性反了：ORIG CTcpNetSystem::OpenTcpService
+            //   0x08053afd `mov eax,1` = **成功返 1**、0x080539e9 `mov eax,0` = 失败返 0；
+            //   而 ORIG monitor 连接成功时打印的是 **Success!**（A/B 两轮稳定实测）。
+            //   旧转写判 `== 1 → Fail` ⇒ 成功报 Fail、失败报 Success，正好相反。
+            if (m_tcpNetSystem.OpenTcpService(*mgr->GetSockRef(), mgrIp, mgrPort) == 0)
             {
-                mgr->Init(&m_tcpNetSystem);
-                mgr->SetIP(mgrIp);
-                mgr->SetPort(mgrPort);
-                // [2026-09-14 修复] 极性反了：ORIG CTcpNetSystem::OpenTcpService
-                //   0x08053afd `mov eax,1` = **成功返 1**、0x080539e9 `mov eax,0` = 失败返 0；
-                //   而 ORIG monitor 连接成功时打印的是 **Success!**（A/B 两轮稳定实测）。
-                //   旧转写判 `== 1 → Fail` ⇒ 成功报 Fail、失败报 Success，正好相反。
-                if (m_tcpNetSystem.OpenTcpService(*mgr->GetSockRef(), mgrIp, mgrPort) == 0)
-                {
-                    printf("Application OpenTcpService(%s, %d) Fail!\n", mgrIp, mgrPort);
-                    DNF_LOG_SCOPE_LINE(0x1d3,"./log/TcpServer", "Application OpenTcpService(%s, %d, %d) Fail!",
-                        mgrIp, mgrPort, mgr->GetSock());
-                }
-                else
-                {
-                    DNF_LOG_SCOPE_LINE(0x1dc,"./log/TcpServer", "Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!",
-                        mgr->GetSock(), mgrIp, mgrPort);
-                    printf("Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!\n",
-                        mgr->GetSock(), mgrIp, mgrPort);
-                }
+                printf("Application OpenTcpService(%s, %d) Fail!\n", mgrIp, mgrPort);
+                DNF_LOG_SCOPE_LINE(0x1d3,"./log/TcpServer", "Application OpenTcpService(%s, %d, %d) Fail!",
+                    mgrIp, mgrPort, mgr->GetSock());
             }
             else
             {
-                puts("Application TCP cfg empty!");
-                DNF_LOG_SCOPE_LINE(0x1e4, "./log/TcpServer", "Application TCP cfg empty!");
+                DNF_LOG_SCOPE_LINE(0x1dc,"./log/TcpServer", "Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!",
+                    mgr->GetSock(), mgrIp, mgrPort);
+                printf("Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!\n",
+                    mgr->GetSock(), mgrIp, mgrPort);
             }
         }
-
+        else
         {
-            const char* dbIp = m_appConfig->Get_DBMWTcpIP();
-            unsigned short dbPort = m_appConfig->Get_DBMWTcpPort();
-            CTcpDBServer* db = (CTcpDBServer*)m_serverHandler2->GetTcpDBServer();
-            if (*dbIp != '\0' && dbPort != 0)
+            puts("Application TCP cfg empty!");
+            DNF_LOG_SCOPE_LINE(0x1e4, "./log/TcpServer", "Application TCP cfg empty!");
+        }
+        const char* dbIp = ((CAppConfig*)m_appConfig)->Get_DBMWTcpIP();
+        unsigned short dbPort = ((CAppConfig*)m_appConfig)->Get_DBMWTcpPort();
+        CTcpDBServer* db = m_serverHandler2->GetTcpDBServer();
+        if (*dbIp != '\0' && dbPort != 0)
+        {
+            db->Init(&m_tcpNetSystem);
+            db->SetIP(dbIp);
+            db->SetPort(dbPort);
+            // 同上：OpenTcpService 成功返 1 ⇒ 失败分支判 == 0
+            if (m_tcpNetSystem.OpenTcpService(*db->GetSockRef(), dbIp, dbPort) == 0)
             {
-                db->Init(&m_tcpNetSystem);
-                db->SetIP(dbIp);
-                db->SetPort(dbPort);
-                // 同上：OpenTcpService 成功返 1 ⇒ 失败分支判 == 0
-                if (m_tcpNetSystem.OpenTcpService(*db->GetSockRef(), dbIp, dbPort) == 0)
-                {
-                    printf("Application OpenTcpService(%s, %d) Fail!\n", dbIp, dbPort);
-                    DNF_LOG_SCOPE_LINE(0x200,"./log/TcpServer", "Application OpenTcpService(%s, %d, %d) Fail!",
-                        dbIp, dbPort, db->GetSock());
-                }
-                else
-                {
-                    DNF_LOG_SCOPE_LINE(0x209,"./log/TcpServer", "Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!",
-                        db->GetSock(), dbIp, dbPort);
-                    printf("Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!\n",
-                        db->GetSock(), dbIp, dbPort);
-                }
+                printf("Application OpenTcpService(%s, %d) Fail!\n", dbIp, dbPort);
+                DNF_LOG_SCOPE_LINE(0x200,"./log/TcpServer", "Application OpenTcpService(%s, %d, %d) Fail!",
+                    dbIp, dbPort, db->GetSock());
             }
             else
             {
-                puts("Application TCP cfg empty!");
-                DNF_LOG_SCOPE_LINE(0x211, "./log/TcpServer", "Application TCP cfg empty!");
+                DNF_LOG_SCOPE_LINE(0x209,"./log/TcpServer", "Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!",
+                    db->GetSock(), dbIp, dbPort);
+                printf("Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!\n",
+                    db->GetSock(), dbIp, dbPort);
             }
         }
-
-        srand((unsigned int)(m_appConfig->Get_ServerUdpPort() + time(0)));
+        else
+        {
+            puts("Application TCP cfg empty!");
+            DNF_LOG_SCOPE_LINE(0x211, "./log/TcpServer", "Application TCP cfg empty!");
+        }
+        srand((unsigned int)(((CAppConfig*)m_appConfig)->Get_ServerUdpPort() + time(0)));
 
         m_taskScheduler = new CTaskScheduler;
-        if (CTask_ChristmasEvent::getEventEndTime() >= (int)time(0))
+        if ((int)CTask_ChristmasEvent::getEventEndTime() >= (int)time(0))
         {
             m_taskScheduler->AddTask(new CTask_ChristmasEvent(CTask_ChristmasEvent::MakeEventStartTick(0), 0));
         }
-        m_taskScheduler->AddTask(new TowerOfDespairReloadAPC_Task(0, 0));
+        TowerOfDespairReloadAPC_Task* reloadTask = new TowerOfDespairReloadAPC_Task(0, 0);
+        m_taskScheduler->AddTask(reloadTask);
 
         m_itemLimitMgr = new CItemLimitEditionMgr;
         {
+            Packet_Item_Limit_Edition_Load_Data_Req pktLoadItemLimit;
             pktLoadItemLimit.m_fullLoad = 1;
             pktLoadItemLimit.m_serverType = Get_ServerGroup();
             pktLoadItemLimit.m_loadTargetNum = 0;
             m_serverHandler2->SendToDB(&pktLoadItemLimit);
         }
-
         m_ipCounter = new CIPCounter;
         m_ipCounter->Init(m_serverHandler2);
 
@@ -420,19 +426,19 @@ void CApplication::Load(int argc, char** argv)
         m_gmAccounts = new WongWork::CGMAccounts;
         m_periodicMsg = new CPeriodicMessageMgr;
         {
+            Packet_Load_Periodic_Message pktLoadPeriodic;
             m_serverHandler2->SendToDB(&pktLoadPeriodic);
         }
         m_limitNpc = new LimitNpcBuyItemManager;
         {
+            LimitNpcBuyItemRequestInfo pktLoadLimitNpc;
             m_serverHandler2->SendToDB(&pktLoadLimitNpc);
         }
 
         m_collectItms = new CollectItms;
-        {
-            time_t now = time(0);
-            tm pt = *localtime(&now);
-            m_timeSyncHour = (short)pt.tm_hour;
-        }
+        time_t now = time(0);
+        tm pt = *localtime(&now);
+        m_timeSyncHour = (short)pt.tm_hour;
 
         m_towerRank = new CTowerRank;
         m_towerRank->processReloadRanking(m_serverHandler2, true, 10000);
@@ -657,7 +663,7 @@ void CApplication::SwitchQueueUDP()
     else
     {
         m_udpSwapQueue.SwapQ();
-        m_udpThread->SetUDPQueue(m_udpSwapQueue.GetRecvQ());
+        ((CUdpNetworkThread*)m_udpThread)->SetUDPQueue(m_udpSwapQueue.GetRecvQ());
         CPacketDecoderInstance()->SetUdpQueue(m_udpSwapQueue.GetParseQ());
     }
 }
@@ -741,7 +747,7 @@ int CApplication::getMiniCraneSeed() const
     return m_miniCraneSeed;
 }
 
-void* CApplication::getCollectItems()
+CollectItms* CApplication::getCollectItems()
 {
     return m_collectItms;
 }
@@ -846,30 +852,34 @@ void CApplication::DisableChatUserWithGM(unsigned int channel, unsigned int char
     }
 }
 
-char CApplication::Send_Term_Signal(const std::string& file)
+bool CApplication::Send_Term_Signal(const std::string& file)
 {
-    std::string path = "./pid/" + file;
+    int pid;
+    int result;
+    std::string path = "./pid/" + file + ".pid";
     FILE* f = fopen(path.c_str(), "r");
     if (f == 0)
     {
         printf("%s process id file open \xbd\xc7\xc6\xd0\n", path.c_str());
+        return 0;
     }
     else
     {
-        int pid = 0;
         fscanf(f, "%d", &pid);
         if (pid < 1)
         {
             fclose(f);
             printf("%d\xb9\xf8\xc0\xc7 \xc0\xdf\xb8\xf8\xb5\xc8 process id\n", pid);
+            return 0;
         }
         else
         {
-            int r = kill(pid, 0xf);
-            if (r < 0)
+            result = kill(pid, 0xf);
+            if (result < 0)
             {
                 fclose(f);
                 printf("%d\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc5 \xbd\xc7\xc6\xd0", pid);
+                return 0;
             }
             else
             {
@@ -886,7 +896,9 @@ char CApplication::Send_Term_Signal(const std::string& file)
 
 void CApplication::Send_Suspend_Signal(const std::string& file)
 {
-    std::string path = "./pid/" + file;
+    int pid;
+    int result;
+    std::string path = "./pid/" + file + ".pid";
     FILE* f = fopen(path.c_str(), "r");
     if (f == 0)
     {
@@ -894,7 +906,6 @@ void CApplication::Send_Suspend_Signal(const std::string& file)
     }
     else
     {
-        int pid = 0;
         fscanf(f, "%d", &pid);
         if (pid < 1)
         {
@@ -903,8 +914,8 @@ void CApplication::Send_Suspend_Signal(const std::string& file)
         }
         else
         {
-            int r = kill(pid, 10);
-            if (r < 0)
+            result = kill(pid, 10);
+            if (result < 0)
             {
                 fclose(f);
                 printf("%d\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc5 \xbd\xc7\xc6\xd0", pid);
@@ -923,7 +934,7 @@ void CApplication::App_Stop()
     m_loaded = false;
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0005 | monitor | 与ORIG差异=DIFF | CApplication::TranslateSignal | 详见 function_reports/monitor/_ZN12CApplication15TranslateSignalEv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-MON-DIFF-0005 已消除）
 void CApplication::TranslateSignal()
 {
     m_serverHandler->Clear_Table();
@@ -938,13 +949,6 @@ void CApplication::TranslateSignal()
     {
         switch ((*it)->m_type)
         {
-        case 3:
-        {
-            Packet_Monitor_Event_End pkt;
-            pkt.m_eventCode = (*it)->m_val;
-            CPacketTranslater::OnEventEnd(&pkt);
-            break;
-        }
         case 2:
         {
             Packet_Monitor_Event_Start pkt;
@@ -954,9 +958,16 @@ void CApplication::TranslateSignal()
             CPacketTranslater::OnEventStart(&pkt);
             break;
         }
+        case 3:
+        {
+            Packet_Monitor_Event_End pkt;
+            pkt.m_eventCode = (*it)->m_val;
+            CPacketTranslater::OnEventEnd(&pkt);
+            break;
+        }
         case 4:
         {
-            m_serverHandler2->Load(m_appConfig->GetServerInfoMap());
+            m_serverHandler2->Load(((CAppConfig*)m_appConfig)->GetServerInfoMap());
             m_memberConfig->Load_Table("./script/member_cnt_config.tbl");
             m_memberExpTbl->Load_Table("./script/member_exp.tbl");
             break;
@@ -973,11 +984,17 @@ void CApplication::TranslateSignal()
     }
 }
 
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原残差件 AddAccusationCharac 已消除）
 int CApplication::AddAccusationCharac(const std::string& a, const std::string& b, int c,
                                       char type)
 {
     std::map<std::string, int>::iterator it = m_map350.find(a);
-    if (it != m_map350.end())
+    if (m_map350.end() == it)
+    {
+        m_map350.insert(std::make_pair<const std::string, int>(a, 0));
+        it = m_map350.find(a);
+    }
+    else
     {
         if (type == 'p')
         {
@@ -994,23 +1011,17 @@ int CApplication::AddAccusationCharac(const std::string& a, const std::string& b
             }
         }
     }
-    else
-    {
-        m_map350.insert(std::pair<const std::string, int>(a, 0));
-        it = m_map350.find(a);
-    }
-    if (m_map350.size() == (m_map350.size() / 100) * 100)
+    if (m_map350.size() % 100 == 0)
     {
         DNF_LOG_SCOPE_AT("AddAccusationCharac", 0x5c0, "./log/mannerlessUser", "user count : %u\n", m_map350.size());
     }
-    std::pair<const std::string, int> key(b, c);
-    if (m_set338.find(key) != m_set338.end())
+    if (m_set338.find(std::pair<const std::string, int>(b, c)) == m_set338.end())
     {
-        return 0x6f;
+        m_set338.insert(std::pair<const std::string, int>(b, c));
+        it->second++;
+        return 0x6e;
     }
-    m_set338.insert(key);
-    it->second++;
-    return 0x6e;
+    return 0x6f;
 }
 
 void CApplication::ClearAccusationList()
@@ -1096,7 +1107,7 @@ void CApplication::AttachAppInitor(char** argv)
 
 unsigned char CApplication::Get_ServerGroup()
 {
-    return m_appConfig->Get_ServerGroup();
+    return ((CAppConfig*)m_appConfig)->Get_ServerGroup();
 }
 
 void CApplication::SetMiniCraneRandomSeed()

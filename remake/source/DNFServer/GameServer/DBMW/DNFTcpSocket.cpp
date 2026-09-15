@@ -196,7 +196,7 @@ char TCPSocket::setOptResizeSendBuf(int size)
 }
 char* TCPSocket::getPeerIP()
 {
-    static char ip[0x20];
+    static char ip[0x10];   // ORIG nm -S 该静态对象 = 0x10（IPv4 字符串最长 15+NUL）
     sprintf(ip, "%d.%d.%d.%d",
             (unsigned char)m_addr[0],
             (unsigned char)m_addr[1],

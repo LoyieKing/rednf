@@ -26,7 +26,7 @@ CNetworkThread::~CNetworkThread()
     m_udp = 0;
     m_lock = 0;
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0001 | statics | 与ORIG差异=DIFF | CNetworkThread::dispatch | 详见 function_reports/statics/_ZN14CNetworkThread8dispatchEPv.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0001 已消除）
 void CNetworkThread::dispatch(void* param)
 {
 #pragma pack(push,1)
@@ -59,6 +59,12 @@ void CNetworkThread::dispatch(void* param)
             int len = 0x1800;
             unsigned short port = 0;
             unsigned int ip = 0;
+            // 该 label 是 ORIG 的块布局要求：它使 RecvFromClient 的调用与
+            // 紧随其后的条件判断分属两个基本块，异常 landing pad 才会落在
+            // 调用之后而非条件判断之后（否则本函数有 6 条指令错位）。
+            // goto 与目标相邻，-O0 下不产生额外指令。
+            goto l_recv_check;
+l_recv_check:
             if (!((CUdpHandler*)m_udp)->RecvFromClient((char*)buf, &len, &ip, &port))
             {
                 CGuard<CMutex> g((CMutex*)m_bLock);

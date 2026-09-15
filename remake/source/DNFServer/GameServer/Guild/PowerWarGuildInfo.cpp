@@ -213,6 +213,10 @@ void CPowerWarGuildInfo::GetAllGuildRankingInfo(int& count, STGuildRank* rank)
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0104 | guild | 与ORIG差异=DIFF | CPowerWarGuildInfo::RewardGuildPowerWarPoint | 详见 function_reports/guild/_ZN18CPowerWarGuildInfo24RewardGuildPowerWarPointER13CGuildManagerbiiii.md
+// 2026-09-15 HWSpecSend：最佳 ndiff=4（唯一残差 = `register int v` 的物理寄存器选择：我方 ebx、ORIG edx，
+// 表现为我方多一条 `mov %edx,%ebx` 中转）。已试 9 形态全部为 4 或更差：删 `register`=80（帧 +0x10，ORIG 确无栈槽）、
+// `v; v=..`/`const`/去 (int) cast 均 4、`v -= ..`=5、括号/交换操作数/cast/负形式=4/6/4/4、声明上移（含 init）=11、
+// 声明上移（仅声明）=4。⇒ 登记为 IRA 寄存器选择族（非源码可调）。
 void CPowerWarGuildInfo::RewardGuildPowerWarPoint(CGuildManager& gm, bool a, int b, int c,
                                                  int d, int e)
 {
@@ -220,31 +224,35 @@ void CPowerWarGuildInfo::RewardGuildPowerWarPoint(CGuildManager& gm, bool a, int
     int firstBonus = c;
     int decrease = d;
     int maxGrade = e;
-    int rankIdx = 0;
     unsigned int point = 0;
-    unsigned int count = (unsigned int)m_vec.size();
+    int rankIdx = 0;
     DNF_LOG_SCOPE_AT(__FUNCTION__, 0xec,"./log/PowerResult",
         "Basic:%d, First:%d, Decrease:%d, MaxGrade:%d, DomainCount:%d", basic, firstBonus,
-        decrease, maxGrade, count);
+        decrease, maxGrade, m_vec.size());
     for (std::vector<STPowerWarGuildInfo*>::iterator it = m_vec.begin(); it != m_vec.end(); ++it)
     {
         STPowerWarGuildInfo* info = *it;
         point = 0;
         if (a)
         {
-            point = basic;
+            point += basic;
         }
         point += info->m_field[1];
         if (info->m_field[1] != 0 && rankIdx < maxGrade)
         {
-            int v = firstBonus - decrease * rankIdx;
-            info->m_field[2] = (unsigned int)(~(int)(v >> 31) & v);
+            register int v = firstBonus - decrease * rankIdx;
+            info->m_field[2] = (unsigned int)(v & ~(int)(v >> 31));
             point += info->m_field[2];
             info->m_field[3] = point;
         }
         unsigned int guildKey = info->m_field[0];
         CGuild* guild = gm.FindGuild(guildKey);
-        if (guild == 0)
+        if (guild != 0)
+        {
+            guild->AddPowerWarPoint(point);
+            guild->SendGuildInfoToMembers(false);
+        }
+        else
         {
             STDBSavePowerWarPoint* p = CreateDBSavePowerWarPoint();
             if (p != 0)
@@ -256,11 +264,6 @@ void CPowerWarGuildInfo::RewardGuildPowerWarPoint(CGuildManager& gm, bool a, int
                     "Additional Save(GRADE:%d, Guild ID:%d, PowerWarPoint:%d)", rankIdx,
                     p->m_field[0], p->m_field[1]);
             }
-        }
-        else
-        {
-            guild->AddPowerWarPoint(point);
-            guild->SendGuildInfoToMembers(false);
         }
         rankIdx++;
     }
@@ -287,6 +290,11 @@ void CPowerWarGuildInfo::DeleteDBSavePowerWarPoint(STDBSavePowerWarPoint* p)
 }
 
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0105 | guild | 与ORIG差异=DIFF | CPowerWarGuildInfo::MakePacketDBPowerWarPoint | 详见 function_reports/guild/_ZN18CPowerWarGuildInfo25MakePacketDBPowerWarPointEP37Packet_DB_Save_Power_War_Point_Reward.md
+// 2026-09-15 HWSpecSend：最佳 ndiff=4，两处残差 —— ①`if (n > 0xfa)`：ORIG 先 `mov -0x1c(%ebp),%eax` 再 `cmp $0xfa,%eax`
+// （无符号 jbe），我方直接 `cmpl $0xfa,-0x1c(%ebp)`；②`pkt->m_b = (unsigned int)count;` 的 LHS/RHS 载入序相反（ORIG 先取 pkt 地址）。
+// 已试：`0xfa<n`/`>=0xfb`/`(unsigned int)n`/`0xfaU`/去 cast/`static_cast` 均 4；`(int)n > 0xfa`=3 但**假信号**（把 jbe 变成 jle，
+// 有符号语义改变，已排除）；`count=(int)n; if(n>0xfa)..`=7；`register count`/`register i`=42；交换两局部声明=10。
+// ⇒ 登记为「比较形式 + 赋值载入序」族（第二处属 P2 目标字段 signedness 轴，但 m_b 在 DBMW 共享头，改动需广播+核 dbmw/game，暂不动）。
 void CPowerWarGuildInfo::MakePacketDBPowerWarPoint(Packet_DB_Save_Power_War_Point_Reward* pkt)
 {
     size_t n = m_vec2.size();
@@ -295,16 +303,19 @@ void CPowerWarGuildInfo::MakePacketDBPowerWarPoint(Packet_DB_Save_Power_War_Poin
     if (n != 0)
     {
         std::vector<STDBSavePowerWarPoint*>::iterator it = m_vec2.begin();
-        if (n < 0xfb)
-            count = (int)n;
-        else
+        if (n > 0xfa)
             count = 0xfa;
-        char* out = (char*)pkt + 0xf;
-        while (it != m_vec2.end() && i < count)
+        else
+            count = (int)n;
+        struct OutEntry { unsigned int m_guild; unsigned int m_point; };
+        OutEntry* out = (OutEntry*)((char*)pkt + 0xf);
+        while (it != m_vec2.end())
         {
+            if (count < i)
+                break;
             STDBSavePowerWarPoint* p = *it;
-            *(unsigned int*)(out + i * 8) = p->m_field[0];
-            *(unsigned int*)(out + i * 8 + 4) = p->m_field[1];
+            out[i].m_guild = p->m_field[0];
+            out[i].m_point = p->m_field[1];
             DNF_LOG_SCOPE_LINE(0x16b,"./log/Power", "INTERVAL SAVE - GUILD:%d, POINT:%d",
                 p->m_field[0], p->m_field[1]);
             DeleteDBSavePowerWarPoint(p);

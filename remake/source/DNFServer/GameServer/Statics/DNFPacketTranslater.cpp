@@ -101,7 +101,9 @@ union Packet_FrameLagAddLocal
     struct
     {
         char m_pad2[0xc];                   // +0
-        FrameLagRec m_frameLag[52];         // +0xc
+        // 形状 [6][7][1] 与 ORIG 的索引展开一致（i 步长 7、常量 +4 由末维下标给出）；
+        // 等价于展平的 m_frameLag[i * 7 + j + 4]，勿改为 [52]（会退回 lea 形态）。
+        FrameLagRec m_frameLag[6][7][1];    // +0xc
     } m_lag;
 };
 #pragma pack(pop)
@@ -148,14 +150,14 @@ void CPacketTranslater::OnClientSpecStatistic(PacketHeader* pkt)
         CMyFileLog(__FUNCTION__, 259)("./log/Except", "CPacketTranslater::OnClientSpecStatistic() Exception Break\n");
     }
 }
-// [DNF-NONIDENTICAL] DNF-STA-DIFF-0016 | statics | 与ORIG差异=DIFF | CPacketTranslater::OnFrameLagStatisticsAdd | 详见 function_reports/statics/_ZN17CPacketTranslater23OnFrameLagStatisticsAddEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-STA-DIFF-0016 已消除）
 void CPacketTranslater::OnFrameLagStatisticsAdd(PacketHeader* pkt)
 {
     try
     {
         THROW_IF_NO_APP("CPacketTranslater::OnFrameLagStatisticsAdd() : 0 == m_pclApp")
         Packet_FrameLagAddLocal* pck = (Packet_FrameLagAddLocal*)pkt;
-        static int chk_ting[8];
+        static unsigned int chk_ting[8];
         int nRet;
         FrameLagCollector* flc = m_pclApp->Get_FrameLagCollector();
         const char* pPath = "./SHOW_PACKET";
@@ -190,24 +192,19 @@ void CPacketTranslater::OnFrameLagStatisticsAdd(PacketHeader* pkt)
                       (int)pck->m_main.m_fps[i].m_fullWindowNosyncFps);
                 for (int j = 0; j < 6; j++)
                 {
+                    // 末维步长为 1，[i][j][4] 即展平偏移 i * 7 + j + 4（与 ORIG 一致）
                     CMyFileLog(__FUNCTION__, 0x13e)("./log/FrameLag.log",
                           "m_frameLagArray[%d].framelag[%d].frame : %d", i, j,
-                          pck->m_lag.m_frameLag[i * 7 + j + 4].m_frame);
+                          pck->m_lag.m_frameLag[i][j][4].m_frame);
                     CMyFileLog(__FUNCTION__, 0x13f)("./log/FrameLag.log",
                           "m_frameLagArray[%d].framelag[%d].time : %.3f", i, j,
-                          (double)pck->m_lag.m_frameLag[i * 7 + j + 4].m_time);
+                          (double)pck->m_lag.m_frameLag[i][j][4].m_time);
                 }
             }
-            register unsigned int t5 = chk_ting[5];
-            register unsigned int t4 = chk_ting[4];
-            register unsigned int t3 = chk_ting[3];
-            register unsigned int t2 = chk_ting[2];
-            register unsigned int t1 = chk_ting[1];
-            register unsigned int t0 = chk_ting[0];
             CMyFileLog(__FUNCTION__, 0x142)("./log/FrameLag.log", "TOTAL TING : %u, %u, %u, %u, %u, %u",
-                  t0, t1, t2, t3, t4, t5);
+                  chk_ting[0], chk_ting[1], chk_ting[2], chk_ting[3], chk_ting[4], chk_ting[5]);
             CMyFileLog(__FUNCTION__, 0x144)("./log/FrameLag.log", "packet validation : %d",
-                  flc->is_valid_statistic_packet((Packet_Frame_Lag_Statistic_Add*)pck) & 0xff);
+                  flc->is_valid_statistic_packet((Packet_Frame_Lag_Statistic_Add*)pck));
             CMyFileLog(__FUNCTION__, 0x146)("./log/FrameLag.log", "\n");
         }
         else

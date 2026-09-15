@@ -67,9 +67,8 @@ void CBuddyRegisterManager::delBuddyRegister(unsigned int key)
 
 void CBuddyRegisterManager::findBuddyRegister(unsigned int key, std::vector<unsigned int>& out)
 {
-    std::multimap<unsigned int, unsigned int>::iterator it = m_map.lower_bound(key);
-    std::multimap<unsigned int, unsigned int>::iterator end = m_map.upper_bound(key);
-    for (; it != end; ++it)
+    for (std::multimap<unsigned int, unsigned int>::iterator it = m_map.lower_bound(key);
+         it != m_map.upper_bound(key); ++it)
     {
         out.push_back(it->second);
     }

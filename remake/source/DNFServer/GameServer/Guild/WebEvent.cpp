@@ -78,8 +78,6 @@
 #include "SystemTimeHandler.h"
 #include "TcpNetSystem.h"
 
-static CEvent g_dummyCEvent;
-
 CEvent::CEvent()
 {
     m_isEventOn = 0;

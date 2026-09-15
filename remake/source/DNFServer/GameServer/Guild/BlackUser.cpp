@@ -90,7 +90,7 @@ void CBlackUser::operator delete(void* p) { m_BlackUserMemPool_.free(p); }
 
 void CBlackUser::operator delete(void* p, unsigned int size) { m_BlackUserMemPool_.free(p, size); }
 
-CBlackUser::CBlackUser()
+CBlackUser::CBlackUser() throw()
 {
     m_time = 0;
     memset(m_name, 0, 0x1e);

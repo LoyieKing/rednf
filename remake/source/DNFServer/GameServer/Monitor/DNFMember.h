@@ -326,7 +326,7 @@ public:
     unsigned int* GetUpperMember_Proxy() const;
     void SetMemberDeleteTime(unsigned int t);
     void DebugPrintMemberMember(char* out);
-    char IsEmpty();
+    bool IsEmpty();
     char CheckDailyScheduleTimeOver(int day, long time);
     char CheckDayHourScheduleTimeOver(int day, int hour, long time);
     void SetMemberRegisterFlag(bool flag);
@@ -337,10 +337,10 @@ public:
     unsigned short GetMemberDBFlag();
     void SetMemberDBFlag(unsigned short flag);
     void SetMemberRegisterTime(unsigned int t);
-    int InsertUpperMember(unsigned int charNo, unsigned char level, const char* name,
-                          bool flag);
-    int InsertLowerMember(unsigned int charNo, unsigned char level, const char* name,
-                          bool flag);
+    bool InsertUpperMember(unsigned int charNo, unsigned char level, const char* name,
+                           bool flag);
+    bool InsertLowerMember(unsigned int charNo, unsigned char level, const char* name,
+                           bool flag);
     char IsAlreadyMemberMember(unsigned int charNo) const;
     void DeleteUpperMember(unsigned int charNo, bool flag);
     void DeleteLowerMember(unsigned int charNo, bool flag);
