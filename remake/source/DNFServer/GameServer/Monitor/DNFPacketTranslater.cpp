@@ -1364,7 +1364,7 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                                                 requester->IsAbleToRegisterMember(),
                                                 responser->GetUniqCharNo(),
                                                 responser->IsAbleToRegisterMember());
-                                            if (responser->GetLevel() < requester->GetLevel())
+                                            if (requester->GetLevel() > responser->GetLevel())
                                             {
                                                 SendNoticeMemberEnterPacketOk(
                                                     responser, requester, 1, 1, 1,
