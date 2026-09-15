@@ -530,8 +530,9 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
                 int j;
                 for (j = 0; j < 6; j++)
                 {
-                    pkt.m_items[k].m_pair[j][0] = it->second.m_i[k][j].m_words[0];
-                    pkt.m_items[k].m_pair[j][1] = it->second.m_i[k][j].m_words[1];
+                    pkt.m_items[k].m_pair[j] =
+                        *reinterpret_cast<const Packet_Frame_Lag_Statistic_Write_Lag_Index::Item::LagPair*>(
+                            &it->second.m_i[k][j]);
                 }
             }
             handler->SendToDB((PacketHeader*)&pkt);

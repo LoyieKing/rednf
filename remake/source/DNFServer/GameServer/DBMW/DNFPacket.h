@@ -719,7 +719,7 @@ public:
     char m_name[0x1e]; // +0x12
     unsigned char m_result;  // +0x30（0xff/0xfe=失败）
     unsigned char m_grade;   // +0x31（当前 grade）
-    int m_newGrade;    // +0x32
+    unsigned int m_newGrade;    // +0x32（QueryGuildMemberGradeByName 第5参为 unsigned int&；ORIG 本函数不读此出参）
 } __attribute__((packed));
 
 class Packet_DBMW_Save_Client_Spec_Statistic : public PacketHeader
@@ -1129,7 +1129,7 @@ struct STGuildDBInfoOnly
     unsigned char m_guildRank;    // +0x28
     int m_guildExp;               // +0x29
     char m_subMasterCnt;          // +0x2d（QueryGuildMember 的 grade2 人数）
-    char m_subMasterData[0x14];   // +0x2e..0x41（grade2 charac_no 列表；guild 侧 m_subGuildMaster）
+    int m_subMasterData[5];       // +0x2e..0x41（grade2 charac_no 列表；pack(1) 非对齐，ORIG 以 int[5] 建模）
     unsigned short m_guildSkillPoint; // +0x42..0x43（SQL remain_sp）
     char m_skillLearnCnt;         // +0x44（SQL skill_slot 数量）
     STGuildSkill m_skills[16];    // +0x45..0x94（16×STGuildSkill(5B)=0x50）

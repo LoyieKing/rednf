@@ -1934,42 +1934,45 @@ void CPacketTranslater::OnDBMWGuildJoin(PacketHeader* pkt)
     try
     {
         THROW_IF_NO_APP("CPacketTranslater::OnReplyGuildInvite : 0 == m_pclApp");
+        // [2026-09-15 W7-GuildBig 机理 K/N] ORIG 槽（深→浅）：
+        //   joinUser -0x30 · caller -0x2c · guild -0x28 · pb -0x24 · um -0x20
+        //   （local_decls 头插：声明序 joinUser,caller,guild,pb,um；pb/um 带初始化故最后物化）
         CUser* joinUser;
-        if ((joinUser = (&m_pclApp->m_userManager)->FindUser_CharNo(
-                 ((Packet_DBMW_Guild_Join*)pkt)->m_joiner)) == 0)
+        CUser* caller;
+        CGuild* guild;
+        Packet_DBMW_Guild_Join* pb = (Packet_DBMW_Guild_Join*)pkt;
+        CUserManager* um = &m_pclApp->m_userManager;
+        if ((joinUser = um->FindUser_CharNo(pb->m_joiner)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x9d8, "./log/GuildModify", "CPacketTranslater::OnDBMWGuildJoin() 0 == pclJoinUser");
         }
-        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
-            ((Packet_DBMW_Guild_Join*)pkt)->m_guildKey);
-        if (guild == 0)
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x9dc, "./log/GuildModify", "CPacketTranslater::OnDBMWGuildJoin() 0 == pclGuild");
         }
-        if (((Packet_DBMW_Guild_Join*)pkt)->m_result == 0)
+        if (pb->m_result != 0)
         {
-            GuildJoin(guild, joinUser, ((Packet_DBMW_Guild_Join*)pkt)->m_caller);
-        }
-        else
-        {
-            CUser* caller;
-            if ((caller = (&m_pclApp->m_userManager)->FindUser_CharNo(
-                     ((Packet_DBMW_Guild_Join*)pkt)->m_caller)) != 0)
+            if ((caller = um->FindUser_CharNo(pb->m_caller)) != 0)
             {
                 Packet_Guild_Reply_Guild_Invite_To_Caller callerPkt;
-                callerPkt.m_a = ((Packet_DBMW_Guild_Join*)pkt)->m_caller;
+                callerPkt.m_a = pb->m_caller;
                 callerPkt.m_e = caller->GetIdByChannel();
-                callerPkt.m_12 = ((Packet_DBMW_Guild_Join*)pkt)->m_result;
+                callerPkt.m_12 = pb->m_result;
                 caller->SendToGameserver((char*)&callerPkt, 0x34);
             }
             if (joinUser != 0)
             {
                 Packet_Guild_Reply_Guild_Invite_To_Invited invitedPkt;
-                invitedPkt.m_a = ((Packet_DBMW_Guild_Join*)pkt)->m_joiner;
+                invitedPkt.m_a = pb->m_joiner;
                 invitedPkt.m_e = joinUser->GetIdByChannel();
-                invitedPkt.m_12 = ((Packet_DBMW_Guild_Join*)pkt)->m_result;
+                invitedPkt.m_12 = pb->m_result;
                 joinUser->SendToGameserver((char*)&invitedPkt, 0x16);
             }
+        }
+        else
+        {
+            // [2026-09-15 W7-GuildBig 机理 D] ORIG: test/je 跨 reply 块落到 GuildJoin
+            GuildJoin(guild, joinUser, pb->m_caller);
         }
     }
     catch (CDNFException& e)
@@ -2789,9 +2792,14 @@ void CPacketTranslater::OnCallGuildInfo(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnCallGuildInfo : 0 == m_pclApp")
-        Packet_Monitor_Call_Guild_Info* pb = (Packet_Monitor_Call_Guild_Info*)pkt;
+        CGuild* guild;
         CUser* user;
-        if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo)) == 0)
+        Packet_Monitor_Call_Guild_Info* pb = (Packet_Monitor_Call_Guild_Info*)pkt;
+        // [2026-09-15 W7-GuildBig 机理 K] ORIG 将 &m_pclApp->m_userManager 物化为具名槽
+        //   (`mov ds:g_pApp,%eax; add $0x10,%eax; mov %eax,-0x24(%ebp)`) 并复用；
+        //   内联形态每次重算且导致后续槽位整体平移（segs=21 多为槽号噪声）。
+        CUserManager* um = &m_pclApp->m_userManager;
+        if ((user = um->FindUser_CharNo(pb->m_charNo)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0xdc5, "./log/Except",
                 "CPacketTranslater::OnCallGuildInfo() pclUser = 0, Char Key : %d\n",
@@ -2810,20 +2818,25 @@ void CPacketTranslater::OnCallGuildInfo(PacketHeader* pkt)
                     "CPacketTranslater::OnCallGuildInfo : packet->m_uGuildKey[%d] == 0", i);
                 continue;
             }
-            CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKeys[i]);
-            if (guild == 0)
+            // [2026-09-15 W7-GuildBig 机理 W] 赋值入条件 + ==0/continue + else 体
+            //   ⇒ cmp/sete/test/jne + body 末 jmp 汇合（ndiff=0 AE）；
+            //   guild 须在 try 块顶部声明（local_decls 头插 ⇒ 占 -0x30 最高槽）
+            if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKeys[i])) == 0)
             {
                 continue;
             }
-            replyPkt.m_infos[i].m_field0 = pb->m_guildKeys[i];
-            replyPkt.m_infos[i].m_field4 = guild->GetGuildLevel();
-            replyPkt.m_infos[i].m_field5 = guild->GetGuildRank();
-            memcpy(replyPkt.m_infos[i].m_data, guild->GetGuildName(), 0x16);
+            else
+            {
+                replyPkt.m_infos[i].m_field0 = pb->m_guildKeys[i];
+                replyPkt.m_infos[i].m_field4 = guild->GetGuildLevel();
+                replyPkt.m_infos[i].m_field5 = guild->GetGuildRank();
+                memcpy(replyPkt.m_infos[i].m_data, guild->GetGuildName(), 0x16);
+            }
         }
-        unsigned short totalLen =
+        // [2026-09-15 W7-GuildBig 机理 O] ORIG 无 totalLen 具名槽：长度直写 packetSize 并回读
+        replyPkt.packetSize =
             (unsigned short)((unsigned char)pb->m_count * 0x1d + 0x13);
-        replyPkt.packetSize = totalLen;
-        user->SendToGameserver((char*)&replyPkt, totalLen);
+        user->SendToGameserver((char*)&replyPkt, replyPkt.packetSize);
     }
     catch (std::exception& e)
     {
@@ -4709,43 +4722,44 @@ void CPacketTranslater::OnGuildCargoHistory(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x18ec, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoHistory : 0 == m_pclApp");
             return;
         }
-        unsigned int charNo = pb->m_charNo;
-        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
+        // [2026-09-15 W7-GuildBig 机理 K/N] ORIG 槽：pb -0x30(try外) · um -0x2c · user -0x28 · guild -0x24
+        CUserManager* um = &m_pclApp->m_userManager;
+        CUser* user = um->FindUser_CharNo(pb->m_charNo);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0x18f6, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoHistory : 0 == pclUser");
             return;
         }
-        unsigned int guildKey = pb->m_guildKey;
-        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
+        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey);
         if (guild == 0)
         {
             DNF_LOG_SCOPE_LINE(0x18fe, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoHistory : 0 == pclGuild");
             return;
         }
-        if (!(&m_pclApp->m_guildManager)->IsCargoLock())
+        // [2026-09-15 W7-GuildBig 机理 D] ORIG 正向 if(b){locked}else{grade} ⇒ test/je（!b 会产 xor $1）
+        if ((&m_pclApp->m_guildManager)->IsCargoLock())
+        {
+            DNF_LOG_SCOPE_LINE(0x1906,"./log/GuildCargo",
+                "CPacketTranslater::OnGuildCargoHistory GUILD CARGO LOCKED!(%d,%d)", pb->m_charNo,
+                pb->m_guildKey);
+        }
+        else
         {
             unsigned char grade = user->GetGuildMemDBInfo()->m_grade;
             if (grade == 3 || grade == 1 || grade == 2)
             {
                 Packet_Guild_Cargo_History_Response reply;
                 reply.ma = user->GetIdByChannel();
-                reply.me = charNo;
+                reply.me = pb->m_charNo;
                 guild->GetGuildCargo()->GetHistory(reply.m_log);
                 user->SendTcpGameserver(&reply);
             }
             else
             {
                 DNF_LOG_SCOPE_LINE(0x1910,"./log/GuildCargo",
-                    "CPacketTranslater::OnGuildCargoHistory : Access Deny(%d,%d,%d)", charNo,
-                    guildKey, (unsigned int)grade);
+                    "CPacketTranslater::OnGuildCargoHistory : Access Deny(%d,%d,%d)", pb->m_charNo,
+                    pb->m_guildKey, (unsigned int)grade);
             }
-        }
-        else
-        {
-            DNF_LOG_SCOPE_LINE(0x1906,"./log/GuildCargo",
-                "CPacketTranslater::OnGuildCargoHistory GUILD CARGO LOCKED!(%d,%d)", charNo,
-                guildKey);
         }
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnGuildCargoHistory Exception Break", 0x191e, 0x1923);
@@ -5956,42 +5970,42 @@ void CPacketTranslater::OnDBResponseApproveJoinGuild(PacketHeader* pkt)
     Packet_DB_Response_Approve_Join_Guild* pb = (Packet_DB_Response_Approve_Join_Guild*)pkt;
     try
     {
+        // [2026-09-15 W7-GuildBig 机理 T/N] ORIG 序言 pb(-0x1c) 后三连 movl $0：
+        //   joiner -0x18 · requester -0x14 · guild -0x10（零初始化，在 m_pclApp 检查之前）
+        CUser* joiner = 0;
+        CUser* requester = 0;
+        CGuild* guild = 0;
         if (m_pclApp == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1fd1, "./log/Guild", "CPacketTranslater::OnApproveJoinGuild : 0 == m_pclApp");
             return;
         }
-        unsigned int guildKey = pb->m_guildId;
-        CGuild* guild;
-        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildId)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1fd7, "./log/Guild", "CPacketTranslater::OnApproveJoinGuild : 0 == pGuild");
             return;
         }
-        unsigned int requesterNo = pb->m_characNo;
-        CUser* requester = (&m_pclApp->m_userManager)->FindUser_CharNo(requesterNo);
-        if (requester == 0)
+        if ((requester = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_id)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1fdd, "./log/Guild", "CPacketTranslater::OnAddGuildFund : 0 == pUser");
             return;
         }
-        unsigned int joinerNo = pb->m_id;
-        CUser* joiner = (&m_pclApp->m_userManager)->FindUser_CharNo(joinerNo);
+        joiner = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_characNo);
         Packet_Approve_Join_Guild_Result reply;
-        reply.ma = guildKey;
-        reply.me = requester->GetUniqCharNo();
         reply.m12 = requester->GetIdByChannel();
+        reply.me = requester->GetUniqCharNo();
+        reply.ma = pb->m_result;
         reply.m16 = pb->m_characNo;
-        if (guildKey == 0)
+        if (pb->m_result == 0)
         {
-            if (joiner == 0)
+            if (joiner != 0)
             {
-                GuildJoin(guild, (STGuildJoinInfo*)&pb->m_joinInfo,
-                          joinerNo);
+                GuildJoin(guild, joiner, pb->m_id);
             }
             else
             {
-                GuildJoin(guild, joiner, joinerNo);
+                GuildJoin(guild, (STGuildJoinInfo*)&pb->m_joinInfo,
+                          pb->m_id);
             }
         }
         requester->SendToGameserver((char*)&reply, 0x1a);

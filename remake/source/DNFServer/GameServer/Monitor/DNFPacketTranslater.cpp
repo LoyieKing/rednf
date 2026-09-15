@@ -18,6 +18,12 @@
 #include <new>
 #include <string>
 
+// [W7-MonitorBig · 机理 X] 仅本 TU：先带入 stItemLimitEditionItemInfo_t 完整定义
+// （ItemLimitEditionManager.h），再切换 Packet_Item_Limit_Edition_Load_Data_Rpy::m_items
+// 为真 st 数组 ⇒ registItem 实参经 ARRAY_REF decay 生成 `lea 0xf(%eax)`（与 ORIG 一致）。
+// 其余 TU 走 DNFPacketTranslater.h 默认 Rec 分支，目标码不变。
+#define ILE_RPY_REAL_ITEMS 1
+#include "ItemLimitEditionManager.h"
 #include "DNFPacketTranslater.h"
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
@@ -74,6 +80,7 @@
 #include "Packet_Monitor_Notice_Charac_Live_On_Ten_Min.h"
 #include "Packet_Monitor_Notify_New_Mail.h"
 #include "Packet_ChannelType.h"
+#define MONITOR_HYPERLINK_REAL_TYPE
 #include "Packet_Monitor_Member_Chat_Hyper_Link.h"
 #include "Packet_Web_Prohibit_User_Connect.h"
 #include "Packet_Game_Monitor_GM_Village_Attacked.h"
@@ -3264,15 +3271,18 @@ void CPacketTranslater::onRequestCharacTowerUpdateRank(PacketHeader* pkt)
     user = userMgr->FindUser_CharNo(req->m_charNo);
     if (user != 0)
     {
-        unsigned int c = req->m_floor;
+        // [W7-MonitorBig · 机理 B+K+N] ORIG：esi=m_floor(c)、edi=m_job(b)、ebx=name，
+        // m_score(a) 在栈；读取序 a→b→name→c；tower 无具名局部（getTowerRank 返回值
+        // eax 直传 this）。ndiff 71→42；余差为 globalreg 参数 parallel 轮转 + 槽偏移 + sete
+        // 比较物化（4 变体未竟）。
+        unsigned int a = req->m_score;
         register unsigned int b __asm__("edi");
         register char* name __asm__("ebx");
-        register unsigned int a __asm__("esi");
+        register unsigned int c __asm__("esi");
         b = req->m_job;
         name = user->GetCharName();
-        a = req->m_score;
-        CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
-        tower->registCharacRank(c, name, b, a);
+        c = req->m_floor;
+        ((CTowerRank*)m_pclApp->getTowerRank())->registCharacRank(c, name, b, a);
     }
     return;
 
@@ -3857,7 +3867,7 @@ void CPacketTranslater::onItemLimitEditionLoadDataRpy(PacketHeader* pkt)
                     rpy->m_items[i].m_ipgno < 1000000)
                 {
                     m_pclApp->getItemLimitEditionMgr()->registItem(
-                        *(stItemLimitEditionItemInfo_t*)&rpy->m_items[i]);
+                        rpy->m_items[i]);
                 }
             }
             DNF_LOG_SCOPE_LINE(0x14c2,"./log/ItemLimitEdition",
@@ -4949,7 +4959,7 @@ void CPacketTranslater::OnNoticeMemberChatMsgHyperLink(PacketHeader* pkt)
                     chat->m_msg,
                     (unsigned int)(unsigned char)chat->m_msgLen,
                     chat->m_itemCount,
-                    (hyperlink_item_info*)chat->m_items, user);
+                    chat->m_items, user);
             }
         }
     }

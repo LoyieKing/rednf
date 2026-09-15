@@ -413,6 +413,14 @@ public:
 class Packet_Item_Limit_Edition_Load_Data_Rpy : public PacketHeader
 {
 public:
+#ifdef ILE_RPY_REAL_ITEMS
+    // [W7-MonitorBig · 机理 X] 仅消费 TU（DNFPacketTranslater.cpp）：元素为真 st 数组，
+    // registItem 实参经 ARRAY_REF decay ⇒ `lea 0xf(%eax)` 融合（与 ORIG 一致）；
+    // 其余 TU 走默认 Rec 分支，目标码不变。
+    signed char m_fullLoad;   // +10
+    unsigned int m_count;     // +11
+    stItemLimitEditionItemInfo_t m_items[28];  // +15，步长 0x48
+#else
     signed char m_fullLoad;   // +10
     unsigned int m_count;     // +11
     struct __attribute__((packed)) Rec
@@ -420,6 +428,7 @@ public:
         unsigned int m_ipgno;  // +0
         char m_rest[0x44];     // +4 .. 0x47
     } m_items[28];             // +15，步长 0x48
+#endif
 } __attribute__((packed));
 
 class Packet_Item_Limit_Edition_Update : public PacketHeader

@@ -51,19 +51,19 @@ bool CMySql::init_db_handle()
         return 0;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0115 | dbmw | 与ORIG差异=DIFF | CMySql::blob_to_str | 详见 function_reports/dbmw/_ZN6CMySql11blob_to_strEiPvi.md
+// [DNF-IDENTICAL] 2026-09-15 verified STRICT ndiff=0（原 DNF-DBM-DIFF-0115 已消除，机理 E：(char*)this+col*0x6001+0x6079 cast 算术→具名成员 m_blob[col] 直访，复现 ORIG ARRAY_REF index 先 + lea 融合）| CMySql::blob_to_str
 char* CMySql::blob_to_str(int col, void* buf, int len)
 {
     if (col < 0 || col > 9 || (buf == 0 && len > 0x5fff))
         return 0;
-    ((char*)this + col * 0x6001 + 0x6070)[9] = 0;
+    m_blob[col][0] = 0;
     if (len > 0)
     {
-        char* dst = (char*)this + (col * 0x6001 + 0x6070) + 9;
+        char* dst = m_blob[col];
         dst += mysql_real_escape_string(m_mysql, dst, (const char*)buf, len);
         *dst++ = 0;
     }
-    return (char*)this + (col * 0x6001 + 0x6070) + 9;
+    return m_blob[col];
 }
 bool CMySql::set_compress_option()
 {

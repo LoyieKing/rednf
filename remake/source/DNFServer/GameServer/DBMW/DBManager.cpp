@@ -5284,7 +5284,7 @@ char CDBManager::QueryHWspecCreate(
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0035 | dbmw | 与ORIG差异=DIFF | CDBManager::OnLoadGuildCargoHistory | 详见 function_reports/dbmw/_ZN10CDBManager23OnLoadGuildCargoHistoryEjR37Packet_Guild_Load_Guild_Cargo_History.md
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0035 | dbmw | 286/287 DIFF ndiff=16（W7：opt0 段 get_binary cast→具名直访已消 segs2→1；残余 behavior byte 物化需共享头 STGuildCargoLog.behavior uchar→char，全服务过热未改；char& 局部引用变体劣化已回退）| CDBManager::OnLoadGuildCargoHistory
 char CDBManager::OnLoadGuildCargoHistory(
     unsigned int guildId, Packet_Guild_Load_Guild_Cargo_History& reply)
 {
@@ -5311,7 +5311,7 @@ char CDBManager::OnLoadGuildCargoHistory(
         col = 0;
         if (!h->get_int(col++, *(int*)&reply.m_logs[j].time))
             return 0;
-        if (!h->get_byte(col++, *(char*)&reply.m_logs[j].behavior))
+        if (!h->get_byte(col++, (char&)reply.m_logs[j].behavior))
             return 0;
         if (!h->get_str(col++, reply.m_logs[j].name, 0x15))
             return 0;
@@ -5319,7 +5319,7 @@ char CDBManager::OnLoadGuildCargoHistory(
             return 0;
         if (!h->get_int(col++, *(int*)&reply.m_logs[j].param))
             return 0;
-        if (!h->get_binary(col++, (char*)&reply.m_logs[j].opt0, 0xe))
+        if (!h->get_binary(col++, &reply.m_logs[j].opt0, 0xe))
             return 0;
         j++;
     }
@@ -6461,7 +6461,7 @@ bool CDBManager::QueryLoadARSInfo(std::vector<st_ars_info_list>& arsList)
     }
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0020 | dbmw | 与ORIG差异=DIFF | CDBManager::QuerySubGuildMaster | 详见 function_reports/dbmw/_ZN10CDBManager19QuerySubGuildMasterEhjR27Packet_DB_Reply_Query_Guild.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0020 已消除，机理 X：m_subMasterData char[0x14]→int[5]，真数组 decay 复现 ORIG 地址编码）| CDBManager::QuerySubGuildMaster
 bool CDBManager::QuerySubGuildMaster(unsigned char serverGroup,
                                      unsigned int guildId,
                                      Packet_DB_Reply_Query_Guild& reply)
@@ -6493,7 +6493,7 @@ bool CDBManager::QuerySubGuildMaster(unsigned char serverGroup,
             reply.m_result = 1;
             return 1;
         }
-        r = h->get_uint(0, *(unsigned int*)&info->m_subMasterData[i * 4]);
+        r = h->get_uint(0, *(unsigned int*)&info->m_subMasterData[i]);
         if (!r)
         {
             reply.m_result = 3;
@@ -7096,7 +7096,7 @@ bool CDBManager::QueryGuildSkill(unsigned char serverGroup,
     reply.m_result = 1;
     return 1;
 }
-// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0109 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnChangeUnconnectedGuildMemberGrade | 详见 function_reports/dbmw/_ZN17CPacketTranslater35OnChangeUnconnectedGuildMemberGradeEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 verified ndiff=0（原 DNF-DBM-DIFF-0109 已消除，机理 C+D+W2：m_newGrade int→unsigned int 匹配 Query 第5参 Rj；ORIG 等级判断读输入包 h->m_result 而非 Query 出参；Change 失败写 m_result=0xff 后 return 不发包；guildId==0 跳过整段）| CPacketTranslater::OnChangeUnconnectedGuildMemberGrade
 struct UnconnectedGradeHeaderView
 {
     char m_pad[0xa];
@@ -7122,39 +7122,41 @@ void CPacketTranslater::OnChangeUnconnectedGuildMemberGrade(PacketHeader* header
             pkt.m_guildId = h->m_guildId;
             pkt.m_result = h->m_result;
             pkt.m_characNo = h->m_characNo;
-        }
-        CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
-        unsigned int result = 0;
-        if (!m_pclApp->m_dbManager.QueryGuildMemberGradeByName(
-                h->m_serverGroup, h->m_guildId,
-                (char*)h + 0x14, pkt.m_grade,
-                *(unsigned int*)((char*)&pkt + 0x32), result))
-        {
-            pkt.m_result = 0xff;
-            gs->SendToServer((char*)&pkt, pkt.packetSize);
-            return;
-        }
-        if (pkt.m_grade == 1)
-        {
-            gs->SendToServer((char*)&pkt, pkt.packetSize);
-            return;
-        }
-        if ((pkt.m_grade == 2 || pkt.m_newGrade == 2) &&
-            h->m_flag != 1)
-        {
-            pkt.m_result = 0xfe;
-            gs->SendToServer((char*)&pkt, pkt.packetSize);
-            return;
-        }
-        if (pkt.m_newGrade == pkt.m_grade)
-        {
-            gs->SendToServer((char*)&pkt, pkt.packetSize);
-            return;
-        }
-        if (m_pclApp->m_dbManager.ChangeGuildMemberGrade(
-                h->m_serverGroup, h->m_guildId,
-                h->m_result, (char*)h + 0x14))
-        {
+            CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+            unsigned int result = 0;
+            if (!m_pclApp->m_dbManager.QueryGuildMemberGradeByName(
+                    h->m_serverGroup, h->m_guildId,
+                    (char*)h + 0x14, pkt.m_grade,
+                    *(unsigned int*)((char*)&pkt + 0x32), result))
+            {
+                pkt.m_result = 0xff;
+                gs->SendToServer((char*)&pkt, pkt.packetSize);
+                return;
+            }
+            if (pkt.m_grade == 1)
+            {
+                gs->SendToServer((char*)&pkt, pkt.packetSize);
+                return;
+            }
+            if ((pkt.m_grade == 2 || h->m_result == 2) &&
+                h->m_flag != 1)
+            {
+                pkt.m_result = 0xfe;
+                gs->SendToServer((char*)&pkt, pkt.packetSize);
+                return;
+            }
+            if (h->m_result == pkt.m_grade)
+            {
+                gs->SendToServer((char*)&pkt, pkt.packetSize);
+                return;
+            }
+            if (!m_pclApp->m_dbManager.ChangeGuildMemberGrade(
+                    h->m_serverGroup, h->m_guildId,
+                    h->m_result, (char*)h + 0x14))
+            {
+                pkt.m_result = 0xff;
+                return;
+            }
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             CMyFileLog(__FUNCTION__, 0x495)("./log/GuildModify",
                 "::OnChangeUnconnectedGuildMemberGrade GRADE_CHANGE Guild(%d) UnConnected Name(%s) Grade(%d) Prev(%d)",

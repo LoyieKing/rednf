@@ -27,7 +27,14 @@ public:
     struct Item
     {
         short m_s[4];      // +0x00（相对 item 基址）
-        int m_pair[6][2];  // +0x08（0x30 字节）
+        // [2026-09-15 W7] 原 `int m_pair[6][2]`：逐 int 赋值使 SaveFrameLagData
+        //   每条语句重算一次 `it->second`（ORIG 内层循环每轮仅一次 operator*）。
+        //   同 8 字节结构整体赋值 ⇒ 布局不变（packed，0x30 字节）。
+        struct LagPair
+        {
+            int m_words[2];
+        } __attribute__((packed));
+        LagPair m_pair[6];  // +0x08（0x30 字节，布局同 int[6][2]）
     };
     char m_serverGroup;    // +0xa
     int m_key;             // +0xb
