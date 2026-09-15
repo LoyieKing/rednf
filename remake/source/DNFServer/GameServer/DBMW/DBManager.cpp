@@ -378,24 +378,12 @@ struct AssertManagerWriteElemView
     char m_reason[0xf2];       // +0x114
 } __attribute__((packed));
 
-// [2026-09-15 X 机理修复] ORIG df_dbmw_r `OnSecretShopStatistic` 实证：5 个 SQL 参数的
-//   取址一律为 `lea (%ecx,%eax,1),%eax` + `add $0x10|0x20,%eax` + `mov 0x2|0x6|0xa|0xe(%eax)`
-//   —— 即**元素结构体成员**（元素步长 0x14，元素内字段 +0x2/+0x6/+0xa/+0xe，数组起点 +0x10），
-//   地址 = packet + i*0x14 + 0x12 + 4k。旧写法用扁平 `int m_data[]` + `i*5+k` 索引 ⇒
-//   GCC 生成 `add $0x4|0x8..,%eax` + `mov 0x2(%ecx,%eax,4)`（scaled 寻址），与 ORIG 逐条不同。
-struct SecretShopStatElem
-{
-    unsigned short m_pad0;   // +0（不访问）
-    unsigned int m_v[4];     // +0x2 .. +0x11（第 5 个字段跨入下一元素，见访问点）
-    unsigned short m_pad1;   // +0x12（不访问）
-} __attribute__((packed));   // 20 字节 = 原 m_data 步长 0x14
-
 struct SecretShopStatisticView
 {
     char h[0xa];
-    int m_count;               // +0xa
-    int m_shopIdx;             // +0xe
-    SecretShopStatElem m_items[0x320 / 5];  // +0x10（与旧 m_data[0x320] 覆盖同样范围）
+    int m_count;             // +0xa
+    int m_shopIdx;           // +0xe
+    int m_data[0x320];       // +0x12（200 × 5 int，步长 0x14）
 } __attribute__((packed));
 
 struct FrameLagWriteIndexView
@@ -4129,7 +4117,11 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
             req->m_guildId);
         return 0;
     }
-    r = h->get_int(0, memberCount);
+    // [2026-09-15 差异修复] ORIG 实证：本段（0x4e83 的第二次查询）count 读入**独立的具名
+    //   局部**（ORIG 栈槽 -0xbc，与第一段 count 的槽 -0xb8 分离；旧转写复用同一变量 ⇒
+    //   GCC 合并两槽、栈帧 0xcc vs ORIG 0xdc）。
+    int memberCountAfter;   // ORIG 该槽无初始化（-0xbc 仅 5 次访问、无 `movl $0x0`）
+    r = h->get_int(0, memberCountAfter);
     if (!r)
     {
         CMyFileLog(__FUNCTION__, 0x1046)("./log/DBQueryErr",
@@ -4137,22 +4129,22 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
             req->m_guildId);
         return 0;
     }
-    if (memberCount != 0)
+    if (memberCountAfter != 0)
     {
         if (!h->set_query(0x4e74,
                           "upDate guild_info set member_count = %d where guild_id = %d",
-                          memberCount, req->m_guildId))
+                          memberCountAfter, req->m_guildId))
         {
             CMyFileLog(__FUNCTION__, 0x104e)("./log/DBQueryErr",
                 "CDBManager::GuildSecede() upDate guild_info set member_count = %d where guild_id = %d seceded(%d)",
-                memberCount, req->m_guildId, characNo);
+                memberCountAfter, req->m_guildId, characNo);
             return 0;
         }
         if (!h->exec(0x4e74))
         {
             CMyFileLog(__FUNCTION__, 0x1053)("./log/DBQueryErr",
                 "CDBManager::GuildSecede() upDate guild_info set member_count = %d where guild_id = %d seceded(%d)",
-                memberCount, req->m_guildId, characNo);
+                memberCountAfter, req->m_guildId, characNo);
             return 0;
         }
     }
@@ -4192,45 +4184,41 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
     }
     if (isMaster)
     {
-        if (!h->set_query(0x4f0d,
-                          "upDate guild_info set expire_flag=1, expire_time=now() where guild_id=%d",
-                          req->m_guildId))
-            return 0;
+        // [2026-09-15 差异修复] ORIG df_dbmw_r 实证（mdiff_ta + 逐条指令核对）：本块 8 个
+        //   set_query 的返回值**均不检查**（ORIG @717/742/767/792/817/842/867/892 于
+        //   `call *vt[+0x1c]` 后直接进入 `call *vt[+0x20]`（exec）），只有其后的 exec 有
+        //   `xor $0x1 / test / je / mov $0 / jmp` 检查。旧转写对两者都加了检查。
+        h->set_query(0x4f0d,
+                     "upDate guild_info set expire_flag=1, expire_time=now() where guild_id=%d",
+                     req->m_guildId);
         if (!h->exec(0x4f0d))
             return 0;
-        if (!h->set_query(0x4f0e, "deLete from guild_introduce where guild_id=%d",
-                          req->m_guildId))
-            return 0;
+        h->set_query(0x4f0e, "deLete from guild_introduce where guild_id=%d",
+                     req->m_guildId);
         if (!h->exec(0x4f0e))
             return 0;
-        if (!h->set_query(0x4f10, "deLete from guild_member_introduce where guild_id=%d",
-                          req->m_guildId))
-            return 0;
+        h->set_query(0x4f10, "deLete from guild_member_introduce where guild_id=%d",
+                     req->m_guildId);
         if (!h->exec(0x4f10))
             return 0;
-        if (!h->set_query(0x4f0f, "deLete from guild_member where guild_id=%d",
-                          req->m_guildId))
-            return 0;
+        h->set_query(0x4f0f, "deLete from guild_member where guild_id=%d",
+                     req->m_guildId);
         if (!h->exec(0x4f0f))
             return 0;
-        if (!h->set_query(0x4f11, "deLete from guild_visit where guild_id=%d",
-                          req->m_guildId))
-            return 0;
+        h->set_query(0x4f11, "deLete from guild_visit where guild_id=%d",
+                     req->m_guildId);
         if (!h->exec(0x4f11))
             return 0;
-        if (!h->set_query(0x4f12, "deLete from guild_notice where guild_id=%d",
-                          req->m_guildId))
-            return 0;
+        h->set_query(0x4f12, "deLete from guild_notice where guild_id=%d",
+                     req->m_guildId);
         if (!h->exec(0x4f12))
             return 0;
-        if (!h->set_query(0x4f13, "deLete from guild_skill where guild_id=%d",
-                          req->m_guildId))
-            return 0;
+        h->set_query(0x4f13, "deLete from guild_skill where guild_id=%d",
+                     req->m_guildId);
         if (!h->exec(0x4f13))
             return 0;
-        if (!h->set_query(0x4f13, "deLete from guild_join_list where guild_id=%d",
-                          req->m_guildId))
-            return 0;
+        h->set_query(0x4f13, "deLete from guild_join_list where guild_id=%d",
+                     req->m_guildId);
         if (!h->exec(0x4f13))
             return 0;
         result = 1;
@@ -5903,21 +5891,26 @@ bool CDBManager::QueryIPCounter(
         r = h->fetch();
         if (!r)
             return 0;
-        st_ip_counter_list item;
-        r = h->get_ushort(0, item.m_hackType);
+        // [2026-09-15 差异修复] ORIG df_dbmw_r 实证：本循环**不含 st_ip_counter_list 自动对象**
+        //   —— ORIG 全函数无 `st_ip_counter_list::~st_ip_counter_list()` / `_Unwind_Resume`，
+        //   失败路径一律 `mov $0x0,%eax; jmp <epilogue>`（14 处）。旧转写声明具名对象 ⇒ GCC
+        //   追加构造/析构 + EH 清理（我方 397 条 vs ORIG 354）。改为 ORIG 的字节缓冲写法
+        //   （布局不变：+0 hack_type、+2 hack_sub_type、+4 c_class_ip[0xc]、+0x10 cnt）。
+        char itemBuf[0x14];
+        r = h->get_ushort(0, *(unsigned short*)&itemBuf[0]);
         if (!r)
             return 0;
-        r = h->get_ushort(1, item.m_hackSubType);
+        r = h->get_ushort(1, *(unsigned short*)&itemBuf[2]);
         if (!r)
             return 0;
-        memset(item.m_cClassIp, 0, sizeof(item.m_cClassIp));
-        r = h->get_str(2, item.m_cClassIp, 0xc);
+        memset(&itemBuf[4], 0, 0xc);
+        r = h->get_str(2, &itemBuf[4], 0xc);
         if (!r)
             return 0;
-        r = h->get_uint(3, item.m_cnt);
+        r = h->get_uint(3, *(unsigned int*)&itemBuf[0x10]);
         if (!r)
             return 0;
-        ipList.push_back(item);
+        ipList.push_back(*(st_ip_counter_list*)itemBuf);
     }
     if (!h->set_query(0x4edb,
                       "seLect hack_type, hack_sub_type, full_ip, cnt from  auto_punish_hack_full_ip where occ_date = now() and cnt >= %d",
@@ -5939,21 +5932,22 @@ bool CDBManager::QueryIPCounter(
         r = h->fetch();
         if (!r)
             return 0;
-        st_full_ip_counter_list item;
-        r = h->get_ushort(0, item.m_hackType);
+        // 同上（ORIG 无 st_full_ip_counter_list 析构/Unwind；布局 +4 full_ip[0x10]、+0x14 cnt）。
+        char itemBuf2[0x18];
+        r = h->get_ushort(0, *(unsigned short*)&itemBuf2[0]);
         if (!r)
             return 0;
-        r = h->get_ushort(1, item.m_hackSubType);
+        r = h->get_ushort(1, *(unsigned short*)&itemBuf2[2]);
         if (!r)
             return 0;
-        memset(item.m_fullIp, 0, sizeof(item.m_fullIp));
-        r = h->get_str(2, item.m_fullIp, 0x10);
+        memset(&itemBuf2[4], 0, 0x10);
+        r = h->get_str(2, &itemBuf2[4], 0x10);
         if (!r)
             return 0;
-        r = h->get_uint(3, item.m_cnt);
+        r = h->get_uint(3, *(unsigned int*)&itemBuf2[0x14]);
         if (!r)
             return 0;
-        fullIpList.push_back(item);
+        fullIpList.push_back(*(st_full_ip_counter_list*)itemBuf2);
     }
     return 1;
 }
@@ -6118,17 +6112,22 @@ bool CDBManager::queryTowerFullRank(unsigned int towerIndex,
         {
             if (!h->fetch())
                 return 0;
-            stTowerRank_t item;
-            if (!h->get_uint(0, *(unsigned int*)&item.m_characNo))
+            // [2026-09-15 差异修复] ORIG df_dbmw_r 实证：本循环**不含 stTowerRank_t 自动对象**
+            //   —— ORIG 无 `stTowerRank_t::~stTowerRank_t()` 调用、无 _Unwind_Resume（181 条，
+            //   失败路径一律 `mov $0x0,%eax; jmp <epilogue>`，6 处）。旧转写声明具名对象 ⇒
+            //   GCC 追加构造/析构与 EH 清理（我方 206 条）。改为字节缓冲（布局不变：
+            //   +0 charac_no、+4 tower_index、+6 rank、+8 part_type、+9 member_info[0x5c]）。
+            char itemBuf[0x65];
+            if (!h->get_uint(0, *(unsigned int*)&itemBuf[0]))
                 return 0;
-            if (!h->get_ushort(1, *(unsigned short*)&item.m_towerIndex))
+            if (!h->get_ushort(1, *(unsigned short*)&itemBuf[4]))
                 return 0;
-            if (!h->get_ushort(2, *(unsigned short*)&item.m_rank))
+            if (!h->get_ushort(2, *(unsigned short*)&itemBuf[6]))
                 return 0;
-            if (!h->get_binary(3, item.m_memberInfo, rank * 0x17))
+            if (!h->get_binary(3, &itemBuf[9], rank * 0x17))
                 return 0;
-            item.m_partType = (char)rank;
-            ranks.push_back(item);
+            itemBuf[8] = (char)rank;
+            ranks.push_back(*(stTowerRank_t*)itemBuf);
             i++;
         }
     }
@@ -6443,33 +6442,34 @@ bool CDBManager::QueryLoadARSInfo(std::vector<st_ars_info_list>& arsList)
         r = h->fetch();
         if (!r)
             return 0;
-        st_ars_info_list item;
-        r = h->get_ushort(0, item.m_hackType);
+        // [2026-09-15 差异修复] ORIG df_dbmw_r 实证：本循环**不含 st_ars_info_list 自动对象**
+        //   —— ORIG 全函数无 `st_ars_info_list::~st_ars_info_list()` 调用、亦无 _Unwind_Resume
+        //   （224 条），失败路径一律 `mov $0x0,%eax; jmp <epilogue>`（10 处）。旧转写声明了
+        //   具名对象 ⇒ GCC 追加循环体内构造/析构 + EH 清理（我方 253 条，多 2×D1Ev + Unwind）。
+        //   故改为 ORIG 的字节缓冲 + 按原列序写入（col2→+0xa、col3→+4、col4→+6、col5→+8、col6→+9）。
+        char itemBuf[0xc];
+        r = h->get_ushort(0, *(unsigned short*)&itemBuf[0]);
         if (!r)
             return 0;
-        r = h->get_ushort(1, item.m_cnt);
+        r = h->get_ushort(1, *(unsigned short*)&itemBuf[2]);
         if (!r)
             return 0;
-        // 注意：以下列序与 SQL 列名不完全对齐，但这是 ORIG 的原始行为
-        //（本函数与 ORIG 逐字节 IDENTICAL，勿按 SQL 列名"修正"读取顺序）。
-        // col2(etc)→+0xa、col3(hack_sub_type)→+4、col4(hack_sub_cnt)→+6、
-        // col5(apply_flag)→+8、col6(ip_cnt)→+9。
-        r = h->get_ushort(2, item.m_ipCnt);
+        r = h->get_ushort(2, *(unsigned short*)&itemBuf[0xa]);
         if (!r)
             return 0;
-        r = h->get_ushort(3, item.m_etc);
+        r = h->get_ushort(3, *(unsigned short*)&itemBuf[4]);
         if (!r)
             return 0;
-        r = h->get_ushort(4, item.m_hackSubType);
+        r = h->get_ushort(4, *(unsigned short*)&itemBuf[6]);
         if (!r)
             return 0;
-        r = h->get_ubyte(5, item.m_hackSubCnt);
+        r = h->get_ubyte(5, *(unsigned char*)&itemBuf[8]);
         if (!r)
             return 0;
-        r = h->get_ubyte(6, item.m_applyFlag);
+        r = h->get_ubyte(6, *(unsigned char*)&itemBuf[9]);
         if (!r)
             return 0;
-        arsList.push_back(item);
+        arsList.push_back(*(st_ars_info_list*)itemBuf);
     }
     return 1;
 }
