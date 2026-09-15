@@ -6107,8 +6107,10 @@ bool CDBManager::queryTowerFullRank(unsigned int towerIndex,
         }
         if (!h->exec(0x4e69))
             return 0;
-        unsigned int i = 0;
-        while (i < (unsigned int)h->get_n_rows())
+        // [2026-09-15 差异修复] ORIG 实证：`i < h->get_n_rows()` 用 `setg`（有符号比较），
+        //   而 `rank <= 4` 用 `setbe`（无符号）⇒ i 为 int（旧转写 unsigned 生成 seta）。
+        int i = 0;
+        while (i < (int)h->get_n_rows())
         {
             if (!h->fetch())
                 return 0;
