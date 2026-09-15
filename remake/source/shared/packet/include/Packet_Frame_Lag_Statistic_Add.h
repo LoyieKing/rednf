@@ -43,18 +43,18 @@ public:
         short m_v1;          // +0x06
         short m_v2;          // +0x08
         short m_v3;          // +0x0a
-        char m_rest[0x2c];   // 补足 0x38（与 ORIG 的 item 步长一致）
+        // [2026-09-15 W10-Static] sub 视图（8 字节 {int,float} 元素）直接落在 item+0x0c
+        //   ⇒ `m_rest[j]` 地址 = 0x2c+56i+8j，与 is_valid 原 `u_sub.m_sub[i][j][4]`
+        //   （0x0c+(i*7+j+4)*8）逐字节一致。
+        SubItem m_rest[5];   // +0x0c（40 字节；j=5 时地址 = item+0x34，仍在 0x38 内）
+        char m_pad34[4];     // +0x34..+0x37（补足 0x38）
     } __attribute__((packed));
 
     union Layout
     {
-        // sub 视图：从类起点 +0x0c 起（PacketHeader 0x0a + 2）
-        struct
-        {
-            char m_pad_sub[2];              // +0x00..0x01 → 类 +0x0a..0x0b
-            SubItem m_sub[6][7][1];         // +0x0c 起，步长 8
-        } __attribute__((packed)) u_sub;
-        // 主视图：头字段 +0x0a..+0x1f、items +0x20
+        // [2026-09-15 W10-Static] 原 u_sub 成员已删（唯一使用点 is_valid 改用
+        //   `m_items[i].m_rest[j]`）；items 移出 union 成为类直接成员 ⇒ 复现 ORIG 的
+        //   `add $0x20,%eax; movzwl 0x4(%eax)` 拆分（带 union 祖先时折成 0x10+0x14）。
         struct
         {
             int m_min;                      // 类 +0x0a（cpu clock）
@@ -68,11 +68,11 @@ public:
             char m_field_1a;                // +0x1a（os_version）
             unsigned int m_directx;         // +0x1b（奇偏移，packed）
             char m_module;                  // +0x1f
-            Item m_items[6];                // +0x20，步长 0x38
         } __attribute__((packed)) u_main;
     } __attribute__((packed));
 
-    Layout m_layout;        // 类 +0x0a 起（union 大小 0x166 ⇒ 至 +0x170）
+    Layout m_layout;        // 类 +0x0a 起（union 大小 0x16 ⇒ 至 +0x1f）
+    Item m_items[6];        // +0x20，步长 0x38（类直接成员）
     char m_tail[4];         // +0x170..0x173
     char m_used[6];         // +0x174（used memory 上报）
     short m_val[6];         // +0x17a..0x185

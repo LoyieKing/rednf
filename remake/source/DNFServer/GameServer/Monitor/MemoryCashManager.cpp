@@ -156,7 +156,10 @@ bool CMemoryCashManager::QueryCashMemoryBuddyInfo(CUser* user)
         int count = obj->GetBuddysObject(buddies);
         for (int i = 0; i < count; i++)
         {
-            if (buddies[i] != 0)
+            if (buddies[i] == 0)
+            {
+                continue;
+            }
             {
                 std::string name;
                 if (QueryUpdatedCharacName(
@@ -167,7 +170,7 @@ bool CMemoryCashManager::QueryCashMemoryBuddyInfo(CUser* user)
                 }
                 user->AddBuddyFromCash(buddies[i]);
                 register unsigned int uniqNo __asm__("ebx") = user->GetUniqCharNo();
-                register int charNo =
+                register unsigned int charNo =
                     ((STBuddyDBInfo*)buddies[i]->getBuddyDBInfo())->m_characNo;
                 m_app->Get_BuddyRegisterManager()->addBuddyRegister(charNo, uniqNo);
             }

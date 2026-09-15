@@ -378,12 +378,17 @@ struct AssertManagerWriteElemView
     char m_reason[0xf2];       // +0x114
 } __attribute__((packed));
 
+struct SecretShopStatisticElem
+{
+    int m_data[5];
+} __attribute__((packed));
+
 struct SecretShopStatisticView
 {
     char h[0xa];
     int m_count;             // +0xa
     int m_shopIdx;           // +0xe
-    int m_data[0x320];       // +0x12（200 × 5 int，步长 0x14）
+    SecretShopStatisticElem m_items[200];   // +0x12（每元素 0x14）
 } __attribute__((packed));
 
 struct FrameLagWriteIndexView
@@ -2519,7 +2524,7 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
             reply.m_flag = 3;
             return 0;
         }
-        if (t > maxExp)
+        if (maxExp < t)
             maxExp = t;
         cVar1 = h->get_uint(4, t);
         if (!cVar1)
@@ -2527,7 +2532,7 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
             reply.m_flag = 3;
             return 0;
         }
-        if (t > maxIdx)
+        if (maxIdx < t)
             maxIdx = t;
         reply.m_master.m_count = (char)(n - 1);
         sprintf(str, "%s%d,", str, reply.m_master.m_proxy.m_no);
@@ -4294,7 +4299,6 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
             CMyFileLog(__FUNCTION__, 0x114f)("./log/TraceGuildErr",
                 "CDBManager::QueryGuildCreate server_group(%d), charac_no(%d) CharacName NULL\n",
                 req->m_serverId, req->m_characNo);
-            return 0;
         }
         else
         {
@@ -4302,16 +4306,13 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
                 "CDBManager::QueryGuildCreate server_group(%d), charac_no(%d) GuildName NULL\n",
                 req->m_serverId, req->m_characNo);
         }
-    }
-    if (!h->set_query(0x4e6c,
-                      "inSert into guild_info set server_id=%d,guild_name='%s',master_id=%s,master_no=%d,master_name='%s',guild_url='%s',create_time=now(),member_count=1",
-                      req->m_serverId, req->m_guildName,
-                      NumberToString(req->m_id, 0), req->m_characNo,
-                      req->m_characName, req->m_guildUrl))
-    {
-        result = 2;
         return 0;
     }
+    h->set_query(0x4e6c,
+                 "inSert into guild_info set server_id=%d,guild_name='%s',master_id=%s,master_no=%d,master_name='%s',guild_url='%s',create_time=now(),member_count=1",
+                 req->m_serverId, req->m_guildName,
+                 NumberToString(req->m_id, 0), req->m_characNo,
+                 req->m_characName, req->m_guildUrl);
     r = h->exec(0x4e6c);
     if (!r)
     {
@@ -4319,9 +4320,8 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
         return 0;
     }
     guildId = GetIdentity(h);
-    std::allocator<char> alloc;
-    StackBuffer_char buf = sformat("%s%d", "url", guildId);
-    std::string url((char*)buf, alloc);
+    std::string url((char*)sformat("%s%d", "url", guildId),
+                    std::allocator<char>());
     h->set_query(0x4f5f,
                  "upDate guild_info set guild_url='%s' where guild_id=%d",
                  url.c_str(), guildId);
@@ -4345,51 +4345,31 @@ bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
         if (!r)
             result = 2;
     }
-    if (!h->set_query(0x4e6f,
-                      "inSert into guild_introduce set guild_id=%d,server_id=%d",
-                      guildId, req->m_serverId))
-    {
-        result = 2;
-        return 0;
-    }
+    h->set_query(0x4e6f,
+                 "inSert into guild_introduce set guild_id=%d,server_id=%d",
+                 guildId, req->m_serverId);
     r = h->exec(0x4e6f);
     if (!r)
         result = 2;
-    if (!h->set_query(0x4e70,
-                      "inSert into guild_member_introduce set guild_id=%d,charac_no=%d",
-                      guildId, req->m_characNo))
-    {
-        result = 2;
-        return 0;
-    }
+    h->set_query(0x4e70,
+                 "inSert into guild_member_introduce set guild_id=%d,charac_no=%d",
+                 guildId, req->m_characNo);
     r = h->exec(0x4e70);
     if (!r)
         result = 2;
-    if (!h->set_query(0x4e71,
-                      "inSert into guild_visit set guild_id=%d,server_id=%d, total_visit=0, today_visit=0",
-                      guildId, req->m_serverId))
-    {
-        result = 2;
-        return 0;
-    }
+    h->set_query(0x4e71,
+                 "inSert into guild_visit set guild_id=%d,server_id=%d, total_visit=0, today_visit=0",
+                 guildId, req->m_serverId);
     r = h->exec(0x4e71);
     if (!r)
         result = 2;
-    if (!h->set_query(0x4e72, "inSert into guild_skill set guild_id=%d", guildId))
-    {
-        result = 2;
-        return 0;
-    }
+    h->set_query(0x4e72, "inSert into guild_skill set guild_id=%d", guildId);
     r = h->exec(0x4e72);
     if (!r)
         result = 2;
-    if (!h2->set_query(0x4e73,
-                       "upDate charac_info set guild_id=%d where m_id=%s and charac_no=%d",
-                       guildId, NumberToString(req->m_id, 0), req->m_characNo))
-    {
-        result = 2;
-        return 0;
-    }
+    h2->set_query(0x4e73,
+                  "upDate charac_info set guild_id=%d where m_id=%s and charac_no=%d",
+                  guildId, NumberToString(req->m_id, 0), req->m_characNo);
     r = h2->exec(0x4e73);
     if (!r)
         result = 2;
@@ -6794,11 +6774,11 @@ char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
     {
         h->set_query(0x4efc,
                      "upDate log_secret_shop set show_count=show_count+%d,show_charac_count=show_charac_count+%d,buy_count=buy_count+%d,price=price+%d where occ_date=cast(now() as date) and dungeon_idx=%d and npc_idx=%d",
-                     ((SecretShopStatisticView*)packet)->m_data[i * 5 + 1],
-                     ((SecretShopStatisticView*)packet)->m_data[i * 5 + 2],
-                     ((SecretShopStatisticView*)packet)->m_data[i * 5 + 3],
-                     ((SecretShopStatisticView*)packet)->m_data[i * 5 + 4],
-                     ((SecretShopStatisticView*)packet)->m_data[i * 5],
+                     ((SecretShopStatisticView*)packet)->m_items[i].m_data[1],
+                     ((SecretShopStatisticView*)packet)->m_items[i].m_data[2],
+                     ((SecretShopStatisticView*)packet)->m_items[i].m_data[3],
+                     ((SecretShopStatisticView*)packet)->m_items[i].m_data[4],
+                     ((SecretShopStatisticView*)packet)->m_items[i].m_data[0],
                      ((SecretShopStatisticView*)packet)->m_shopIdx);
         if (!h->exec(0x4efc))
         {
@@ -6811,11 +6791,11 @@ char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
                 0x4efb,
                 "inSert into log_secret_shop(occ_date,npc_idx,dungeon_idx,show_count,show_charac_count,buy_count,price) values(cast(now() as date), %d, %d, %d, %d, %d, %d)",
                 ((SecretShopStatisticView*)packet)->m_shopIdx,
-                ((SecretShopStatisticView*)packet)->m_data[i * 5],
-                ((SecretShopStatisticView*)packet)->m_data[i * 5 + 1],
-                ((SecretShopStatisticView*)packet)->m_data[i * 5 + 2],
-                ((SecretShopStatisticView*)packet)->m_data[i * 5 + 3],
-                ((SecretShopStatisticView*)packet)->m_data[i * 5 + 4]);
+                ((SecretShopStatisticView*)packet)->m_items[i].m_data[0],
+                ((SecretShopStatisticView*)packet)->m_items[i].m_data[1],
+                ((SecretShopStatisticView*)packet)->m_items[i].m_data[2],
+                ((SecretShopStatisticView*)packet)->m_items[i].m_data[3],
+                ((SecretShopStatisticView*)packet)->m_items[i].m_data[4]);
             if (!h->exec(0x4efb))
             {
                 CMyFileLog(__FUNCTION__, 0x21cb)("./log/DBQueryErr",

@@ -30,6 +30,9 @@ public:
         // [2026-09-15 W7] 原 `int m_pair[6][2]`：逐 int 赋值使 SaveFrameLagData
         //   每条语句重算一次 `it->second`（ORIG 内层循环每轮仅一次 operator*）。
         //   同 8 字节结构整体赋值 ⇒ 布局不变（packed，0x30 字节）。
+        // [2026-09-15 W10-Static 实测否决] 拆成逐字段真类型赋值（两读两写）
+        //   会使每字段各自重算一次 `it->second`（2× ptEv + 2× 索引）⇒ 438→451 ✗
+        //   维持整体赋值（一次地址物化 + 间接读）。
         struct LagPair
         {
             int m_words[2];

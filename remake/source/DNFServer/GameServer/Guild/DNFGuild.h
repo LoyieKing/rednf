@@ -64,7 +64,6 @@ struct ST_GuildCreateFromWeb;
 struct ST_Notice_Guild_Enter;
 struct ST_Notice_Guild_Secede;
 class UpgradeSeparateInfo;
-class hyperlink_item_info;
 
 // from GuildDomain.h
 struct __attribute__((packed)) STGuildSkill
@@ -143,11 +142,10 @@ struct __attribute__((packed)) STGuildMemberChangableInfo
     unsigned int m_time;      // +0
 };
 
-// from GuildDomain.h
-struct hyperlink_item_info
-{
-    char m_data[0x40];
-};
+// [W10-GuildB ODR 清理 · Main 2026-09-15 裁决 A] 原 `struct hyperlink_item_info { char m_data[0x40]; };`
+//   为本文件历史遗留错值（0x40），与本文件自身调用点 DNFGuild.cpp:1298 的 `i*0x68` 步长自相矛盾；
+//   权威定义（0x68，POD）在 shared/packet/include/Packet_Monitor_Member_Chat_Hyper_Link.h ⇒ 改为引用它。
+#include "Packet_Monitor_Member_Chat_Hyper_Link.h"
 
 // from GuildPackets.h
 #pragma pack(push,1)

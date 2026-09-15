@@ -1276,6 +1276,114 @@ monitor **57** / guild **47** / dbmw **47** —— 剩余 151 件经 6 波攻坚
 4. 若目标需要 `≤9`，需**新机理或 ORIG 原始构建信息** ✓
 
 
+### 5.21 2026-09-15 第十五~十九轮（波次 7–10）：**X 机理大爆发 + 机理 Y + 「四件套」 · 多条「不可调族」被推翻**
+
+#### A. 水位（唯一权威口径，每次共享头改动后六服务全量重建核账）
+
+| 服务 | identical | 非identical | 备注 |
+|---|---|---|---|
+| statics | 1145 | **6** | ✓ 达标（目标 ≤9） |
+| auction | 1210 | **0** | ✓ 达标 |
+| point | 1210 | **0** | ✓ 达标 |
+| monitor | 2052 | **52** | |
+| guild | 1893 | **37** | |
+| dbmw | 1385 | **39** | |
+| **合计** | — | **134** | 起点 311 ⇒ **翻正 177 件（−56.9%）** |
+
+> **第十波（`W10-*`）增量**：monitor 55→52 · guild 42→37 · dbmw 40→39 ⇒ **−9**。
+> 另：**header 冻结已由用户裁定解除** —— 任何头可直接修改（保留纪律：`grep -rl` 枚举依赖 ⇒ `rm .o` + `touch` 源 ⇒ 重建 ⇒ 六服务核账 ⇒ game 外溢核验）；**仍禁宏注入**，一律直接改真类型。
+
+#### B. 机理 X（数组成员 vs 标量成员 + cast）——**充分条件已用最小 C++ 实验锁定**
+
+| 元素声明 | GCC 生成 | 对应 |
+|---|---|---|
+| **真类型**（如 `NpcBuyLimitItem m_items[30]`） | `lea K(%reg),%dst` | **= ORIG** ✓ |
+| **匿名标量聚合**（`struct { U a,b,c; } m_items[30]`）+ 调用点 `cast` | `add $K,%reg; mov %reg,%dst` | **= 我方旧码** ✗ |
+
+**判据**：残差段出现 `add $K,%reg; mov %reg,%dst` 且调用点有 cast ⇒ 把成员声明改为**真类型**、调用点去 cast。
+
+**⚠ POD 约束（关键，实测）**：真类型若带**类内 inline ctor**（non-POD）⇒ GCC 报
+`ignoring packed attribute because of unpacked non-POD field` ⇒ 成员偏移被“挤开”（如 `+0xe → +0x10`）
+⇒ 该函数劣化。**必须同时满足「POD（无类内 ctor）+ 外层 packed」**才既得 `lea` 又不破坏布局。
+去类内 ctor 通常**零符号代价**（`nm` 双侧均无该 ctor 即可证）。
+
+**排除项**：`lea K(%ebx),%eax` 也可能来自**寄存器驻留的计数器/临时副本**（非数组 decay）⇒ 先辨形态。
+**不可行项**：packed 字段**无法绑定 `unsigned int&`**（`loadLimitNpcBuyItemInfo` 探针实证）。
+
+**已兑现**（AE = ndiff 0）：monitor `onNoticeMemberChatMsgHyperLink` · `onItemLimitEditionLoadDataRpy`(37→36) ·
+`onSocialEventRewardItemResponse`(203/203) · `OnMonitorFindFactoryHubUser`(149→120) ·
+dbmw `QuerySubGuildMaster` · `CMySql::blob_to_str`(STRICT) · `OnChangeUnconnectedGuildMemberGrade` ·
+`OnLoadGuildCargoHistory` · statics `SaveFrameLagData`(59→51 / 450→438，`int m_pair[6][2] → LagPair m_pair[6]`)。
+
+#### C. 机理 Y（**新**）：局部对象析构消解 —— 推翻「EH landing 族」多条不可修结论
+
+> **症状**：我方多 `call ~T()` + `call _Unwind_Resume`（EH landing），**ORIG 全无 EH 痕迹**。
+> **成因**：我方在循环/函数内声明了**有非平凡析构的具名局部对象** ⇒ GCC 必布 cleanup；**ORIG 该处没有该对象**（或为 POD/字节缓冲）。
+> **修法**：把该局部**降格为同尺寸字节缓冲** `char itemBuf[sizeof(T)];`，并按**布局逐字段访问**（列序照 ORIG 不动）
+> ⇒ 析构消失 ⇒ cleanup 消失 ⇒ `_Unwind_Resume` 消失。
+>
+> **与 EH-1（`throw()`）的区别**：EH-1 给**被调方**加 `throw()`（要求其为我方可控函数，适用范围窄）；
+> **Y 不要求任何 `throw()` 能力 ⇒ 适用面更广**。
+
+**实证**：dbmw `QueryLoadARSInfo`(224=224) · `QueryIPCounter`(354=354，**此前登记为「虚调用作用域 ⇒ 不可修」**) ·
+`queryTowerFullRank`(206→180)。dbmw 侧已**穷尽**（候选归零）。
+
+#### D. 「四件套」——**大件（segs ≥ 4）的主因，不是 X**（guild 5 件全翻的实战总结）
+
+| # | 内容 | 说明 |
+|---|---|---|
+| ① | **重建期误删的具名槽** | ⚠ **旧注释里的「R1 内联」方向被系统性判反**：ORIG **常有** `T* p = &m_pclApp->m_xManager;` 这类**写后不读也照样占槽**的具名局部（占槽并决定后续布局）⇒ **应「补回」而非「删除」** |
+| ② | **条件比较物化** | 把赋值放进 `if` 条件 + 空 `continue`/`else` ⇒ 诱导 `sete/setne` + `test`（取代 `xor`/`neg` 形态） |
+| ③ | **字段语义错位 / 极性反向** | **真实逻辑错误**，必需修正。实例：`requester←m_id(+0x12)` / `joiner←m_characNo(+0x16)` / 判据用 `m_result(+0xa)`（旧码误用 `guildKey`）；`IsExistGuildAgit()==0` 才早退（旧码 `!=1` **极性相反**） |
+| ④ | **正向 `if(b)` 取代 `!b`** | 消除 `xor $0x1,%eax` |
+
+**实证**（guild `DNFPacketTranslater.cpp`，单文件）：`OnCallGuildInfo`(segs 21→0) · `OnDBMWGuildJoin`(25→0) ·
+`OnDBResponseApproveJoinGuild`(34→0) · `OnGuildCargoHistory`(33→0) · `OnGuildCargoCheckPushItem`(24→0) ⇒ **guild 47→42**。
+
+#### E. 其他新判据
+
+- **W-B 比较实参序**：`end() != it`（非 `it != end()`）。
+- **`register T* p = &obj->member;` ⇒ `lea` 且无栈槽**；非 `register` ⇒ `add` + 槽物化（4 变体对照）。
+- **W2 尾部 `jmp` 条数 = 函数出口 `return` 条数**：三形式 —— ①**负条件包裹**（最优）②删尾部 return ③`then` 尾补 return（`else` 尾无效）。
+
+#### F. 工具与纪律增补（**全部有实证**）
+
+| # | 纪律 |
+|---|---|
+| ⑮ | **`W5s_merge` 存在 S 符号化假阴性**（曾报 `segs=0` 而 `mdiff_ta` 实测 `ndiff=11`）⇒ merge **仅作靶点筛选**；**终判一律以 `mdiff_ta` 为准** |
+| ⑯ | **共享头改动**：`grep -rl` 枚举 ⇒ `rm` 全部依赖 `.o` **且 `touch` 全部依赖源文件**（ninja depfile 会漏检：实证 monitor 首次报 `no work`，`touch` 后实编 70 TU） |
+| ⑰ | **外溢核验**（game 无法链接时的标准手段）：同 wrapper `-c` 到 `/tmp` 比较 `.text` 段 md5 |
+| ⑱ | **禁止 `<LANE>_REAL_TYPE` 宏注入**（用户裁定）：默认**直接改真类型**；判据改为**全域净变化**（净改善/中性 ⇒ 保留；劣化 ⇒ 先修受影响件，仍劣化才回退） |
+
+#### G. 「不可调族」勘误（**被本阶段推翻的旧结论**）
+
+| 旧结论 | 现状 |
+|---|---|
+| 「`lea` vs `add+mov`」统一归为「目标寄存器跨调用保活族 ✗」 | **推翻**：其中相当一部分是**数组成员 vs 标量成员**（机理 X，**可修**） |
+| 「EH landing / 块布局」不可修（`EndEffectTask` · `parsing` · `OnRegisterEventItem`） | **部分推翻**：若 landing 源于**我方声明的局部对象** ⇒ 机理 **Y 可修** |
+| 「虚调用作用域 ⇒ `throw()` 无效 ⇒ 不可修」（`QueryIPCounter`） | **推翻**：机理 **Y**（降格字节缓冲）直接修好 |
+| 「R1-逆向：消除具名局部」 | ⚠ **方向系统性判反** ⇒ 改为「**补回具名槽**」 |
+
+#### H. 第十波（`W10-*`）新增机理（全部有实证）
+
+| 机理 | 内容 | 锚点 |
+|---|---|---|
+| **F1 set_query 返回检查** | ORIG 的 `h->set_query()` **多数不检查**返回值（重建期多写了 `if(!set_query(...)){...}`，每处 7 条）⇒ 删成纯调用。⚠ **函数开头那处 ORIG 确有检查** ⇒ 必须逐处按 ORIG 汇编判定，**不可全局套用** | dbmw `QueryGuildCreate`（翻正 709=709） |
+| **F2 临时 vs 具名对象决定析构点** | 具名对象 ⇒ 析构在**函数尾**（并多出 cleanup+landing）；ORIG 为临时对象 ⇒ 析构点在**该语句末**。`StackBuffer buf = sformat(...)` → `(char*)sformat(...)` 直接作实参；`std::allocator<char> alloc;` → `std::allocator<char>()` | dbmw `QueryGuildCreate` |
+| **F3 两分支共用一个 return 块** | ORIG：`then` 分支日志后 `jmp <return块>`、`else` 分支 fallthrough 到**同一** return 块 ⇒ 源码 `return 0;` 写在 if-else **之外**。写在 `then` 内是**真实逻辑差异** | dbmw `QueryGuildCreate` |
+| **F4 真元素类型决定索引 codegen** | `int m_data[0x320]` + `m_data[i*5+k]` ⇒ `(,%eax,4)` 缩放寻址；ORIG 为 0x14 字节元素结构体数组 ⇒ `shl/add/lea` 链。换 `struct Elem{int m_data[5];} __attribute__((packed)); Elem m_items[200];` | dbmw `OnSecretShopStatistic`（58→39） |
+| **F5 跨迭代累积索引变量** | ORIG 用**跨页自增**的 `int srcIdx = 0;`（`srcIdx++` 在 i 循环体末、早于 `for` 的 `i++`）替代 `page*10+i`；`rem` 分支复用同变量。另：`char* src = (char*)boards + k*0xa5` **必须**写 `STGuildBoardDBInfo* src = boards + k`（数组 decay）方能消除 ORIG-only 的双 `lea` 链 | dbmw `OnDBLoadRequestGuildBoardOpen`（228→200） |
+| **W-A2 布尔值化** | 条件判定写成 `(x == 0) == true` 形 ⇒ 诱导 `cmpl; jne +2; mov $1; jmp +2; mov $0; test; je` | guild `OnDeleteGuildAgit`（133→0） |
+| **迭代器 NRVO/直写槽** | `std::map<K,V>::iterator it = m_map.find(...)`（**声明即初始化**）⇒ sret **直写 `it` 槽**；「默认构造 + 赋值」则多一次拷贝 + 多一条 `C1Ev`。配套：去掉具名 `alloc`/`key` 局部改**临时实参** ⇒ 析构紧跟 `find` | monitor `CBuddyHandle::addDB`（29→0） |
+| **占位方向被系统性判反** | `char reservedSlot[4]` 这类**占位应删不应补** | monitor `OnExchangeServerInfo`（23→7） |
+
+**新判据**：**`ndiff` 与长度差常常背离 ⇒ 一律以 `ndiff` 为准决定回退**（2 处实证：`OnSecretShopStatistic` A/B、`QueryTodayGuildMember`）。
+
+**被排除的杠杆（勿重试）**：单 TU `-march`/`-mtune`（指令差异一字未变）· 编译器后端切换 c6/c6444r/c6446r（差异块数与长度完全一致）· `register T x __asm__("eax")` 绑定（长度反而 +1~+3 且破坏 gimplify）· 数组 `(unsigned int)` 整数形地址计算（ORIG 的 `add mem,reg` 仅在**无 cast 的整数操作数**下出现）。
+
+**Y 机理穷尽确认**：dbmw（候选 0）· guild（6244 符号全扫，仅 7 处 EH 差异且**全为 STL/运行时豁免符号**）· monitor（24 件全扫，2 处命中但根因均非「具名局部析构」本体：一为 TU 视角/ctor-spec 冲突，一为 `CGuard<CMutex>`（有副作用，不可降格为字节缓冲））。
+
+
 ## 6. 复现
 
 ```bash

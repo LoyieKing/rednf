@@ -1024,7 +1024,6 @@ void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
 {
     try
     {
-        int reservedSlot;   // S5: 槽组整体浅 4，补 4 字节占位
         Packet_Event_Item_Update* item = (Packet_Event_Item_Update*)pkt;
         CUser* user =
             (&m_pclApp->m_userManager)->FindUser(item->m_dbid);
@@ -1041,11 +1040,10 @@ void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
             }
             if (gs == 0)
             {
-                char* dbid = NumberToString(item->m_dbid, 0);
                 DNF_LOG_SCOPE_LINE(0x4b0,"./log/User",
                     "Fail: Event User DB ID : %s [EventType: %d][CharacNo: %d][ItemID: "
                     "%d][Stack: %d]\n",
-                    dbid, item->m_eventType,
+                    NumberToString(item->m_dbid, 0), item->m_eventType,
                     item->m_charNo,
                     item->m_itemId,
                     item->m_stack);
@@ -1057,11 +1055,10 @@ void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
             gs = (CServerInterface*)user->GetGameServer();
         }
         unsigned char channel = gs->GetChannelNo();
-        char* dbid = NumberToString(item->m_dbid, 0);
         DNF_LOG_SCOPE_LINE(0x4b7,"./log/User",
             "Event User DB ID : %s [EventType: %d][CharacNo: %d][ItemID: %d][Stack: "
             "%d][TableID: %d][Channel No: %d]\n",
-            dbid, item->m_eventType,
+            NumberToString(item->m_dbid, 0), item->m_eventType,
             item->m_charNo, item->m_itemId,
             item->m_stack, item->m_tableId,
             (unsigned int)channel);
@@ -1439,9 +1436,9 @@ void CPacketTranslater::OnMemberSecede(PacketHeader* pkt)
 
     if (m_pclApp != 0)
     {
+        Packet_Monitor_Member_Secede* secede = (Packet_Monitor_Member_Secede*)pkt;
         CUserManager* userMgr = &m_pclApp->m_userManager;
         CMemberManager* memberMgr = &m_pclApp->m_memberManager;
-        Packet_Monitor_Member_Secede* secede = (Packet_Monitor_Member_Secede*)pkt;
         unsigned int secederCharNo = secede->m_uniqCharNo;
         CUser* seceder = userMgr->FindUser_CharNo(secederCharNo);
         if (seceder != 0)
@@ -2656,9 +2653,13 @@ void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0077 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnExchangeServerInfo | 详见 function_reports/monitor/_ZN17CPacketTranslater20OnExchangeServerInfoEP12PacketHeader.md
+// [W10-MonitorA 2026-09-15] 23→**7**（135=135）：①删 `char reservedSlot[4]` 占位（23→20，占位方向反了）
+//   ②`unsigned int ip` 声明前移到 `reply` 之前 + `ip`/`result` 提升到函数作用域（20→7）。余差：3 个 CMyFileLog
+//   临时对象槽各差 4 + ORIG 的 `ip` 槽在 -0x40（我方针 -0x28，ORIG 该槽写后不读）。
 void CPacketTranslater::OnExchangeServerInfo(PacketHeader* pkt)
 {
-    char reservedSlot[4];   // S5：ORIG 含未引用 4 字节占位（槽组整体浅 4）
+    bool result;
+    unsigned int ip;
     try
     {
         if (m_pclApp == 0)
@@ -2669,9 +2670,9 @@ void CPacketTranslater::OnExchangeServerInfo(PacketHeader* pkt)
         else
         {
             Packet_Exchange_Server_Info* reply = (Packet_Exchange_Server_Info*)pkt;
-            unsigned int ip = reply->m_ip;
+            ip = reply->m_ip;
             int channel = reply->m_channel;
-            bool result = false;
+            result = false;
             GetInstanceExchangeServer()->SetExchageServer(
                 reply->m_ip, reply->m_port, reply->m_channel, result);
             if (!result)
@@ -2698,6 +2699,9 @@ void CPacketTranslater::OnExchangeServerInfo(PacketHeader* pkt)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0089 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeCharLiveOnTenMin | 详见 function_reports/monitor/_ZN17CPacketTranslater24OnNoticeCharLiveOnTenMinEP12PacketHeader.md
+// [W10-MonitorA 2026-09-15] 36→34（275 vs 277）：`while (lowerCount-- != 0)` 取代 `{ lowerCount--; … }` ⇒ 补回 ORIG 的
+//   `cmpl; setne; subl $0x1; test; jne` 形态（PKT 正确性：lowerCount 循环后不再使用，语义等价）。余差：ORIG 在实参准备处
+//   提前 `mov -0x1c(%ebp),%esi`（实参求值序）+ 尾部 jmp 条数差。
 void CPacketTranslater::OnNoticeCharLiveOnTenMin(PacketHeader* pkt)
 {
     try
@@ -2761,9 +2765,8 @@ void CPacketTranslater::OnNoticeCharLiveOnTenMin(PacketHeader* pkt)
                 idx = 0;
                 lowerCount = member->GetLowerMemberCount();
                 proxy = member->GetLowerMember_Proxy();
-                while (lowerCount != 0)
+                while (lowerCount-- != 0)
                 {
-                    lowerCount--;
                     lowerMember = memberMgr->FindMember(*proxy);
                     if (lowerMember != 0)
                     {
@@ -3215,7 +3218,10 @@ on_user_repel_end:;
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0090 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onReplyLoadTowerFullRank
 // [已试 2026-09-15 NetThreadDispatch] ①`MonitorTowerFullRankRec* rec` 从 for 内提升到循环外（B3/R4 轴）⇒ ELF 口径 44→**40 改善，已保留**。
-//   槽集合仍为混合态（ORIG-only -0x3c/-0x34/-0x2c；OURS-only -0x40/-0x38/-0x30/-0x28），jmp 目标差异属循环 join 错位（(c) 类）。 | 详见 function_reports/monitor/_ZN17CPacketTranslater24onReplyLoadTowerFullRankEP12PacketHeader.md
+// [W10-MonitorA 2026-09-15] ②base 由 `pkt` 改 `rank`；③**删 `rec` 具名缓存局部**、改索引表达式
+//   `((MonitorTowerFullRankRec*)rank)[i].m_*` ⇒ 40→**22**（141 vs 138，槽集合现已两侧一致）。
+//   ORIG 形态：每字段重算 `imul $0x65` + `add $0x10` + `add rank` + `add $0xc`（我方针的 rec 缓存是被误加的具名槽）。
+//   ④`(char*)rank + 0x10` 拆分变体 ⇒ 22→30 劣化，已回退。余差：ORIG 的 0x10/0xc 两步拆分编码。 | 详见 function_reports/monitor/_ZN17CPacketTranslater24onReplyLoadTowerFullRankEP12PacketHeader.md
 void CPacketTranslater::onReplyLoadTowerFullRank(PacketHeader* pkt)
 {
     try
@@ -3228,15 +3234,13 @@ void CPacketTranslater::onReplyLoadTowerFullRank(PacketHeader* pkt)
         }
         DNF_LOG_SCOPE_LINE(0x1172,"./log/DeathTower", "%d/%d\n", rank->m_count,
             rank->m_total);
-        MonitorTowerFullRankRec* rec;
         for (unsigned int i = 0; i < rank->m_count; i++)
         {
-            rec = (MonitorTowerFullRankRec*)pkt + i;
             ((CTowerRank*)m_pclApp->getTowerRank())->registRank(
-                (unsigned int)(unsigned char)rec->m_field1b,
-                (unsigned int)rec->m_field17,
-                (unsigned int)rec->m_field19,
-                (const stDeathTowerRecordMemberInfo_t*)rec->m_memberInfo);
+                (unsigned int)(unsigned char)((MonitorTowerFullRankRec*)rank)[i].m_field1b,
+                (unsigned int)((MonitorTowerFullRankRec*)rank)[i].m_field17,
+                (unsigned int)((MonitorTowerFullRankRec*)rank)[i].m_field19,
+                (const stDeathTowerRecordMemberInfo_t*)((MonitorTowerFullRankRec*)rank)[i].m_memberInfo);
         }
     }
     catch (CDNFException& e)
@@ -3329,9 +3333,12 @@ void CPacketTranslater::onWebReqReloadAutoPunishRule(PacketHeader* pkt)
 }
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0069 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnInnerPacketLogin | 详见 function_reports/monitor/_ZN17CPacketTranslater18OnInnerPacketLoginEP12PacketHeader.md
+// [W10-MonitorA 2026-09-15] 67→65：`char* out = buf;` 提到 `out[10] = 0` 之前（并用 out 访问）· `CTcpGameServer* tcp`
+//   提升到函数作用域。余差：ORIG 整体比我方深 4 字节（变量分配序族；`tcp` 提升未改变分配深度 ⇒ 判该族不可由源码表达）。
 // [本波已修] K：补 `PacketHeader* lpkt` 具名局部（-0x24 槽）+ P：去比较处 `(int)` cast ⇒ 231/230（余 tcp 槽偏移 4）
 void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
 {
+    CTcpGameServer* tcp;
     try
     {
         if (m_pclApp == 0)
@@ -3353,14 +3360,14 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
                 }
                 else
                 {
-                    CTcpGameServer* tcp = m_pclApp->Get_ServerHandler()->CreateTcpGameServer(lpkt->m_connNo);
+                    tcp = m_pclApp->Get_ServerHandler()->CreateTcpGameServer(lpkt->m_connNo);
                     if (tcp != 0)
                     {
                         char* buf = tcp->makePacketHeader(8000, 0xc);
                         if (buf != 0)
                         {
-                            buf[10] = 0;
                             char* out = buf;
+                            out[10] = 0;
                             out[0xb] = (char)m_pclApp->Get_ServerGroup();
                             tcp->SendToGameServer(out);
                             buf = tcp->makePacketHeader(0x3ea, 0xb);
@@ -3841,7 +3848,11 @@ void CPacketTranslater::onItemLimitEditionLoadDataReq(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0102 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onItemLimitEditionLoadDataRpy | 详见 function_reports/monitor/_ZN17CPacketTranslater29onItemLimitEditionLoadDataRpyEP12PacketHeader.md
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0102 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onItemLimitEditionLoadDataRpy
+// [W10-MonitorA 2026-09-15] 36→**9**（336=336）：①分支极性翻转 `if (m_fullLoad != 0) {sellStart} else {for…}`（36→21）
+//   ②`else { continue; }` + 循环体尾 `continue;` 补回 ORIG 的 2 条 no-op `jmp`（21→16）③`pkt2.m_count = 0;`（16→9）。
+//   余差：ORIG 在第二循环体内多 1 条 no-op jmp（`continue` 无法诱导）+ 我方尾部多 1 条 jmp（EH 布局族），二者长度抵消。
+//   详见 function_reports/monitor/_ZN17CPacketTranslater29onItemLimitEditionLoadDataRpyEP12PacketHeader.md
 void CPacketTranslater::onItemLimitEditionLoadDataRpy(PacketHeader* pkt)
 {
     try
@@ -3862,6 +3873,11 @@ void CPacketTranslater::onItemLimitEditionLoadDataRpy(PacketHeader* pkt)
                     m_pclApp->getItemLimitEditionMgr()->registItem(
                         rpy->m_items[i]);
                 }
+                else
+                {
+                    continue;
+                }
+                continue;
             }
             DNF_LOG_SCOPE_LINE(0x14c2,"./log/ItemLimitEdition",
                 "(FullLoad: %d, LoadTargetNum: %d, IPGNO: "
@@ -3884,7 +3900,13 @@ void CPacketTranslater::onItemLimitEditionLoadDataRpy(PacketHeader* pkt)
             {
                 Packet_Item_Limit_Edition_Sell_Start pkt2;
                 pkt2.m_fullLoad = rpy->m_fullLoad;
-                if (rpy->m_fullLoad == 0)
+                pkt2.m_count = 0;
+                if (rpy->m_fullLoad != 0)
+                {
+                    m_pclApp->getItemLimitEditionMgr()
+                        ->makeItemLimitEditionSellStartPacket(pkt2);
+                }
+                else
                 {
                     for (unsigned int i = 0; i < rpy->m_count; i++)
                     {
@@ -3896,13 +3918,9 @@ void CPacketTranslater::onItemLimitEditionLoadDataRpy(PacketHeader* pkt)
                             item->makeItemInfo(
                                 *(stItemLimitEditionItemInfo_t*)&pkt2.m_items[i]);
                             pkt2.m_count = pkt2.m_count + 1;
+                            continue;
                         }
                     }
-                }
-                else
-                {
-                    m_pclApp->getItemLimitEditionMgr()
-                        ->makeItemLimitEditionSellStartPacket(pkt2);
                 }
                 m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(&pkt2);
             }
@@ -4221,9 +4239,11 @@ void CPacketTranslater::OnResponseFullIPCounterList(PacketHeader* pkt)
     }
 }
 
-// [DNF-NONIDENTICAL] DNF-MON-DIFF-0063 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnTakeScreenShot
-// [已试 2026-09-15 NetThreadDispatch] ①补中间指针局部 `pShot = (Packet_Monitor_Take_Screen_Shot*)pkt`（ORIG 有 `mov %eax,-0x20(%ebp)` 再读回）⇒ ELF 口径 43→76 劣化，已回退。
-//   族属：混合态（两侧各有独占槽）+ jmp 目标错位（ORIG `jmp <#123>` vs 我方 `<#117>`，(b)/(c) 类）⇒ 不可调。 | 详见 function_reports/monitor/_ZN17CPacketTranslater16OnTakeScreenShotEP12PacketHeader.md
+// [DNF-IDENTICAL] 2026-09-15 W10-MonitorA verified ndiff=0 AE（原 DNF-MON-DIFF-0063 已消除）| CPacketTranslater::OnTakeScreenShot
+//   修法（机理 O + 指针视图）：①删除我方多余具名局部 `CServerHandler* handler`（ORIG 无该槽，调用点直接内联
+//   `m_pclApp->m_serverHandler2`）；②字段读取与日志实参由副本 `shotCopy.m_*` 改回指针视图 `shot->m_*`
+//   （ORIG 仅 `(char*)&shotCopy` 用副本）⇒ 196=196 AE。
+//   旧结论「混合态不可调」已被推翻。 | 详见 function_reports/monitor/_ZN17CPacketTranslater16OnTakeScreenShotEP12PacketHeader.md
 void CPacketTranslater::OnTakeScreenShot(PacketHeader* pkt)
 {
     try
@@ -4235,18 +4255,17 @@ void CPacketTranslater::OnTakeScreenShot(PacketHeader* pkt)
         Packet_Monitor_Take_Screen_Shot* shot =
             (Packet_Monitor_Take_Screen_Shot*)pkt;
         Packet_Monitor_Take_Screen_Shot shotCopy = *shot;
-        CServerHandler* handler = m_pclApp->m_serverHandler2;
-        if (shotCopy.m_channel == 0)
+        if (shot->m_channel == 0)
         {
-            handler->SendAllToGameServer((char*)&shotCopy, shotCopy.packetSize);
+            m_pclApp->m_serverHandler2->SendAllToGameServer((char*)&shotCopy, shot->packetSize);
         }
         else
         {
-            handler->SendToGameServer(shotCopy.m_channel, (PacketHeader*)&shotCopy);
+            m_pclApp->m_serverHandler2->SendToGameServer(shot->m_channel, (PacketHeader*)&shotCopy);
         }
         DNF_LOG_SCOPE_LINE(0x1710,"./log/ScreenShot", "Recv TakeScreenShot Command! channel(%d) time(%d)",
-            (unsigned int)(unsigned char)shotCopy.m_channel,
-            shotCopy.m_time);
+            (unsigned int)(unsigned char)shot->m_channel,
+            shot->m_time);
     }
     catch (CDNFException& e)
     {
@@ -5532,6 +5551,9 @@ void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* pkt)
 
 // [DNF-NONIDENTICAL] DNF-MON-DIFF-0093 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnWebEmergencyPatchMessage | 详见 function_reports/monitor/_ZN17CPacketTranslater26OnWebEmergencyPatchMessageEP12PacketHeader.md
 // [本波已修] J：偏移写改具名类型成员 `((Packet_Web_Emergency_Patch_Message*)out)->m_channels[0]` ⇒ 207/207 + `mov %dl,0xa(%eax)` 对齐
+// [W10-MonitorA 2026-09-15] 30→15（207 vs 206）：删 `unsigned short pid` 具名局部、日志实参直接内联 `*(unsigned short*)pkt`
+//   （ORIG 无 pid 槽）。`else { continue; }` / 循环尾 `continue;` 两个变体无效已移除。余差：①`movzbl 0x3c(%eax),%edx`
+//   前的寄存器选择（ORIG 先取 rpkt→eax）②ORIG 循环尾 1 条 no-op jmp。
 void CPacketTranslater::OnWebEmergencyPatchMessage(PacketHeader* pkt)
 {
     try
@@ -5563,9 +5585,8 @@ void CPacketTranslater::OnWebEmergencyPatchMessage(PacketHeader* pkt)
                 }
             }
         }
-        unsigned short pid = *(unsigned short*)pkt;
         DNF_LOG_SCOPE_LINE(0x204a,"./log/Web", "CPacketTranslater::OnWebEmergencyPatchMessage packet_id(%d)",
-            (unsigned int)pid);
+            (unsigned int)*(unsigned short*)pkt);
     }
     catch (CDNFException& e)
     {

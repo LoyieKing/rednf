@@ -1817,8 +1817,7 @@ void StatisticManager::AddSecretShopStatistic(Packet_Secret_Shop_Statistic* pkt)
         else
         {
             m_secretShop[pkt->m_shopIdx].insert(
-                std::pair<int, SECRET_SHOP_STATISTIC_DATA>(
-                    pkt->m_items[i].m_data[0], pkt->m_items[i]));
+                std::make_pair(pkt->m_items[i].m_data[0], pkt->m_items[i]));
         }
     }
 }

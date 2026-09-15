@@ -1998,6 +1998,7 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
         if (m_pclApp->m_dbManager.OnLoadGuildBoard(
                 ((FieldViewP<0xa,int>*)pkt)->v, count, boards))
         {
+            int srcIdx = 0;
             int pageCount = count / 10;
             int rem = count % 10;
             for (int page = 0; page < pageCount; page++)
@@ -2009,13 +2010,17 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
                 reply.m_boardCount = 0xa;
                 for (int i = 0; i <= 9; i++)
                 {
-                    char* dst = (char*)&reply + 0x16 + i * 0xa5;
-                    char* src = (char*)boards + (page * 10 + i) * 0xa5;
-                    memcpy(dst, src, 0x78);
-                    *(int*)(dst + 0x78) = *(int*)(src + 0x78);
-                    *(int*)(dst + 0x7c) = *(int*)(src + 0x7c);
-                    *(int*)(dst + 0x88) = *(int*)(src + 0x88);
-                    memcpy(dst + 0x84, src + 0x84, 0x21);
+                    memcpy((char*)&reply + 0x16 + i * 0xa5,
+                           (char*)boards + srcIdx * 0xa5, 0x78);
+                    *(int*)((char*)&reply + 0x8e + i * 0xa5)
+                        = *(int*)((char*)boards + srcIdx * 0xa5 + 0x78);
+                    *(int*)((char*)&reply + 0x92 + i * 0xa5)
+                        = *(int*)((char*)boards + srcIdx * 0xa5 + 0x7c);
+                    *(int*)((char*)&reply + 0x9e + i * 0xa5)
+                        = *(int*)((char*)boards + srcIdx * 0xa5 + 0x88);
+                    memcpy((char*)&reply + 0x9a + i * 0xa5,
+                           (char*)boards + srcIdx * 0xa5 + 0x84, 0x21);
+                    srcIdx++;
                 }
                 if (page + 1 == pageCount && rem == 0)
                     reply.m_count = 1;
@@ -2030,13 +2035,17 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
                 replyR.m_boardCount = (char)rem;
                 for (int i = 0; i < rem; i++)
                 {
-                    char* dst = (char*)&replyR + 0x16 + i * 0xa5;
-                    char* src = (char*)boards + (pageCount * 10 + i) * 0xa5;
-                    memcpy(dst, src, 0x78);
-                    *(int*)(dst + 0x78) = *(int*)(src + 0x78);
-                    *(int*)(dst + 0x7c) = *(int*)(src + 0x7c);
-                    *(int*)(dst + 0x88) = *(int*)(src + 0x88);
-                    memcpy(dst + 0x84, src + 0x84, 0x21);
+                    memcpy((char*)&replyR + 0x16 + i * 0xa5,
+                           (char*)boards + srcIdx * 0xa5, 0x78);
+                    *(int*)((char*)&replyR + 0x8e + i * 0xa5)
+                        = *(int*)((char*)boards + srcIdx * 0xa5 + 0x78);
+                    *(int*)((char*)&replyR + 0x92 + i * 0xa5)
+                        = *(int*)((char*)boards + srcIdx * 0xa5 + 0x7c);
+                    *(int*)((char*)&replyR + 0x9e + i * 0xa5)
+                        = *(int*)((char*)boards + srcIdx * 0xa5 + 0x88);
+                    memcpy((char*)&replyR + 0x9a + i * 0xa5,
+                           (char*)boards + srcIdx * 0xa5 + 0x84, 0x21);
+                    srcIdx++;
                 }
                 gs->SendToServer((char*)&replyR, 0x688);
             }

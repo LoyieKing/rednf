@@ -282,10 +282,10 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
                 {
                     fd->second.m_b[((char)pkt->m_layout.u_main.m_module)] += 1;
                 }
-                if (-1 < pkt->m_layout.u_main.m_items[0].m_s0)
+                if (-1 < pkt->m_items[0].m_s0)
                 {
-                    fd->second.m_c[1] += (int)pkt->m_layout.u_main.m_items[0].m_s0;
-                    fd->second.m_c[2] += (int)pkt->m_layout.u_main.m_items[0].m_s1;
+                    fd->second.m_c[1] += (int)pkt->m_items[0].m_s0;
+                    fd->second.m_c[2] += (int)pkt->m_items[0].m_s1;
                     fd->second.m_c[0] += 1;
                 }
                 accFrameLagStruct(fd->second, (FrameLagStruct*)((char*)pkt + 0x24));
@@ -486,7 +486,11 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
             int i;
             for (i = 0; i < 8; i++)
             {
-                pkt.m_part[i] = it->second.m_b[i + 8];
+                // [2026-09-15 W10-Static 机理③] ORIG `add $0x8,%edx` 仅一条
+                //   （索引 i+8 由 disp 0xc+8*2 常量拆分承载）；我方原写 m_b[i + 8]
+                //   多出第二条 `add $0x8`（索引变成 i+16）。ORIG 读的 4+0x1c 相对 pair
+                //   = data+0x1c+2i ⇒ 源码索引为 m_b[i]（m_b 起 +0x1c）。
+                pkt.m_part[i] = it->second.m_b[i];
             }
             if (it->second.m_c[0] == 0)
             {
@@ -590,15 +594,15 @@ bool FrameLagCollector::is_valid_statistic_packet(Packet_Frame_Lag_Statistic_Add
     }
     for (i = 0; i < 6; i++)
     {
-        if (pkt->m_layout.u_main.m_items[i].m_v0 < 0) return 0;
-        if (pkt->m_layout.u_main.m_items[i].m_v1 < 0) return 0;
-        if (pkt->m_layout.u_main.m_items[i].m_v2 < 0) return 0;
-        if (pkt->m_layout.u_main.m_items[i].m_v3 < 0) return 0;
+        if (pkt->m_items[i].m_v0 < 0) return 0;
+        if (pkt->m_items[i].m_v1 < 0) return 0;
+        if (pkt->m_items[i].m_v2 < 0) return 0;
+        if (pkt->m_items[i].m_v3 < 0) return 0;
         for (j = 0; j < 6; j++)
         {
-            if (99999 < pkt->m_layout.u_sub.m_sub[i][j][4].m_i) return 0;
-            if (pkt->m_layout.u_sub.m_sub[i][j][4].m_f == 0.0 &&
-                0 < pkt->m_layout.u_sub.m_sub[i][j][4].m_i) return 0;
+            if (99999 < pkt->m_items[i].m_rest[j].m_i) return 0;
+            if (pkt->m_items[i].m_rest[j].m_f == 0.0 &&
+                0 < pkt->m_items[i].m_rest[j].m_i) return 0;
         }
     }
     return 1;

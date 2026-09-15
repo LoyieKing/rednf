@@ -928,8 +928,10 @@ void CPacketTranslater::OnNoticeGuildChatMsgHyperLink(PacketHeader* pkt)
         {
             if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) != 0)
             {
+                // [W10-GuildB 4件套③] ORIG 首实参 = +0xa（m_guildKey），我方旧码 = +0xe（m_charNo）；
+                //   被调方该形参未使用（DNFGuild.cpp:1296 函数体不引用 charNo）⇒ ORIG 即权威形。
                 guild->NoticeChatMsgToGuildMembersHyperLink(
-                    pb->m_charNo, pb->m_msg, pb->m_msgLen,
+                    pb->m_guildKey, pb->m_msg, pb->m_msgLen,
                     pb->m_itemCount, (hyperlink_item_info*)pb->m_items, (user->GetCharName()));
             }
         }
@@ -2073,6 +2075,7 @@ void CPacketTranslater::OnMonitorSendGuildLetter(PacketHeader* pkt)
     THROW_IF_NO_APP("CPacketTranslater::OnMonitorSendGuildLetter : 0 == m_pclApp");
     char* pb = (char*)pkt;
     Packet_Monitor_Reply_Guild_Mail reply;
+    // [W10-GuildB ✗] 机理 O 反例：删该具名局部（两处内联 m_msg）后 ndiff 141→151（劣化）⇒ 保留具名槽。
     const char* msg = ((Packet_Monitor_Send_Guild_Mail*)pb)->m_msg;
     {
         DNF_LOG_SCOPE_LINE(0xa98, "./log/GuildLetter", "((Packet_Monitor_Send_Guild_Mail*)pb)->m_charNo(%d),((Packet_Monitor_Send_Guild_Mail*)pb)->m_guildId(%d),msg(%s)", ((Packet_Monitor_Send_Guild_Mail*)pb)->m_charNo, ((Packet_Monitor_Send_Guild_Mail*)pb)->m_guildId, msg);
@@ -2429,9 +2432,29 @@ void CPacketTranslater::OnRequestGuildMasterDelegate(PacketHeader* pkt)
             requester->SendToGameserver((char*)&resp, 0x16);
             return;
         }
-        if (guild->IsSetGuildDBFlag(4) == 1)
+        // [W10-GuildB 极性/块序] ORIG `call IsSetGuildDBFlag; xor $0x1,%eax; test %al,%al; je <正向>`
+        //   ⇒ 负分支（日志 0xc34）在 fallthrough（`bool` 返回 + 探针 neg.cpp n4 ⇒ 语义等价）。
+        if (!guild->IsSetGuildDBFlag(4))
         {
-            if (guild->IsGuildMaster(requesterCharNo))
+            DNF_LOG_SCOPE_LINE(0xc34,"./log/GuildModify",
+                "CPacketTranslater::OnRequestGuildMasterDelegate : !( m_eGuildDBFlag & GUILD_DB_LOAD_STATE ), Guild Key = %d",
+                guildKey);
+            resp.m_12 = 0x22;
+            requester->SendToGameserver((char*)&resp, 0x16);
+        }
+        else
+        {
+            // [W10-GuildB 极性/块序] ORIG `call IsGuildMaster; xor $0x1,%eax; test %al,%al; je <正向>`
+            //   ⇒ 负分支（日志 0xc3d）在 fallthrough（探针 neg.cpp n4；`bool` 返回 ⇒ 语义等价）。
+            if (!guild->IsGuildMaster(requesterCharNo))
+            {
+                DNF_LOG_SCOPE_LINE(0xc3d,"./log/GuildModify",
+                    "CPacketTranslater::OnRequestGuildMasterDelegate : Requester is Not Guild Master(%d)(%d)",
+                    guildKey, requesterCharNo);
+                resp.m_12 = 0x24;
+                requester->SendToGameserver((char*)&resp, 0x16);
+            }
+            else
             {
                 CUser* delegatee = (&m_pclApp->m_userManager)->FindUser_CharName(
                     std::string(((Packet_Guild_Request_Guild_Master_Delegate*)pkt)->m_name));
@@ -2454,22 +2477,6 @@ void CPacketTranslater::OnRequestGuildMasterDelegate(PacketHeader* pkt)
                     m_pclApp->m_serverHandler->SendToDB(&dbPkt);
                 }
             }
-            else
-            {
-                DNF_LOG_SCOPE_LINE(0xc3d,"./log/GuildModify",
-                    "CPacketTranslater::OnRequestGuildMasterDelegate : Requester is Not Guild Master(%d)(%d)",
-                    guildKey, requesterCharNo);
-                resp.m_12 = 0x24;
-                requester->SendToGameserver((char*)&resp, 0x16);
-            }
-        }
-        else
-        {
-            DNF_LOG_SCOPE_LINE(0xc34,"./log/GuildModify",
-                "CPacketTranslater::OnRequestGuildMasterDelegate : !( m_eGuildDBFlag & GUILD_DB_LOAD_STATE ), Guild Key = %d",
-                guildKey);
-            resp.m_12 = 0x22;
-            requester->SendToGameserver((char*)&resp, 0x16);
         }
     }
     else
@@ -2596,17 +2603,35 @@ void CPacketTranslater::OnGuildMasterDelegateFromWeb(PacketHeader* pkt)
         throw CDNFException(
             "CPacketTranslater::OnGuildMasterDelegateFromWeb : packet->m_uGuildKey == 0");
     }
-    CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
-    if (guild == 0)
+    // [W10-GuildB 机理 W-A] ORIG 物化形（`mov %eax,slot; cmpl $0x0,slot; sete %al; test %al,%al; je`）
+    //   ⇒ 条件中带赋值（探针 h2 实证；槽位 -0x28 与 ORIG 一致）。
+    CGuild* guild;
+    if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
     {
         DNF_LOG_SCOPE_LINE(0xcf0,"./log/GuildModify",
             "CPacketTranslater::OnGuildMasterDelegateFromWeb : 0 == pclGuild, Guild Key = %d",
             guildKey);
         return;
     }
-    if (guild->IsSetGuildDBFlag(4) == 1)
+    // [W10-GuildB 极性/块序] ORIG `call IsSetGuildDBFlag; xor $0x1,%eax; test %al,%al; je <正向>`
+    //   ⇒ 负分支（日志 0xcf6）在 fallthrough（`bool` 返回，语义等价）。
+    if (!guild->IsSetGuildDBFlag(4))
     {
-        if (guild->IsGuildMaster(requesterCharNo))
+        DNF_LOG_SCOPE_LINE(0xcf6,"./log/GuildModify",
+            "CPacketTranslater::OnGuildMasterDelegateFromWeb : Guild'state is not GUILD_DB_LOAD_STATE, Guild Key = %d",
+            guildKey);
+    }
+    else
+    {
+        // [W10-GuildB 极性/块序] ORIG 为 `!X` 形（`call; xor $0x1,%eax; test %al,%al; je <正向>`），
+        //   负分支（日志 0xcfd）在 fallthrough ⇒ 反转（探针 neg.cpp n4 实证，语义等价）。
+        if (!guild->IsGuildMaster(requesterCharNo))
+        {
+            DNF_LOG_SCOPE_LINE(0xcfd,"./log/GuildModify",
+                "CPacketTranslater::OnGuildMasterDelegateFromWeb : Requester is Not Guild Master(%d)(%d)",
+                guildKey, requesterCharNo);
+        }
+        else
         {
             CUser* requester;
             if ((requester = (&m_pclApp->m_userManager)->FindUser_CharNo(requesterCharNo)) == 0)
@@ -2649,18 +2674,6 @@ void CPacketTranslater::OnGuildMasterDelegateFromWeb(PacketHeader* pkt)
                 }
             }
         }
-        else
-        {
-            DNF_LOG_SCOPE_LINE(0xcfd,"./log/GuildModify",
-                "CPacketTranslater::OnGuildMasterDelegateFromWeb : Requester is Not Guild Master(%d)(%d)",
-                guildKey, requesterCharNo);
-        }
-    }
-    else
-    {
-        DNF_LOG_SCOPE_LINE(0xcf6,"./log/GuildModify",
-            "CPacketTranslater::OnGuildMasterDelegateFromWeb : Guild'state is not GUILD_DB_LOAD_STATE, Guild Key = %d",
-            guildKey);
     }
     }
     catch (CDNFException& e)
@@ -3697,6 +3710,7 @@ void CPacketTranslater::OnPacketSecedePower(PacketHeader* pkt)
     }
     if (guild->GetPowerSide() != 0)
     {
+        // [W10-GuildB ✗] 极性反转（`!(A||B)` + 块序交换）后 ndiff 198→202（劣化）⇒ 回退保留原形。
         if (guild->IsSubGuildMaster(charNo) == 1 || guild->IsGuildMaster(charNo) == 1)
         {
             if (m_pclApp->GetPowerManager()->IsPowerWarOn() == 0)
@@ -4007,12 +4021,12 @@ void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
 {
     try
     {
-    // [P372] 槽序穷举实测（2026-09-15，6 种排列）：today→guild→pb 最优（ndiff 40），
-    //        旧序 guild→pb→today 为 57；另试删 deadBuf（77，更差，保留）；
-    //        条件取反微形（空 then）对本件无效（40 不变）。
-    STTodayGuildMember* today;
+    // [W10-GuildB 机理 N] ORIG 槽深序 user(-0x1c) < guild(-0x18) < pb(-0x14) < today(-0x10)
+    //   ⇒ 声明序 user,guild,pb,today；user 由嵌套块提至函数块（赋值点不动）。
+    CUser* user;
     CGuild* guild;
     Packet_Change_Char_Name* pb;
+    STTodayGuildMember* today;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1544, "./log/Except", "CPacketTranslater::OnChangeGuildName : 0 == m_pclApp");
@@ -4038,9 +4052,10 @@ void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
         memset((char*)today + 4, 0, 0x1e);
         strncpy((char*)today + 4, pb->m_name, 0x1d);
     }
-    guild = (&m_pclApp->m_guildManager)->FindGuild(
-        pb->m_guildKey);
-    if (guild == 0)
+    // [W10-GuildB 机理 W-A] ORIG 为物化形（`mov %eax,slot; cmpl $0x0,slot; sete %al; test %al,%al; je`）；
+    //   c6446r 仅在「条件中带赋值」的写法下物化（探针 h2 实证），裸「先赋值再 if」折叠成 `jne`。
+    if ((guild = (&m_pclApp->m_guildManager)->FindGuild(
+             pb->m_guildKey)) == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1563, "./log/ServerUnify", "CPacketTranslater::OnChangeCharName : 0 == pclGuild");
         return;
@@ -4048,10 +4063,16 @@ void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
     // [P312/N78] ORIG 缺失段 = 2–3 B/条的 inline 零填（guild10 三轴验证 2.25 B/ins）
     //   ⇒ 用初始化式形触发 4.4 内联 rep stos，替代 call memset
     char deadBuf[0x1e] = {0};
+    // [W10-GuildB 机理 D] ORIG：`!= 1` 为 fallthrough（日志 0x156b 在前）+ `xor $1` 判定形；
+    //   我方旧码 `== 1 { user } else { log }` 生成 `test al,al; je` 且块序相反。
     if (guild->ChangeGuildMemberCharName(pb->m_charNo,
-                                         pb->m_name) == 1)
+                                         pb->m_name) != 1)
     {
-        CUser* user;
+        DNF_LOG_SCOPE_LINE(0x156b,"./log/ServerUnify",
+            "CPacketTranslater::OnChangeGuildName : false == pclGuild->ChangeGuildMemberCharName()");
+    }
+    else
+    {
         if ((user = (&m_pclApp->m_userManager)->FindUser(
                  pb->m_idByChannel)) == 0)
         {
@@ -4062,11 +4083,6 @@ void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
         {
             user->ChangeCharName(pb->m_name);
         }
-    }
-    else
-    {
-        DNF_LOG_SCOPE_LINE(0x156b,"./log/ServerUnify",
-            "CPacketTranslater::OnChangeGuildName : false == pclGuild->ChangeGuildMemberCharName()");
     }
     }
     catch (CDNFException& e)
@@ -4219,40 +4235,54 @@ void CPacketTranslater::OnCreateGuildAgit(PacketHeader* pkt)
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0036 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDeleteGuildAgit | 详见 function_reports/guild/_ZN17CPacketTranslater17OnDeleteGuildAgitEP12PacketHeader.md
 void CPacketTranslater::OnDeleteGuildAgit(PacketHeader* pkt)
 {
-    char reservedSlot[4];
     CGuild* guild = 0;
+    // [W10-GuildB 机理 N] ORIG 槽深序 pb(-0x18) 深于占位(-0x14)：pb 与 guild 同属外层块
+    //   （外层块 vars 先于嵌套块分配 ⇒ 更深），赋值点不动。
+    Packet_Guild_Delete_Guild_Agit* pb;
     try
     {
-    int reservedSlot;
         if (m_pclApp == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1647, "./log/Except", "CPacketTranslater::OnDeleteGuildAgit : 0 == m_pclApp");
             return;
         }
-        Packet_Guild_Delete_Guild_Agit* pb = (Packet_Guild_Delete_Guild_Agit*)pkt;
-        if (pb->m_guildKey != 0)
-        {
-            guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey);
-        }
-        if (guild == 0)
+        pb = (Packet_Guild_Delete_Guild_Agit*)pkt;
+        // [W10-GuildB 机理 W-A2 + 短路] ORIG 为单一布尔值化物形，且 guildKey==0 与 guild==0
+        //   两条路径**汇于同一值化点**（`je` 目标 = `mov $0x1,%eax`）⇒ 写成短路或 + 值化比较
+        //   （探针 neg.cpp n3 给出值化形；语义等价：A 真 ⇒ guild 保持 0 ⇒ 值化亦为真）。
+        if ((pb->m_guildKey == 0 ||
+             (guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0) == true)
         {
             DNF_LOG_SCOPE_LINE(0x164f, "./log/GuildAgit", "CPacketTranslater::OnDeleteGuildAgit : 0 == pclGuild");
         }
-        else if (guild->IsGuildMaster(pb->m_charNo))
+        // [W10-GuildB 机理 D/极性] ORIG 三处守卫均为 `!X` 形且**负分支在 fallthrough**
+        //   （`call X; xor $0x1,%eax; test %al,%al; je <正向>`，探针 neg.cpp n4 实证）
+        //   ⇒ 原 `else if (X) {A} else {log}` 反转为 `else if (!X) {log} else {A}`（语义等价）。
+        else if (!guild->IsGuildMaster(pb->m_charNo))
         {
-            if (guild->IsExistGuildAgit())
+            DNF_LOG_SCOPE_LINE(0x1655,"./log/GuildAgit",
+                "CPacketTranslater::OnDeleteGuildAgit : %d is not guild master(g:%d)",
+                pb->m_charNo, pb->m_guildKey);
+        }
+        else
+        {
+            if (!guild->IsExistGuildAgit())
             {
-                if (guild->GetGuildCargo()->IsEmpty())
-                {
-                    guild->DeleteGuildAgit(m_pclApp->Get_ServerHandler(), pb->m_guildKey,
-                                           pb->m_charNo);
-                }
-                else
+                DNF_LOG_SCOPE_LINE(0x165b,"./log/GuildAgit",
+                    "CPacketTranslater::OnDeleteGuildAgit : %d guild do not have guild agit",
+                    pb->m_guildKey);
+            }
+            else
+            {
+                if (!guild->GetGuildCargo()->IsEmpty())
                 {
                     DNF_LOG_SCOPE_LINE(0x1663,"./log/GuildAgit",
                         "CPacketTranslater::OnDeleteGuildAgit : %d guild cargo is not empty",
                         pb->m_guildKey);
-                    CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo);
+                    // [W10-GuildB 机理 K/四件套①] ORIG 该处 um 物化为具名槽（-0x14）：
+                    //   `mov <A>,%eax; add $0x10,%eax; mov %eax,-0x14(%ebp)` 后再取用。
+                    CUserManager* um = &m_pclApp->m_userManager;
+                    CUser* user = um->FindUser_CharNo(pb->m_charNo);
                     if (user == 0)
                     {
                         DNF_LOG_SCOPE_LINE(0x166b,"./log/GuildCargo",
@@ -4269,19 +4299,12 @@ void CPacketTranslater::OnDeleteGuildAgit(PacketHeader* pkt)
                         user->SendToGameserver((char*)&reply, 0x17);
                     }
                 }
+                else
+                {
+                    guild->DeleteGuildAgit(m_pclApp->Get_ServerHandler(), pb->m_guildKey,
+                                           pb->m_charNo);
+                }
             }
-            else
-            {
-                DNF_LOG_SCOPE_LINE(0x165b,"./log/GuildAgit",
-                    "CPacketTranslater::OnDeleteGuildAgit : %d guild do not have guild agit",
-                    pb->m_guildKey);
-            }
-        }
-        else
-        {
-            DNF_LOG_SCOPE_LINE(0x1655,"./log/GuildAgit",
-                "CPacketTranslater::OnDeleteGuildAgit : %d is not guild master(g:%d)",
-                pb->m_charNo, pb->m_guildKey);
         }
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDeleteGuildAgit Exception Break", 0x167d, 0x1682);
@@ -5211,7 +5234,15 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x1be2, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoUpgrade : 0 == pclGuild");
         return;
     }
-    if (guild->IsGuildMaster(charNo) == 1)
+    // [W10-GuildB 极性/块序] ORIG `call IsGuildMaster; xor $0x1,%eax; test %al,%al; je <正向>`
+    //   ⇒ 负分支（日志 0x1be9）在 fallthrough（探针 neg.cpp n4；语义等价）。
+    if (!guild->IsGuildMaster(charNo))
+    {
+        DNF_LOG_SCOPE_LINE(0x1be9,"./log/GuildCargo",
+            "CPacketTranslater::OnGuildCargoUpgrade : %d is not guild master(g:%d)", charNo,
+            guildKey);
+    }
+    else
     {
         if (guild->IsExistGuildAgit() == 1)
         {
@@ -5262,12 +5293,6 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x1bf0,"./log/GuildCargo",
                 "CPacketTranslater::OnGuildCargoUpgrade : %d guild agit error", guildKey);
         }
-    }
-    else
-    {
-        DNF_LOG_SCOPE_LINE(0x1be9,"./log/GuildCargo",
-            "CPacketTranslater::OnGuildCargoUpgrade : %d is not guild master(g:%d)", charNo,
-            guildKey);
     }
     }
     catch (CDNFException& e)
@@ -5696,9 +5721,15 @@ void CPacketTranslater::OnWebGuildBoardDelete(PacketHeader* pkt)
 // [DNF-NONIDENTICAL] DNF-GLD-DIFF-0091 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildApplyOriginalPowerSide | 详见 function_reports/guild/_ZN17CPacketTranslater29OnGuildApplyOriginalPowerSideEP12PacketHeader.md
 void CPacketTranslater::OnGuildApplyOriginalPowerSide(PacketHeader* pkt)
 {
-    Packet_Guild_Apply_Origial_Power_Side* pb = (Packet_Guild_Apply_Origial_Power_Side*)pkt;
     try
     {
+        // [W10-GuildB 机理 N] ORIG 槽深 user(-0x30) < guild(-0x2c) < pb(-0x28) < um(-0x24)
+        //   ⇒ 声明序 user,guild,pb,um（先声明者占更深槽）；赋值点仍照 ORIG 指令序。
+        CUser* user;
+        CGuild* guild;
+        Packet_Guild_Apply_Origial_Power_Side* pb;
+        CUserManager* um;
+        pb = (Packet_Guild_Apply_Origial_Power_Side*)pkt;
         if (m_pclApp == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1e44,"./log/Power",
@@ -5706,28 +5737,36 @@ void CPacketTranslater::OnGuildApplyOriginalPowerSide(PacketHeader* pkt)
             return;
         }
         // [2026-09-15 W7-GuildBig 机理 K/N] ORIG：um 物化为具名槽（add $0x10）；charNo/guildKey 无具名槽直读字段
-        CUserManager* um = &m_pclApp->m_userManager;
-        CUser* user = um->FindUser_CharNo(pb->m_charNo);
+        um = &m_pclApp->m_userManager;
+        user = um->FindUser_CharNo(pb->m_charNo);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1e4e, "./log/Power", "CPacketTranslater::OnGuildApplyOriginalPowerSide : 0 == pclUser");
             return;
         }
-        CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1e55, "./log/Power", "CPacketTranslater::OnGuildApplyOriginalPowerSide : 0 == pclGuild");
             return;
         }
-        unsigned char side = pb->m_field12;
-        if (!((side == 3 || side == 4) && side == guild->GetPowerSide()))
+        // [W10-GuildB 机理 O] ORIG 该字节无具名槽：三处比较均重新 load 字段
+        if (!((pb->m_field12 == 3 || pb->m_field12 == 4) && pb->m_field12 == guild->GetPowerSide()))
         {
             DNF_LOG_SCOPE_LINE(0x1e5d,"./log/Power",
                 "CPacketTranslater::OnGuildApplyOriginalPowerSide Guild(%d), GuildOrigPowerSide(%d), PacketPowerSide(%d)",
-                pb->m_guildKey, (unsigned int)guild->GetPowerSide() & 0xff, (unsigned int)side);
+                pb->m_guildKey, (unsigned int)guild->GetPowerSide() & 0xff, (unsigned int)pb->m_field12);
             return;
         }
-        unsigned char newSide = side == 3 ? 1 : 2;
+        // [W10-GuildB 机理 D] ORIG：先存具名槽，再 `if (x==3) x=1; else x=2;`（movb 直接改写槽）
+        unsigned char newSide = pb->m_field12;
+        if (newSide == 3)
+        {
+            newSide = 1;
+        }
+        else
+        {
+            newSide = 2;
+        }
         guild->SetPowerSide(newSide);
         guild->DBGuildSave((user->GetGameServer())->GetGroupNo(), m_pclApp->Get_ServerHandler(), 0);
         guild->SendGuildInfoToMembers(false);

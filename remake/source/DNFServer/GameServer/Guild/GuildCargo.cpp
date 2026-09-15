@@ -528,6 +528,21 @@ void CGuildCargo::InsertHistory(ENUM_GUILD_CARGO_BEHAVIOR behavior, int slot, co
     //      ⇒ 与 ORIG「形参单次载入 %eax + 4 次同基址 disp 访问」仅差该 3 条 ⇒ ORIG 形态
     //        只能由「LHS 是**真实结构体成员**的整体赋值」产生（需给 STGuildCargoLog 增一个 14 字节
     //        视图成员，位于 GuildCargo.h ⇒ **出本泳道白名单**）⇒ 本 TU 内无靶点 ✓
+    // [W10-GuildA 2026-09-15 · header 解冻后复核 ⇒ **真类型路径亦不可达，结论维持不投入**]
+    //   probe6-9（wrapper dnf_c6446r_gxx.sh，-m32 -O0 -fno-enforce-eh-specs，同布局 mock）：
+    //   ① 给 RandomOption 加匿名 union dword 视图（+0/+4/+8 dword + +0xc word）后，
+    //      `log.opt0 = option->m_opt0;`（insG 局部 log + 直接成员）⇒ `mov 0x8(%ebp),%eax;
+    //      mov (%eax),%eax` —— **值仍落 %eax**（ORIG 是 %edx）且 option 每访问重载 ✗
+    //   ② `const RandomOption&` 形参形（insF）⇒ 同上，且引入 -0x4 栈槽 ✗
+    //   ③ 普通具名指针（insD）⇒ 指针落栈槽 -0x4（ORIG 无栈槽）✗
+    //   ④ `register` 具名（insE）⇒ GCC 自选 %ebx + 值落 %eax ✗
+    //   ⑤ `register ... __asm__("eax")` 绑定（insH）⇒ 基址 ✓ %eax 但**每条多 1 条
+    //      `mov %eax,%edx`**（GCC O0 解引用必先拷地址到临时寄存器）；绑 %edx（insI）同型 ✗
+    //   ⑥ 唯一产出「值落 %edx」的形态是「**引用参数 log + 真类型成员**」（insA），但该形态下
+    //      option 每次访问重载（4 次 `mov`），而 ORIG 只载入 1 次 ⇒ 仍差 3 条 ✗
+    //   ⇒ ORIG = 「具名变量被 GCC 自分配到 %eax 且**不引入地址拷贝**」——O0 下具名变量只有
+    //     「寄存器 asm 绑定（多 1 条拷贝）」或「栈槽（ORIG 无槽）」两条路 ⇒ **源码层不可达**。
+    //   ⇒ 因此**未改 Inven_Item.h**（152 个 include 者需全量重编；实测不可达 ⇒ 不值得该代价）✓
     register const OptionDwordView* o = reinterpret_cast<const OptionDwordView*>(option);
     log.opt0 = o->opt0;
     log.opt1 = o->opt1;

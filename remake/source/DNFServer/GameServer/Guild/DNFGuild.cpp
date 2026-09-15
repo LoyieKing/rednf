@@ -1989,7 +1989,16 @@ bool CGuild::IsSubGuildMaster(unsigned int dbid)
 //   另试：`register int ni __asm__("edx") = ~i;`（106→108 劣化 ✗）、
 //   `register unsigned int ucnt __asm__("eax") = *cnt;`（ndiff→1 但 add 仍在）、
 //   `ucnt = ucnt + ~i;` / `ucnt += ~i;`（均仍 lea）⇒ 属后端指令选择族，已回退。
-// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0116 | guild | 与ORIG差异=DIFF | CGuild::SetSubGuildMaster | 详见 function_reports/guild/_ZN6CGuild17SetSubGuildMasterEjb.md
+// [2026-09-15 W10-GuildA **已翻正 AE / ndiff=0**] 上述「后端 add/lea 选择族」被解：根因是
+//   **内层 cast 的位置**。原码 `((unsigned int)*cnt + ~i) * 4` 把 `(unsigned int)` 加在**左操作数**
+//   上 ⇒ GCC 先物化 lhs 到寄存器、再用 `lea (%edx,%eax,1),%eax` 融合加法、结果二次搬移。
+//   改为 **`(unsigned int)(*cnt + ~i) * 4`**（cast 移到整个加法外层，内层不要 cast）⇒ GCC 用
+//   in-place `add %edx,%eax`（= ORIG），lhs 直接落在 %eax、~i 落 %edx。
+//   ⚠ 关键：该修正**必须与上面的 `register bool over __asm__("al")` 同时存在** —— 两者分别解决
+//   「`add` vs `lea`」与「`seta %al` vs `seta %bl`」，单用任一仍 ndiff=1；组合后 ndiff=0。
+//   ⇒ 通用机理：**算术表达式的 `(unsigned int)` cast 应放在整个表达式最外层**（放内层会诱导 lea 融合）。
+// [DNF-IDENTICAL] 2026-09-15 verified AE/ndiff=0（原 DNF-GLD-DIFF-0116 已消除；
+//   W10-GuildA：外层 cast + `register bool over __asm__("al")` 组合修复）
 void CGuild::SetSubGuildMaster(unsigned int charNo, bool flag)
 {
     if (flag)
@@ -2008,9 +2017,9 @@ void CGuild::SetSubGuildMaster(unsigned int charNo, bool flag)
             {
                 memcpy(m_dbInfo.m_info.m_subGuildMaster + i,
                        m_dbInfo.m_info.m_subGuildMaster + i + 1,
-                       ((unsigned int)*cnt + ~i) * 4);
+                       (unsigned int)(*cnt + ~i) * 4);
                 *cnt = (unsigned char)((int)*cnt - 1);
-                register bool over = 5 < (unsigned char)*cnt;
+                register bool over __asm__("al") = 5 < (unsigned char)*cnt;
                 if (over)
                 {
                     *cnt = 0;

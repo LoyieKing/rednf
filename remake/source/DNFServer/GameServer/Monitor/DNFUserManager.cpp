@@ -181,7 +181,6 @@ int CUserManager::DeleteUsersOnGameServerDown(CGameServer* gameServer)
     {
         return 0;
     }
-    int reservedSlot;
     for (std::map<const unsigned int, CUser*>::iterator it = m_charNoUsers.begin();
          it != m_charNoUsers.end(); )
     {
@@ -217,23 +216,21 @@ int CUserManager::DeleteUsersOnGameServerDown(CGameServer* gameServer)
         {
             if (user->GetGameServer() == gameServer)
             {
-                unsigned int key = user->GetUniqCharNo();
-                if (key != 0)
+                unsigned int key;
+                if ((key = user->GetUniqCharNo()) != 0)
                 {
                     m_app->Call_DeleteMember(key, user);
                 }
                 m_app->Call_ResetBlackList(user->GetDBID());
                 m_app->Call_ResetBuddyList(user->GetUniqCharNo());
-                if (user != 0)
-                {
-                    delete user;
-                }
+                delete user;
                 m_users.erase(it++);
                 continue;
             }
             ++it;
         }
     }
+    int reservedSlot;
     return 0;
 }
 
@@ -281,17 +278,14 @@ int CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer)
         {
             if (user->GetTcpGameServer() == (void*)tcpGameServer)
             {
-                unsigned int key = user->GetUniqCharNo();
-                if (key != 0)
+                unsigned int key;
+                if ((key = user->GetUniqCharNo()) != 0)
                 {
                     m_app->Call_DeleteMember(key, user);
                 }
                 m_app->Call_ResetBlackList(user->GetDBID());
                 m_app->Call_ResetBuddyList(user->GetUniqCharNo());
-                if (user != 0)
-                {
-                    delete user;
-                }
+                delete user;
                 std::map<unsigned int, CUser*>::iterator cur = it++;
                 m_users.erase(cur);
                 continue;
