@@ -2421,8 +2421,8 @@ void CPacketTranslater::OnRequestGuildMasterDelegate(PacketHeader* pkt)
         }
         resp.m_a = requesterCharNo;
         resp.m_e = requester->GetIdByChannel();
-        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
-        if (guild == 0)
+        CGuild* guild;
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0xc2c,"./log/GuildModify",
                 "CPacketTranslater::OnRequestGuildMasterDelegate : 0 == pclGuild, Guild Key = %d",
