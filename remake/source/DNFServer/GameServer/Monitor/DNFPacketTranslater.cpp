@@ -1455,8 +1455,8 @@ void CPacketTranslater::OnMemberSecede(PacketHeader* pkt)
         CUser* seceder;
         if ((seceder = userMgr->FindUser_CharNo(secederCharNo)) != 0)
         {
-            CMember* member = memberMgr->FindMember(secederCharNo);
-            if (member == 0)
+            CMember* member;
+            if ((member = memberMgr->FindMember(secederCharNo)) == 0)
             {
                 SendRequestMemberDeleteResult(seceder, '1', secede->m_name);
             }
