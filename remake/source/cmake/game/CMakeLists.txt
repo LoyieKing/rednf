@@ -1135,7 +1135,6 @@ dnf_service(game
         "${COMMON}/tinyxmlparser.cpp|-O3 -std=gnu++98"
         "${SVC_DIR}/FlexLexerEngine.cpp|-O2"
         "${SVC_DIR}/SlangFilter.cpp|-O0"
-        "${SVC_DIR}/DNFLexWrapperHelpers.cpp"
         "${SVC_DIR}/DNFLexCore.cpp|-O2 -std=gnu++98"
         "${SVC_DIR}/DNFLexWrapper.cpp|-O2 -std=gnu++98"
         "${SVC_DIR}/DNFLexWrapperStream.cpp|-O2 -std=gnu++98"

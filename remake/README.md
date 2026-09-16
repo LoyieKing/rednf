@@ -17,7 +17,7 @@ dnf_workspace/                      # git 仓库根
 └── dnf_decompile/                  # 本工程：Ghidra 工程 + 重建源码
     ├── dnf_project.rep/            # Ghidra 工程数据（projectState / idata / user / versioned）
     ├── README.md                   # 本文档
-    └── source/
+    ├── source/
         ├── CMakeLists.txt          # 重建构建定义（全部服务目标）
         ├── Community/              # df_community_r 真实重建实现（37 文件 / 约 2.5k 行）
         ├── shared/                 # 包结构与通用头（185 文件 / 约 3.1k 行，早期重建成果）
@@ -25,13 +25,18 @@ dnf_workspace/                      # git 仓库根
         │                           #   + df_bridge_r 的 DWARF 桩（DNFChannelBridge/）
         ├── DNFServer/              # ServerCommon / GameServer(ServerLab) / StunServer 的 DWARF 桩
         ├── DNFShared/ Library/     # 共享脚本与工具库的 DWARF 桩
-        ├── placeholder/            # 无 DWARF 服务的占位 main（6 个）
         ├── compare_df_community_functions.py  # 符号/字符串/助记符对比脚本
         └── toolchain/              # 可复现构建/逐 TU 对比脚本（build-channel.sh 等）
+    ├── tests/                      # 独立编译验证 TU（packets/ layout/ probes/，不参与服务构建）
+    ├── attic/                      # 已退役文件（历史快照、被合并 TU、实验与中间产物；见 attic/README.md）
+    └── docs/                       # 分析/验收文档（progress/ 进度报告、assets/ 图件、class_func_reports/ 等）
 ```
 
 > 说明：`build/community/` 是 df_community_r 的验证构建目录；全部构建产物统一收在 `dnf_decompile/build/` 下（按服务分子目录），已被 `.gitignore` 忽略，未纳入版本管理。
 > `dnf_project.gpr` / `dnf_project.rep/` 为 Ghidra 工程文件（已忽略），非重建产物。
+> 2026-09-17 目录整理：仓库根目录下错放的 packet 转发壳（54 个，与
+> `source/DNFServer/GameServer/Game/Packet_*.h` 重复）、测试 TU、文档已归位或删除；
+> `source/` 下确认不参与构建的死文件移入 `attic/`（清单与判据见 `attic/README.md`）。
 
 ## 服务端组件架构
 
