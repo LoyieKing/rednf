@@ -314,6 +314,7 @@ void CPowerManager::SaveDBPowerWarRank()
     if (m_winnerSide != 0 && m_winnerSide < 3)
     {
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0x1b6, "./log/PowerResult", "POWER WAR RESULT DB SAVE START");
+        {
         Packet_DB_Save_Power_War_User_Rank userPkt;
         unsigned char group = (*(CApplication**)&m_app)->Get_ServerHandler()->GetServerGroupNo();
         userPkt.m_b = group;
@@ -355,12 +356,8 @@ void CPowerManager::SaveDBPowerWarRank()
                 (*(CApplication**)&m_app)->Get_ServerHandler()->SendToDB(&userPkt);
             }
         }
-        // ORIG 复用 userPkt 栈槽（4.1.2 合并不相交生命周期大局部，4.4.6 不合并）：
-        // 引用别名强制共用同一缓冲，消除多余的 0x330 字节局部。
-        Packet_DB_Save_Power_War_Guild_Rank& guildPkt =
-            *(Packet_DB_Save_Power_War_Guild_Rank*)&userPkt;
-        guildPkt.packetId = 0x6d6;
-        guildPkt.packetSize = 0x330;
+        }
+        Packet_DB_Save_Power_War_Guild_Rank guildPkt;
         guildPkt.m_a = (*(CApplication**)&m_app)->Get_ServerHandler()->GetServerGroupNo();
         for (int side = 1; side < 3; side++)
         {
@@ -379,7 +376,6 @@ void CPowerManager::SaveDBPowerWarRank()
         }
         Packet_DB_Save_Power_War_Statue_Ranker statuePkt;
         Packet_Notice_Power_War_Rank noticePkt;
-        (void)noticePkt;
         statuePkt.m_group = (*(CApplication**)&m_app)->Get_ServerHandler()->GetServerGroupNo();
         std::vector<STPowerWarCharacInfo*> users;
         CPowerWarCharacInfo* s1 = m_power[1].GetPowerWarCharacInfo();
@@ -391,9 +387,9 @@ void CPowerManager::SaveDBPowerWarRank()
         {
             if (i < (int)users.size())
             {
-                unsigned int charNo = *(unsigned int*)users.at(i)->m_data;
-                statuePkt.m_rankers[i] = charNo;
-                DNF_LOG_SCOPE_LINE(0x273, "./log/PowerResult", "Last Rank:%d, Charac No:%d", i, charNo);
+                statuePkt.m_rankers[i] = *(unsigned int*)users.at(i)->m_data;
+                ((unsigned int*)noticePkt.m_data)[i] = *(unsigned int*)users.at(i)->m_data;
+                DNF_LOG_SCOPE_LINE(0x273, "./log/PowerResult", "Last Rank:%d, Charac No:%d", i, statuePkt.m_rankers[i]);
             }
         }
         {

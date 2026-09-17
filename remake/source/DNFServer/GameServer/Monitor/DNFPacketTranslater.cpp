@@ -448,9 +448,11 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
     {
     try
     {
-        if (((CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics()) != 0 && logout->m_foc == 0)
+        CLoginLogoutStatistics* logoutStats =
+            (CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics();
+        if (logoutStats != 0 && logout->m_foc == 0)
         {
-            ((CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics())->CountNumOfLoginout((ENUM_LOGIN_LOGOUT)6);
+            logoutStats->CountNumOfLoginout((ENUM_LOGIN_LOGOUT)6);
         }
         CUser* user;
         if ((user = (&m_pclApp->m_userManager)->FindUser(logout->m_dbid)) == 0)
@@ -470,16 +472,16 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
         CMemoryCashManager* cash = (CMemoryCashManager*)m_pclApp->Get_MemoryCashManager();
         bool f1 = false;
         bool f2 = false;
-        cash->InsertCashMemorySetCharacterObject(user, (m_pclApp->Get_MemberManager())->FindMember(logout->m_memberKey), f1, f2);
+        CMemberManager* memberMgr = m_pclApp->Get_MemberManager();
+        cash->InsertCashMemorySetCharacterObject(user, memberMgr->FindMember(logout->m_memberKey), f1, f2);
         if (memberKey2 != 0)
         {
-            (m_pclApp->Get_MemberManager())->MemberMemLogout(memberKey2, user, !f2);
+            memberMgr->MemberMemLogout(memberKey2, user, !f2);
         }
         if (user->GetUniqCharNo() != 0)
         {
             if ((&m_pclApp->m_userManager)->DeleteUser_CharNo(user->GetUniqCharNo()) == 1)
             {
-                user->GetUniqCharNo();
                 m_pclApp->Remove_GM_id(user->GetUniqCharNo());
                 unsigned int charNos[32];
                 int n = user->GetBuddysCharNo(charNos);
@@ -494,8 +496,8 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
                 for (std::vector<unsigned int>::iterator it = vec.begin(); it != vec.end();
                      ++it)
                 {
-                    CUser* other = (&m_pclApp->m_userManager)->FindUser_CharNo(*it);
-                    if (other != 0)
+                    CUser* other;
+                    if ((other = (&m_pclApp->m_userManager)->FindUser_CharNo(*it)) != 0)
                     {
                         other->SendNoticeBuddyInOut(
                             ((CServerInterface*)user->GetGameServer())->GetChannelNo(),
@@ -1326,9 +1328,17 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                         }
                         else
                         {
-                            int err = memberMgr->CheckMemberEnter(
-                                responser, responserMember, requester, requesterMember);
-                            if (err == 0)
+                            int err;
+                            if ((err = memberMgr->CheckMemberEnter(
+                                responser, responserMember, requester, requesterMember)) != 0)
+                            {
+                                SendRequestMemberEnterResult(requester, (unsigned char)err,
+                                                             responser->GetCharName());
+                                DNF_LOG_SCOPE_LINE(0x66a,"./log/MemberModify", "Err(%d) : %d Fail And Reset %d", err,
+                                    requester->GetUniqCharNo(), responser->GetUniqCharNo());
+                                requester->ResetRequestMemberEnter();
+                            }
+                            else
                             {
                                 CServerHandler* handler =
                                     m_pclApp->m_serverHandler2;
@@ -1404,14 +1414,6 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                                             responser->GetMemberKey(), (int)responser->GetLevel(), (int)requester->GetLevel());
                                     }
                                 }
-                            }
-                            else
-                            {
-                                SendRequestMemberEnterResult(requester, (unsigned char)err,
-                                                             responser->GetCharName());
-                                DNF_LOG_SCOPE_LINE(0x66a,"./log/MemberModify", "Err(%d) : %d Fail And Reset %d", err,
-                                    requester->GetUniqCharNo(), responser->GetUniqCharNo());
-                                requester->ResetRequestMemberEnter();
                             }
                         }
                     }
@@ -5373,15 +5375,20 @@ void CPacketTranslater::onRequestCharacInfoByCharacName(PacketHeader* pkt)
             (Packet_Monitor_Request_Charac_Info*)pkt;
         try
         {
-            requester = userMgr->FindUser_CharNo(rpkt->m_requesterNo);
-            if (requester != 0)
+            if ((requester = userMgr->FindUser_CharNo(rpkt->m_requesterNo)) == 0)
+            {
+            }
+            else
             {
                 Packet_Monitor_Reply_Charac_Info reply;
                 reply.m_result = 0;
                 reply.m_idByChannel = requester->GetIdByChannel();
                 strncpy(reply.m_name, rpkt->m_name, 0x1d);
-                target = userMgr->FindUser_CharName(rpkt->m_name);
-                bool notfound = (target == 0);
+                bool notfound;
+                if ((target = userMgr->FindUser_CharName(std::string(rpkt->m_name))) == 0)
+                    notfound = true;
+                else
+                    notfound = false;
                 if (notfound)
                 {
                     reply.m_channel = 0;

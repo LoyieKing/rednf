@@ -4497,8 +4497,7 @@ bool CDBManager::onItemLimitEditionLoadData(
         return 0;
     rpy->m_flag = req->m_flag;
     rpy->m_count = h->get_n_rows();
-    int n = rpy->m_count;
-    for (int i = 0; i < n; i++)
+    for (int i = 0; i < h->get_n_rows(); i++)
     {
         if (!h->fetch())
             return 0;

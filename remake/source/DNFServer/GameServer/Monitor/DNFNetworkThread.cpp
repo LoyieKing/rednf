@@ -86,7 +86,7 @@ void CUdpNetworkThread::dispatch(void* param)
             CUdpRecvBuffer* buf;
             {
                 CGuard<CMutex> guard((CMutex*)m_bLock);
-                buf = new CUdpRecvBuffer;
+                buf = (CUdpRecvBuffer*)CUdpRecvBuffer::operator new(0x1804);
             }
             int recvSize = 0x1800;
             unsigned short srcPort = 0;
@@ -106,6 +106,9 @@ void CUdpNetworkThread::dispatch(void* param)
                             {
                                 CGuard<CMutex> guard((CMutex*)m_qLock);
                                 ((std::queue<CUdpRecvBuffer*>*)m_recvQ)->push(pkt);
+                                unsigned int qsize =
+                                    ((std::queue<CUdpRecvBuffer*>*)m_recvQ)->size();
+                                (void)qsize;
                             }
                         }
                         else
@@ -115,7 +118,7 @@ void CUdpNetworkThread::dispatch(void* param)
                                 ((PacketHeader*)buf)->packetSize, recvByte, *(unsigned short*)buf);
                             {
                                 CGuard<CMutex> guard((CMutex*)m_bLock);
-                                delete buf;
+                                CUdpRecvBuffer::operator delete(buf);
                             }
                         }
                     }
@@ -126,7 +129,7 @@ void CUdpNetworkThread::dispatch(void* param)
                             ((PacketHeader*)buf)->packetSize, recvByte, *(unsigned short*)buf);
                         {
                             CGuard<CMutex> guard((CMutex*)m_bLock);
-                            delete buf;
+                            CUdpRecvBuffer::operator delete(buf);
                         }
                     }
                 }
@@ -137,7 +140,7 @@ void CUdpNetworkThread::dispatch(void* param)
                         ((PacketHeader*)buf)->packetSize, recvByte, *(unsigned short*)buf);
                     {
                         CGuard<CMutex> guard((CMutex*)m_bLock);
-                        delete buf;
+                        CUdpRecvBuffer::operator delete(buf);
                     }
                 }
             }
@@ -145,7 +148,7 @@ void CUdpNetworkThread::dispatch(void* param)
             {
                 {
                     CGuard<CMutex> guard((CMutex*)m_bLock);
-                    delete buf;
+                    CUdpRecvBuffer::operator delete(buf);
                 }
             }
         }

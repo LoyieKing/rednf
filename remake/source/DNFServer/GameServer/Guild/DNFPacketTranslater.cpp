@@ -976,17 +976,23 @@ void CPacketTranslater::OnIncreaseGuildExp(PacketHeader* pkt)
             (int)(char)pb->m_expType);
         unsigned int max1 = (&m_pclApp->m_guildManager)->GetMaxGuildExp1();
         unsigned int max2 = (&m_pclApp->m_guildManager)->GetMaxGuildExp2();
-        unsigned int level = guild->GetGuildLevel();
-        int expLevel = (&m_pclApp->m_guildManager)->GetGuildLevelWithExp(oldExp);
-        if (level == (unsigned int)expLevel)
+        // ORIG calls GetGuildExp again (does not reuse the log snapshot).
+        unsigned int curExp = guild->GetGuildExp();
+        unsigned char level = guild->GetGuildLevel();
+        unsigned char expLevel = (unsigned char)((&m_pclApp->m_guildManager)->GetGuildLevelWithExp(curExp));
+        if (level == expLevel)
         {
             if (pb->m_expType == 0)
             {
-                unsigned int next = (&m_pclApp->m_guildManager)->GetGuildExpWithLevel(level + 1);
+                unsigned int next = (&m_pclApp->m_guildManager)->GetGuildExpWithLevel((unsigned char)(level + 1));
                 unsigned int limit = next < max1 ? next : max1;
                 guild->AddGuildExpUntilLimit(addExp, limit);
             }
-            else if (pb->m_expType == 1 || pb->m_expType == 2)
+            else if (pb->m_expType == 1)
+            {
+                guild->AddGuildExpUntilLimit(addExp, max2);
+            }
+            else if (pb->m_expType == 2)
             {
                 guild->AddGuildExpUntilLimit(addExp, max2);
             }
@@ -1003,7 +1009,7 @@ void CPacketTranslater::OnIncreaseGuildExp(PacketHeader* pkt)
         {
             CMyFileLog(__FUNCTION__, 0x462)("./log/Guild",
                  "OnIncreaseGuildExp : guild key(%d), curr guild exp(%d),lev(%d), next guild exp(%d), exp lev(%d)",
-                 pb->m_guildKey, oldExp, level, oldExp + addExp, expLevel);
+                 pb->m_guildKey, curExp, (unsigned int)level, curExp + addExp, (unsigned int)expLevel);
         }
     }
     }
@@ -1311,9 +1317,11 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
                     {
                         target->ChangeGuildMemberGrade(pb->m_grade);
                         Packet_Monitor_Notify_GuildMemberGrade notify;
-                        notify.m_grade = pb->m_grade;
+                        notify.m_grade = target->GetGuildMemDBInfo()->m_grade;
+                        unsigned int notifyCharNo = target->GetUniqCharNo();
                         notify.m_charNo = target->GetUniqCharNo();
                         notify.m_channel = target->GetIdByChannel();
+                        (void)notifyCharNo;
                         target->SendToGameserver((char*)&notify, notify.packetSize);
                         if (target->GetGameServer() != 0)
                         {
@@ -2260,8 +2268,8 @@ void CPacketTranslater::OnRequestGuildSecede(PacketHeader* pkt)
         if (pb->m_nameLen == 0)
         {
             dbPkt.m_flag = 1;
-            const char* name = requester->GetCharName();
-            memcpy(dbPkt.m_name, name, strlen(name));
+            dbPkt.m_nameLen = strlen(requester->GetCharName());
+            memcpy(dbPkt.m_name, requester->GetCharName(), dbPkt.m_nameLen);
         }
         else
         {
@@ -2456,16 +2464,19 @@ void CPacketTranslater::OnRequestGuildMasterDelegate(PacketHeader* pkt)
             }
             else
             {
-                CUser* delegatee = (&m_pclApp->m_userManager)->FindUser_CharName(
-                    std::string(((Packet_Guild_Request_Guild_Master_Delegate*)pkt)->m_name));
-                if (delegatee != 0 && !guild->IsSubGuildMaster(delegatee->GetUniqCharNo()))
+                CUser* delegatee;
+                if ((delegatee = (&m_pclApp->m_userManager)->FindUser_CharName(
+                    std::string(((Packet_Guild_Request_Guild_Master_Delegate*)pkt)->m_name))) != 0)
                 {
+                    if (!guild->IsSubGuildMaster(delegatee->GetUniqCharNo()))
+                    {
                     DNF_LOG_SCOPE_LINE(0xc49,"./log/GuildModify",
                         "CPacketTranslater::OnRequestGuildMasterDelegate : Delegatee is Not Sub Guild Master(%d)(%d)",
                         guildKey, delegatee->GetUniqCharNo());
                 resp.m_12 = 0x56;
                     requester->SendToGameserver((char*)&resp, 0x16);
                     return;
+                    }
                 }
                 if (requester->GetGameServer() != 0)
                 {
@@ -3469,8 +3480,8 @@ void CPacketTranslater::OnDBReplyGuildCreate(PacketHeader* pkt)
     memcpy(reply.m_name, pbinfo->m_name, 0x16);
     if ((pbinfo->m_result) == 0)
     {
-        CServerHandler* handler = m_pclApp->Get_ServerHandler();
-        if (handler == 0)
+        CServerHandler* handler;
+        if ((handler = m_pclApp->Get_ServerHandler()) == 0)
         {
             throw CDNFException("CGuildManager::GuildMemLogin() pclServerHandler == NULL\n");
         }
@@ -5241,18 +5252,16 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
     {
         if (guild->IsExistGuildAgit() == 1)
         {
-            int curCapacity = guild->GetGuildCargo()->GetCapacity();
-            if (pb->m_curCapacity == curCapacity)
+            if (pb->m_curCapacity == guild->GetGuildCargo()->GetCapacity())
             {
                 unsigned int reqFund = pb->m_requiredFund;
-                unsigned int guildFund = guild->GetGuildFund();
-                if (guildFund < reqFund)
+                if (guild->GetGuildFund() < reqFund)
                 {
                     DNF_LOG_SCOPE_LINE(0x1c00,"./log/GuildCargo",
                         "CPacketTranslater::OnGuildCargoUpgrade guild fund shortage(c:%d,n:%d, gcapa:%d) Error! Guild(%d), User(%d), ReqFund(%d), CurrFund(%d)",
                         pb->m_curCapacity,
-                        pb->m_newCapacity, curCapacity,
-                        guildKey, charNo, reqFund, guildFund);
+                        pb->m_newCapacity, guild->GetGuildCargo()->GetCapacity(),
+                        guildKey, charNo, reqFund, guild->GetGuildFund());
                 }
                 else
                 {
@@ -5260,12 +5269,13 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
                     guild->SendGuildInfoToMembers(true);
                     guild->GetGuildCargo()->SetCapacity(
                         pb->m_newCapacity);
-                    char* buf = (m_pclApp->Get_ServerHandler()->GetTcpDBServer())->makePacketHeader(0x714, 0x16);
+                    CTcpDBServer* tcpDb = m_pclApp->Get_ServerHandler()->GetTcpDBServer();
+                    char* buf = tcpDb->makePacketHeader(0x714, 0x16);
                     *(unsigned int*)(buf + 0xa) = guildKey;
                     *(unsigned int*)(buf + 0xe) = charNo;
                     *(unsigned int*)(buf + 0x12) =
                         pb->m_newCapacity;
-                    (m_pclApp->Get_ServerHandler()->GetTcpDBServer())->SendToServer(buf);
+                    tcpDb->SendToServer(buf);
                     Packet_Channel_Guild_Cargo_Upgrade reply;
                     reply.m_channel = user->GetIdByChannel();
                     reply.m_charNo = charNo;
@@ -5279,7 +5289,7 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
                 DNF_LOG_SCOPE_LINE(0x1bf7,"./log/GuildCargo",
                     "CPacketTranslater::OnGuildCargoUpgrade Capacity(c:%d,n:%d, gcapa:%d) Error! Guild(%d), User(%d)",
                     pb->m_curCapacity,
-                    pb->m_newCapacity, curCapacity,
+                    pb->m_newCapacity, guild->GetGuildCargo()->GetCapacity(),
                     guildKey, charNo);
             }
         }
