@@ -1,5 +1,7 @@
 # C/C++ build artifacts (reconstruction workspace)
 dnf_decompile/build/
+dnf_decompile/build-modern/
+dnf_decompile/build-*/
 dnf_decompile/source/build/
 dnf_decompile/source/build-*/
 dnf_decompile/source/cmake-build-*/
@@ -22,6 +24,8 @@ gcc-4.1.2-install/
 
 # Logs and temp
 **/*.log
+# 运行期日志目录（无扩展名：Log*.init/.error/.cri/.debug/.history）
+dnf_decompile/log/
 **/.DS_Store
 dnf_decompile/gccdump.s
 **/__pycache__/

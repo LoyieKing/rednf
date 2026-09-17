@@ -496,8 +496,13 @@ typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
                         // （按值实例化）+ value_type 转换 ctor 两级临时。
                         out->m_coinMap.insert(
                             std::map<int, DimensionCoinInfo>::value_type(
+#if decompile_verify
                                 std::make_pair<int, DimensionCoinInfo>(
                                     coinType, coinInfo)));
+#else
+                                std::pair<int, DimensionCoinInfo>(
+                                    coinType, coinInfo)));
+#endif
                     }
                     break;
                 }
@@ -673,10 +678,17 @@ typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
                                         std::map<std::pair<int, int>,
                                             std::vector<std::vector<EventRewardItemInfo> >
                                         >::value_type(
+#if decompile_verify
                                             std::make_pair<std::pair<int, int>,
                                                 std::vector<
                                                     std::vector<EventRewardItemInfo> >
                                             >(key, groups)));
+#else
+                                            std::pair<std::pair<int, int>,
+                                                std::vector<
+                                                    std::vector<EventRewardItemInfo> >
+                                            >(key, groups)));
+#endif
                                     groups.clear();                      // 0x89172c5
                                     break;  // 回 give 层
                                 }
@@ -710,4 +722,3 @@ typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
 
 
 #include "InitScriptProducers_6/importEquipmentGradeSampleInfo.inc"
-

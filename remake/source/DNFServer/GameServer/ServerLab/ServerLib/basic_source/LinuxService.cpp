@@ -30,9 +30,12 @@
 // (weak, out-of-line at -O0).  The c6root glibc defines
 // __CORRECT_ISO_CPP_STRING_H_PROTO so this overload is absent; reproduce the
 // original _ZSt6strstrPcPKc symbol.
+// decompile_verify=0（宿主 libstdc++）自带头文件里就有该重载 ⇒ 不能再定义，
+// 否则 "conflicts with a previous declaration"，且调用点会二义。
 #include "Script.h"
 #include "TraceLog.h"
 
+#if decompile_verify
 namespace std
 {
 char* strstr(char* __s1, const char* __s2) throw()
@@ -40,6 +43,7 @@ char* strstr(char* __s1, const char* __s2) throw()
     return ::strstr(__s1, __s2);
 }
 }
+#endif
 
 namespace nsl {
 

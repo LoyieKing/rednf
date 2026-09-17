@@ -797,6 +797,11 @@ struct _Charac_info
     char m_field14D0;                 // +0x14d0 ← Reset movb $0（R+0x7d0）
 };
 #pragma pack(pop)
+// [decompile_verify=0] 现代 libstdc++ 的 std::map 内部布局与 4.4 不同（pack(1) 下
+//   24B vs ORIG 21B）⇒ 含 std::map 成员（SkillSlot→ComboSkill、CCargo…）的
+//   _Charac_info 尺寸/偏移必然漂移。以下整块是「ORIG 逐字节复现」的布局锁定断言，
+//   只在 ON 路线成立；OFF 路线语义等价即可（成员访问全部按名，不依赖这些常量）。
+#if decompile_verify
 static_assert(sizeof(_Charac_info) == 0x14d1, "_Charac_info ORIG size");
 // [Lane37CUser 2026-09-10] pad→真实子对象后的偏移锁定（改前探针基线，逐项必须全等）
 static_assert(__builtin_offsetof(_Charac_info, m_curCharacInven) == 0xda,
@@ -844,6 +849,7 @@ static_assert(__builtin_offsetof(_Charac_info, m_fieldDE9) == 0xde9, "m_fieldDE9
 static_assert(__builtin_offsetof(_Charac_info, m_padEB5) == 0xeb5, "m_padEB5 @0xeb5");
 static_assert(__builtin_offsetof(_Charac_info, m_padEB6) == 0xeb6, "m_padEB6 @0xeb6");
 static_assert(__builtin_offsetof(_Charac_info, m_fieldEB7) == 0xeb7, "m_fieldEB7 @0xeb7");
+#endif  /* decompile_verify */
 
 
 // ---- 子对象最小类（尺寸按构造偏移推导；方法签名按 ORIG nm 核对） ----

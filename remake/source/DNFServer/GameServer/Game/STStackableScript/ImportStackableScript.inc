@@ -2407,8 +2407,14 @@ break;
             {
                 cur = new EquipmentParameterInfo();
                 // ORIG 0x089b67a9：显式实参模板 make_pair（值语义签名）
+#if decompile_verify
                 script->m_module4bc.insert(std::make_pair<ENUM_MODULE_TYPE, EquipmentParameterInfo*>(
                     static_cast<ENUM_MODULE_TYPE>(0x13), cur));
+#else
+                // 宿主 make_pair 的 T&& 形参绑不住左值指针实参 ⇒ 直接构造 pair。
+                script->m_module4bc.insert(std::pair<ENUM_MODULE_TYPE, EquipmentParameterInfo*>(
+                    static_cast<ENUM_MODULE_TYPE>(0x13), cur));
+#endif
             }
         }
         // ORIG 0x089b6818：ix 统一取回（键缺失时 operator[] 建默认值）
@@ -2479,8 +2485,13 @@ break;
                 if (it2 == script->m_module4bc.end())
                 {
                     cur = new EquipmentParameterInfo();
+#if decompile_verify
                     script->m_module4bc.insert(std::make_pair<ENUM_MODULE_TYPE, EquipmentParameterInfo*>(
                         static_cast<ENUM_MODULE_TYPE>(0x12), cur));
+#else
+                    script->m_module4bc.insert(std::pair<ENUM_MODULE_TYPE, EquipmentParameterInfo*>(
+                        static_cast<ENUM_MODULE_TYPE>(0x12), cur));
+#endif
                 }
                 cur = script->m_module4bc[static_cast<ENUM_MODULE_TYPE>(0x12)];
                 cur->m_414 = 2;               // 089b6c74 movl $0x2,0x414

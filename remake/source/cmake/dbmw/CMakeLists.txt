@@ -6,7 +6,9 @@ project(dbmw CXX)
 # 口径与原脚本完全一致（源顺序/按文件 flags/include/链接），参见 manager 说明。
 # 注意：mysqlclient 与 manager 共用 build/manager/mysqlclient（原脚本如此）。
 # ============================================================
-set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/link_dbmw.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+if(decompile_verify)
+    set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/link_dbmw.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake)
 
@@ -190,8 +192,9 @@ foreach(f IN LISTS YASSL_CORE)
         INCLUDE_DIRECTORIES "${YASSL}/include;${YASSL}/taocrypt/include;${YASSL}/taocrypt/mySTL")
 endforeach()
 
-add_custom_target(mysqlclient_dbmw ALL
-    COMMAND sh ${SRC_ROOT}/toolchain/build-mysqlclient.sh
-    WORKING_DIRECTORY ${SRC_ROOT}/toolchain
-    COMMENT "build-mysqlclient.sh -> build/manager/mysqlclient/libmysqlclient.a")
-add_dependencies(dbmw mysqlclient_dbmw)
+if(NOT EXISTS ${SRC_ROOT}/../build/manager/mysqlclient/libmysqlclient.a)
+    message(FATAL_ERROR
+        "缺少 build/manager/mysqlclient/libmysqlclient.a\n"
+        "三方库由 source/cmake/third_party 统一构建，请改用统一入口：\n"
+        "  cmake -S source -B build && cmake --build build --target third_party")
+endif()

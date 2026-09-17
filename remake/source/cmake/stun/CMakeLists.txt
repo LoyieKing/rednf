@@ -11,6 +11,20 @@ include("${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake")
 
 set(_SD "${DNF_SRC}/DNFServer/StunServer/stun_server")
 
+if(NOT decompile_verify)
+    # decompile_verify=OFF：宿主最新 LTS GCC 直接编译 4 个 TU（语义等价；不追求逐字节）
+    add_executable(stun
+        ${_SD}/stun.cpp ${_SD}/udp.cpp ${_SD}/global_func.cpp ${_SD}/server.cpp
+        ${CMAKE_CURRENT_LIST_DIR}/../../toolchain/compat/dnf_compat_stat.cpp)
+    set_target_properties(stun PROPERTIES
+        OUTPUT_NAME "df_stun_r"
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+    target_compile_options(stun PRIVATE -O0 -std=gnu++14 -fpermissive -w -Ddecompile_verify=0
+        -include ${CMAKE_CURRENT_LIST_DIR}/../../toolchain/compat/decompile_verify_off.h)
+    target_link_libraries(stun PRIVATE -lpthread)
+    return()
+endif()
+
 set(C5R52_GXX ${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_c5r52_gxx.sh)
 set(C5R52_FLAGS
     -O0 -D_GNU_SOURCE -std=gnu++98 -nostdinc
@@ -70,5 +84,7 @@ find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PAT
 # [2026-09-14 修复] 原用宿主 g++ ⇒ 产物要求 GLIBC_2.34，CentOS 7(glibc 2.17) 跑不起来
 #   （ORIG df_stun_r 只要 GLIBC_2.2.5）。stun 是 64 位目标，改用 c6root EL6 64 位根链接
 #   （dnf_game_link.sh 现按 -m64 自动切 64 位 crt/libc，产物 glibc ≤2.12）。
-set(CMAKE_CXX_LINK_EXECUTABLE
-    "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh -m64 <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+if(decompile_verify)
+    set(CMAKE_CXX_LINK_EXECUTABLE
+        "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh -m64 <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+endif()

@@ -2,10 +2,12 @@ cmake_minimum_required(VERSION 3.13)
 project(bridge CXX)
 
 # c6446r 变体：c6root g++ 4.4.7 驱动 + cc1plus 4.4.6（等价 /tmp/c6-g++-446r 的 -B）。
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -B ${DF_CC1P446}/")
-# ORIG 项目 TU 为 i586 目标形态（无 CMOV；常量除法用 sar/shr/lea 展开），
-# 第三方静态库（mysql/zlib/yaSSL）为 i686（含 cmov）。mtune=i686 保留 imul。
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=i586 -mtune=i686")
+if(decompile_verify)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -B ${DF_CC1P446}/")
+    # ORIG 项目 TU 为 i586 目标形态（无 CMOV；常量除法用 sar/shr/lea 展开），
+    # 第三方静态库（mysql/zlib/yaSSL）为 i686（含 cmov）。mtune=i686 保留 imul。
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=i586 -mtune=i686")
+endif()
 
 set(DNF_SRC "${CMAKE_CURRENT_LIST_DIR}/../..")
 include("${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake")
@@ -126,11 +128,10 @@ endforeach()
 # 产物目录与 manager 相同（build/manager/mysqlclient）——这是脚本 OUT 的硬编码口径。
 # 若已存在则不再挂 custom target：避免与并行构建的 manager 同时 ar 同一个归档。
 if(NOT EXISTS ${DNF_SRC}/../build/manager/mysqlclient/libmysqlclient.a)
-    add_custom_target(mysqlclient_bridge ALL
-        COMMAND sh ${DNF_SRC}/toolchain/build-mysqlclient.sh
-        WORKING_DIRECTORY ${DNF_SRC}/toolchain
-        COMMENT "build-mysqlclient.sh -> build/manager/mysqlclient/libmysqlclient.a")
-    add_dependencies(bridge mysqlclient_bridge)
+    message(FATAL_ERROR
+        "缺少 build/manager/mysqlclient/libmysqlclient.a\n"
+        "三方库由 source/cmake/third_party 统一构建，请改用统一入口：\n"
+        "  cmake -S source -B build && cmake --build build --target third_party")
 endif()
 
 # 链接用宿主 g++（与 build-bridge.sh 一致：-m32  -static-libgcc）。
@@ -139,5 +140,7 @@ find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PAT
 #   CentOS 7（glibc 2.17）⇒ `version 'GLIBC_2.34' not found` 跑不起来；ORIG 只要 ≤2.4。
 #   改用 game 同款 c6root 4.4.7 驱动 + --sysroot 链接（dnf_game_link.sh 本身通用）。
 #   c6root 4.4.7 不认 -no-pie（晚于 4.4），4.4 默认即非 PIE。
-set(CMAKE_CXX_LINK_EXECUTABLE
-    "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+if(decompile_verify)
+    set(CMAKE_CXX_LINK_EXECUTABLE
+        "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+endif()

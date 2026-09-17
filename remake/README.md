@@ -6,7 +6,30 @@
 
 - `dnf_installer/` 提供部署资源与**原始服务器 ELF 运行时文件**，位于 `dnf_installer/build/dnf_data/home/template/neople/<服务名>/df_<服务名>_r`。
 - `dnf_decompile/` 对这些 ELF 进行 Ghidra 逆向，并结合 DWARF 调试信息渐进式重建可维护的 C++ 源码。
-- 重建产物统一放在 `source/` 下，通过 CMake 以「C++98 / 32 位 / O0」基线构建，尽量贴近原始二进制行为。
+- 重建产物统一放在 `source/` 下，通过 CMake 构建，两条路线并存（见下节与
+  `docs/df_modern_route.md`）：
+  * **现代路线（默认，`decompile_verify=OFF`）**：宿主最新 LTS GCC + `-m32`，
+    语义等价、可直接运行；自带语法/ABI 兼容层与 dnf-compat-layer 语义、真实 GeoIP。
+  * **验证路线（`decompile_verify=ON`）**：GCC 4.x 工具链（c5/c6/c6446r/c6444r +
+    逐 TU 分发）+ `-nostdinc`，产物与 ORIG **逐字节 identical**（14/14 服务的验收口径）。
+
+## 构建（唯一入口 `source/CMakeLists.txt`）
+
+```bash
+# 现代路线（默认；可省略 -Ddecompile_verify=OFF）
+cmake -S source -B build-modern
+cmake --build build-modern -j$(nproc)
+
+# 验证路线（逐字节 identical）
+cmake -S source -B build -Ddecompile_verify=ON
+cmake --build build -j$(nproc)
+```
+
+产物：`build*/<服务>/df_<服务>_r`（14 个）、`build*/geoip/libGeoIP.so.1`（真实 GeoIP）、
+`build*/manager/{mysqlclient,yassl}/`、`toolchains/freetype32/lib/libfreetype.a`。
+两条路线共用同一份源码，差异一律用 `#if decompile_verify` 收口（ON 分支文本保持原样）。
+现代路线的完整说明（兼容层清单、GeoIP、验证记录、已知限制）见
+**[docs/df_modern_route.md](docs/df_modern_route.md)**。
 
 ## 工作区布局
 
@@ -26,7 +49,7 @@ dnf_workspace/                      # git 仓库根
         ├── DNFServer/              # ServerCommon / GameServer(ServerLab) / StunServer 的 DWARF 桩
         ├── DNFShared/ Library/     # 共享脚本与工具库的 DWARF 桩
         ├── compare_df_community_functions.py  # 符号/字符串/助记符对比脚本
-        └── toolchain/              # 可复现构建/逐 TU 对比脚本（build-channel.sh 等）
+        └── toolchain/              # 可复现构建/逐 TU 对比脚本；compat/（OFF 兼容层）、geoip/（真实 GeoIP）
     ├── tests/                      # 独立编译验证 TU（packets/ layout/ probes/，不参与服务构建）
     ├── attic/                      # 已退役文件（历史快照、被合并 TU、实验与中间产物；见 attic/README.md）
     └── docs/                       # 分析/验收文档（progress/ 进度报告、assets/ 图件、class_func_reports/ 等）
@@ -154,10 +177,18 @@ dnf_workspace/                      # git 仓库根
 ## 构建方法
 
 ```bash
-# 环境要求：gcc/g++ 支持 -m32（multilib），cmake >= 3.10
-cmake -S source -B build -DCMAKE_BUILD_TYPE=Debug
-cmake --build build --target df_community_r -j$(nproc)
+# 环境要求：cmake >= 3.10（编译器由仓库内 GCC 4.x 工具链提供，见 toolchains/）
+cmake -S source -B build            # 唯一入口：source/CMakeLists.txt
+cmake --build build -j              # 三方静态库 + 14 个服务二进制
+
+cmake --build build --target game   # 只构建单个服务
+cmake -S source -B build -DDNF_SERVICES="game;manager"   # 只配置部分服务
 ```
+
+各服务的编译器变体（stun=c5、channel/bridge/auction/point=c6446r、manager/monitor=c6、
+statics=c6446r、dbmw=c6444r、game/guild 用专用逐 TU 工具链、relay/coserver/community
+自举）由 `source/CMakeLists.txt` 统一登记，构建入口不再依赖任何 shell 构建脚本；
+详见 [source/cmake/README.md](source/cmake/README.md)。
 
 构建基线（固定于 `source/CMakeLists.txt`）：
 

@@ -1,12 +1,16 @@
 cmake_minimum_required(VERSION 3.13)
 # channel 专用编译规则：经 channel_cc.sh 把 "-c <绝对路径>" 改写为
 # "cd 到源目录 + basename"，复现 ORIG 构建的 __FILE__（见 channel_cc.sh）。
-set(CMAKE_CXX_COMPILE_OBJECT
-    "${CMAKE_CURRENT_LIST_DIR}/channel_cc.sh <DEFINES> <INCLUDES> <FLAGS> -MD -MT <TARGET> -MF <DEP_FILE> -o <OBJECT> -c <SOURCE>")
+if(decompile_verify)
+    set(CMAKE_CXX_COMPILE_OBJECT
+        "${CMAKE_CURRENT_LIST_DIR}/channel_cc.sh <DEFINES> <INCLUDES> <FLAGS> -MD -MT <TARGET> -MF <DEP_FILE> -o <OBJECT> -c <SOURCE>")
+endif()
 project(channel CXX)
 
 # c6446r 变体：c6root g++ 4.4.7 驱动 + cc1plus 4.4.6（等价 /tmp/c6-g++-446r 的 -B）。
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -B ${DF_CC1P446}/")
+if(decompile_verify)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -B ${DF_CC1P446}/")
+endif()
 
 set(DNF_SRC "${CMAKE_CURRENT_LIST_DIR}/../..")
 include("${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake")
@@ -74,5 +78,7 @@ find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PAT
 #   ORIG 只要 GLIBC_2.4。改用 game 同款的 c6root 4.4.7 驱动 + --sysroot 链接脚本
 #   （dnf_game_link.sh 本身是通用 32 位 c6root 链接驱动，非 game 专属）。
 #   注意：c6root 4.4.7 的 g++ 不认 `-no-pie`（晚于 4.4），4.4 默认即非 PIE ⇒ 已从 LINK_FLAGS 去掉。
-set(CMAKE_CXX_LINK_EXECUTABLE
-    "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+if(decompile_verify)
+    set(CMAKE_CXX_LINK_EXECUTABLE
+        "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+endif()

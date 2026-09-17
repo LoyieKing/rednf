@@ -24,15 +24,16 @@
 // 本仓 4.4 头因 __GNUC_PREREQ(4,4) 走 glibc extern "C++" 重载（asm 名 strrchr），
 // std::strrchr 恒解析为 C 符号 ⇒ 调用点与 ORIG 差一个 _ZSt7strrchrPci。
 // 按 ORIG 同一 inline 体在此声明（非发明符号：符号/体/弱绑定均见 ORIG 二进制）。
+#if decompile_verify
 namespace std {
 inline char* strrchr(char* s, int c)
 {
     return __builtin_strrchr(s, c);
 }
 }
+#endif  /* 现代 libstdc++ 自带 std::strrchr(char*, int) 重载 */
 
 #include "Divide_C_ClassIP_EndIP/Divide_C_ClassIP_EndIP.inc"
 
 
 #include "Divide_C_ClassIP_EndIP/Divide_C_ClassIP_EndIP_1.inc"
-

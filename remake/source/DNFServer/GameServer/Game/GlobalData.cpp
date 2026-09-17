@@ -1259,7 +1259,7 @@ int CaptchaGen::kJapaneseHirakanaCount = 72;  // VA 0x08b2c4f0
 //    ft_smooth[_lcd|_lcdv]_renderer_class，`af_/pso_/t1_/cid_/cff_/pcf_/bdf_/ft_gzip`
 //    计数全 0 ⇒ 无 autofit/psaux/type1/cff/zlib；FT_* 公开符号 162 个）。
 // 本仓按同版本、同模块集重建 i686 静态库并链入（`toolchains/freetype32/lib/
-//   libfreetype.a`，重建脚本 `source/toolchain/build-freetype248-static32.sh`）
+//   libfreetype.a`，由 `source/cmake/third_party/CMakeLists.txt` 的 freetype 目标生成）
 //   ⇒ 本 TU **不再定义任何 FT_***，只保留声明与 generateImage 用到的结构视图。
 //
 // 演进留痕（勿回退到后两种）：

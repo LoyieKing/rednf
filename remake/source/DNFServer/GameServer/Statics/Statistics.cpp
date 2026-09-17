@@ -1822,9 +1822,17 @@ void StatisticManager::AddSecretShopStatistic(Packet_Secret_Shop_Statistic* pkt)
             // [W11-Statics] ORIG 调 `pair<int,SECRET_SHOP_STATISTIC_DATA>::C1IRiRS0_E`
             //   （显式 pair 构造，第一实参 int& = &m_items[i].m_data[0]），
             //   而非 `std::make_pair`（我方多一层调用 + 多 2 条准备指令）。
+#if decompile_verify
             m_secretShop[pkt->m_shopIdx].insert(
                 std::pair<int, SECRET_SHOP_STATISTIC_DATA>(
                     pkt->m_items[i].m_data[0], pkt->m_items[i]));
+#else
+            // 宿主 GCC 禁止把 packed 的 m_data[0] 绑到 int& ⇒ 先落临时量。
+            int _dnf_key = pkt->m_items[i].m_data[0];
+            m_secretShop[pkt->m_shopIdx].insert(
+                std::pair<int, SECRET_SHOP_STATISTIC_DATA>(
+                    _dnf_key, pkt->m_items[i]));
+#endif
         }
     }
 }

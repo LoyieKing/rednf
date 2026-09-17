@@ -5213,8 +5213,15 @@ void CPacketTranslater::onSocialEventRewardItemResponse(PacketHeader* pkt)
         unsigned int i = 0;
         while (i < rpkt->m_count && i < 0x1e)
         {
+#if decompile_verify
             m_pclApp->getLimitNpcBuyItemManager()->registItem(
                 rpkt->m_items[i]);
+#else
+            // 宿主 GCC 禁止 packed 成员绑到 NpcBuyLimitItem& ⇒ 拷到局部
+            //（registItem 只读入参：仅按 m_itemId 查表并插入拷贝）。
+            NpcBuyLimitItem _dnf_item = rpkt->m_items[i];
+            m_pclApp->getLimitNpcBuyItemManager()->registItem(_dnf_item);
+#endif
             DNF_LOG_SCOPE_LINE(0x1dd0,"./log/NpcBuyLimitItem", "Load-> itemId: %d, maxCount: %d, sellCount: %d)",
                 rpkt->m_items[i].m_itemId,
                 rpkt->m_items[i].m_maxCount,

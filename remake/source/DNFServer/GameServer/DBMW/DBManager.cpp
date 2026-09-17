@@ -32,6 +32,19 @@ CQueryCounter* CQueryCounterInstance();
 bool isDayTimeOver(unsigned int timestamp, unsigned int days);
 int get_day_interval(struct tm* a, struct tm* b);
 
+// ---- packed 字段取数（新 GCC 拒绝把 packed 成员绑到 int&/unsigned int&） ----
+// ON 路线（GCC 4.x）展开为原始单语句，逐字节 identical 不变；
+// OFF 路线（宿主 GCC）改为「临时量中转」：读进临时量、成功后存回字段。
+#if decompile_verify
+#define DNF_PACKED_GET_INT(idx, field)  if (!h->get_int(idx, field)) return 0
+#define DNF_PACKED_GET_UINT(idx, field) if (!h->get_uint(idx, field)) return 0
+#else
+#define DNF_PACKED_GET_INT(idx, field)  \
+    do { int _dnf_v; if (!h->get_int(idx, _dnf_v)) return 0; (field) = _dnf_v; } while (0)
+#define DNF_PACKED_GET_UINT(idx, field) \
+    do { unsigned int _dnf_v; if (!h->get_uint(idx, _dnf_v)) return 0; (field) = _dnf_v; } while (0)
+#endif
+
 // ---- 本地 view 结构（仅用于生成与 ORIG 一致的成员访问形态） ----
 struct UpgradeSeparateBits
 {
@@ -4964,26 +4977,19 @@ char CDBManager::QueryReloadSpecDb(Packet_Frame_Lag_Statistic_Reload_Spec* req,
     {
         if (!h->fetch())
             return 0;
-        if (!h->get_int(0, rp.m_uniqueId[i]))
-            return 0;
-        if (!h->get_uint(1, rp.m_modifyTime[i]))
-            return 0;
-        if (!h->get_int(2, rp.m_specId[i]))
-            return 0;
+        DNF_PACKED_GET_INT(0, rp.m_uniqueId[i]);
+        DNF_PACKED_GET_UINT(1, rp.m_modifyTime[i]);
+        DNF_PACKED_GET_INT(2, rp.m_specId[i]);
         if (!h->get_byte(3, (char&)rp.m_cpuVendor[i]))
             return 0;
         if (!h->get_byte(4, (char&)rp.m_cpuProcessorNum[i]))
             return 0;
-        if (!h->get_int(5, rp.m_aboveCpuClock[i]))
-            return 0;
-        if (!h->get_int(6, rp.m_belowCpuClock[i]))
-            return 0;
+        DNF_PACKED_GET_INT(5, rp.m_aboveCpuClock[i]);
+        DNF_PACKED_GET_INT(6, rp.m_belowCpuClock[i]);
         if (!h->get_short(7, (short&)rp.m_ram[i]))
             return 0;
-        if (!h->get_int(8, rp.m_videocardVendor[i]))
-            return 0;
-        if (!h->get_int(9, rp.m_videocardDevice[i]))
-            return 0;
+        DNF_PACKED_GET_INT(8, rp.m_videocardVendor[i]);
+        DNF_PACKED_GET_INT(9, rp.m_videocardDevice[i]);
         if (!h->get_short(10, (short&)rp.m_videocardTextureMem[i]))
             return 0;
         if (!h->get_byte(11, (char&)rp.m_osVersion[i]))
@@ -5141,26 +5147,19 @@ char CDBManager::QueryFirstLoadSpecDb(Packet_Frame_Lag_Statistic_Load_Spec* req,
     {
         if (!h->fetch())
             return 0;
-        if (!h->get_int(0, rp.m_uniqueId[i]))
-            return 0;
-        if (!h->get_uint(1, rp.m_modifyTime[i]))
-            return 0;
-        if (!h->get_int(2, rp.m_specId[i]))
-            return 0;
+        DNF_PACKED_GET_INT(0, rp.m_uniqueId[i]);
+        DNF_PACKED_GET_UINT(1, rp.m_modifyTime[i]);
+        DNF_PACKED_GET_INT(2, rp.m_specId[i]);
         if (!h->get_byte(3, (char&)rp.m_cpuVendor[i]))
             return 0;
         if (!h->get_byte(4, (char&)rp.m_cpuProcessorNum[i]))
             return 0;
-        if (!h->get_int(5, rp.m_aboveCpuClock[i]))
-            return 0;
-        if (!h->get_int(6, rp.m_belowCpuClock[i]))
-            return 0;
+        DNF_PACKED_GET_INT(5, rp.m_aboveCpuClock[i]);
+        DNF_PACKED_GET_INT(6, rp.m_belowCpuClock[i]);
         if (!h->get_short(7, (short&)rp.m_ram[i]))
             return 0;
-        if (!h->get_int(8, rp.m_videocardVendor[i]))
-            return 0;
-        if (!h->get_int(9, rp.m_videocardDevice[i]))
-            return 0;
+        DNF_PACKED_GET_INT(8, rp.m_videocardVendor[i]);
+        DNF_PACKED_GET_INT(9, rp.m_videocardDevice[i]);
         if (!h->get_short(10, (short&)rp.m_videocardTextureMem[i]))
             return 0;
         if (!h->get_byte(11, (char&)rp.m_osVersion[i]))

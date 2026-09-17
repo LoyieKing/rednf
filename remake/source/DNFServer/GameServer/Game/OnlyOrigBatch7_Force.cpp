@@ -12,8 +12,12 @@
 //     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
+#if decompile_verify
 #include <cstdatomic>      // memory_order / __atomic_flag_base（先于 atomic_0.h）
 #include <bits/atomic_0.h> // std::__atomic0::atomic_flag（ORIG 用互斥版）
+#else
+#include <atomic>          // 现代路线：std::atomic_flag / std::memory_order
+#endif
 #include <pthread.h>       // pthread_mutex_t / pthread_mutex_lock（ORIG 形互斥）
 #include <bits/functexcept.h> // std::__throw_system_error（ORIG 0x086d96b0）
 
@@ -85,6 +89,7 @@ struct tagCS_UPDATE_CHANNEL_INFO : public tagPacketHeader
 // 选 gthr-single（__gthread_active_p 恒 0 桩），故显式取弱符号地址复现 posix
 // 形；裸 register（P231，非 asm 绑定，P0 合规）复现 ORIG 免槽 callee-saved。
 // ============================================================================
+#if decompile_verify
 extern "C" int pthread_cancel(pthread_t) __attribute__((weak));
 
 namespace
@@ -122,6 +127,7 @@ namespace __atomic0
 
 }  // namespace __atomic0
 }  // namespace std
+#endif  /* decompile_verify */
 
 // ============================================================================
 // force 发射（P147）

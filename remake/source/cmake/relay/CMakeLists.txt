@@ -15,12 +15,14 @@ include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_toolchain_44.cmake)
 
 # 同 statics/coserver：包装脚本（C6 组用 c6root 驱动，4.4.6 cc1plus 通过 -B 选择；
 # -B 由下方 target_compile_options 提供）。
-set(DF_CXX_WRAPPER ${CMAKE_BINARY_DIR}/df-cxx-wrap.sh)
-file(WRITE ${DF_CXX_WRAPPER}
-    "#!/bin/sh\nexport LD_LIBRARY_PATH=\"${DF_C6ROOT}/usr/lib64:${DF_C6ROOT}/usr/lib\"\nexec \"${DF_C6ROOT}/usr/bin/g++\" \"$@\"\n")
-execute_process(COMMAND chmod +x ${DF_CXX_WRAPPER})
-set(ENV{LD_LIBRARY_PATH} "")
-set(CMAKE_CXX_COMPILER ${DF_CXX_WRAPPER})
+if(decompile_verify)
+    set(DF_CXX_WRAPPER ${CMAKE_BINARY_DIR}/df-cxx-wrap.sh)
+    file(WRITE ${DF_CXX_WRAPPER}
+        "#!/bin/sh\nexport LD_LIBRARY_PATH=\"${DF_C6ROOT}/usr/lib64:${DF_C6ROOT}/usr/lib\"\nexec \"${DF_C6ROOT}/usr/bin/g++\" \"$@\"\n")
+    execute_process(COMMAND chmod +x ${DF_CXX_WRAPPER})
+    set(ENV{LD_LIBRARY_PATH} "")
+    set(CMAKE_CXX_COMPILER ${DF_CXX_WRAPPER})
+endif()
 
 project(relay CXX)
 
@@ -30,8 +32,10 @@ project(relay CXX)
 #   ORIG 的 df_relay_r 只要 GLIBC_2.4。
 #   改用 game 同款「c6root 4.4.7 驱动 + --sysroot + 显式 crt」链接脚本
 #   （dnf_game_link.sh 本身就是通用的 32 位 c6root 链接驱动，非 game 专属）。
-set(CMAKE_CXX_LINK_EXECUTABLE
-    "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+if(decompile_verify)
+    set(CMAKE_CXX_LINK_EXECUTABLE
+        "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake)
 
@@ -89,7 +93,11 @@ dnf_service(relay
 )
 
 # C6 组：cc1plus 4.4.6-3（-B）+ gnu++0x + RELAY_USERPOOL_C6（仅作用于 C6 源文件）
-target_compile_options(relay PRIVATE -B ${DF_CC1P446}/ -std=gnu++0x -DRELAY_USERPOOL_C6)
+if(decompile_verify)
+    target_compile_options(relay PRIVATE -B ${DF_CC1P446}/ -std=gnu++0x -DRELAY_USERPOOL_C6)
+else()
+    target_compile_options(relay PRIVATE -DRELAY_USERPOOL_C6)
+endif()
 
 # ------------------------------------------------------------
 # 修正链接顺序：CMake 会把外部 .o（c5/*.o）追加到行尾，而 build-relay.sh 的
@@ -106,6 +114,9 @@ set(RELAY_OBJ_PREFIX ${RELAY_OBJ_ROOT}/${_relay_rel})
 #   改为与 game 同款 c6root 4.4.7 驱动 + --sysroot 链接（dnf_game_link.sh）。
 #   注：c6root 4.4.7 的 g++ 不认 `-no-pie`（该选项晚于 4.4），4.4 默认即非 PIE，
 #   故这里去掉该参数。
+# ON 路线专用：按 build-relay.sh 的链接顺序用 4.x 驱动重链（逐字节口径）。
+# OFF 路线用现代驱动正常链接即可（此段会把宿主 libstdc++ 符号丢给 4.x 驱动 ⇒ 未定义）。
+if(decompile_verify)
 add_custom_command(TARGET relay POST_BUILD
     COMMAND ${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh
         -o ${CMAKE_BINARY_DIR}/df_relay_r
@@ -146,3 +157,4 @@ add_custom_command(TARGET relay POST_BUILD
         -lpthread -ldl -lm
     COMMENT "RELINK df_relay_r（build 脚本链接顺序）"
 )
+endif()

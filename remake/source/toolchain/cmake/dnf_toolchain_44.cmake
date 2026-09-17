@@ -1,3 +1,10 @@
+# decompile_verify=OFF：现代路线（宿主最新 LTS GCC）不加载 4.x 工具链设置。
+# 注意：顶层 return() 在 include() 语境下即"中止本文件"，后续内容不生效。
+if(DEFINED decompile_verify AND NOT decompile_verify)
+    message(STATUS "decompile_verify=OFF：使用宿主 GCC，跳过 4.x 工具链设置")
+    return()
+endif()
+
 # DNF 重建 GCC 4.x 工具链文件（2026-08-10）
 # 用法: cmake -S source -B build/<svc> -DDF_SERVICE=<svc>
 #       -DCMAKE_TOOLCHAIN_FILE=source/toolchain/cmake/dnf_toolchain_44.cmake
@@ -10,9 +17,9 @@
 #   c6444r  -> c6root 驱动 + Red Hat 4.4.4-13 cc1plus（monitor ORIG .comment 主体）
 if(NOT DEFINED DF_TC_ROOT)
     if(DEFINED ENV{DNF_TC_ROOT} AND NOT "$ENV{DNF_TC_ROOT}" STREQUAL "")
-        set(DF_TC_ROOT "$ENV{DNF_TC_ROOT}")
+        set(DF_TC_ROOT "$ENV{DNF_TC_ROOT}" CACHE PATH "GCC 4.x 工具链根")
     else()
-        set(DF_TC_ROOT "/tmp")
+        set(DF_TC_ROOT "/tmp" CACHE PATH "GCC 4.x 工具链根（需 -DDF_TC_ROOT= 指定）")
     endif()
 endif()
 if(NOT DEFINED DF_CC_VARIANT)

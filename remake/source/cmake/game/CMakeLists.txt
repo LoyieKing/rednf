@@ -7,7 +7,9 @@ project(game CXX)
 # docs/df_game_r_class_topology.md 与 docs/class_func_reports/。
 # 本服务含 yaSSL/TaoCrypt/MySQL（Library3rd/MySQL 自带源码）。
 # ============================================================
-set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+if(decompile_verify)
+    set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+endif()
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake)
 
@@ -1155,10 +1157,10 @@ dnf_service(game
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
         ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/zlib32/lib/libz.a
-        # [b28d-Main·检查点22] libGeoIP 链接桩：原先「全路径直给 libGeoIP.so.1」会让 ld
-        #   追加 DT_RUNPATH（ORIG 无 RUNPATH）且 NEEDED 次序不受控 ⇒ 已移到下方 LINK_FLAGS，
-        #   改 `-L<dir> -l:libGeoIP.so.1` 形（桩自身 SONAME=libGeoIP.so.1 ⇒ 记名不变、
-        #   不再产生 RUNPATH）。此处只留静态库。
+        # [b28d-Main·检查点22 → 2026-09-17] libGeoIP：原为链接桩（`-L<dir> -l:` 形），
+        #   现已换成**本仓真实实现**（cmake/third_party 的 geoip 目标，见下方 LINK_FLAGS）。
+        #   全路径输入不产生 DT_RUNPATH（该 .so 有 SONAME=libGeoIP.so.1 ⇒ NEEDED 记名不变，
+        #   ON 路线逐字节 identical 已复核：14 产物 md5 全同）。此处只留静态库。
         # [b28d-Main·检查点22] libnxencryption：**厂商真实 .so**（自
         #   dnf_installer/.../neople/game/libnxencryption.so 复制入仓）参与链接。
         #   ORIG 对 Encryption::Adler32 / EncodeDressStringWide 只有 U 引用（运行时由
@@ -1202,8 +1204,10 @@ dnf_service(game
         -lrt
         -L${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/nxencryption
         -lnxencryption
-        -L${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/geoip_stub
-        -l:libGeoIP.so.1
+        # [2026-09-17] 真实 GeoIP（本仓 source/toolchain/geoip/geoip_country.c 构建，
+        #   见 cmake/third_party/CMakeLists.txt 的 geoip 目标）：全路径给出即可——
+        #   SONAME=libGeoIP.so.1 ⇒ DT_NEEDED 记名与 ORIG 一致，逐字节口径不变。
+        ${CMAKE_BINARY_DIR}/../geoip/libGeoIP.so.1
         -ldl
         -lm
         # [Main·检查点71 → R19scanDYN·§25.1 机制修正] 动态导出面 = ORIG 逐符号对齐：

@@ -4,8 +4,14 @@ bool CDisconnectDetecter::RegisterUser(CUser* user)
     int mapSize = m_map.size();
     long curSec = GlobalData::s_systemTime_.getCurSec();
     DetectedObjectKey key(user->GetUID(), user->get_unique_id() & 0xffff);
+#if decompile_verify
     std::pair<std::map<DetectedObjectKey, int>::iterator, bool> ret =
         m_map.insert(std::make_pair<DetectedObjectKey, long>(key, curSec));
+#else
+    // 宿主 make_pair 显式模板实参 + 左值实参会绑定失败 ⇒ 直接构造 pair。
+    std::pair<std::map<DetectedObjectKey, int>::iterator, bool> ret =
+        m_map.insert(std::pair<DetectedObjectKey, long>(key, curSec));
+#endif
     if (ret.second == false)
     {
         // [b28e-N5 · P221 全表达式临时链] 构造即调用。4.4 对「具名 cMyTrace 对象」给深槽

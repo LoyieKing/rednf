@@ -528,8 +528,12 @@ public:
 private:
     upgrade_table_t m_table;          // +0x000（原基类子对象位置；布局零变化）
 };
+// [decompile_verify=0] upgrade_table_t 含 std::unordered_map（4.4: 29B / 现代: 28B，
+//   pack(1) 实例化亦然）⇒ 该 ABI 断言只在 ON 路线成立。
+#if decompile_verify
 static_assert(sizeof(CItemUpgradeTable) == 0x4e4,
               "CItemUpgradeTable ABI drift (ORIG 0x4e4 == sizeof(upgrade_table_t))");
+#endif
 
 // ---- 掉落类型（槽址 type*0x7110 下标；chooseItem/onTryGenerateRandomItem 共用） ----
 enum eItemDropType_t

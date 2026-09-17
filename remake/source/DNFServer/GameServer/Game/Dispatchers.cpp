@@ -1335,7 +1335,12 @@ struct GmCmdArgs
 //   源码侧写 std::strstr 只会解析到 C 符号 strstr。故以 asm 标签别名引用同一符号
 //   （定义由 game target 的 LinuxService.cpp 以 weak out-of-line 提供；已 AE 10/10）。
 //   探针实测：块内写 extern "C++" 会被 4.4 判 `expected unqualified-id`，须置文件作用域。
+#if decompile_verify
 extern "C++" char* dnf_std_strstr(char*, const char*) __asm__("_ZSt6strstrPcPKc");
+#else
+// 现代 libstdc++ 自带 std::strstr(char*, const char*) inline 重载，无需符号别名。
+inline char* dnf_std_strstr(char* s1, const char* s2) { return ::strstr(s1, s2); }
+#endif
 #include "Dispatchers/dispatch_sig_31.inc"
 
 #include "Dispatchers/process_41.inc"
@@ -6208,4 +6213,3 @@ extern int LineFunc(int, const char*, int, unsigned int);
 
 
 #include "Dispatchers/getRewardGiveItems.inc"
-

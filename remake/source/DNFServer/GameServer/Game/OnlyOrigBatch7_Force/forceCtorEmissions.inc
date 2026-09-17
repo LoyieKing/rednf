@@ -71,7 +71,11 @@ void forceCtorEmissions()
     (void)vlt;
 
     // ---- std::__atomic0::atomic_flag 成员（volatile）----
+#if decompile_verify
     std::__atomic0::atomic_flag af;
+#else
+    std::atomic_flag af = ATOMIC_FLAG_INIT;
+#endif
     bool tas = af.test_and_set(std::memory_order_seq_cst);
     af.clear(std::memory_order_seq_cst);
     (void)tas;
