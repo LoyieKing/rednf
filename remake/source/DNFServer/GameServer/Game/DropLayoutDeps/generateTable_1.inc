@@ -38,6 +38,11 @@ void CSecialIMonsterDropItemGenRateTable::generateTable(stGenItemRange_t* range)
                         {
                             if (level + offset > 200)
                                 break;
+#if !remake_verify
+                            if (level + offset < 1)
+                                continue;
+                            // DNF-FIX: ORIG 会越界读 grades[负数]（靠堆内存恰好终止）；现代布局下会死循环，此处跳过
+#endif
                             for (__gnu_cxx::hash_map<int, CItem*>::const_iterator
                                      it = grades[level + offset].begin();
                                  it != grades[level + offset].end(); ++it)

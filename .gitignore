@@ -1,14 +1,14 @@
 # C/C++ build artifacts (reconstruction workspace)
-dnf_decompile/build/
-dnf_decompile/build-modern/
-dnf_decompile/build-*/
-dnf_decompile/source/build/
-dnf_decompile/source/build-*/
-dnf_decompile/source/cmake-build-*/
-dnf_decompile/source/**/CMakeFiles/
-dnf_decompile/source/**/CMakeCache.txt
-dnf_decompile/source/**/compile_commands.json
-dnf_decompile/source/**/cmake_install.cmake
+dnf_remake/build/
+dnf_remake/build-modern/
+dnf_remake/build-*/
+dnf_remake/source/build/
+dnf_remake/source/build-*/
+dnf_remake/source/cmake-build-*/
+dnf_remake/source/**/CMakeFiles/
+dnf_remake/source/**/CMakeCache.txt
+dnf_remake/source/**/compile_commands.json
+dnf_remake/source/**/cmake_install.cmake
 **/*.o
 **/*.obj
 **/*.so
@@ -25,9 +25,9 @@ gcc-4.1.2-install/
 # Logs and temp
 **/*.log
 # 运行期日志目录（无扩展名：Log*.init/.error/.cri/.debug/.history）
-dnf_decompile/log/
+dnf_remake/log/
 **/.DS_Store
-dnf_decompile/gccdump.s
+dnf_remake/gccdump.s
 **/__pycache__/
 *.pyc
 dnf_secsvr/sizecheck.cpp.t01.class
@@ -39,11 +39,11 @@ dnf_secsvr/tencrypt_new/test_hash
 *.rep/
 *.gzf
 .ghidra/
-dnf_decompile/toolchains/
+dnf_remake/toolchains/
 
 # Oversized single report (147MB) exceeds GitHub's 100MB/file limit;
 # the gzip-compressed copy (_lt_global_gt_.md.gz) is committed instead.
-dnf_decompile/docs/class_func_reports/_lt_global_gt_.md
+dnf_remake/docs/class_func_reports/_lt_global_gt_.md
 
 # 逐函数拆分报告(体积大, 不入库; 主文件 _lt_global_gt_.md.gz 已提交)
-dnf_decompile/docs/class_func_reports/_lt_global_gt_/
+dnf_remake/docs/class_func_reports/_lt_global_gt_/

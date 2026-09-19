@@ -1,4 +1,4 @@
-// Rebuilt from df_auction_r (DWARF + Ghidra decompile), 2026-08-08
+// Rebuilt from df_auction_r (DWARF + Ghidra remake), 2026-08-08
 #include "InterHandler.h"
 
 #include "TraceLog.h"

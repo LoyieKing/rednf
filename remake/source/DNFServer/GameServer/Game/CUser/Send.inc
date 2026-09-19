@@ -12,6 +12,35 @@ bool CUser::Send(PacketGuard& packet)   // b28c-L5 SIGFIX：ORIG 串 bool；
     //    直传）、0x08648658 `cmp $0x6,%al; setne %al; test %al,%al; je`（b 直判）
     //    ⇒ 删具名 area/b，全部实参内联。
     PacketBuf* pBuf = ((InterfacePacketBuf*)&packet)->get();
+#if !remake_verify
+    if (pBuf->is_finallized())
+    {
+        const unsigned char* hp =
+            reinterpret_cast<const unsigned char*>(pBuf->get_packet(0));
+        {
+            const int dn = 48;
+            const int n = pBuf->get_len() < dn ? pBuf->get_len() : dn;
+            char hx[3 * 48 + 1];
+            hx[0] = 0;
+            for (int k = 0; k < n; ++k)
+            {
+                char b[4];
+                b[0] = "0123456789abcdef"[(hp[k] >> 4) & 0xf];
+                b[1] = "0123456789abcdef"[hp[k] & 0xf];
+                b[2] = ' ';
+                b[3] = 0;
+                for (int j = 0; j < 3; ++j) hx[k * 3 + j] = b[j];
+            }
+            hx[n * 3] = 0;
+            cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+                "[DNF-DIAG OUT] class=%d id=%u size=%u len=%d hex=%s",
+                (int)hp[0],
+                (unsigned int)(unsigned short)(hp[1] | (hp[2] << 8)),
+                (unsigned int)(unsigned short)(hp[3] | (hp[4] << 8)),
+                (int)pBuf->get_len(), hx);
+        }
+    }
+#endif
     if (pBuf->is_finallized())
     {
         // ORIG 0x086485e2/0x086485f5：两个死 PacketBuf::at() 直调（结果丢弃，P184 保留）

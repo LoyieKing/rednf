@@ -283,7 +283,7 @@ set(GEOIP_SRC ${DNF_ROOT}/source/toolchain/geoip/geoip_country.c)
 set(GEOIP_OUT ${DNF_BUILD}/geoip)
 set(GEOIP_SO  ${GEOIP_OUT}/libGeoIP.so.1)
 
-if(decompile_verify)
+if(remake_verify)
     set(G32 ${DNF_C6}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32)
     set(GEOIP_CMD ${DNF_C6_ENV} ${DNF_C6_CC}
         -m32 -shared -fPIC -std=gnu99 -O2 -w

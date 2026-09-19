@@ -45,11 +45,18 @@ bool TimerScheduleTenSecond::dispatch_sig(int /*p1*/, int /*p2*/, memberIdentifi
             // `*(CheckFn*)((*(void***)checker)[0x14/4])` 多一次解引用（我方多 1 条
             // `mov (%eax),%eax`，调用目标错）。按 PacketDispatcher.cpp 同族单层形 +
             // 去 checker 具名槽（ORIG 调用点重发 `mov 0x941f7e4,%edx`）。
-            (*reinterpret_cast<CheckFn*>(
-                reinterpret_cast<char*>(
-                    *reinterpret_cast<void**>(GlobalData::s_antibotChecker_)) + 0x14))(
-                GlobalData::s_antibotChecker_,
-                G_CEnvironment()->getProcessSequence(), 0, user->get_acc_id());
+#if !remake_verify
+            // DNF-FIX: 同上，周期性 antibot 校验默认禁用（DNF_ANTIBOT=1 打开）
+            static const bool dnfAntibotOn = (getenv("DNF_ANTIBOT") != 0);
+            if (dnfAntibotOn)
+#endif
+            {
+                (*reinterpret_cast<CheckFn*>(
+                    reinterpret_cast<char*>(
+                        *reinterpret_cast<void**>(GlobalData::s_antibotChecker_)) + 0x14))(
+                    GlobalData::s_antibotChecker_,
+                    G_CEnvironment()->getProcessSequence(), 0, user->get_acc_id());
+            }
         }
     }
     registNextTimer(10);

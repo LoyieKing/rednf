@@ -234,4 +234,7 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
     // [R19a05 ④] ORIG 函数尾**无 return**（0x085a8c7a 直落 0x085a8c80 epilogue）：
     //   返回值 = 遗留 eax（visited 路径 0；正常路径 = 末表达式结果，非 0）。
     //   为对齐 ORIG 出口形态此处不写 return（头声明 bool 不变，mangled/ABI 不变）。
+#if !remake_verify
+    return 0;   // DNF-FIX: 非 void 函数落底 —— g++ 13 在此发 ud2（ORIG 的 GCC 4.x 只是返回残留 eax）
+#endif
 }

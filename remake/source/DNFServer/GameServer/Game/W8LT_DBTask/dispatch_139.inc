@@ -29,4 +29,7 @@ bool DB_ReqItemUpgradeLog::dispatch(int userIdx, int slot, Stream* stream)
     db->set_query("inSert into log_item_develop(occ_time,it_no,server_id,charac_no,charac_name,develop,sucess_flag) values(now(),%d,%d,%d,'%s',%d,%d)",
                   b, a, c, str, d, (unsigned int)e);
     db->exec(true);
+#if !remake_verify
+    return 1;   // DNF-FIX: 非 void 函数落底 —— g++ 13 在此发 ud2（ORIG 的 GCC 4.x 只是返回残留 eax）
+#endif
 }

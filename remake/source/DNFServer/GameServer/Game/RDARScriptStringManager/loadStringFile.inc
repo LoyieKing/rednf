@@ -94,12 +94,18 @@ bool RDARScriptStringManager::loadStringFile(std::istream* in, const char* path,
 
         if (key != 0 && value != 0)
         {
+#if !remake_verify
+            // DNF-FIX: ORIG 的 cpBuf 是函数级槽（4.4 不回收）；块内声明会让下面的 value 悬垂
+            char cpBuf[4000] = { 0 };
+#endif
             if (isKor)
             {
+#if remake_verify
                 // [b29-Lane21] N78/P214③：块内 `char cpBuf[4000] = { 0 };` 令 4.4 内联
                 // `lea; mov $0,%eax; mov $0x3e8,%edx; rep stos`（ORIG 0x0835… 形）；
                 // 原函数级声明 + memset 恒发 `call memset`（多 4 条）。
                 char cpBuf[4000] = { 0 };
+#endif
                 std::strcpy(cpBuf, value);
                 CodePage::script2Database(value, cpBuf);
                 value = cpBuf;

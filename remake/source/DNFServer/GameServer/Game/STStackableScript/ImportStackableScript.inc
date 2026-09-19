@@ -2407,7 +2407,7 @@ break;
             {
                 cur = new EquipmentParameterInfo();
                 // ORIG 0x089b67a9：显式实参模板 make_pair（值语义签名）
-#if decompile_verify
+#if remake_verify
                 script->m_module4bc.insert(std::make_pair<ENUM_MODULE_TYPE, EquipmentParameterInfo*>(
                     static_cast<ENUM_MODULE_TYPE>(0x13), cur));
 #else
@@ -2485,7 +2485,7 @@ break;
                 if (it2 == script->m_module4bc.end())
                 {
                     cur = new EquipmentParameterInfo();
-#if decompile_verify
+#if remake_verify
                     script->m_module4bc.insert(std::make_pair<ENUM_MODULE_TYPE, EquipmentParameterInfo*>(
                         static_cast<ENUM_MODULE_TYPE>(0x12), cur));
 #else

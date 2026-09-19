@@ -990,7 +990,7 @@ char CApplication::AddAccusationCharac(const std::string& a, const std::string& 
     std::map<std::string, int>::iterator it = m_map350.find(a);
     if (m_map350.end() == it)
     {
-#if decompile_verify
+#if remake_verify
         m_map350.insert(std::make_pair<const std::string, int>(a, 0));
 #else
         // 宿主 make_pair 是转发引用形态，显式 <const string,int> 会要求右值 ⇒ 直接构造 pair。
@@ -1041,7 +1041,7 @@ void CApplication::Add_GM_id(unsigned int id)
     {
         std::list<unsigned int> l;
         // ORIG：make_pair 显式模板实参 <uint,list>（直接取 id/l 地址，无 move 调用）
-#if decompile_verify
+#if remake_verify
         m_map368.insert(std::make_pair<unsigned int, std::list<unsigned int> >(id, l));
 #else
         // 宿主 make_pair 显式模板实参 + 左值实参会绑定失败 ⇒ 直接构造 pair。

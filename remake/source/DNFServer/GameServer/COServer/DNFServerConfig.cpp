@@ -20,7 +20,11 @@ bool CServerConfig::Parse_Table(char* line, int idx)
     {
         return 0;
     }
+    #if remake_verify
     char* tok[5];
+    #else
+    char* tok[6];   // DNF-FIX: ExplodeString 会写 out[maxCount]，需要 maxCount + 1 个槽
+    #endif
     char* tok5;
     (void)tok5;
     if (DNFFLib::ExplodeString(line, " \t\r\n\"", tok, 5) == 5)

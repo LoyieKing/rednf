@@ -4,7 +4,7 @@ bool CDisconnectDetecter::RegisterUser(CUser* user)
     int mapSize = m_map.size();
     long curSec = GlobalData::s_systemTime_.getCurSec();
     DetectedObjectKey key(user->GetUID(), user->get_unique_id() & 0xffff);
-#if decompile_verify
+#if remake_verify
     std::pair<std::map<DetectedObjectKey, int>::iterator, bool> ret =
         m_map.insert(std::make_pair<DetectedObjectKey, long>(key, curSec));
 #else

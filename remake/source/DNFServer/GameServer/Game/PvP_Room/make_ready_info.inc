@@ -19,4 +19,7 @@ int PvP_Room::make_ready_info(char* buf, int seat)
     local_f4->put_byte(seat);
     local_f4->put_byte(P_SEATSTATE(seat));
     local_f4->finalize(true);
+#if !remake_verify
+    return 0;   // DNF-FIX: 非 void 函数落底 —— g++ 13 在此发 ud2（ORIG 的 GCC 4.x 只是返回残留 eax）
+#endif
 }

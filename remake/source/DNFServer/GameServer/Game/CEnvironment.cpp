@@ -53,7 +53,13 @@ __attribute__((weak)) Server_Envir::Server_Envir()
     m_auctionServerPort = 0;
     memset(m_ceraAuctionServerIP, 0, 0x10);
     m_ceraAuctionServerPort = 0;
+#if remake_verify
     memcpy(m_systemMonitoringIP, "127.0.0.1", 0xf);
+#else
+    // DNF-FIX: 0xf 是从 10 字节字面量（含 NUL）往外多读 5 字节的越界读；
+    // ORIG 全局字面量相邻数据碰巧无害，现代布局下会被 ASan 抓到，改为按字面量长度拷贝。
+    memcpy(m_systemMonitoringIP, "127.0.0.1", sizeof("127.0.0.1"));
+#endif
     m_scriptpacks = 0;
     m_channelType = 0x13;
     m_validateScript = 1;

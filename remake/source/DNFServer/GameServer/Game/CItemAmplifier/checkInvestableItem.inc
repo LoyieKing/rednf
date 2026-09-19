@@ -1,5 +1,5 @@
 // [b28d-solo-CItemAmplifier] verdict=NEAR@4.4.7（139/139）/ **AE@c6446r**
-//   （compare_tu 官方口径：identical=92 ae=193 near=2 diff=2；本件与
+//   （compare_tu 考古的失传老版本口径：identical=92 ae=193 near=2 diff=2；本件与
 //   generateAmplifyItem 两件由 NEAR→AE，零回归）。残差仅 N7：4.4.7 间接 call
 //   目标恒 %eax 而 ORIG/4.4.6 用 %edx（3 处 GetItemType 虚调 + 1 处
 //   isAmplifyPollutionItem）。路由需求已附净效果证据上报 Main。

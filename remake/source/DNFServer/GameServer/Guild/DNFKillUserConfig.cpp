@@ -96,7 +96,11 @@ bool CKillUSRConfig::Parse_Table(char* line, int idx)
     {
         return 0;
     }
+    #if remake_verify
     char* tok[4];
+    #else
+    char* tok[5];   // DNF-FIX: ExplodeString 会写 out[maxCount]，需要 maxCount + 1 个槽
+    #endif
     ST_KillUSRConfig* p;
     int x;  // ORIG 帧布局对齐（第 22 轮回归）
     if (DNFFLib::ExplodeString(line, " \t\r\n\"", tok, 4) == 4)

@@ -44,10 +44,18 @@ bool CKillUSRConfig::Parse_Table(char* line, int idx)
     {
         return 0;
     }
-    char* tok0;
-    char* tok1;
-    char* tok2;
-    char* tok3;
+    #if remake_verify
+    tok0;
+    tok1;
+    tok2;
+    tok3;
+    #else
+    char* tok_arr[5] = {0};   // DNF-FIX: ExplodeString 会写 out[maxCount]，需要 maxCount + 1 个槽
+    char*& tok0 = tok_arr[0];
+    char*& tok1 = tok_arr[1];
+    char*& tok2 = tok_arr[2];
+    char*& tok3 = tok_arr[3];
+    #endif
     // 死局部：与 ORIG 栈布局对齐（tok 槽位 -0x1c..-0x10 / p@-0x20）。
     // 同族 statics 还原已验证该模式（statics ORIG Parse_Table 同为 -0x1c）。
     int n;

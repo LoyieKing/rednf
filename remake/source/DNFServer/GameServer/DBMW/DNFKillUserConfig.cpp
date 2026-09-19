@@ -45,7 +45,11 @@ bool CKillUSRConfig::Parse_Table(char* data, int size)
     if (data[0] == '#')
         return 0;
     int dummy;
+    #if remake_verify
     char* fields[4];
+    #else
+    char* fields[5];   // DNF-FIX: ExplodeString 会写 out[maxCount]，需要 maxCount + 1 个槽
+    #endif
     ST_KillUSRConfig* kc;
     if (DNFFLib::ExplodeString(data, " \t\r\n\"", fields, 4) == 4)
     {

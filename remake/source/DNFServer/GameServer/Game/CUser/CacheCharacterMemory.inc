@@ -75,6 +75,16 @@ bool CUser::CacheCharacterMemory()   // b28c-L5 SIGFIX（P174）
         cMyTrace(__PRETTY_FUNCTION__, 0x1190, 0)
             ("CacheCharacterMemory() return = false");
         return 0;
+#if !remake_verify
+    // [DNF-FIX 2026-09-18 · ud2 SIGILL] 仅 OFF 路线：原码外层 `return 0;` 被缩进在 if 块**内**
+    //   （`}` 在它之后才关 if）⇒ getCurCharacR()==0 的假分支落底 ⇒ GCC 13 发 ud2 陷阱 ⇒
+    //   断线时 LogoutCachedCharacter → CacheCharacterMemory 直接 SIGILL（频道崩）。
+    //   OFF 侧提到 if 块外（= 文件头注释记录的 ORIG 行为 "getCurCharacR()==0 -> false"）。
+    //   ON 分支文本保持原样（GCC 4.x 对同形不发 ud2，行为等价 ORIG）。
+    }
+    return 0;
+#else
     return 0;
     }
+#endif
 }

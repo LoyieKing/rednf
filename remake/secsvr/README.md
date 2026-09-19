@@ -1,9 +1,9 @@
 # dnf_secsvr —— secsvr 三件套独立还原工作区
 
-本目录是 **secsvr（安全服务）三件套**的专属还原工作区，与主工程 `dnf_decompile/`
+本目录是 **secsvr（安全服务）三件套**的专属还原工作区，与主工程 `dnf_remake/`
 （DNFServer 系服务还原）相互独立。三件套的源码树
 （`/data/secci/ci/jenkins/workspace/g3_release_suse32*`，Neople 安全组 CI）与
-`dnf_decompile` 中其他二进制（`/home/neople/source/DNFServer/...`、`ChannelOld/`、
+`dnf_remake` 中其他二进制（`/home/neople/source/DNFServer/...`、`ChannelOld/`、
 `ServerLab/` 等）没有项目源码关联，故从主 order 队列移出，单独在此还原。
 
 ## 目录结构
@@ -12,7 +12,7 @@
 dnf_secsvr/
 ├── README.md                  # 本文档（工作区总览与状态）
 ├── docs/
-│   ├── decompile_order.md     # secsvr 专属还原顺序与策略
+│   ├── remake_order.md     # secsvr 专属还原顺序与策略
 │   ├── df_secsvr_dwarf_restoration.md  # DWARF 桩还原报告（2026-08-09）
 │   ├── df_secsvr_build_recon.md        # 构建方法与库结构重建报告（2026-08-09）
 │   ├── df_secsvr_thirdparty_restoration.md  # 三方库还原阶段报告（2026-08-09）
@@ -64,10 +64,10 @@ dnf_secsvr/
 - 行为验收：construct/pack/unpack/visualize_ex/fromXml/toXml、TdrParse 168 向量、
   TdrBufUtil 42 项、TdrDate 14 组日期矩阵、zergsvrd.xml 真实解析等全部与二进制对拍一致。
 
-还原方法、工具链与逐阶段记录见 `docs/`（decompile_order / build_recon /
+还原方法、工具链与逐阶段记录见 `docs/`（remake_order / build_recon /
 dwarf_restoration / thirdparty_restoration）。
 
 ## 关联外部资源
 
 - 原始 ELF：`../dnf_installer/build/dnf_data/home/template/neople/secsvr/...`
-- 主工程（已不含 secsvr 队列）：`../dnf_decompile/`
+- 主工程（已不含 secsvr 队列）：`../dnf_remake/`

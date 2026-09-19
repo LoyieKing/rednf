@@ -245,6 +245,9 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
                     gFileLogCri << "gc_no=" << (*it).second->gc_no << ", Cur=" << (int)cur_time
                                 << ", tic=" << (int)(*it).second->tic << ", result=" << (int)(cur_time - (*it).second->tic) << endl;
                     gFileLogCri.Unlock();
+#if !remake_verify
+                    bool deleted_after_erase = false;   // [DNF-FIX] 本轮是否已 erase（跳过尾部 it++）
+#endif
                     if ((*it).second->use != false)
                     {
                         if (0x14 < cur_time - (*it).second->tic)
@@ -263,9 +266,25 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
                             }
                             pApp->Servers[i].listServerInfo_.erase(it);
                             pApp->Servers[i].decreseServerCount();
+#if !remake_verify
+                            // [DNF-FIX 2026-09-19 · 迭代器失效] 原码 erase(it) 之后仍走循环尾部的 `it++`
+                            //   —— 在**已删除节点**上自增 ⇒ _Rb_tree_increment 读飞 ⇒ SIGSEGV/SIGABRT。
+                            //   core 实证：bridge 每 ~10 分钟崩一次，栈 =
+                            //   CheckThread::loop → map<int,tServerInfo*>::iterator::operator++ →
+                            //   _Rb_tree_increment。修法照**同族 channel 侧**
+                            //   （DNFChannelServer/CheckThread.cpp 同函数）的既有安全形状：
+                            //   erase 后重新 begin()，并用 deleted 标记跳过尾部自增。
+                            it = pApp->Servers[i].listServerInfo_.begin();
+                            deleted_after_erase = true;
+#endif
                         }
                     }
-                    it++;
+#if !remake_verify
+                    if (deleted_after_erase != true)
+#endif
+                    {
+                        it++;
+                    }
                     count = count + 1;
                 }
                 gFileLogCri.Lock();

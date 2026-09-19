@@ -23,9 +23,9 @@
 |---|---|
 | inc/{md5,sha1,md2,md4,crc32,adler32}.h | ✅ 已重建并校正 |
 | src/{md5,sha1,md2,md4,crc32,adler32}.cpp | ✅ 已实现（测试向量通过） |
-| src/{ripemd160,ripemd128}.cpp | ✅ 已实现（官方参考，测试向量通过） |
-| src/{haval128,haval160}.cpp | ✅ 已实现（Tcl TRF 官方认证向量，3 组全过） |
-| src/gosthash.cpp | ✅ 已实现（Saarinen 官方参考，t1 向量过） |
+| src/{ripemd160,ripemd128}.cpp | ✅ 已实现（考古的失传老版本参考，测试向量通过） |
+| src/{haval128,haval160}.cpp | ✅ 已实现（Tcl TRF 考古的失传老版本认证向量，3 组全过） |
+| src/gosthash.cpp | ✅ 已实现（Saarinen 考古的失传老版本参考，t1 向量过） |
 | src/TenHash.cpp | ✅ 已实现 11/11 个 Ten* 哈希封装 |
 | src/{rc4,tean,idea,gost,des,3way,rc5,rc6,rc2,safer,mmb,mbc,cast,loki89,loki91,feal8,nsea}.cpp | ✅ 已实现（行为对照二进制逐字节一致） |
 | src/TenCrypt.cpp、TencBase.cpp、其余块密码 ~28 个 | ⏳ 下一阶段 |
@@ -36,8 +36,8 @@
 - 测试向量：11 个哈希算法 ALL PASS（`make test && ./test_hash`）。
 - 符号级对照：104/104 个哈希族符号（Ten* + 类成员 + md5_*）与 secagent
   二进制 mangled 名完全一致，零缺失。
-- HAVAL 参考镜像说明：milahu/haval 编译输出与官方认证数据不符（判定有缺陷），
-  最终采用 Tcl TRF 归档中的官方认证向量，已存
+- HAVAL 参考镜像说明：milahu/haval 编译输出与考古的失传老版本认证数据不符（判定有缺陷），
+  最终采用 Tcl TRF 归档中的考古的失传老版本认证向量，已存
   `../third_party/references/haval_cert_data.txt`。
 
 ## 对称加密族进展（2026-08-09 晚）
@@ -48,7 +48,7 @@
 | tean.cpp | TEA 变体 | 非标准：y 先于 sum+=DELTA；表达式 `((v<<4)^(v>>5))+(v^sum)+k[idx]` | 行为对照通过 |
 | idea.cpp | IDEA | en_key_idea 标准三分支；**cipher_file 大端读→LE 写，decipher_file 镜像** | 行为对照通过 |
 | gost.cpp | GOST | S 盒提取自 .rodata 0x081ccf00；32 轮正序×3+逆序；f=替换+循环左移 11 | 行为对照通过 |
-| des.cpp | DES | **Applied Cryptography 附录 B 版**（非 libdes）：DesKey=PC1→轮转→PC2(bigbyte)→cookey 32 子钥；DesBase=合并 IP/FP desfunc+大端读写；SP 表从 0x081be0e0 提取（行序 SP8..SP1，成员 SP1←row7…SP8←row0）；benc!=0 时子钥逆序 | AC 官方向量 c95744256a5ed31d + 二进制 DesKey/DesBase 逐字节一致 |
+| des.cpp | DES | **Applied Cryptography 附录 B 版**（非 libdes）：DesKey=PC1→轮转→PC2(bigbyte)→cookey 32 子钥；DesBase=合并 IP/FP desfunc+大端读写；SP 表从 0x081be0e0 提取（行序 SP8..SP1，成员 SP1←row7…SP8←row0）；benc!=0 时子钥逆序 | AC 考古的失传老版本向量 c95744256a5ed31d + 二进制 DesKey/DesBase 逐字节一致 |
 | 3way.cpp | 3-Way | Daemen 原始 C 规范（块 12 字节，11 轮，STRT_E=0x0b0b/STRT_D=0xb1b1） | uni_call 加解密逐字节一致 |
 | rc5.cpp | RC5-32/12/16 | 26 子钥、16 字节密钥、78 步混合；包装按 16 字节分块但只加密前 8 字节（二进制怪癖） | uni_call 逐字节一致 |
 | rc6.cpp | RC6 | Gladman 结构；set_key 仅用密钥前 8 字节（逐字节装入 L[0..7]）；解密输出 (a, b-k0, c, d-k1) | uni_call 逐字节一致 |
@@ -83,9 +83,9 @@
 | amoeba.cpp | CAmoeba | 自定义 64 位位级密码：Init 惰性分配 amobbit（多比特掩码 {0x81,0x40,0x22,...}）/amobb/amoIP 三表；amoKey=按 amoIP 位号从 key 提 64 位（key[amoIP[i]>>3] & amobbit[amoIP[i]&7]）；amoEnCrypt/amoDeCrypt=IP 位提取 → 8 轮（加密密钥 1..8、位 6..0 再 7；解密镜像 8..1、位 0..6 再 7），每轮按密钥位选 SET/CLEAR 块（字节旋转 + NOT 扩散 + 交叉），bit7 另有特殊/普通块；**坑：SET/CLEAR 字节起始=8*b、交叉目标=CLEAR 时 B+7、解密扩散循环含 eax=0**；Amoeba 包装 amoKey 生成 Add → 8 字节块循环（Add 作块密钥）→ TsLocal 余数 | amoKey/amoEnCrypt/amoDeCrypt/Amoeba 与二进制逐字节一致（C++ 交叉 100 组 x2）；往返闭环 |
 | loki97.cpp | LOKI97 | AC 源码集 LOKI97/cref/loki97.c 参考实现类化；**差异：makeKey 的 keyMaterial 为原始字节（64 字节，DWARF 的 [65] 含 ASCII 终止符不拷）、deltan 从 DELTA(0x9E3779B9,0x7F4A7C15) 起步、IV 原始字节、包装层 cipherInit(ECB,全 0 IV)+makeKey(256 位,benc^1)+16 字节块循环+Seattos 余数** | 修复编译错误（MAX_KEY_SIZE=64）与 deltan 初值后，S1/S2/P/SK/ECB/CBC/CFB1 全状态逐字节一致（36+32 组向量）；余数走 Seattos |
 | magic.cpp | Magic8/16/32 | 位级密码，机械转写（magic_ec/dc_body.inc 逐指令镜像 64 位状态决策树，8 个密钥位 SET/CLEAR 置换路径）；**修复：去调试输出、and edx,1 漏置 ZF/SF/CF 导致分支错乱+SIGSEGV** | Magic8_8/16/32+TenMagic8/16/32 300 组向量逐字节一致；MagicDc8 77 标签点状态逐点一致；非对齐余数本体依赖 BOX3D1..7（已实现） |
-| square.cpp | Square | Paulo Barreto 公版参考（Crypt-Square/Crypto++ 同源）；11 张表（Se/Sd/phi/Te0..3/Td0..3）从二进制 .rodata 提取；**字节序：key/块小端装载；rk_d[8-t]=rk_e[t] 逆序且 rk_d[8]=变换后 rk_e[0]；Square 16 字节块循环+Seattos 余数** | 13/13 符号；92 组交叉对拍逐字节一致（含长度 1..80 非对齐）；Crypt-Square 官方向量命中 |
-| rijndael.cpp | Rijndael/AES | FIPS-197 / Daemen-Rijmen 公版，单 T 表+idx/iidx ShiftRows+ikeys 逆轮密钥；6 表从 .rodata 提取；**怪癖：RijnDael 固定 32 字节 key（AES-256）16 字节块 ECB，余数（含 0）一律 Seattos；mode5=OFB（非恒定流）、mode6=CTR 大端计数器；末轮 isbox→逆 ShiftRows→ikeys[0]** | 20/20 符号；113/113 对拍；FIPS-197 三组官方向量全过 |
-| twofish.cpp | Twofish | Counterpane AES 提交 Doug Whiting 优化版（FULL_KEY）；P8x8 表与 .rodata 一致；**怪癖：ParseHexDword 按 (b1,b0,b3,b2) 打包 key32（KAT 需预交换字节对）；keyInstance 292B（keyMaterial[65]@8/key32[8]@0x54/sboxKeys[4]@0x74/subKeys[40]@0x84）；块层无字节序交换；blockDecrypt 不回写 iv32；包装层 ECB+Seattos 余数** | 23/23 符号；makeKey 全 292B/表/块/包装 84 组对拍；官方 KAT 4 组全过 |
+| square.cpp | Square | Paulo Barreto 公版参考（Crypt-Square/Crypto++ 同源）；11 张表（Se/Sd/phi/Te0..3/Td0..3）从二进制 .rodata 提取；**字节序：key/块小端装载；rk_d[8-t]=rk_e[t] 逆序且 rk_d[8]=变换后 rk_e[0]；Square 16 字节块循环+Seattos 余数** | 13/13 符号；92 组交叉对拍逐字节一致（含长度 1..80 非对齐）；Crypt-Square 考古的失传老版本向量命中 |
+| rijndael.cpp | Rijndael/AES | FIPS-197 / Daemen-Rijmen 公版，单 T 表+idx/iidx ShiftRows+ikeys 逆轮密钥；6 表从 .rodata 提取；**怪癖：RijnDael 固定 32 字节 key（AES-256）16 字节块 ECB，余数（含 0）一律 Seattos；mode5=OFB（非恒定流）、mode6=CTR 大端计数器；末轮 isbox→逆 ShiftRows→ikeys[0]** | 20/20 符号；113/113 对拍；FIPS-197 三组考古的失传老版本向量全过 |
+| twofish.cpp | Twofish | Counterpane AES 提交 Doug Whiting 优化版（FULL_KEY）；P8x8 表与 .rodata 一致；**怪癖：ParseHexDword 按 (b1,b0,b3,b2) 打包 key32（KAT 需预交换字节对）；keyInstance 292B（keyMaterial[65]@8/key32[8]@0x54/sboxKeys[4]@0x74/subKeys[40]@0x84）；块层无字节序交换；blockDecrypt 不回写 iv32；包装层 ECB+Seattos 余数** | 23/23 符号；makeKey 全 292B/表/块/包装 84 组对拍；考古的失传老版本 KAT 4 组全过 |
 | TencBase.cpp | BOX3D1..7 | 自定义位网络（TsLocal::ProcessLastBytes 按 rem=1..7 分发）：CBOX sizeof 20（pUp/pDown/pLeft/pRight/Value@16），8n 个盒组成邻居环；IN/OUT 位置换（带取反）+ key 字节位测试驱动"沿链轮转"变换；**bnec=1 正向读 key、bnec=0 反向；每函数恰处理 n 字节** | 7 函数 3500+ 组随机对拍 0 失败；盒数 8/16/24/32/40/48/56 |
 | gene.cpp | Gene/GeneNew/**SetKey** | 新增自由函数 SetKey（genenew.cpp 桩）：newKey=key^固定表→BE32 异或种子→16 次 MSVC LCG 洗牌 buffer[16]→按位掩码 {81,40,22,10,0a,04,02,01} OR 回 newKey；二进制 GeneNew 不调用 SetKey（独立符号） | SetKey 8 组随机 key 对拍一致；Gene 族符号零缺失 |
 
@@ -99,7 +99,7 @@
   8 轮×4 子钥，S 盒顺序 SP7,SP5,SP3,SP1,SP8,SP6,SP4,SP2）→ unscrun（大端写出）。
 - `Init`：先清零 SP1..SP8 成员，再逐个惰性 `new unsigned int[64]`，从静态表
   `DES_SP[8][64]`（行序 SP8..SP1）复制；`UnInit` 逐个 `delete[]` 并置空。
-- 验证：AC 官方向量（key 0123456789abcdef / plain 0123456789abcde7 →
+- 验证：AC 考古的失传老版本向量（key 0123456789abcdef / plain 0123456789abcde7 →
   cipher c95744256a5ed31d）✓；uni_call 调二进制 DesKey 两种模式 KnL 逐字节一致；
   DesBase 输出逐字节一致（0011223344556677 → cadb6782ee2b4823）；解密闭环 ✓。
 

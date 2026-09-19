@@ -1,7 +1,7 @@
-# decompile_verify=OFF：现代路线（宿主最新 LTS GCC）不加载 4.x 工具链设置。
+# remake_verify=OFF：现代路线（宿主最新 LTS GCC）不加载 4.x 工具链设置。
 # 注意：顶层 return() 在 include() 语境下即"中止本文件"，后续内容不生效。
-if(DEFINED decompile_verify AND NOT decompile_verify)
-    message(STATUS "decompile_verify=OFF：使用宿主 GCC，跳过 4.x 工具链设置")
+if(DEFINED remake_verify AND NOT remake_verify)
+    message(STATUS "remake_verify=OFF：使用宿主 GCC，跳过 4.x 工具链设置")
     return()
 endif()
 

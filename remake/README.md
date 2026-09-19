@@ -1,33 +1,33 @@
-# DNF 服务端逆向重建工程（dnf_decompile）
+# DNF 服务端逆向重建工程（dnf_remake）
 
 ## 项目定位
 
 本工程是 **DNF（地下城与勇士）服务端逆向分析与源码重建工作区**，与 `dnf_installer`（DNF 服务端一键安装部署仓库，本仓库的 git submodule）配套使用：
 
 - `dnf_installer/` 提供部署资源与**原始服务器 ELF 运行时文件**，位于 `dnf_installer/build/dnf_data/home/template/neople/<服务名>/df_<服务名>_r`。
-- `dnf_decompile/` 对这些 ELF 进行 Ghidra 逆向，并结合 DWARF 调试信息渐进式重建可维护的 C++ 源码。
+- `dnf_remake/` 对这些 ELF 进行 Ghidra 逆向，并结合 DWARF 调试信息渐进式重建可维护的 C++ 源码。
 - 重建产物统一放在 `source/` 下，通过 CMake 构建，两条路线并存（见下节与
   `docs/df_modern_route.md`）：
-  * **现代路线（默认，`decompile_verify=OFF`）**：宿主最新 LTS GCC + `-m32`，
+  * **现代路线（默认，`remake_verify=OFF`）**：宿主最新 LTS GCC + `-m32`，
     语义等价、可直接运行；自带语法/ABI 兼容层与 dnf-compat-layer 语义、真实 GeoIP。
-  * **验证路线（`decompile_verify=ON`）**：GCC 4.x 工具链（c5/c6/c6446r/c6444r +
+  * **验证路线（`remake_verify=ON`）**：GCC 4.x 工具链（c5/c6/c6446r/c6444r +
     逐 TU 分发）+ `-nostdinc`，产物与 ORIG **逐字节 identical**（14/14 服务的验收口径）。
 
 ## 构建（唯一入口 `source/CMakeLists.txt`）
 
 ```bash
-# 现代路线（默认；可省略 -Ddecompile_verify=OFF）
+# 现代路线（默认；可省略 -Dremake_verify=OFF）
 cmake -S source -B build-modern
 cmake --build build-modern -j$(nproc)
 
 # 验证路线（逐字节 identical）
-cmake -S source -B build -Ddecompile_verify=ON
+cmake -S source -B build -Dremake_verify=ON
 cmake --build build -j$(nproc)
 ```
 
 产物：`build*/<服务>/df_<服务>_r`（14 个）、`build*/geoip/libGeoIP.so.1`（真实 GeoIP）、
 `build*/manager/{mysqlclient,yassl}/`、`toolchains/freetype32/lib/libfreetype.a`。
-两条路线共用同一份源码，差异一律用 `#if decompile_verify` 收口（ON 分支文本保持原样）。
+两条路线共用同一份源码，差异一律用 `#if remake_verify` 收口（ON 分支文本保持原样）。
 现代路线的完整说明（兼容层清单、GeoIP、验证记录、已知限制）见
 **[docs/df_modern_route.md](docs/df_modern_route.md)**。
 
@@ -37,7 +37,7 @@ cmake --build build -j$(nproc)
 dnf_workspace/                      # git 仓库根
 ├── .github/copilot-instructions.md # 协作规则（逆向、构建、对比模式、沟通风格）
 ├── dnf_installer/                  # submodule：部署仓库，含原始 ELF 运行时
-└── dnf_decompile/                  # 本工程：Ghidra 工程 + 重建源码
+└── dnf_remake/                  # 本工程：Ghidra 工程 + 重建源码
     ├── dnf_project.rep/            # Ghidra 工程数据（projectState / idata / user / versioned）
     ├── README.md                   # 本文档
     ├── source/
@@ -55,7 +55,7 @@ dnf_workspace/                      # git 仓库根
     └── docs/                       # 分析/验收文档（progress/ 进度报告、assets/ 图件、class_func_reports/ 等）
 ```
 
-> 说明：`build/community/` 是 df_community_r 的验证构建目录；全部构建产物统一收在 `dnf_decompile/build/` 下（按服务分子目录），已被 `.gitignore` 忽略，未纳入版本管理。
+> 说明：`build/community/` 是 df_community_r 的验证构建目录；全部构建产物统一收在 `dnf_remake/build/` 下（按服务分子目录），已被 `.gitignore` 忽略，未纳入版本管理。
 > `dnf_project.gpr` / `dnf_project.rep/` 为 Ghidra 工程文件（已忽略），非重建产物。
 > 2026-09-17 目录整理：仓库根目录下错放的 packet 转发壳（54 个，与
 > `source/DNFServer/GameServer/Game/Packet_*.h` 重复）、测试 TU、文档已归位或删除；
@@ -137,7 +137,7 @@ dnf_workspace/                      # git 仓库根
 
 > 2026-08-07 最终（决定性）：从原始 ELF 的 C++0x 特征符号（`decay_and_strip` make_pair、变参 construct、右值 push_back）确认**原始用 gnu++0x 编译**，CMakeLists 默认标准改为 gnu++0x。项目函数符号名精确匹配 **490/490（100%）**、MISSING/EXTRA 项目函数均为 0、精确符号匹配 3399/3741（90.9%）、字符串交集 4018、文件大小 877,264（原始 967,844）。剩余差异全部为原始「多编译器版本混合链接」（.comment: 4.1.2/4.4.4/4.4.6/4.4.7）与 libstdc++ 静态库内部实现差异，非项目源码可修。详见 `docs/df_community_r_function_divergences.md` 与 `docs/function_review/report_review_full_20260807.md`。
 
-> 2026-08-09 三方库真实版本替换（见 `docs/tinyxml_boost_version_verify.md`）：经原始 ELF 常量/符号/DWARF 行号三重证据，确认 **TinyXML = 2.6.2、Boost = 1.48.0**。原始 tinyxml 是独立对象，由 GCC 4.4.6-3（guild 为 4.4.4-13）以 **-O3 + gnu++98 + 4.4.6 libstdc++ 头 + TIXML_USE_STL** 编译。已用纯净上游 2.6.2 四文件替换手写重建（`tinyxml.h/.cpp` + `tinyxmlerror.cpp` + `tinyxmlparser.cpp`），Boost 1.48.0 官方头 vendor 至 `source/Library3rd/Boost/Include`，删除手写 `BoostPool.h`。校验：auction/point tinyxml **149/150**、boost **120/121**（归一化 identical，仅剩 DNF 手工展开的 GetEntity 与编译器内联微差）；community（4.1.2 混合链）boost **46/46**、符号集 50/50。
+> 2026-08-09 三方库真实版本替换（见 `docs/tinyxml_boost_version_verify.md`）：经原始 ELF 常量/符号/DWARF 行号三重证据，确认 **TinyXML = 2.6.2、Boost = 1.48.0**。原始 tinyxml 是独立对象，由 GCC 4.4.6-3（guild 为 4.4.4-13）以 **-O3 + gnu++98 + 4.4.6 libstdc++ 头 + TIXML_USE_STL** 编译。已用纯净上游 2.6.2 四文件替换手写重建（`tinyxml.h/.cpp` + `tinyxmlerror.cpp` + `tinyxmlparser.cpp`），Boost 1.48.0 考古的失传老版本头 vendor 至 `source/Library3rd/Boost/Include`，删除手写 `BoostPool.h`。校验：auction/point tinyxml **149/150**、boost **120/121**（归一化 identical，仅剩 DNF 手工展开的 GetEntity 与编译器内联微差）；community（4.1.2 混合链）boost **46/46**、符号集 50/50。
 
 ## df_channel_r 重建与验证（2026-08-07）
 
@@ -161,7 +161,7 @@ dnf_workspace/                      # git 仓库根
 
 `docs/` 目录保存全部调研报告与验证数据：
 
-- `docs/decompile_order.md` — 全部服务端二进制的反编译还原顺序（从易到难）
+- `docs/remake_order.md` — 全部服务端二进制的反编译还原顺序（从易到难）
 - `docs/df_community_r_reverification.md` — 2026-08-06 深度复核报告（构建参数/ABI、符号覆盖、数据段、包构造函数缺陷、修复清单）
 - `docs/df_community_r_missing_functions.md` — 原始有、重建无的项目函数完整清单（分类）
 - `docs/df_community_r_validation.md` / `df_community_r_function_validation.md` — 符号/字符串命中率与逐函数助记符重叠验证报告（生成物副本）
@@ -202,7 +202,7 @@ statics=c6446r、dbmw=c6444r、game/guild 用专用逐 TU 工具链、relay/cose
 
 1. **事实与推断分离**：结论须标注「已从文件/日志验证」或「来自反编译/DWARF 的推断」，不得伪造确定性。
 2. **源码对比模式**：Ghidra Headless 导出伪 C → 可读化整理 → LLM 逐函数比对 → 更新源码 → 编译验证。禁止脚本自动判定「逻辑一致」，禁止以编译通过代替逻辑判断。
-3. **多文件批量分工**：主 Agent 负责 TODO 列表、审核结论、修改源码与编译验证；每个文件的 Ghidra 提取与逐函数比对须由 `decompiler` SubAgent 完成；SubAgent 不得直接改源码。
+3. **多文件批量分工**：主 Agent 负责 TODO 列表、审核结论、修改源码与编译验证；每个文件的 Ghidra 提取与逐函数比对须由 `remaker` SubAgent 完成；SubAgent 不得直接改源码。
 4. **命名稳定**：已引入的命名保持稳定，除非有强证据支持重命名。
 5. **最小化变更**：优先保持 CMake 基线一致，避免大范围重构；路径引用必须精确（依赖严格运行时目录布局）。
 
@@ -254,4 +254,4 @@ statics=c6446r、dbmw=c6444r、game/guild 用专用逐 TU 工具链、relay/cose
 - **无有效 DWARF 组**：走 Ghidra Headless 导出伪 C → 逐函数人工比对的社区流程；先做符号可读性最好的小目标（`relay`）积累经验，再按体量递增。
 - 每完成一个服务，用 `compare_df_community_functions.py` 同款方法（符号/字符串/助记符重叠）产出一份验证报告，再进入下一个。
 
-> 完整排序依据、指标与策略见 `docs/decompile_order.md`。
+> 完整排序依据、指标与策略见 `docs/remake_order.md`。

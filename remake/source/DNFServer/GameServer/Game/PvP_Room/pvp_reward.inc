@@ -10,7 +10,7 @@
 // [b28d-solo-PvP_Room] 本轮：P225 拆 `P_WIN!=0 && IsPvpObserver!=1` 嵌套 if、P0 去
 // `CEventBase* ev` 具名局部（内联 GetRepeatEvent->IsEventing）⇒ 1096→1088；残余 N82
 // 帧 $0xfc/36 槽 vs $0x140/55 槽全平移 + 布尔物化。
-// [b28d-t3-PoolBigThree] **752→675**（官方 s408 口径，TU 三数不变）：末段座位循环
+// [b28d-t3-PoolBigThree] **752→675**（考古的失传老版本 s408 口径，TU 三数不变）：末段座位循环
 // `int i=0; while(true){ if (7<i) {channel6 日志; OnEndPvP; break;} …; i=i+1; }`
 // 改 `for (int i=0; i<=7; i=i+1) {…}` + 循环后直落代码 —— ORIG 0x085da9a0
 // `movl $0,-0x58; jmp COND` + 函数尾 0x085db76b `addl $1; cmpl $7; setle; test; jne

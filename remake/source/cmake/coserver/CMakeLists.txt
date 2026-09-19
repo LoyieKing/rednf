@@ -13,7 +13,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_toolchain_44.cmake)
 
 # 同 statics：包装脚本避免工具链文件的全局 LD_LIBRARY_PATH 污染 CMake 自身进程。
 # 编译器本体按 DF_CC_VARIANT 走 dnf_c*_gxx.sh（c6=4.4.7 / c6446r=4.4.6 cc1plus）。
-if(decompile_verify)
+if(remake_verify)
     set(DF_CXX_WRAPPER ${CMAKE_BINARY_DIR}/df-cxx-wrap.sh)
     file(WRITE ${DF_CXX_WRAPPER}
         "#!/bin/sh\nexec \"${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_${DF_CC_VARIANT}_gxx.sh\" \"$@\"\n")
@@ -30,7 +30,7 @@ project(coserver CXX)
 #   ORIG 只要 GLIBC_2.4。改用 game 同款的 c6root 4.4.7 驱动 + --sysroot 链接脚本
 #   （dnf_game_link.sh 本身是通用 32 位 c6root 链接驱动，非 game 专属）。
 #   注意：c6root 4.4.7 的 g++ 不认 `-no-pie`（晚于 4.4），4.4 默认即非 PIE ⇒ 已从 LINK_FLAGS 去掉。
-if(decompile_verify)
+if(remake_verify)
     set(CMAKE_CXX_LINK_EXECUTABLE
         "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 endif()

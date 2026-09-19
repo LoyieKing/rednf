@@ -3,16 +3,16 @@
 # ----------------------------------------------------------------------------
 # 用法（等价于旧的 .buildall.sh，且不再需要任何 shell 构建脚本）：
 #
-#   cmake -S dnf_decompile/source -B dnf_decompile/build
-#   cmake --build dnf_decompile/build -j
+#   cmake -S dnf_remake/source -B dnf_remake/build
+#   cmake --build dnf_remake/build -j
 #
 #   只构建部分服务：
 #   cmake -S source -B build -DDNF_SERVICES="game;manager"
 #
-#   构建路线（decompile_verify，默认 OFF）：
+#   构建路线（remake_verify，默认 OFF）：
 #     OFF（默认）—— 宿主最新 LTS GCC，语义等价、可直接运行（见下方 §开关）
 #     ON          —— GCC 4.x 工具链，逐字节 identical 验证口径
-#   cmake -S source -B build -Ddecompile_verify=ON
+#   cmake -S source -B build -Dremake_verify=ON
 #
 #   单独构建某个服务/三方库：
 #   cmake --build build --target game
@@ -94,14 +94,14 @@ set(DNF_ALL_SERVICES
 set(DNF_SERVICES "" CACHE STRING "为空 = 构建全部；否则分号分隔的服务名列表")
 
 # ---------------------------------------------------------------------------
-# decompile_verify：全局编译开关（默认 OFF）
+# remake_verify：全局编译开关（默认 OFF）
 #   ON  —— 逐字节 identical 路线：GCC 4.x 工具链 + 逐 TU 编译器分发（现状行为）
 #   OFF —— 现代路线：宿主最新 LTS GCC 编译，由兼容层
-#          source/toolchain/compat/decompile_verify_off.h 修正新版 GCC 不再支持
+#          source/toolchain/compat/remake_verify_off.h 修正新版 GCC 不再支持
 #          的语法/ABI（register、旧标准库可见性、旧函数对象基类等），语义与 ON 等价。
-# 两种模式的差异只体现在编译/链接方式；源码里可用 `#if decompile_verify` 分支。
+# 两种模式的差异只体现在编译/链接方式；源码里可用 `#if remake_verify` 分支。
 # ---------------------------------------------------------------------------
-option(decompile_verify "ON=逐字节 identical（GCC 4.x）；OFF=宿主最新 LTS GCC（语义等价）" OFF)
+option(remake_verify "ON=逐字节 identical（GCC 4.x）；OFF=宿主最新 LTS GCC（语义等价）" OFF)
 
 function(dnf_expected_cxx_wrapper _svc _mode _variant _out)
     if(_svc STREQUAL "game")
@@ -128,29 +128,32 @@ function(dnf_add_service _svc _mode _variant)
     set(_cfg_args "")
     set(_cfg_pre "")
     # 每个服务都要显式收到开关值（CMake 里未定义变量在 if() 中恒为假，
-    # 不显式传入会让 `if(decompile_verify)` 走错分支）
-    if(NOT decompile_verify)
+    # 不显式传入会让 `if(remake_verify)` 走错分支）
+    if(NOT remake_verify)
         # 现代路线：不传 4.x 工具链/包装，直接用宿主 g++（最新 LTS）
-        set(_cfg_args -Ddecompile_verify=OFF)
+        set(_cfg_args -Dremake_verify=OFF)
+        if(DNF_ASAN)
+            list(APPEND _cfg_args -DDNF_ASAN=ON)
+        endif()
     elseif(_mode STREQUAL "std")
         set(_cfg_args
-            -Ddecompile_verify=ON
+            -Dremake_verify=ON
             -DCMAKE_TOOLCHAIN_FILE=${DNF_TOOLCHAIN_FILE}
             -DDF_CC_VARIANT=${_variant})
     elseif(_mode STREQUAL "game")
         set(_cfg_args
-            -Ddecompile_verify=ON
+            -Dremake_verify=ON
             -DCMAKE_TOOLCHAIN_FILE=${DNF_TOOLCHAIN_DIR}/dnf_toolchain_game.cmake
             -DCMAKE_CXX_COMPILER=${DNF_TOOLCHAIN_DIR}/dnf_game_cxx.sh
             -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY)
     elseif(_mode STREQUAL "guild")
         set(_cfg_args
-            -Ddecompile_verify=ON
+            -Dremake_verify=ON
             -DCMAKE_TOOLCHAIN_FILE=${DNF_TOOLCHAIN_DIR}/dnf_toolchain_guild.cmake
             -DCMAKE_CXX_COMPILER=${DNF_TOOLCHAIN_DIR}/dnf_guild_cxx.sh
             -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY)
     elseif(_mode STREQUAL "self")
-        set(_cfg_args -Ddecompile_verify=ON)
+        set(_cfg_args -Dremake_verify=ON)
     elseif(NOT _mode STREQUAL "self")
         message(FATAL_ERROR "未知配置模式 '${_mode}'（服务 ${_svc}）")
     endif()
@@ -159,7 +162,7 @@ function(dnf_add_service _svc _mode _variant)
     # `cmake -E env DNF_TC_ROOT=…`；之后若 CMakeLists/工具链文件变动触发 make 的
     # 自动重配，env 不再存在 ⇒ dnf_toolchain_44.cmake 会回退 /tmp，flags 里的
     # -isystem 指向不存在的头（实测 "cstdio: No such file"）。缓存后两种路径都稳。
-    if(decompile_verify)
+    if(remake_verify)
         list(APPEND _cfg_args -DDF_TC_ROOT=${DNF_TOOLCHAINS})
     endif()
 
@@ -167,7 +170,7 @@ function(dnf_add_service _svc _mode _variant)
     # 服务自己 set(CMAKE_CXX_COMPILER) 的写法也会被旧缓存压住（statics/coserver
     # 的 df-cxx-wrap.sh 就是这种情形），结果是「配置说 A、实际用 B」的静默错配。
     # 这里以 flags.make 记录的实际编译器为准，与预期包装不一致就删缓存重建。
-    if(NOT decompile_verify)
+    if(NOT remake_verify)
         # OFF 路线：同一构建目录若曾按 ON 配置过，子缓存里的编译器仍是 4.x 包装
         # （CMake 不会在既有缓存里换编译器）⇒ 按 flags.make 实况检测并重置，
         # 否则出现"配置说 OFF、实际仍用 c6root"的静默错配。
@@ -186,7 +189,7 @@ function(dnf_add_service _svc _mode _variant)
             set(_need_reset TRUE)   # 有缓存但没有规则文件：半配置状态
             set(_why "缺少 CMakeFiles 规则")
         endif()
-    elseif(_expected_cc AND decompile_verify)
+    elseif(_expected_cc AND remake_verify)
         set(_need_reset FALSE)
         if(EXISTS ${_cc_file})
             file(STRINGS ${_cc_file} _cc_line REGEX "^# compile CXX with")

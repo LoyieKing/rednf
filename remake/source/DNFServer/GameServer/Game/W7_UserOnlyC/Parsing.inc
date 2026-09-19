@@ -78,6 +78,11 @@ bool CUser::Parsing(int received)
                 "Recv Size[%d], Parsing Packet Size[%d], recvbuf_offset[%d] is Too Large",
                 received, static_cast<int>(size),
                 reinterpret_cast<int>(m_network.m_recvBuf));
+#if !remake_verify
+            cMyTrace(__PRETTY_FUNCTION__, 0x7f0, 5)(
+                "[DNF-DIAG PARSING-RET] site=1 size-too-large size=%d remain=%d id=%d",
+                static_cast<int>(size), remain, static_cast<int>(hdr.m_id));
+#endif
             return false;
         }
 
@@ -98,7 +103,14 @@ bool CUser::Parsing(int received)
                 static_cast<int>(m_packetVerifier.GetSequence()),
                 static_cast<int>(hdr.m_seq), NumberToString(get_acc_id(), 0));
             if (verdict != 4)
+            {
+#if !remake_verify
+                cMyTrace(__PRETTY_FUNCTION__, 0x7f1, 5)(
+                    "[DNF-DIAG PARSING-RET] site=2 verifier verdict=%d id=%d seq=%d",
+                    verdict, static_cast<int>(hdr.m_id), static_cast<int>(hdr.m_seq));
+#endif
                 return false;
+            }
         }
 
         if (verdict == 0)
@@ -110,6 +122,11 @@ bool CUser::Parsing(int received)
             {
                 unsigned char decrypted[0x578];
                 int outLen = 0x578;
+#if !remake_verify
+                unsigned char rawSave[64];   // [DNF-DIAG] 解密前的密文（前 64B）
+                for (int k = 0; k < 64; ++k)
+                    rawSave[k] = (13 + k < size) ? m_network.m_recvBuf[13 + k] : 0;
+#endif
                 G_Cipher()->Decrypt(
                     static_cast<int>(hdr.m_id),
                     reinterpret_cast<const unsigned char*>(
@@ -118,19 +135,137 @@ bool CUser::Parsing(int received)
                 if (outLen > 0)
                     std::memcpy(m_network.m_recvBuf + 13, decrypted, outLen);
 
+#if !remake_verify
+                {
+                    // [DNF-DIAG 2026-09-19] 整包原始字节（含我方解密结果）
+                    const int n = size < 64 ? size : 64;
+                    char hx[3 * 64 + 1];
+                    hx[0] = 0;
+                    for (int k = 0; k < n; ++k)
+                    {
+                        char b[4];
+                        b[0] = "0123456789abcdef"[(m_network.m_recvBuf[k] >> 4) & 0xf];
+                        b[1] = "0123456789abcdef"[m_network.m_recvBuf[k] & 0xf];
+                        b[2] = ' ';
+                        b[3] = 0;
+                        for (int j = 0; j < 3; ++j) hx[k * 3 + j] = b[j];
+                    }
+                    hx[n * 3] = 0;
+                    char hxr[3 * 64 + 1];
+                    hxr[0] = 0;
+                    {
+                        int rn = (size - 13) < 64 ? (size - 13) : 64;
+                        if (rn < 0) rn = 0;
+                        for (int k = 0; k < rn; ++k)
+                        {
+                            char b[4];
+                            b[0] = "0123456789abcdef"[(rawSave[k] >> 4) & 0xf];
+                            b[1] = "0123456789abcdef"[rawSave[k] & 0xf];
+                            b[2] = ' ';
+                            b[3] = 0;
+                            for (int j = 0; j < 3; ++j) hxr[k * 3 + j] = b[j];
+                        }
+                        hxr[rn * 3] = 0;
+                    }
+                    cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+                        "[DNF-DIAG PKT] id=%d size=%d hdr_crc=%u raw=[13..]=%s dec=%s",
+                        static_cast<int>(hdr.m_id), static_cast<int>(size),
+                        static_cast<unsigned int>(hdr.m_checksum), hxr, hx);
+                }
+#endif
                 unsigned int crc = Encryption::crc32N(
                     reinterpret_cast<void*>(m_network.m_recvBuf + 11),
                     size - 11);
                 _NS_PI_2ND_MakeChecksumTo1Byte2(crc, hdr.m_checksum);
                 if (hdr.m_checksum != crc)
                 {
+#if !remake_verify
+                    {
+                        // [DNF-DIAG TRY2] 折叠后低字节比较（上一版拿 32 位比 1 字节 ⇒ 无效）
+                        const unsigned int want =
+                            static_cast<unsigned int>(hdr.m_checksum) & 0xFF;
+                        for (int tt = -1; tt < 14; ++tt)
+                        {
+                            unsigned char tmp[0x600];
+                            int rawLen = size - 11;
+                            for (int k = 0; k < rawLen; ++k)
+                                tmp[k] = static_cast<unsigned char>(m_network.m_recvBuf[11 + k]);
+                            int outLen = 0x600;
+                            int ok = -1;
+                            if (tt >= 0)
+                            {
+                                ok = G_Cipher()->Decrypt(tt,
+                                        reinterpret_cast<const unsigned char*>(tmp) + 2,
+                                        rawLen - 2, tmp + 2, &outLen) ? 1 : 0;
+                            }
+                            unsigned int c = Encryption::crc32N(tmp, rawLen) & 0xFF;
+                            cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+                                "[DNF-DIAG TRY2] t=%d ok=%d outLen=%d fold=%u want=%u %s",
+                                tt, ok, outLen, c, want, (c == want) ? "<<< MATCH" : "");
+                        }
+                    }
+#endif
+#if !remake_verify
+                    // [DNF-DIAG 2026-09-19] 临时诊断（只在失败时打印）：
+                    //   size = 我们用来算校验和的长度；hdr.m_size = 包头自带长度；
+                    //   crc = 我们算出的值；hdr.m_checksum = 客户端带来的值；
+                    //   再打前 16 字节便于判断"是否解密后才算"。
+                    cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+                        "[DNF-DIAG CHECKSUM] id=%d size=%d hdr_size=%d crc=%u hdr_crc=%u "
+                        "b=%02x%02x%02x%02x%02x%02x%02x%02x",
+                        static_cast<int>(hdr.m_id), static_cast<int>(size),
+                        static_cast<int>(hdr.m_size),
+                        static_cast<unsigned int>(crc),
+                        static_cast<unsigned int>(hdr.m_checksum),
+                        static_cast<unsigned char>(m_network.m_recvBuf[0]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[1]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[2]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[3]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[4]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[5]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[6]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[7]));
+                    cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+                        "[DNF-DIAG BODY] 解密后 [11..18]=%02x%02x%02x%02x%02x%02x%02x%02x "
+                        "size=%d 参与CRC字节数=%d",
+                        static_cast<unsigned char>(m_network.m_recvBuf[11]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[12]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[13]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[14]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[15]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[16]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[17]),
+                        static_cast<unsigned char>(m_network.m_recvBuf[18]),
+                        static_cast<int>(size), static_cast<int>(size) - 11);
+#endif
                     // [R16a04 P227] ORIG 0x08647cba `call GetPacketName; mov %eax,%ebx` 先于
                     //   C1 0x08647cdf（实参跨 ctor 保活）⇒ 临时链形。
+
                     cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)
                         ("[CHECK SUM] check_sum error PACKET : %s",
                          GetPacketName((ENUM_PACKETCLASS)hdr.m_class, hdr.m_id));
+#if !remake_verify
+                    // [DNF-FIX 2026-09-19 · 进频道即被踢] 仅 OFF 路线：本机重建的
+                    //   Cipher::Decrypt 与客户端存在差异 ⇒ 解密后正文的 CRC 与客户端不符，
+                    //   ORIG 会 return false 丢包，随后连接被断（实测：进频道后第一个
+                    //   GET_USERINFO 即触发）。私有服不依赖该包校验做防护 ⇒ 降级为
+                    //   记日志继续。（若要严格对齐 ORIG：修好 Decrypt 后删除本 #if 分支。）
+                    // 注意：不执行 return false，继续往下走。
+#else
                     return false;
+#endif
                 }
+#if !remake_verify
+                else
+                {
+                    // [DNF-DIAG 2026-09-19] 正向证据：该包校验和与客户端一致。
+                    //   RC6 修复（DNF-FIX-RC6-2）后 id%14==3 的包应全部走这一支。
+                    cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+                        "[DNF-DIAG CHECKSUM-OK] id=%d size=%d crc=%u",
+                        static_cast<int>(hdr.m_id), static_cast<int>(size),
+                        static_cast<unsigned int>(crc));
+                }
+#endif
             }
 
             // [M2S1] ORIG 0x08647d05 `mov -0x2c(%ebp),%eax; add $0x8,%eax`
@@ -191,6 +326,11 @@ bool CUser::Parsing(int received)
                     "[PARSING EXCEPTION] memmove : parsinglength = %d", remain);
                 return false;
             }
+#if !remake_verify
+            cMyTrace(__PRETTY_FUNCTION__, 0x7f2, 5)(
+                "[DNF-DIAG PARSING-RET] site=3 parsing-length-exception remain=%d",
+                remain);
+#endif
             return false;
         }
         memmove(m_network.m_recv, m_network.m_recvBuf, remain);

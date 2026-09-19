@@ -1,9 +1,9 @@
-# decompile_verify=OFF 现代路线：构建、兼容层与 GeoIP（2026-09-17）
+# remake_verify=OFF 现代路线：构建、兼容层与 GeoIP（2026-09-17）
 
 > 适用对象：想用**宿主最新 LTS GCC**（本机 g++ 13.3）构建全部 14 个服务、
 > 要一份能直接跑的产物，或要排查 OFF 路线构建/运行问题的人。
 > 逐字节 identical 的验证路线见 `docs/PROGRESS_STATUS.md` 与
-> `source/toolchain/game_verify_guide.md`（那条路线用 `-Ddecompile_verify=ON`）。
+> `source/toolchain/game_verify_guide.md`（那条路线用 `-Dremake_verify=ON`）。
 
 ---
 
@@ -11,16 +11,16 @@
 
 | 路线 | 开关 | 编译器 | 产物 | 用途 |
 |---|---|---|---|---|
-| 现代路线 | `-Ddecompile_verify=OFF`（**默认**） | 宿主 g++ 13.3（`-m32`） | `build-modern/<svc>/df_<svc>_r` | 直接跑、部署、日常开发 |
-| 验证路线 | `-Ddecompile_verify=ON` | GCC 4.x 工具链（c5/c6/c6446r/c6444r + 逐 TU 分发），`-nostdinc` + 显式历史头集 | `build/<svc>/df_<svc>_r` | 与 ORIG 逐字节 identical 的核账口径 |
+| 现代路线 | `-Dremake_verify=OFF`（**默认**） | 宿主 g++ 13.3（`-m32`） | `build-modern/<svc>/df_<svc>_r` | 直接跑、部署、日常开发 |
+| 验证路线 | `-Dremake_verify=ON` | GCC 4.x 工具链（c5/c6/c6446r/c6444r + 逐 TU 分发），`-nostdinc` + 显式历史头集 | `build/<svc>/df_<svc>_r` | 与 ORIG 逐字节 identical 的核账口径 |
 
-两者共用同一份源码：所有差异都用 `#if decompile_verify` 收口，**ON 分支文本保持原样**，
+两者共用同一份源码：所有差异都用 `#if remake_verify` 收口，**ON 分支文本保持原样**，
 因此改源码时两条路线可以同时维护（本次改造后 ON 侧 14 个产物 md5 零变化，见 §7）。
 
 ### 常用命令
 
 ```bash
-# 现代路线（默认；可省略 -Ddecompile_verify=OFF）
+# 现代路线（默认；可省略 -Dremake_verify=OFF）
 cmake -S source -B build-modern
 cmake --build build-modern -j$(nproc)
 
@@ -33,7 +33,7 @@ cmake --build build-modern --target game
 cmake --build build-modern --target third_party     # 三方库 + libGeoIP.so.1
 
 # 验证路线（逐字节 identical 口径）
-cmake -S source -B build -Ddecompile_verify=ON
+cmake -S source -B build -Dremake_verify=ON
 cmake --build build -j$(nproc)
 ```
 
@@ -44,20 +44,20 @@ cmake --build build -j$(nproc)
 
 ## 2. 现代路线做了什么（构建侧）
 
-`dnf_helpers.cmake` 的 `dnf_service()` 在 `decompile_verify=OFF` 时走独立分支：
+`dnf_helpers.cmake` 的 `dnf_service()` 在 `remake_verify=OFF` 时走独立分支：
 
 | 项 | 取值 / 行为 | 为什么 |
 |---|---|---|
 | 语言 | `-std=gnu++14 -O0 -fpermissive -w` | 4.x 源码里有大量现代编译器默认报错的老写法 |
 | ABI | **`-D_GLIBCXX_USE_CXX11_ABI=0`** | 恢复旧 libstdc++ 对象布局：32 位实测 `string=4 / list=8 / map=24 / vector=12`，与 c6root 4.4.7 逐项相同；不加则新 ABI 的 `std::string=24` 会顶掉所有按 ORIG 偏移定义的类布局 |
-| 兼容头 | `-include source/toolchain/compat/decompile_verify_off.h` | 见 §3 |
-| 宏 | `-Ddecompile_verify=0` | 源码里 `#if decompile_verify` 的判据（ON 侧为 `=1`） |
+| 兼容头 | `-include source/toolchain/compat/remake_verify_off.h` | 见 §3 |
+| 宏 | `-Dremake_verify=0` | 源码里 `#if remake_verify` 的判据（ON 侧为 `=1`） |
 | 逐 TU 旗标 | 丢弃 `-std=/-O/-march=/-mtune=/-B` 形式 | 这些是 4.x 形态复现用的；宿主上要么无意义，要么直接报错（实测 `-march` 与 glibc 强化头的 `always_inline` 冲突：`target specific option mismatch`） |
 | 库 | 过滤掉 4.x 的 `libstdc++` / `libgcc`（`.a` 与 `.so` 都算） | 现代路线用宿主运行时；混链旧归档会 `No rule to make target …` |
 | 链接 | `-m32 -Wl,--no-as-needed <服务 LINK_FLAGS>` | ① 链接期也要 `-m32`，否则驱动按 64 位挑隐式 libgcc/libc，32 位归档里的 `__udivdi3`/`operator new` 解析不到；② 历史服务把动态库写在 `LINK_FLAGS`（排在目标文件之前），宿主 g++ 默认 `--as-needed` 会把"还没被引用"的库丢掉（实测 game 的 GeoIP 未定义引用） |
 | 三方库 | `build/<svc>/…` 仍链 `mysqlclient/yassl/freetype`（4.x 预编译归档） | ABI=0 与本侧兼容；彻底现代化留作后续（见 §8） |
 
-服务 CMakeLists 里所有 4.x 专用设置都按 `if(decompile_verify)` 收口，本次改到的有：
+服务 CMakeLists 里所有 4.x 专用设置都按 `if(remake_verify)` 收口，本次改到的有：
 auction/bridge/channel/point 的 `-B cc1plus446bin`、channel 的 `channel_cc.sh` 编译规则
 （含 `__FILE__` 复现）、bridge 的 `-march=i586 -mtune=i686`、relay 的 `-B` 与
 POST_BUILD 4.x 重链、stun 的 64 位分支。
@@ -70,9 +70,9 @@ ON 路线的工具链根现在也写进子配置缓存（`-DDF_TC_ROOT=…`）�
 
 ---
 
-## 3. 兼容层之一：语法 / ABI（`decompile_verify_off.h`）
+## 3. 兼容层之一：语法 / ABI（`remake_verify_off.h`）
 
-`source/toolchain/compat/decompile_verify_off.h` 由 `-include` 注入每个 TU：
+`source/toolchain/compat/remake_verify_off.h` 由 `-include` 注入每个 TU：
 
 1. `register` 存储类（C++17 移除）→ 展开为空；
 2. 旧标准库的传递性包含（`<cstdio>`/`<map>`/`<pthread.h>` 等）→ 统一补齐；
@@ -80,7 +80,7 @@ ON 路线的工具链根现在也写进子配置缓存（`-DDF_TC_ROOT=…`）�
 4. `_LARGEFILE64_SOURCE`：让 `<sys/stat.h>` 暴露 `stat64` 族（§4 的 `__xstat` 实现要用）；
 5. §4 的 shm / 路径 / mkdir 宏与函数。
 
-### 源码侧逐 TU 适配（全部 `#if decompile_verify` 收口）
+### 源码侧逐 TU 适配（全部 `#if remake_verify` 收口）
 
 | 症状（宿主 GCC） | 处置 | 涉及文件 |
 |---|---|---|
@@ -100,7 +100,7 @@ ON 路线的工具链根现在也写进子配置缓存（`-DDF_TC_ROOT=…`）�
 | 文件 | 内容 |
 |---|---|
 | `source/toolchain/compat/dnf_shm_compat.h` | 上游 `glibc-compat/src/lib.rs` 的内联版：shm 名扁平化（除首字符外 `/`→`_`）、`/dev/shm/a/b → /dev/shm/a_b`、`/dev/shm/…` 判定 |
-| `source/toolchain/compat/decompile_verify_off.h`（§5 段） | 宏覆盖 `shm_open` / `shm_unlink` / `mkdir` / `mkdirat`（`/dev/shm` 下假成功、`EEXIST` 视为成功）；其余路径家族以 `dnf_compat_*` 函数提供 —— **宏不覆盖 `open`/`stat` 是有意的**：本仓有 `m_sock.open()` 这类同名成员调用，函数式宏会误伤 |
+| `source/toolchain/compat/remake_verify_off.h`（§5 段） | 宏覆盖 `shm_open` / `shm_unlink` / `mkdir` / `mkdirat`（`/dev/shm` 下假成功、`EEXIST` 视为成功）；其余路径家族以 `dnf_compat_*` 函数提供 —— **宏不覆盖 `open`/`stat` 是有意的**：本仓有 `m_sock.open()` 这类同名成员调用，函数式宏会误伤 |
 | `source/toolchain/compat/dnf_compat_stat.cpp` | 静态定义 `__xstat`/`__xstat64`/`__fxstat`/`__fxstat64`/`__lxstat`/`__lxstat64`/`__fxstatat`/`__fxstatat64`：老静态库（MySQL Connector/C、yaSSL 等按 4.x 头编译）引用这些旧入口，部分新发行版 libc 已移除 ⇒ 按现代 `stat64` 转发 + `/dev/shm` 扁平化 |
 
 该 TU 由 `dnf_helpers.cmake` 在 OFF 时自动加进每个服务目标（`stun` 是自带分支，
@@ -192,11 +192,11 @@ ON 路线重编后按既有口径复测（明细与历史见 `docs/df_binaries_i
   `source/toolchain/cmake/dnf_helpers.cmake`、`dnf_toolchain_44.cmake`、
   `source/cmake/{game,relay,channel,bridge,auction,point,stun,third_party}/CMakeLists.txt`
   （`make_directory` 修复：mysqlclient/yassl 对象目录在全新构建目录下不再竞态失败）。
-* 源码适配（`#if decompile_verify`）：`LinuxService.cpp`、`Divide_C_ClassIP_EndIP.cpp`、
+* 源码适配（`#if remake_verify`）：`LinuxService.cpp`、`Divide_C_ClassIP_EndIP.cpp`、
   `Dispatchers.cpp`、`DBManager.cpp`、`Statistics.cpp`、`Monitor/DNFApplication.cpp`、
   `Monitor/DNFPacketTranslater.cpp`、`Game/CUser.h`、`Game/CItemGenerator.h`、
   `OnlyOrigBatch7_Force.cpp`、`OnlyOrigBatch7_Force/forceCtorEmissions.inc`、
   `CDisconnectDetecter/RegisterUser.inc`、`STStackableScript/ImportStackableScript.inc`、
   `CreatureScript/importCreatureScript.inc`、`InitScriptProducers_6.cpp`。
-* 文档：`source/cmake/README.md`、`dnf_decompile/README.md`、`docs/PROGRESS_STATUS.md`、
+* 文档：`source/cmake/README.md`、`dnf_remake/README.md`、`docs/PROGRESS_STATUS.md`、
   `docs/df_binaries_identical.md`、`source/toolchain/class_dump.py`（注释）。

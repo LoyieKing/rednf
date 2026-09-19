@@ -8,8 +8,8 @@ void rc6_block_encrypt(const RC6_ALG_INFO* alg, const unsigned int* in, unsigned
 
     for (int r = 2; r <= 0x28; r += 2)         // ORIG 80b5dc3..eaa
     {
-        unsigned int t = rc6_ror32(B * 2 + 1, 0x1b);   // ORIG 80b5dcf..dd
-        unsigned int u = rc6_ror32(D * 2 + 1, 0x1b);   // ORIG 80b5de1..ed
+        unsigned int t = rc6_ror32((B * 2 + 1) * B, 0x1b);   // ORIG 80b5dcf..dd
+        unsigned int u = rc6_ror32((D * 2 + 1) * D, 0x1b);   // ORIG 80b5de1..ed
         A = rc6_rol32(A ^ t, u & 0x1f) + K[r];         // ORIG 80b5df3..39
         C = rc6_rol32(C ^ u, t & 0x1f) + K[r + 1];     // ORIG 80b5e3c..85
         unsigned int tmp = A; A = B; B = C; C = D; D = tmp;  // ORIG 80b5e88..a3

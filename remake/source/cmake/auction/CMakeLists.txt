@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 project(auction CXX)
 
 # c6446r 变体：c6root g++ 4.4.7 驱动 + cc1plus 4.4.6（等价 /tmp/c6-g++-446r 的 -B）。
-if(decompile_verify)
+if(remake_verify)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -B ${DF_CC1P446}/")
 endif()
 
@@ -211,7 +211,7 @@ find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PAT
 #   CentOS 7（glibc 2.17）⇒ `version 'GLIBC_2.34' not found` 跑不起来；ORIG 只要 ≤2.4。
 #   改用 game 同款 c6root 4.4.7 驱动 + --sysroot 链接（dnf_game_link.sh 本身通用）。
 #   c6root 4.4.7 不认 -no-pie（晚于 4.4），4.4 默认即非 PIE。
-if(decompile_verify)
+if(remake_verify)
     set(CMAKE_CXX_LINK_EXECUTABLE
         "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 endif()

@@ -142,8 +142,17 @@
     //（`mov (%eax),%eax; mov %eax,%edx`，我方 64 条 vs ORIG 63）；改**真实函数
     // 指针数组类型** `(*(Fn**)p)[K]` 即单段直落 `mov (%eax),%edx`（ORIG 0x080edddb
     // 实证；同族 CUser/AntibotSend.inc 已用此形 202→199）。
-    (*(reinterpret_cast<CheckerFn**>(GlobalData::s_antibotChecker_)))[0x10 / 4](
-        GlobalData::s_antibotChecker_);
+#if !remake_verify
+    // DNF-FIX: 周期性 SDK 轮询在非 ORIG 产物上会让 libtss_sdk 内部跳入空区崩溃
+    // （core 实证 0xd872d246；SDK 对象与 vtable 完好、调用目标 = vtable[4] = 0xd860bd50）。
+    // 默认禁用；需要时 DNF_ANTIBOT=1 打开。
+    static const bool dnfAntibotOn = (getenv("DNF_ANTIBOT") != 0);
+    if (dnfAntibotOn)
+#endif
+    {
+        (*(reinterpret_cast<CheckerFn**>(GlobalData::s_antibotChecker_)))[0x10 / 4](
+            GlobalData::s_antibotChecker_);
+    }
 
     gettimeofday(&t1, 0);
     long ms = (t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_usec - t0.tv_usec) / 1000;

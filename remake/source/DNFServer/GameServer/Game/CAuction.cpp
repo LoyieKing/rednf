@@ -135,10 +135,22 @@ public:
 // ---- 拍卖服务器注册/就绪检查包（ORIG 弱符号 ctor，继承 PACKET_HEADER）----
 struct PCK_AUCTION_REGIST_GA : public nsl::PACKET_HEADER
 {
+#if !remake_verify
+    // DNF-FIX 2026-09-18: ORIG 包长 0x16 = 0x12(头) + 4；转写时漏了尾部 4 字节成员，
+    // 于是 ctor 的 memset(this,0,0x16) 写出结构外 4 字节 → 打坏调用方栈保护
+    // （core: CAuctionServerProxy::SendRegistPacket → __stack_chk_fail）。
+    int gc_no;
+#endif
     PCK_AUCTION_REGIST_GA() { PACKET_CTOR_BODY(0, 0, 0x16); }
 };
 struct PCK_AUCTION_REGIST_GP : public nsl::PACKET_HEADER
 {
+#if !remake_verify
+    // DNF-FIX 2026-09-18: ORIG 包长 0x16 = 0x12(头) + 4；转写时漏了尾部 4 字节成员，
+    // 于是 ctor 的 memset(this,0,0x16) 写出结构外 4 字节 → 打坏调用方栈保护
+    // （core: CAuctionServerProxy::SendRegistPacket → __stack_chk_fail）。
+    int gc_no;
+#endif
     PCK_AUCTION_REGIST_GP() { PACKET_CTOR_BODY(0x12, 0, 0x16); }
 };
 struct PCK_AUCTION_CHECK_AUCTION_READY_GA : public nsl::PACKET_HEADER

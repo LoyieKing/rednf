@@ -43,7 +43,9 @@ static unsigned int rc6_rotr(unsigned int x, int n)
 //  - 混合轮：K[i]=(byte)rol32(K[i]+B+A,3)；L[j]=rotl32(L[j]+B+A,(B+A)&0x1f)；
 //    轮数 3*max(44,keyWords)
 //  - 加密预加 B+=K[0]、D+=K[1]；尾 A+=K[0x2a]、C+=K[0x2b]
-//  - 轮内 t/u = ror32(x*2+1, 0x1b)（= rol5）；rol32(A^t, u&31)+K[r] 等
+//  - 轮内 t/u = ror32((x*2+1)*x, 0x1b)（= rol5(x*(2x+1))）；rol32(A^t, u&31)+K[r] 等
+//    [DNF-FIX-RC6-2 2026-09-19] 旧注释/旧码把乘数 x 漏掉（写成 ror32(x*2+1)），
+//    与 ORIG 80b5dd7/80b5de9（加密）、80b5f91/80b5fa3（解密）的 `imul x` 不符 ⇒ 已按 ORIG 补回。
 // ============================================================================
 static inline unsigned int rc6_ror32(unsigned int x, int n)
 {
@@ -3494,11 +3496,16 @@ static const ulong32 RC[] = {
     b ^= ~(d|c);              \
     a ^= c&b;
 
+// [DNF-FIX-NOEKEON 2026-09-19] ORIG 变体：π1/π2 旋转的是 **a**，不是标准 LTC 的 b。
+//   加密 0x080b53f7/540d/5423 = ROL(a,1)/ROL(c,5)/ROL(d,2)；
+//   解密 0x080b5909/591f/5935 = ROR(a,1)/ROR(c,5)/ROR(d,2)（a 槽 = a^=RC[r] 的那一个）。
+//   标准形（旋转 b）能过 LTC 考古的失传老版本向量 A6EC…FC3，但与客户端不互通（实测 id=8 包
+//   解密乱码、校验和失配）⇒ 必须照 ORIG 改。
 #define PI1(a, b, c, d) \
-    b = ROLc(b, 1); c = ROLc(c, 5); d = ROLc(d, 2);
+    a = ROLc(a, 1); c = ROLc(c, 5); d = ROLc(d, 2);
 
 #define PI2(a, b, c, d) \
-    b = RORc(b, 1); c = RORc(c, 5); d = RORc(d, 2);
+    a = RORc(a, 1); c = RORc(c, 5); d = RORc(d, 2);
 
  /**
     Initialize the Noekeon block cipher

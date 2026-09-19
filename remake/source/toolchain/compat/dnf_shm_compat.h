@@ -10,7 +10,7 @@
  *      （现代 /dev/shm 是 tmpfs，多级子目录不再存在）
  *   ③ mkdir/mkdirat 作用在 /dev/shm 下时按"命名空间已扁平化"假成功。
  *
- * 本头只提供 inline 助手；宏与符号定义见 decompile_verify_off.h 与
+ * 本头只提供 inline 助手；宏与符号定义见 remake_verify_off.h 与
  * dnf_compat_stat.cpp（同名符号会遮蔽 libc，勿在 ON 路线包含本头）。
  * ==========================================================================*/
 #ifndef DNF_SHM_COMPAT_H

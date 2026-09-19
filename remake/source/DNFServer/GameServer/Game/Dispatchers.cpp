@@ -1335,7 +1335,7 @@ struct GmCmdArgs
 //   源码侧写 std::strstr 只会解析到 C 符号 strstr。故以 asm 标签别名引用同一符号
 //   （定义由 game target 的 LinuxService.cpp 以 weak out-of-line 提供；已 AE 10/10）。
 //   探针实测：块内写 extern "C++" 会被 4.4 判 `expected unqualified-id`，须置文件作用域。
-#if decompile_verify
+#if remake_verify
 extern "C++" char* dnf_std_strstr(char*, const char*) __asm__("_ZSt6strstrPcPKc");
 #else
 // 现代 libstdc++ 自带 std::strstr(char*, const char*) inline 重载，无需符号别名。
@@ -2521,6 +2521,16 @@ public:
         return 0xa76a;
     }
     const int dummySeq = 0xd;                                                  // -0x10
+#if !remake_verify
+    // [DNF-FIX-DP-PUNISH] 我们自己重新复刻的源码版本环境：DP(清风复刻版 反外挂)回调包体校验必然失败；原码在此判
+    // AbnormalUser(2) 并断线，且把读到的垃圾长度继续当有效值解析（可越界）。
+    // 改为记录后按“已处理”返回：不断线、不把垃圾值喂给后续解析。（VERIFY 路线保持原判罚）
+    user->m_historyLog.AbnormalUser((ENUM_ABNORMAL_USER_LOG_TYPE)2,
+                                    0x25d,
+                                    static_cast<unsigned char>(user->m_field5),
+                                    static_cast<int>(value));
+    return 0;
+#endif
     if (value > 0x567)
     {
         if (static_cast<unsigned char>(user->m_field5) < 6)

@@ -83,7 +83,11 @@ bool CAppConfig::Parse_Table(char* line, int idx)
     if (idx < 6)
     {
         char pad_if[4];
+        #if remake_verify
         char* tokens[2];
+        #else
+        char* tokens[3];   // DNF-FIX: ExplodeString 会写 out[maxCount]，需要 maxCount + 1 个槽
+        #endif
         if (DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 2) == 2)
         {
             switch (idx)
@@ -115,7 +119,11 @@ bool CAppConfig::Parse_Table(char* line, int idx)
     else
     {
         char pad_else[4];
+        #if remake_verify
         char* tokens[6];
+        #else
+        char* tokens[7];   // DNF-FIX: ExplodeString 会写 out[maxCount]，需要 maxCount + 1 个槽
+        #endif
         if (DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 6) == 6)
         {
             stServerInfo* si = (stServerInfo*)operator new(0x16);

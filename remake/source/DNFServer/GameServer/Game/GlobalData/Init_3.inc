@@ -535,6 +535,24 @@ bool GlobalData::Init()
             key[i] = (unsigned char)(rand() % 256);
         }
         G_Cipher()->Initialize(key, keyLen);
+#if !remake_verify
+    {
+        char hxk[3 * 336 + 1];
+        hxk[0] = 0;
+        for (int q = 0; q < 336; ++q)
+        {
+            char b[4];
+            b[0] = "0123456789abcdef"[(key[q] >> 4) & 0xf];
+            b[1] = "0123456789abcdef"[key[q] & 0xf];
+            b[2] = ' ';
+            b[3] = 0;
+            for (int j = 0; j < 3; ++j) hxk[q * 3 + j] = b[j];
+        }
+        hxk[336 * 3] = 0;
+        cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)("[DNF-DIAG KEY] keyLen=%d key64=%s", keyLen, hxk);
+    }
+#endif
+
     }
 
     // ORIG 0x0829c5a2-0x0829c605：value-init nothrow new（guard 内 rep stos 清零 +

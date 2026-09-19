@@ -13,8 +13,8 @@
 ```
 third_party/
 ├── README.md                         # 本文档
-├── rapidxml-1.13/                    # 开源：rapidxml 1.13（SourceForge 官方 zip + 说明）
-├── mysql-5.0.92/                     # 开源：MySQL 5.0.92（downloads.mysql.com 官方 tar.gz + 说明）
+├── rapidxml-1.13/                    # 开源：rapidxml 1.13（SourceForge 考古的失传老版本 zip + 说明）
+├── mysql-5.0.92/                     # 开源：MySQL 5.0.92（downloads.mysql.com 考古的失传老版本 tar.gz + 说明）
 ├── tsf4g_tdr/                        # 闭源复刻：tsf4g TDR 运行库头（来自 DWARF 类型信息）
 ├── tencrypt_new/                     # 闭源复刻：TenCrypt/TenHash 加密库（tencrypt_new 独立工程）
 └── import/include/                   # 编译镜像：满足桩源码 include 路径的最终头文件集合

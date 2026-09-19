@@ -6165,6 +6165,11 @@ struct Inter_CeraShopPurchaseCountPktView
 // —— 与 PACKET_CTOR_BODY(0x12, 5, 0x33) 宏语义逐指令一致。
 struct PCK_AUCTION_BIDDING_GP : public nsl::PACKET_HEADER
 {
+#if !remake_verify
+    // DNF-FIX 2026-09-18: ORIG 包长 0x33(51)（ctor 实证 memset 0x33），本结构只转写了头 0x12；
+    // 载荷由 Inter_OwnerisVIPPktView（+0x04..+0x2a）写入。补齐尾部字节，令 memset 落在结构内。
+    char dnf_tail_pad_[(0x33) - sizeof(nsl::PACKET_HEADER)];
+#endif
     PCK_AUCTION_BIDDING_GP() { PACKET_CTOR_BODY(0x12, 5, 0x33); }
 };
 

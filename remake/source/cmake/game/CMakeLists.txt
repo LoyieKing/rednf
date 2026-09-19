@@ -7,7 +7,7 @@ project(game CXX)
 # docs/df_game_r_class_topology.md 与 docs/class_func_reports/。
 # 本服务含 yaSSL/TaoCrypt/MySQL（Library3rd/MySQL 自带源码）。
 # ============================================================
-if(decompile_verify)
+if(remake_verify)
     set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 endif()
 
@@ -709,7 +709,12 @@ dnf_service(game
         ${SVC_DIR}/LinkClosureA_Data.cpp
         ${SVC_DIR}/LinkClosureA_Misc.cpp
         ${SVC_DIR}/LinkClosureA_User.cpp
-        ${SVC_DIR}/LibCryptoStatic.cpp
+        # [DNF-FIX 2026-09-18 · 登录崩溃] 本文件是手写的 OpenSSL 替身（PEM/BIO/BN 外壳），
+        #   但它不含 RSA_METHOD（真模幂）⇒ PEM_read_bio_RSA_PUBKEY 产出的是**坏 RSA**
+        #   （实测 RSA_size=0），首个登录包进 AuthGarenaToken::decrypt → RSA_size/BN_num_bits
+        #   直接 SIGSEGV。ORIG 是**静态链入真 OpenSSL**。改为链 toolchains/libcrypto32/lib/libcrypto.a，
+        #   本 TU 不再参与编译（原文件保留备查）。
+        # ${SVC_DIR}/LibCryptoStatic.cpp
         ${SVC_DIR}/CVillageObjectMgr.cpp
         ${SVC_DIR}/CFatigueBatteryHandle.cpp
         ${SVC_DIR}/CVillageMonsterMgr.cpp
@@ -1178,6 +1183,13 @@ dnf_service(game
         #   语义等价 ⇒ 用 --allow-multiple-definition 取首定义（仅影响链接期判定，
         #   不改变行为）；该标志是**全局**的，当前构建除 zlib 外无其它重复定义。
         -Wl,--allow-multiple-definition
+        # [DNF-FIX 2026-09-18 · 登录崩溃] 真 i386 OpenSSL（Debian13 libssl-dev:i386 的 libcrypto.a，
+        #   已复制入仓 toolchains/libcrypto32/）。**位置必须在 yaSSL 归档之前**：让
+        #   BN_*/RSA_*/PEM_*/BIO_* 这些 C 符号由真库满足；yaSSL 里的同名 C 兼容符号由
+        #   --allow-multiple-definition 容忍但不会被选中（此前两者混用 = RSA/BIGNUM 布局
+        #   错位 ⇒ 首个登录包 SIGSEGV 的根因）。静态链入 ⇒ 不新增 DT_NEEDED，与 ORIG 一致。
+        ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/libcrypto32/lib/libcrypto.so.3
+        -Wl,-rpath-link,/home/loyieking/dnf_workspace/dnf_remake/source/toolchains/libcrypto32/lib
         -Wl,--whole-archive
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/mysqlclient/libmysqlclient.a
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/yassl/libyassl.a

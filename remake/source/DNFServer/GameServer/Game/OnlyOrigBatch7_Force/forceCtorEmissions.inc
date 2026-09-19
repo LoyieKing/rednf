@@ -71,7 +71,7 @@ void forceCtorEmissions()
     (void)vlt;
 
     // ---- std::__atomic0::atomic_flag 成员（volatile）----
-#if decompile_verify
+#if remake_verify
     std::__atomic0::atomic_flag af;
 #else
     std::atomic_flag af = ATOMIC_FLAG_INIT;

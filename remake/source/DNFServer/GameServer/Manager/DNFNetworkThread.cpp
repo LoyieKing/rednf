@@ -164,6 +164,12 @@ after_recv_guard:
         puts("CNetworkThread::dispatch() Exception Break");
         throw CDNFException("CNetworkThread::dispatch() Recv  Socket Exception Break!");
     }
+#if !remake_verify
+    // [DNF-FIX 2026-09-19 · ud2 SIGILL] 仅 OFF 路线：返回 void* 但 try/catch 之后落底；
+    //   ORIG（GCC 4.x）静默返回 %eax 残值（其尾部就是裸 `ret`），GCC 13 则发 ud2。
+    //   线程入口正常返回 0（ON 分支文本保持原样）。
+    return 0;
+#endif
 }
 
 void CUdpNetworkThread::SetUDPQueue(UdpRecvQueue* q) { m_udpQueue = q; }

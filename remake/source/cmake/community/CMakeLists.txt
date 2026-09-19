@@ -20,8 +20,8 @@ cmake_minimum_required(VERSION 3.10)
 # "No such file or directory"。这里在 project() 之前把工具链文件 include 进来，
 # 使 README 的裸命令即可构建（等价于命令行传 -DCMAKE_TOOLCHAIN_FILE）。
 # DF_TC_ROOT 缺省用仓库内 toolchains/（旧文档写的 /tmp 已不存在）。
-if(NOT decompile_verify)
-    message(STATUS "decompile_verify=OFF：community 使用宿主最新 LTS GCC（跳过 4.x 工具链）")
+if(NOT remake_verify)
+    message(STATUS "remake_verify=OFF：community 使用宿主最新 LTS GCC（跳过 4.x 工具链）")
 else()
 if(NOT DEFINED DF_TC_ROOT)
     get_filename_component(_DNF_TC_DEFAULT "${CMAKE_CURRENT_LIST_DIR}/../../../toolchains" REALPATH)
@@ -50,7 +50,7 @@ unset(_DNF_TC_NEED)
 endif()
 
 project(community CXX)
-if(decompile_verify)
+if(remake_verify)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -B ${DF_CC1P446}/")
 endif()
 
@@ -112,7 +112,7 @@ find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PAT
 #   CentOS 7（glibc 2.17）⇒ `version 'GLIBC_2.34' not found` 跑不起来；ORIG 只要 ≤2.4。
 #   改用 game 同款 c6root 4.4.7 驱动 + --sysroot 链接（dnf_game_link.sh 本身通用）。
 #   c6root 4.4.7 不认 -no-pie（晚于 4.4），4.4 默认即非 PIE。
-if(decompile_verify)
+if(remake_verify)
     set(CMAKE_CXX_LINK_EXECUTABLE
         "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 endif()

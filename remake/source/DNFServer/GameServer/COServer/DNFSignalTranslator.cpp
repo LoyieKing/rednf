@@ -148,6 +148,9 @@ int CSignalTranslator::init_handler(CApplication* app)
     m_handlers[100 / 4] = m_handlers[0x10 / 4];
     m_handlers[0x7c / 4] = m_handlers[0x10 / 4];
     // NOTE: ORIG 无 return 语句直接落底（返回残留 eax），调用方均忽略返回值；照抄 ORIG 以对齐机器码
+#if !remake_verify
+    return 0;   // DNF-FIX: 非 void 函数落底 —— g++ 13 在此发 ud2（ORIG 的 GCC 4.x 只是返回残留 eax）
+#endif
 }
 
 bool CSignalTranslator::regist_signal(int sig, void (*handler)(int))

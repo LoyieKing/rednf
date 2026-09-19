@@ -76,4 +76,10 @@ void* CTcpAcceptThread::dispatch(void* param)
     }
 end:
     ;
+#if !remake_verify
+    // [DNF-FIX 2026-09-19 · ud2 SIGILL] 仅 OFF 路线：本函数返回 void* 但 `end:` 之后落底，
+    //   ORIG（GCC 4.x）静默返回 %eax 残值；GCC 13 在此发 ud2 ⇒ 该线程一旦从 end 落底立即 SIGILL。
+    //   线程入口的正常返回值，补 return 0;（ON 分支文本保持原样）。
+    return 0;
+#endif
 }

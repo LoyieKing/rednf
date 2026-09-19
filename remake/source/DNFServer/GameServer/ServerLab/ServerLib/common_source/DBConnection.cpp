@@ -10,7 +10,7 @@
 //   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
 //     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
-// Rebuilt from df_auction_r (DWARF + Ghidra decompile), 2026-08-08
+// Rebuilt from df_auction_r (DWARF + Ghidra remake), 2026-08-08
 #include "DBConnection.h"
 
 #include <errmsg.h>

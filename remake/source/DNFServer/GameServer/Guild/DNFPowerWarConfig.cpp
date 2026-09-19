@@ -98,7 +98,11 @@ bool CPowerWarConfig::Parse_Table(char* line, int idx)
         return 0;
     }
     int x;  // ORIG 帧布局对齐（第 22 轮回归）
+    #if remake_verify
     char* tokens[4];
+    #else
+    char* tokens[5];   // DNF-FIX: ExplodeString 会写 out[maxCount]，需要 maxCount + 1 个槽
+    #endif
     int n = DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 4);
     if (n == 4 || n == 2)
     {

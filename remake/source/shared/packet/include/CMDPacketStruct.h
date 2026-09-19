@@ -2,7 +2,7 @@
 // CMDPacketStruct.h — df_game_r 内部 CMD 请求/响应结构家族还原（第 2 轮深化）
 //
 // 证据来源：
-//   - /tmp/cmd_noti_decompiled.txt     31 个反编译 ctor（本家族 22 个结构 + NOTI 相关）
+//   - /tmp/cmd_noti_remade.txt     31 个反编译 ctor（本家族 22 个结构 + NOTI 相关）
 //   - /tmp/packet_master_corpus.txt    各 Dispatcher 的 dispatch_sig/process 读写点
 //   - /tmp/cmd_base_syms2.txt / dispatcher_syms.txt  符号表
 //   - df_game_r 二进制 objdump 反汇编（read_packet/process_packet/send_packet/
@@ -32,7 +32,7 @@
 // 无证据部分的处理（"无证据不猜"）：
 //   * MSG_BASE 内部 13 字节无字段级证据（穷举结论，2026-08-16 第 2 轮深化验证）：
 //        - 语料 /tmp/packet_master_corpus.txt（52875 行 / 888 函数节，另有
-//          packet_usage_decompiled2/receiver_decompiled 同源子集）共 1496 处
+//          packet_usage_remade2/receiver_remade 同源子集）共 1496 处
 //          MSG_BASE 引用，所有成员访问（param_2[x] / local_x[x] / (MSG_BASE*)0xNN
 //          比较）均在 +0x0d 之后；+0x00..+0x0c 无任何读写点。
 //        - 二进制 df_game_r（36MB，未 strip）nm 全量：_ZN8MSG_BASE* 仅空 ctor

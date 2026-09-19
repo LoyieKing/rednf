@@ -15,7 +15,7 @@ include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_toolchain_44.cmake)
 # 工具链文件会全局设置 ENV{LD_LIBRARY_PATH}，会污染 CMake 自身的子进程（jsoncpp/icu
 # 需要新版 libstdc++）；改为生成编译器包装脚本，只把对应变体的运行库注入编译器子进程。
 # DF_CC_VARIANT: c6 = 4.4.7（默认）/ c6446r = 4.4.6-3 / c6444r = 4.4.4-13 / c5 = 4.1.2-55
-if(decompile_verify)
+if(remake_verify)
     set(DF_CXX_WRAPPER ${CMAKE_BINARY_DIR}/df-cxx-wrap.sh)
     if(DF_CC_VARIANT STREQUAL "c5")
         file(WRITE ${DF_CXX_WRAPPER}
@@ -42,7 +42,7 @@ project(statics CXX)
 #   CentOS 7（glibc 2.17）⇒ `version 'GLIBC_2.34' not found` 跑不起来；ORIG 只要 ≤2.4。
 #   改用 game 同款 c6root 4.4.7 驱动 + --sysroot 链接（dnf_game_link.sh 本身通用）。
 #   c6root 4.4.7 不认 -no-pie（晚于 4.4），4.4 默认即非 PIE。
-if(decompile_verify)
+if(remake_verify)
     set(CMAKE_CXX_LINK_EXECUTABLE
         "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 endif()

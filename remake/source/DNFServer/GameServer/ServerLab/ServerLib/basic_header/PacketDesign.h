@@ -3,7 +3,17 @@
 
 #include <string.h>
 
+// DNF-FIX（只影响 OFF 路线）: memset 长度必须 ≤ 结构实际大小，否则写坏调用方栈
+// （实证 2026-09-18：PCK_AUCTION_REGIST_GA sz=0x16(22) > sizeof=0x12(18) → __stack_chk_fail）。
+#if !remake_verify
+#define DNF_PKT_CTOR_SIZE_ASSERT(sz) \
+    static_assert(sizeof(*this) >= (sz), "DNF: PACKET_CTOR_BODY memset 超出结构大小")
+#else
+#define DNF_PKT_CTOR_SIZE_ASSERT(sz)
+#endif
+
 #define PACKET_CTOR_BODY(cat, pid, sz) \
+    DNF_PKT_CTOR_SIZE_ASSERT(sz); \
     memset(this, 0, sz); \
     setCategory(cat); \
     setPacketID(pid); \

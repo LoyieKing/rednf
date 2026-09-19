@@ -45,4 +45,12 @@ int DbmwClient::exec()
         return -2;
     if (received == 2)
         return 1;
+#if !remake_verify
+    // [DNF-FIX 2026-09-19 · ud2 SIGILL] 仅 OFF 路线：ORIG 0x081213bc 在此是 `jmp 0x81213be`
+    //   （跳 0，直落 epilogue），该路径 %eax 仍是 DoReceive 的返回值（中间分支不改 eax）
+    //   ⇒ ORIG 事实行为 = `return received;`。GCC 13 对同一落底路径发 ud2 ⇒
+    //   DoReceive 返回 >=3 时立即 SIGILL（DB 中间层异常返回会崩频道）。
+    //   ON 分支文本保持原样（GCC 4.x 行为等价 ORIG）。
+    return received;
+#endif
 }

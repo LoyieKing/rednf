@@ -10,7 +10,7 @@
 //   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
 //     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
-// Rebuilt from df_auction_r (DWARF + Ghidra decompile), 2026-08-07
+// Rebuilt from df_auction_r (DWARF + Ghidra remake), 2026-08-07
 #include "LinuxService.h"
 
 #include <string>
@@ -30,12 +30,12 @@
 // (weak, out-of-line at -O0).  The c6root glibc defines
 // __CORRECT_ISO_CPP_STRING_H_PROTO so this overload is absent; reproduce the
 // original _ZSt6strstrPcPKc symbol.
-// decompile_verify=0（宿主 libstdc++）自带头文件里就有该重载 ⇒ 不能再定义，
+// remake_verify=0（宿主 libstdc++）自带头文件里就有该重载 ⇒ 不能再定义，
 // 否则 "conflicts with a previous declaration"，且调用点会二义。
 #include "Script.h"
 #include "TraceLog.h"
 
-#if decompile_verify
+#if remake_verify
 namespace std
 {
 char* strstr(char* __s1, const char* __s2) throw()

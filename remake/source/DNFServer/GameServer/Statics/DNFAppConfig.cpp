@@ -16,8 +16,14 @@ bool CAppConfig::Parse_Table(char* line, int idx)
     {
         return 0;
     }
-    char* tok0;
-    char* tok1;
+    #if remake_verify
+    tok0;
+    tok1;
+    #else
+    char* tok_arr[3] = {0};   // DNF-FIX: ExplodeString 会写 out[maxCount]，需要 maxCount + 1 个槽
+    char*& tok0 = tok_arr[0];
+    char*& tok1 = tok_arr[1];
+    #endif
     int n;  // 死局部：与 ORIG 栈布局对齐（tok 槽位 -0x14/-0x10）
     if (DNFFLib::ExplodeString(line, " \t\r\n\"", &tok0, 2) == 2)
     {

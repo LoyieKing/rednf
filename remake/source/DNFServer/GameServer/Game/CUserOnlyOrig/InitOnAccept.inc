@@ -69,6 +69,23 @@ int CUser::InitOnAccept(int socketFd)
         G_Cipher()->GetOriginalKey(origKey);
         int totalKeyLen = G_Cipher()->GetTotalKeyLength();
         packet.put_binary((char*)origKey, totalKeyLen);
+#if !remake_verify
+        {
+            char hxs[3 * 64 + 1];
+            hxs[0] = 0;
+            for (int q = 0; q < 64; ++q)
+            {
+                char b[4];
+                b[0] = "0123456789abcdef"[(origKey[q] >> 4) & 0xf];
+                b[1] = "0123456789abcdef"[origKey[q] & 0xf];
+                b[2] = ' ';
+                b[3] = 0;
+                for (int j = 0; j < 3; ++j) hxs[q * 3 + j] = b[j];
+            }
+            hxs[64 * 3] = 0;
+            cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)("[DNF-DIAG SENDKEY] totalKeyLen=%d key64=%s", totalKeyLen, hxs);
+        }
+#endif
 
         // [b28d-solo-CUserOnlyOrig P167 真形] ORIG 调用序（0x0864959x 段）：
         // GCE/gcn/strlen → put_int；GCE/gcn/strlen（**第二次**）→ GCE/gcn/put_str

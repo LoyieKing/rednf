@@ -35,7 +35,7 @@ int get_day_interval(struct tm* a, struct tm* b);
 // ---- packed 字段取数（新 GCC 拒绝把 packed 成员绑到 int&/unsigned int&） ----
 // ON 路线（GCC 4.x）展开为原始单语句，逐字节 identical 不变；
 // OFF 路线（宿主 GCC）改为「临时量中转」：读进临时量、成功后存回字段。
-#if decompile_verify
+#if remake_verify
 #define DNF_PACKED_GET_INT(idx, field)  if (!h->get_int(idx, field)) return 0
 #define DNF_PACKED_GET_UINT(idx, field) if (!h->get_uint(idx, field)) return 0
 #else

@@ -72,6 +72,13 @@ void CUser::reset()
     reset_ingame_event_history();
     reset_ingame_event_history_update();
     m_mercenaryMgr.m_characs.clear();
+#if !remake_verify
+    // [DNF-FIX-GAMEOPTION] CGameOption 构造只初始化 2 个标志位，其余字段是未初始化内存；
+    // 而 GAME_OPTION(notify 173) 会把整个结构体序列化给客户端 ⇒ 客户端解析到垃圾后
+    // 内部出错（右上角等级显示 16/211 之类的乱值、角色界面按钮全部失效）。
+    // 登录路径必经 reset()，此处整块清零，后续各字段再按原逻辑单独赋值。
+    std::memset(&m_gameOption, 0, sizeof(m_gameOption));
+#endif
     m_field6ef68 = 0;
     m_field6ef69 = 0xff;
     resetMoneyLog();

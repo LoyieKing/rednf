@@ -11,17 +11,17 @@
 #       [OUTPUT <binary name>])
 # 产物: $<BINARY_DIR>/<name>/df_<name>_r（若 OUTPUT 指定则用 OUTPUT）
 
-# decompile_verify=OFF 兼容层头（在函数外用定义期路径，避免 CMAKE_CURRENT_LIST_DIR
+# remake_verify=OFF 兼容层头（在函数外用定义期路径，避免 CMAKE_CURRENT_LIST_DIR
 # 在 function 体内解析成调用方目录）
 get_filename_component(_DNF_HELPERS_DIR "${CMAKE_CURRENT_LIST_DIR}" ABSOLUTE)
-set(DNF_COMPAT_HEADER "${_DNF_HELPERS_DIR}/../compat/decompile_verify_off.h")
+set(DNF_COMPAT_HEADER "${_DNF_HELPERS_DIR}/../compat/remake_verify_off.h")
 set(DNF_COMPAT_STAT_SRC "${_DNF_HELPERS_DIR}/../compat/dnf_compat_stat.cpp")
 
-# decompile_verify=OFF：4.x 工具链文件提前 return，不会定义 DF_* 路径变量，
+# remake_verify=OFF：4.x 工具链文件提前 return，不会定义 DF_* 路径变量，
 # 但各服务 CMakeLists 的 LIBS 仍会引用它们（如 ${DF_ZLIB32}/lib/libz.a）⇒
 # 这里按同一约定补齐，让引用落到真实路径；libstdc++/libgcc 由 OFF 分支的
 # LIBS 过滤器剔除（现代路线用宿主运行时）。
-if(NOT decompile_verify AND NOT DEFINED DF_C6ROOT)
+if(NOT remake_verify AND NOT DEFINED DF_C6ROOT)
     if(DEFINED ENV{DNF_TC_ROOT} AND NOT "$ENV{DNF_TC_ROOT}" STREQUAL "")
         set(DF_TC_ROOT "$ENV{DNF_TC_ROOT}")
     elseif(DEFINED DNF_TOOLCHAINS)
@@ -42,8 +42,8 @@ endif()
 
 function(dnf_service NAME)
     cmake_parse_arguments(ARG "" "OUTPUT;ARCH" "SOURCES;INCLUDES;DEFINES;SRC_OPTS;LIBS;LINK_FLAGS" ${ARGN})
-    if(NOT DEFINED decompile_verify)
-        set(decompile_verify OFF)
+    if(NOT DEFINED remake_verify)
+        set(remake_verify OFF)
     endif()
     if(NOT ARG_OUTPUT)
         set(ARG_OUTPUT "df_${NAME}_r")
@@ -52,8 +52,8 @@ function(dnf_service NAME)
         set(ARG_ARCH 32)
     endif()
 
-    if(NOT decompile_verify)
-        # ---- decompile_verify=OFF：宿主最新 LTS GCC + 兼容层（语义等价）----
+    if(NOT remake_verify)
+        # ---- remake_verify=OFF：宿主最新 LTS GCC + 兼容层（语义等价）----
         # 不使用 4.x 工具链头、不加 -nostdinc、不做逐 TU 后端分发；
         # 兼容层由 -include 注入（register/旧标准库可见性/函数对象基类等）。
         # _GLIBCXX_USE_CXX11_ABI=0：恢复旧 libstdc++ 的对象布局（32 位下
@@ -61,7 +61,7 @@ function(dnf_service NAME)
         #   否则新 ABI 的 std::string=24 会把所有按 ORIG 偏移定义的类布局顶掉。
         set(COMMON_FLAGS
             -O0 -std=gnu++14 -fpermissive -w
-            -Ddecompile_verify=0
+            -Dremake_verify=0
             -D_GLIBCXX_USE_CXX11_ABI=0
             -include ${DNF_COMPAT_HEADER}
         )
@@ -82,6 +82,10 @@ function(dnf_service NAME)
         endif()
         # __xstat/__fxstat/__lxstat 族静态实现（老静态库引用、部分新 libc 已移除）
         list(APPEND ARG_SOURCES ${DNF_COMPAT_STAT_SRC})
+        # 可选：AddressSanitizer（仅 OFF 路线排查内存越界用；-DDNF_ASAN=ON 打开）
+        if(DNF_ASAN)
+            list(APPEND COMMON_FLAGS -fsanitize=address -static-libasan -fno-omit-frame-pointer -g)
+        endif()
         add_executable(${NAME} ${ARG_SOURCES})
         set_target_properties(${NAME} PROPERTIES
             OUTPUT_NAME "${ARG_OUTPUT}"
@@ -137,6 +141,9 @@ function(dnf_service NAME)
         if(ARG_ARCH STREQUAL "32")
             list(APPEND _dnf_link_opts -m32)
         endif()
+        if(DNF_ASAN)
+            list(APPEND _dnf_link_opts -fsanitize=address -static-libasan)
+        endif()
         # 历史服务把动态库（-lGeoIP 等）写在 LINK_FLAGS 里 ⇒ CMake 会把它排在
         # 目标文件之前；宿主 g++ 默认 --as-needed 会在此时把"还没被引用"的库丢掉
         # （实测 game 的 GeoIP 未定义引用）。旧 4.4 驱动无此默认，故这里关掉。
@@ -146,7 +153,7 @@ function(dnf_service NAME)
     endif()
 
     set(COMMON_FLAGS
-        -O0 -fno-enforce-eh-specs -nostdinc -std=gnu++0x -Ddecompile_verify=1
+        -O0 -fno-enforce-eh-specs -nostdinc -std=gnu++0x -Dremake_verify=1
         # 注意：必须用 -isystem<path> 连接形式（单 token）——CMake 的
         # target_compile_options 会把重复的独立 "-isystem <path>" 参数吞掉，
         # 只保留第一个（GCC 4.4.7 实测已验证连接形式可用）。

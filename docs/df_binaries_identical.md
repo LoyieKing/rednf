@@ -2,7 +2,7 @@
 
 > 生成时间：**2026-09-14**
 > 对照：`dnf_installer/build/dnf_data/home/template/` 下 ORIG ELF
-> 重建：`dnf_decompile/build/<svc>/df_<svc>_r`
+> 重建：`dnf_remake/build/<svc>/df_<svc>_r`
 >
 > **最新复测见 §1.1（2026-09-17）** —— 六服务权威口径合计 **122**（与 09-15 记录一致），
 > 13 服务清单口径 **141**，game **36090 identical / 348 非 identical**。
@@ -327,7 +327,7 @@ python3 source/toolchain/compare_svc_full.py all
 |---|---|---|
 | `cc1plus412bin` + `dnf_c412_gxx.sh` | CentOS 5.8 `gcc-c++-4.1.2-52.el5`（**ORIG .comment 中的精确版本**） | 实测无收益，未接入路由 |
 | `cc1plus447ub`（已删） | upstream GCC 4.4.7 源码构建 | 实测严重劣化，路径封闭 |
-| 重建 4.4.7（已删） | 官方 4.4.7 源码 + RHEL 6.4 SRPM 补丁集（剔除 4.4.7-2/-3 changelog 所列新增补丁） | 用于下述判别实验 |
+| 重建 4.4.7（已删） | 考古的失传老版本 4.4.7 源码 + RHEL 6.4 SRPM 补丁集（剔除 4.4.7-2/-3 changelog 所列新增补丁） | 用于下述判别实验 |
 
 **判别实验（决定性）**：重建 4.4.7 后端与 4.4.6-3 差异极大
 （statics identical 1101 → **658**、非identical 14 → **372**，证明它是不同的代码生成器），
@@ -1446,7 +1446,7 @@ dbmw `QuerySubGuildMaster` · `CMySql::blob_to_str`(STRICT) · `OnChangeUnconnec
 
 ### 5.22 2026-09-15 第二十~三十六轮（solo，无 subagent）：六条筛查线 + 两条新方法论
 
-#### A. 水位（官方口径 `compare_svc_full`，六服务全量重建核账）
+#### A. 水位（考古的失传老版本口径 `compare_svc_full`，六服务全量重建核账）
 
 | 服务 | identical | 非identical | 对标 ≤9 |
 |---|---|---|---|

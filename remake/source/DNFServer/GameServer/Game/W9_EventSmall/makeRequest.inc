@@ -18,4 +18,7 @@ bool DB_LoadAutoMarketConditionsControl::makeRequest(bool flag)
     //   直接进 epilogue（`lea -0x10; call CStreamGuard::~CStreamGuard; add $0x30;
     //   pop ebx/esi/ebp; ret`），**无** `mov $0x1,%ebx` / `mov %ebx,%eax` 返回值
     //   物化 ⇒ ORIG 源码无 return 语句（返回寄存器内容未定义）。删发明 `return true;`。
+#if !remake_verify
+    return 1;   // DNF-FIX: 非 void 函数落底 —— g++ 13 在此发 ud2（ORIG 的 GCC 4.x 只是返回残留 eax）
+#endif
 }

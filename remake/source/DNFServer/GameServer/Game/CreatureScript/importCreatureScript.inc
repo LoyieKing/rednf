@@ -606,7 +606,7 @@ bool importCreatureScript(CreatureScript* script, const char* path)
                                 // ORIG 0x8a37ad4：find==end 才 insert（弱实例
                                 // 0x8a40b38/b0c/b5e/b72/d2c/d66 序列）。
                                 if (script->m_skillList.find(key) == script->m_skillList.end())
-#if decompile_verify
+#if remake_verify
                                     script->m_skillList.insert(
                                         std::make_pair<int, CreatureScriptSkillInfo>(key, info));
 #else
@@ -617,7 +617,7 @@ bool importCreatureScript(CreatureScript* script, const char* path)
                             else
                             {
                                 if (script->m_overSkillList.find(key) == script->m_overSkillList.end())
-#if decompile_verify
+#if remake_verify
                                     script->m_overSkillList.insert(
                                         std::make_pair<int, CreatureScriptSkillInfo>(key, info));
 #else

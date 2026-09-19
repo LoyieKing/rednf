@@ -3948,6 +3948,17 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
         else
         {
             CTcpGameServer* tgs = m_pclApp->FindTcpGameServer(pb->m_connNo);
+#if !remake_verify
+            // DNF-FIX: 对端重启后可能收到未知 connNo 的 Logout 内包，此时 tgs == 0，
+            // ORIG 会直接解引用（实测 core：崩在 CTcpGameServer::GetChannelNo）。
+            if (tgs == 0)
+            {
+                DNF_LOG_SCOPE_LINE(0x14b2, "./log/Except",
+                    "CPacketTranslater::OnInnerPacketLogout : tgs == 0 (connNo=%d)",
+                    (int)pb->m_connNo);
+                return;
+            }
+#endif
             m_pclApp->OnTcpGameServerDown(tgs);
             unsigned char ch = tgs->GetChannelNo();
             if (ch != 0)

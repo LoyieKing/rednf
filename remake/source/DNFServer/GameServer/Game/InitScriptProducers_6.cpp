@@ -496,7 +496,7 @@ typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
                         // （按值实例化）+ value_type 转换 ctor 两级临时。
                         out->m_coinMap.insert(
                             std::map<int, DimensionCoinInfo>::value_type(
-#if decompile_verify
+#if remake_verify
                                 std::make_pair<int, DimensionCoinInfo>(
                                     coinType, coinInfo)));
 #else
@@ -678,7 +678,7 @@ typedef std::map<const char*, int, less_TCHAR> GrowTypeMap;
                                         std::map<std::pair<int, int>,
                                             std::vector<std::vector<EventRewardItemInfo> >
                                         >::value_type(
-#if decompile_verify
+#if remake_verify
                                             std::make_pair<std::pair<int, int>,
                                                 std::vector<
                                                     std::vector<EventRewardItemInfo> >

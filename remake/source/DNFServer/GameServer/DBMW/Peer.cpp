@@ -80,6 +80,9 @@ void CPeer::ConnSig()
         unsigned short reversed1;
     } __attribute__((packed));
     PktLocal pkt;
+#if !remake_verify
+    char pkt_slack_[12];   // DNF-FIX: PacketHeader ctor 写满 10 字节（ORIG 里尾部 4 字节越界到 fd 槽），显式留出余量
+#endif
     _ZN24Packet_InnerPakcet_LoginC1Ev(&pkt);
     int fd = getHandle();
     CTcpRecvBuffer* buf;
@@ -101,6 +104,9 @@ void CPeer::DisConnSig()
         unsigned short reversed1;
     } __attribute__((packed));
     PktLocal pkt;
+#if !remake_verify
+    char pkt_slack_[12];   // DNF-FIX: PacketHeader ctor 写满 10 字节（ORIG 里尾部 4 字节越界到 fd 槽），显式留出余量
+#endif
     _ZN25Packet_InnerPakcet_LogoutC1Ev(&pkt);
     int fd = getHandle();
     CTcpRecvBuffer* buf;

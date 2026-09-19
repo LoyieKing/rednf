@@ -5213,7 +5213,7 @@ void CPacketTranslater::onSocialEventRewardItemResponse(PacketHeader* pkt)
         unsigned int i = 0;
         while (i < rpkt->m_count && i < 0x1e)
         {
-#if decompile_verify
+#if remake_verify
             m_pclApp->getLimitNpcBuyItemManager()->registItem(
                 rpkt->m_items[i]);
 #else

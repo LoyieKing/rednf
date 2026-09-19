@@ -6,7 +6,7 @@ project(dbmw CXX)
 # 口径与原脚本完全一致（源顺序/按文件 flags/include/链接），参见 manager 说明。
 # 注意：mysqlclient 与 manager 共用 build/manager/mysqlclient（原脚本如此）。
 # ============================================================
-if(decompile_verify)
+if(remake_verify)
     set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/link_dbmw.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 endif()
 

@@ -898,7 +898,7 @@ static yyconst yy_state_type yy_NUL_trans[56] =
 #define yymore() yymore_used_but_not_detected
 #define YY_MORE_ADJ 0
 #define YY_RESTORE_YY_MORE_OFFSET
-#line 1 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 1 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 /* ==========================================================================
  * dnf_script.l — DNFLex / __dnf_script__FlexLexer
  * flex 2.5.35  -+ -C -P__dnf_script__
@@ -908,7 +908,7 @@ static yyconst yy_state_type yy_NUL_trans[56] =
  * ========================================================================== */
 #define YY_NO_UNISTD_H 1
 
-#line 14 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 14 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 #define YY_NO_UNISTD_H 1
 #ifndef yyFlexLexer
 #define yyFlexLexer __dnf_script__FlexLexer
@@ -1021,7 +1021,7 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
     
-#line 23 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 23 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 
 
 #line 1017 "/tmp/grok-goal-7c1153ba5fb7/implementer/dnf_engine.gen.cpp"
@@ -1117,84 +1117,84 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 25 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 25 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { return DNF_TOK_DECIMAL; }
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 26 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 26 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { return DNF_TOK_HEXADECIMAL; }
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 27 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 27 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { return DNF_TOK_FLOAT; }
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 28 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 28 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { return DNF_TOK_INCLUDE; }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 29 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 29 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { return DNF_TOK_TYPE; }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 30 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 30 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { return DNF_TOK_CONNECTOR; }
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 31 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 31 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { return DNF_TOK_CUSTOM_DATA; }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 32 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 32 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { return DNF_TOK_PAIR_INT; }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 33 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 33 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { return DNF_TOK_PAIR_STR; }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 35 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 35 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { yy_start = 3; }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 36 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 36 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { yy_start = 1; }
 	YY_BREAK
 case 12:
 /* rule 12 can match eol */
 YY_RULE_SETUP
-#line 37 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 37 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 39 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 39 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { yy_start = 5; }
 	YY_BREAK
 case 14:
 /* rule 14 can match eol */
 YY_RULE_SETUP
-#line 40 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 40 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { yy_start = 1; }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 41 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 41 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 43 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 43 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 {
 					is_dbcs_ = false;
 					yy_start = 7;
@@ -1204,7 +1204,7 @@ YY_RULE_SETUP
 case 17:
 /* rule 17 can match eol */
 YY_RULE_SETUP
-#line 48 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 48 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 {
 					if (is_dbcs_)
 					{
@@ -1248,12 +1248,12 @@ YY_RULE_SETUP
 case 18:
 /* rule 18 can match eol */
 YY_RULE_SETUP
-#line 88 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 88 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 { }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 90 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 90 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 {
 					if (IsStream())
 					{
@@ -1273,7 +1273,7 @@ YY_RULE_SETUP
 				}
 	YY_BREAK
 case YY_STATE_EOF(C1):
-#line 108 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 108 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 {
 					memcpy(errBuf, "comment nest mismatch", 0x16);
 					LexerError(errBuf);
@@ -1282,7 +1282,7 @@ case YY_STATE_EOF(C1):
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 114 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 114 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 ECHO;
 	YY_BREAK
 #line 1278 "/tmp/grok-goal-7c1153ba5fb7/implementer/dnf_engine.gen.cpp"
@@ -2178,7 +2178,7 @@ void __dnf_script__free (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 114 "/home/wangyilei/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Game/dnf_script.l"
+#line 114 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/dnf_script.l"
 
 
 

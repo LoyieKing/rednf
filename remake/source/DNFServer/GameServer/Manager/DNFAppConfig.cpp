@@ -26,7 +26,11 @@ bool CAppConfig::Parse_Table(char* data, int size)
 {
     if (data[0] == '#')
         return 0;
+    #if remake_verify
     char* fields[2];
+    #else
+    char* fields[3];   // DNF-FIX: ExplodeString 会写 out[maxCount]，需要 maxCount + 1 个槽
+    #endif
     int n;  // ORIG 布局：额外槽位（fields 落在 -0x14）
     if (DNFFLib::ExplodeString(data, " \t\r\n\"", fields, 2) == 2)
     {

@@ -25,7 +25,7 @@ public:
                               //    CUser::increase_status（0x8666699，回 0xd2）经
                               //    GuildParameterScript::getGuildLevelUpParam(level)->+4 读取的
                               //    公会升级经验阈值，与 guild 侧 CGuildManager::m_ExpTable[17]
-                              //    （默认 0x546/0x131e/0x2f76 = 官方表 2/3/4 级升级所需经验
+                              //    （默认 0x546/0x131e/0x2f76 = 考古的失传老版本表 2/3/4 级升级所需经验
                               //    1350/4894/12150）同构；接收端 OnGuildExpLimit 为 stub。
                               //    每记录 +0 dword（+0xa4/+0xe4 等）由 importGuildParameterScript
                               //    装载但 df_game_r 全二进制无读取点，无语义证据，未纳入包体）

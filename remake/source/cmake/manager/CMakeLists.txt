@@ -20,7 +20,7 @@ project(manager CXX)
 #   ORIG 只要 GLIBC_2.4。改用 game 同款的 c6root 4.4.7 驱动 + --sysroot 链接脚本
 #   （dnf_game_link.sh 本身是通用 32 位 c6root 链接驱动，非 game 专属）。
 #   注意：c6root 4.4.7 的 g++ 不认 `-no-pie`（晚于 4.4），4.4 默认即非 PIE ⇒ 已从 LINK_FLAGS 去掉。
-if(decompile_verify)
+if(remake_verify)
     set(CMAKE_CXX_LINK_EXECUTABLE
         "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 endif()

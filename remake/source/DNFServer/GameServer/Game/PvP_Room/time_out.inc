@@ -10,7 +10,7 @@ int PvP_Room::time_out(int* seats)
     //  - end_time 日志 3 实参 4.1 以 callee-saved 缓存（push 对），4.4 逐槽
     //    reload（+4 mov）。lock()/unlock() 调用点、模式分派、do-while 比较
     //    （jl/jle 方向）已逐段核对无语义缺口。
-    // [b28d-t3-PoolBigThree] **148→84**（本轮起点 148=官方 s408 现值；台账 330 为
+    // [b28d-t3-PoolBigThree] **148→84**（本轮起点 148=考古的失传老版本 s408 现值；台账 330 为
     // b28d 期快照）三修：①模式分派 if 链→**switch((int)mode)**（ORIG 0x085d9b81
     // `cmp $1; jl; cmp $2; jle; sub $4; cmp $1; ja` 有符号直跳链实证，(int) 收窄复现
     // jl/jle 非 jb/jbe）；②日志条件 `(x!=y)&&(x-y>=0)` 双条件→ `local_44 > local_48`

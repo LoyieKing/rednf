@@ -1,5 +1,5 @@
 /* ============================================================================
- * __xstat/__fxstat/__lxstat 族兼容实现（decompile_verify=OFF 专用）
+ * __xstat/__fxstat/__lxstat 族兼容实现（remake_verify=OFF 专用）
  *
  * 上游：https://github.com/llnut/dnf-compat-layer 的 glibc-compat stat 钩子。
  * 背景：本工程链接的 4.x 时代静态库（MySQL Connector/C、yaSSL 等）按老 glibc
@@ -22,6 +22,12 @@
 #include <fcntl.h>
 
 #include "dnf_shm_compat.h"
+
+/* i386 的 glibc（2.41 实测）至今仍导出 __xstat / __fxstat / __lxstat / __fxstatat 全族，
+   这里再静态定义会把 libc 的实现顶掉：本文件的转发目标 stat()/lstat()/fstat() 在 i386 上
+   就是同名兼容入口，会经 PLT 回跳到本文件的 __xstat ⇒ 自递归 + 栈溢出 SIGSEGV。
+   需要这层的只有 x86_64（glibc 2.33 起移除了__xstat 族）。 */
+#if defined(__x86_64__)
 
 namespace {
 
@@ -87,3 +93,4 @@ extern "C" int __fxstatat64(int ver, int dirfd, const char* path,
     char p[DNF_SHM_PATH_MAX];
     return ::fstatat64(dirfd, dnf_path(path, p), buf, flags);
 }
+#endif  /* __x86_64__ */

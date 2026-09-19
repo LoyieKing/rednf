@@ -14,22 +14,22 @@ cmake --build build -j              # 三方静态库 + 14 个服务
 cmake --build build --target game   # 单个服务
 
 # 逐字节 identical 验证路线（GCC 4.x 工具链）需显式打开：
-cmake -S source -B build -Ddecompile_verify=ON
+cmake -S source -B build -Dremake_verify=ON
 ```
 
-## decompile_verify：构建路线开关（默认 OFF）
+## remake_verify：构建路线开关（默认 OFF）
 
 | 取值 | 编译路线 | 产物 |
 |---|---|---|
 | `OFF`（默认） | 宿主最新 LTS GCC（本机 g++ 13.3），`-std=gnu++14 -fpermissive`，不加载 4.x 工具链 | 语义等价、可直接运行；**不保证**逐字节一致 |
 | `ON` | GCC 4.x 工具链（c5/c6/c6446r/c6444r + 逐 TU 分发），`-nostdinc` + 显式历史头集 | 与 ORIG **逐字节 identical**（14/14 服务的验收口径） |
 
-> 切换取值需用**干净构建目录**（或在同一目录显式改 `-Ddecompile_verify=`：顶层会按
+> 切换取值需用**干净构建目录**（或在同一目录显式改 `-Dremake_verify=`：顶层会按
 > `flags.make` 实况检测编译器错配并自动重置对应服务的子构建目录）。
 
-两种模式都会向源码暴露编译宏 `decompile_verify`（1/0），可写 `#if decompile_verify`。
+两种模式都会向源码暴露编译宏 `remake_verify`（1/0），可写 `#if remake_verify`。
 `OFF` 时由 `dnf_helpers.cmake` 以 `-include` 注入兼容层
-`source/toolchain/compat/decompile_verify_off.h`，修正新版 GCC 不再支持的语法/ABI：
+`source/toolchain/compat/remake_verify_off.h`，修正新版 GCC 不再支持的语法/ABI：
 
 - `register` 存储类（C++17 移除）→ 展开为空；
 - 旧标准库的传递性包含（`<cstdio>`/`<map>`/`<pthread.h>` 等）→ 统一补齐；
@@ -42,11 +42,11 @@ cmake -S source -B build -Ddecompile_verify=ON
   https://github.com/llnut/dnf-compat-layer 是运行期 LD_PRELOAD 修老二进制，
   本工程在源码层等价实现，OFF 产物不依赖任何 preload：
   · `dnf_shm_compat.h`：shm 名/`/dev/shm` 多级路径扁平化（`/dev/shm/a/b → /dev/shm/a_b`）；
-  · `decompile_verify_off.h` 宏覆盖 `shm_open`/`shm_unlink`/`mkdir`/`mkdirat`
+  · `remake_verify_off.h` 宏覆盖 `shm_open`/`shm_unlink`/`mkdir`/`mkdirat`
     （其余路径家族以 `dnf_compat_*` 函数提供，避免误伤 `m_sock.open()` 这类成员调用）；
   · `dnf_compat_stat.cpp`：静态定义 `__xstat/__fxstat/__lxstat(+64/+at)` 族
     （老静态库引用、部分新发行版 libc 已移除的旧入口），按现代 `stat64` 转发；
-- 逐服务适配点一律用 `#if decompile_verify` 收口（`ON` 分支文本不变 ⇒ 产物零变化）：
+- 逐服务适配点一律用 `#if remake_verify` 收口（`ON` 分支文本不变 ⇒ 产物零变化）：
   4.1/4.4 头里 `std::strstr/strrchr` 的 out-of-line 重载、显式模板实参 `make_pair`
   的左值绑定、packed 成员绑非 const 引用、`<cstdatomic>`/`<bits/atomic_0.h>`、
   含 `std::map` 成员的 ORIG 布局 `static_assert` 等。
@@ -92,7 +92,7 @@ cmake --build build/<svc> -j
 
 ## 依赖
 - GCC 4.x 工具链根：`$DNF_TC_ROOT`（community 的 CMakeLists 缺省自举为仓库内
-  `dnf_decompile/toolchains/`；其余服务需显式传或经 `cmake_build_all.sh` 设置），
+  `dnf_remake/toolchains/`；其余服务需显式传或经 `cmake_build_all.sh` 设置），
   从零搭建见 `docs/toolchain_bootstrap.md`。
 - 共享模块：`source/toolchain/cmake/dnf_toolchain_44.cmake`、`dnf_helpers.cmake`、
   `dnf_c{5,6,6446r}_gxx.sh`（编译器包装）。

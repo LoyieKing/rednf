@@ -12,4 +12,7 @@ int DoUserDefineCommand(CUser* user, int cmd, const char* arg)
         GlobalData::s_GameMasterMgr->HandleRequest(command);     // ORIG 0x820bb2b
     }
     // ORIG 尾 ret 无 eax 写（返回值未定义，调用方不使用）——不写 return。
+#if !remake_verify
+    return 0;   // DNF-FIX: 非 void 函数落底 —— g++ 13 在此发 ud2（ORIG 的 GCC 4.x 只是返回残留 eax）
+#endif
 }
