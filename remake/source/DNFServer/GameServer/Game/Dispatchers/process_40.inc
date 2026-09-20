@@ -26,15 +26,7 @@ int Dispatcher_BossDieCheck::process(CUser* user, MSG_BASE& msg, ParamBase& para
     //   而 .h 把该类放进 #pragma pack(1) ⇒ 成员落 +0x12（读成 m_field10+pad 两字节），
     //   属真错位（.h 修正待父泳道裁决，见 report.md）。read_43 侧早已用 pReq 裸偏移 +0x14 规避；
     //   此处用**局部非 packed 视图**（同字段名 + 同 ORIG 偏移），既修语义又保 disp 形。
-    struct BossDieCheckMsgView
-    {
-        char m_head[0xd];          // MSG_BASE 头
-        char m_gap0d;              // +0x0d
-        unsigned short m_field0e;  // +0x0e
-        unsigned short m_field10;  // +0x10
-        int m_skillCheckSum;       // +0x14（4 对齐 ⇒ 自动 pad2）
-    };
-    BossDieCheckMsgView& req = reinterpret_cast<BossDieCheckMsgView&>(msg);   // -0x20
+    MSG_BOSS_DIE_CHECK& req = reinterpret_cast<MSG_BOSS_DIE_CHECK&>(msg);
     if (user->getCurCharacSkillCheckSum() != req.m_skillCheckSum)
 
     {

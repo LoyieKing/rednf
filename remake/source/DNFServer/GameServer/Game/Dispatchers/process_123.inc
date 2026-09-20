@@ -18,28 +18,9 @@ int Dispatcher_Mercenary_Return::process(CUser* user, MSG_BASE& msg, ParamBase& 
     //   ORIG 尾 `mov $0x0,%eax; leave; ret`（我方曾多 push %ebx，随具名指针一并消除）。
     MsgMercenaryReturn& req = reinterpret_cast<MsgMercenaryReturn&>(msg);
     SendMercenaryReturnResult& result = static_cast<SendMercenaryReturnResult&>(param);
-    struct MercView          // MsgMercenaryReturn 视图：m_field10@+0x10（0xd+1+2=16 已 4 对齐）
-    {
-        char m_head[0xd];
-        char m_field0d;          // +0x0d byte
-        char m_pad0e[2];         // +0x0e..+0x0f
-        unsigned int m_field10;  // +0x10
-    };
-    struct SendResultView    // SendMercenaryReturnResult 视图（pack(1)，+0x0c 起为 m_result）
-    {
-        int m_00;
-        char m_04;
-        char m_05;
-        char m_pad06[2];
-        unsigned int m_08;
-    };
-    // 实参右→左（ORIG 0x081dd9d7 先 `lea 0xc(%eax),%edx` 取 m_result、再读 msg+0x10）
-    reinterpret_cast<SendResultView*>(&result)->m_04 = static_cast<char>(
-        user->Return_Mercenary_Charac(reinterpret_cast<MercView*>(&req)->m_field10,
-                                      result.m_result));
-    reinterpret_cast<SendResultView*>(&result)->m_05 =
-        reinterpret_cast<MercView*>(&req)->m_field0d;      // +0x05 char 回显(msg+0xd)
-    reinterpret_cast<SendResultView*>(&result)->m_08 =
-        reinterpret_cast<MercView*>(&req)->m_field10;      // +0x08 int = msg+0x10
+    result.m_04 = static_cast<char>(
+        user->Return_Mercenary_Charac(req.m_field10, result.m_result));
+    result.m_05 = req.m_field0d;
+    result.m_08 = req.m_field10;
     return 0;
 }

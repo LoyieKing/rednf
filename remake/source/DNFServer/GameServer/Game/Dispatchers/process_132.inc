@@ -47,7 +47,8 @@ int Dispatcher_RequestJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& 
     // [G3 负结论 2026-09-11] ORIG 0x081d4ea7/0x081d4f34 为就地形 `mov -0xc(%ebp),%eax;
     //   add $0x11,%eax`；试写 `(char*)&m + 0x11`（及 +0x2c）后 fresh 复编读数**逐值不变**
     //   （仍 88/89，仍 `lea 0x11(%eax),%edx`）⇒ 4.4 恒折 lea→新寄存器（N-注册表死区）。
-    strncpy(sigBuf.view.m_guildName, (char*)&m + 0x11, 0x16);             // 0x081d4ea7
+    MSG_REQUEST_JOIN_GUILD& req = *reinterpret_cast<MSG_REQUEST_JOIN_GUILD*>(&m);
+    strncpy(sigBuf.view.m_guildName, req.m_guildName, 0x16);
     sigBuf.view.m_characNo = (unsigned int)user->getCurCharacNo();        // 0x081d4ecf
     sigBuf.view.m_id = (unsigned int)user->get_acc_id();                  // 0x081d4edd
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
@@ -56,14 +57,11 @@ int Dispatcher_RequestJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& 
     }
     else
     {
-        // 0x081d4f01 `call G_CEnvironment; mov 0x378(%eax),%eax`（m_serverEnvir.m_serverGroup）
-        // 裸 char* +0x378 产 add+mov 两条 ⇒ TU 局部视图（disp 折叠）
-        struct RjgEnvView { char m_pad[0x378]; unsigned int m_group; };
         sigBuf.view.m_serverGroup =
-            reinterpret_cast<RjgEnvView*>(G_CEnvironment())->m_group;
+            static_cast<unsigned int>(G_CEnvironment()->m_serverEnvir.m_serverGroup);
     }
     memcpy(sigBuf.view.m_bornYear, user->GetSsnString(), 2);             // 0x081d4f26
-    strncpy(sigBuf.view.m_memo, (char*)&m + 0x2c, 0x19);                 // 0x081d4f46
+    strncpy(sigBuf.view.m_memo, req.m_memo, 0x19);
 
     DB_RequestJoinGuild::makeRequest(user->GetUID(), &sigBuf.sig);      // 0x081d4f5f
     return 0;

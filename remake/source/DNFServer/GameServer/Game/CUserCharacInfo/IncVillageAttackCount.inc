@@ -2,7 +2,7 @@ void CUserCharacInfo::IncVillageAttackCount()
 {
     if (m_selected)
     {
-        ++CUR->m_revengeCount;
-        CUR->m_villageAttackDBUpdate = 1;
+        ++m_selected->m_field1242;
+        m_selected->m_field1244 = 1;
     }
 }

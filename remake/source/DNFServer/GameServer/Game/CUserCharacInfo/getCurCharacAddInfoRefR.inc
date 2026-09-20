@@ -1,4 +1,4 @@
 const void* CUserCharacInfo::getCurCharacAddInfoRefR() const
 {
-    return (const void*)&CUR->m_addInfo;
+    return (const void*)&m_selected->m_additioalInfo;
 }

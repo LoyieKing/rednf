@@ -1,4 +1,4 @@
 long CUserCharacInfo::getCurCharacLastPlayTick() const
 {
-    return CUR->m_lastPlayTick;
+    return m_selected->m_field7b;
 }

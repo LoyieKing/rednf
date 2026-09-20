@@ -161,8 +161,8 @@ struct SigMailboxSendNewMailView
         ((const SigMailboxSendNewMailView*)sigRaw)->m_fieldd,
         // blob_to_str 按 ORIG +0x3a/+0x47 裸偏移（byte-blob 读 10/0xe 字节，非自然宽度
         // 字段；&view->m_field15/25 的 int 类型与读长不配会产生地址物化差异）。
-        db->blob_to_str(0, (void*)((char*)sigRaw + 0x3a), 10),
-        db->blob_to_str(1, (void*)((char*)sigRaw + 0x47), 0xe),
+        db->blob_to_str(0, (void*)&sigRaw->m_guid, 10),
+        db->blob_to_str(1, (void*)&sigRaw->m_rand, 0xe),
         ((const SigMailboxSendNewMailView*)sigRaw)->m_upgradeSep,
         ((const SigMailboxSendNewMailView*)sigRaw)->m_cashShopFlag);
     return db->exec(true);

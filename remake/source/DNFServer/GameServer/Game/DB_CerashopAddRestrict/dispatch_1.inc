@@ -33,11 +33,11 @@ bool DB_LoadCerashopAddRestrictType::dispatch(int /*param1*/, int param2,
         guard.operator*()->operator<<(param2);
         SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE* sig =
             guard.operator->()->GetInBuffer<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE>();
-        *(int*)sig = nRows;               // +0x00 count
+        sig->m_count = (unsigned int)nRows;
         // [P6S6 2026-09-11 复核·仍 N] 试 `((int*)sig)[1] = 0;`（期望 disp 折叠
         //   `movl $0x0,0x4(%eax)`）实测我方仍 `add $0x4,%eax; movl $0x0,(%eax)`，
         //   读数恒 358/354 ⇒ 4.4 对 int* 索引 cast 不折叠（N82 族）⇒ 回滚原形。
-        *(int*)((char*)sig + 4) = 0;      // +0x04 type = account
+        sig->m_type = 0;
         for (int i = 0; i < nRows; ++i) {
             if (!db->fetch())
                 return false;
@@ -47,13 +47,13 @@ bool DB_LoadCerashopAddRestrictType::dispatch(int /*param1*/, int param2,
             //   difflib 块 22→25（4.4 对后置自增实参多 8 条）⇒ 回滚维持常量形
             //   （语义等价：两侧都传 0/1/2 列号）。
             int col = 1;   // -0x18 列号推进（0 基）
-            if (!db->get_int(0, *(unsigned int*)((char*)sig + 8 + i * 0xc)))
+            if (!db->get_int(0, sig->m_items[i].m_ipgNo))
                 return false;
             col = 2;
-            if (!db->get_int(1, *(unsigned int*)((char*)sig + 0xc + i * 0xc)))
+            if (!db->get_int(1, sig->m_items[i].m_count))
                 return false;
             col = 3;
-            if (!db->get_int(2, *(unsigned int*)((char*)sig + 0x10 + i * 0xc)))
+            if (!db->get_int(2, sig->m_items[i].m_nextDate))
                 return false;
         }
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
@@ -78,19 +78,19 @@ bool DB_LoadCerashopAddRestrictType::dispatch(int /*param1*/, int param2,
         guard.operator*()->operator<<(param2);
         SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE* sig =
             guard.operator->()->GetInBuffer<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE>();
-        *(int*)sig = nRows;               // +0x00 count
-        *(int*)((char*)sig + 4) = 1;      // +0x04 type = charac
+        sig->m_count = (unsigned int)nRows;
+        sig->m_type = 1;
         for (int i = 0; i < nRows; ++i) {
             if (!db2->fetch())
                 return false;
             int col = 1;
-            if (!db2->get_int(0, *(unsigned int*)((char*)sig + 8 + i * 0xc)))
+            if (!db2->get_int(0, sig->m_items[i].m_ipgNo))
                 return false;
             col = 2;
-            if (!db2->get_int(1, *(unsigned int*)((char*)sig + 0xc + i * 0xc)))
+            if (!db2->get_int(1, sig->m_items[i].m_count))
                 return false;
             col = 3;
-            if (!db2->get_int(2, *(unsigned int*)((char*)sig + 0x10 + i * 0xc)))
+            if (!db2->get_int(2, sig->m_items[i].m_nextDate))
                 return false;
         }
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);

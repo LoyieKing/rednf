@@ -18,6 +18,7 @@ void CUser::LogHistory(const char* fmt, ...)
     strcpy(accIdBuf, NumberToString(get_acc_id(), 7));
     va_list ap;
     char buf[1024];
+    char peerIp[0x10];
     sprintf(buf,
         "\"%s\",%s,%c,%02d%02d%02d,\"%s\",%d,%d,%d,%d,%s,%s,%d,%d, ",
         m_accName, NumberToString(get_acc_id(), 0), typeFlag,
@@ -28,7 +29,7 @@ void CUser::LogHistory(const char* fmt, ...)
         getCurCharacNo(), get_charac_level(), get_charac_job(),
         (int)getCurCharFirstGrowType(),
         getWebAddress(),
-        m_network.GetPeerIP2(reinterpret_cast<char*>(this) + 0x6eef0, 0x10),
+        m_network.GetPeerIP2(peerIp, 0x10),
         (int)m_network.get_port(),
         G_CEnvironment()->m_serverEnvir.m_channelNo);
     va_start(ap, fmt);

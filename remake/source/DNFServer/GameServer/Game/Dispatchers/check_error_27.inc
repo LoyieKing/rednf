@@ -50,9 +50,7 @@ int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
     {
         return 0xe;
     }
-    if (!reinterpret_cast<SkillSlot*>(reinterpret_cast<CharacInfoFields*>(
-             &user->m_characList[(char)m.m_0d])->m_skill)
-             ->IsLoadStrikerSkill())                                        // +0x892
+    if (!user->m_characList[(char)m.m_0d].m_skillSlot.IsLoadStrikerSkill())
     {
         return 0x13;
     }

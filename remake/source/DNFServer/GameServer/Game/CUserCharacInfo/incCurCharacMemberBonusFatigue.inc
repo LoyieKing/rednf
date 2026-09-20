@@ -1,6 +1,6 @@
 void CUserCharacInfo::incCurCharacMemberBonusFatigue(short value)
 {
     enableSaveCharacStat();
-    CUR->m_memberBonusFatigue =
-        (unsigned short)(CUR->m_memberBonusFatigue + value);
+    m_selected->m_field126c =
+        (unsigned short)(m_selected->m_field126c + value);
 }

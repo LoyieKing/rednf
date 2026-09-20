@@ -2,5 +2,5 @@ long CUserCharacInfo::GetLoginTick()
 {
     if (!m_selected)
         return 0;
-    return CUR->m_loginTick;
+    return m_selected->m_fieldE02;
 }

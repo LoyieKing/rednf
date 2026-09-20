@@ -9,7 +9,7 @@ void CSecurityCard::setSecurityCardInfo(char const* serial, bool activate,
                                         int certFlag, int cancelCnt,
                                         char* answers)
 {
-    strncpy(reinterpret_cast<char*>(this) + 8, serial, 0x27);
+    strncpy(m_serial, serial, 0x27);
     m_activate2f  = activate;
     m_certified30 = certified;
     m_failCnt34   = certCnt;

@@ -2,6 +2,6 @@ void CUserCharacInfo::SetCurCharacChaosKillTime(int t)
 {
     if (m_selected)
     {
-    CUR->m_chaosKillTime = t;
+    m_selected->m_fielde68 = t;
     }
 }

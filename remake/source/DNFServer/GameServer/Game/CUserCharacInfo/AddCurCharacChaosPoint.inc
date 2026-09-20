@@ -3,6 +3,6 @@ void CUserCharacInfo::AddCurCharacChaosPoint(int point)
     if (m_selected)
     {
     enableSaveCharacStat();
-    CUR->m_chaosPoint += point;
+    m_selected->m_fielde49 += point;
     }
 }

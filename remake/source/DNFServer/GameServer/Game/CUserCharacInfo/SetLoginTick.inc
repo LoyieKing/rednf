@@ -1,4 +1,4 @@
 void CUserCharacInfo::SetLoginTick(long tick)
 {
-    CUR->m_loginTick = tick;
+    m_selected->m_fieldE02 = tick;
 }

@@ -51,7 +51,7 @@ void CUser::giveCharacLinkBonusExp(unsigned int bonusExp)
     if (linkSlot >= 0 &&
         (int)m_characList.size() > linkSlot)
     {
-        strcpy(linkName, (const char*)(reinterpret_cast<char*>(&m_characList[linkSlot]) + 4));
+        strcpy(linkName, m_characList[linkSlot].m_name);
     }
 
     packet.clear();

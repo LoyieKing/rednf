@@ -36,6 +36,7 @@
 #include "CItemAmplifier.h"
 #include "CSystemTime.h"
 #include "GameTypes.h"
+#include "SigTypes_E.h"
 #include "InterfacePacketBuf.h"
 #include "Stream.h"
 #include "CTitleBook.h"   // item_lock::stItemLockRef 权威定义
@@ -56,6 +57,11 @@ public:
     void setCurChannelEquipslotSwitch(char value);
 };
 
+class CCharacterView
+{
+public:
+    void enableSaveCharacView();
+};
 class CUser : public CUserCharacInfo
 {
 public:
@@ -69,7 +75,11 @@ public:
     void send_equip(int slot);
     void make_basic_info(char* pBuf, char flag);
     void Send(PacketGuard& packet);
+    char m_layoutPad[0x796f4];
+    CCharacterView m_characterView;                        // +0x796f4
 };
+static_assert(__builtin_offsetof(CUser, m_characterView) == 0x796f4,
+              "CExpandEquipslot CUser m_characterView offset");
 
 // ---- CInventory（最小声明；m_pEquipSlot 经字节算术访问 +0x650）----
 class CInventory
@@ -97,12 +107,6 @@ class CParty
 {
 public:
     void Reset_party_overlapped_drop_ratio();
-};
-
-class CCharacterView
-{
-public:
-    void enableSaveCharacView();
 };
 
 class CDataManager
@@ -174,19 +178,7 @@ extern CSystemTime s_systemTime_;
 
 
 // ---- 存档结构（0x89c 字节：characNo + 0x24 个 Inven_Item + 2 个 switch）----
-#pragma pack(push, 1)
-struct SIG_SAVE_EXPAND_CHARAC
-{
-    // b28d-65 [P211档③]：ORIG 0x0849xxxx store 为 RHS-first+`mov %eax,%edx` 中转
-    // ⇒ 字段与 RHS 异型。m_characNo 改 unsigned（RHS get_charac_no 返 int）；
-    // m_switch1/2 改 char（与 getCur*EquipslotSwitch 返 char 同型，去 cast 后 LHS-first）。
-    unsigned int m_characNo;     // +0x00
-    Inven_Item m_items[0x24];    // +0x04
-    char m_switch1;              // +0x898
-    char m_switch2;              // +0x899
-    char m_pad[0x89c - 0x89a];   // +0x89a
-};
-#pragma pack(pop)
+// SIG_SAVE_EXPAND_CHARAC named in SigTypes_E.h
 
 // ============================================================================
 // 构造 / 析构

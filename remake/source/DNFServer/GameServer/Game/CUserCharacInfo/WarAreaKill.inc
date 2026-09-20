@@ -40,8 +40,8 @@ void CUserCharacInfo::WarAreaKill(int index, int point, float kill)
 //   （%ecx/%edx 互换 + lea 位置）⇒ 维持封顶，未改动。
     // [PoolA 2026-09-11 试形判词] 常量在左（`0x380 + index`）实测**无效**：仍
     // 59/60 ndiff2（lea 提前、%ecx↔%edx 互换，逐值不变），已回滚 ⇒ 维持 N。
-    ((WarAreaKillWindow*)CUR)->m_warAreaKillFlat[index + 0x380] += kill;
+    m_selected->m_warAreaKill[index] += kill;
     ((CUser*)this)->m_historyLog.FPAdd(
-        point, CUR->m_finishPoint, CUR->m_finishPointTotal,
+        point, m_selected->m_fieldE06, m_selected->m_fieldE0A,
         index == 4 ? (eFPAddReason)1 : eFPAddReason_0);
 }

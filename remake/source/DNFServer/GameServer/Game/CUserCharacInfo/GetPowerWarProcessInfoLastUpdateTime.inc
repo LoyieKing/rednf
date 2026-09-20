@@ -1,4 +1,4 @@
 long CUserCharacInfo::GetPowerWarProcessInfoLastUpdateTime()
 {
-    return m_selected ? CUR->m_powerWarProcessLastUpdateTime : 0;
+    return m_selected ? m_selected->m_powerWarData.m_data4 : 0;
 }

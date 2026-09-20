@@ -1,19 +1,19 @@
 int Dispatcher_ValidateScriptHash::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    // ORIG 0x082641eb-0x08264272：裸偏移内联 add $0xd/$0xe/$0xf（无指针槽）。
-    if (!packet.get_byte(*reinterpret_cast<char*>((char*)&msg + 0xd)))
+    MSG_SCRIPT_HASH& req = *reinterpret_cast<MSG_SCRIPT_HASH*>(&msg);
+    if (!packet.get_byte(reinterpret_cast<char&>(req.m_field0d)))
     {
         return LineFunc(0x37d,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>((char*)&msg + 0xe)))
+    if (!packet.get_byte(reinterpret_cast<char&>(req.m_field0e)))
     {
         return LineFunc(0x382,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_int(*reinterpret_cast<int*>((char*)&msg + 0xf)))
+    if (!packet.get_int(req.m_field0f))
     {
         return LineFunc(0x387,
                         __PRETTY_FUNCTION__,

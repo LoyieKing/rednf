@@ -113,12 +113,12 @@ struct MSG_CHECK_MAIL_RECEIVER
     template <enum ENUM_MAILBOX_CHECKTYPE TYPE, class MSG_T>
     void set(MSG_T const& msg)
     {
-        // ORIG 0x8236e06 起：*(int*)this=TYPE; memcpy(this+4, &msg, sizeof(T))。
-        *(int*)this = (int)TYPE;
-        std::memcpy(reinterpret_cast<char*>(this) + 4, &msg, sizeof(MSG_T));
+        m_type = (int)TYPE;
+        std::memcpy(m_payload, &msg, sizeof(MSG_T));
     }
 
-    char m_pad[0x3f88 - 4];   // 载荷区（+4 起），总大小 0x3f88=16264
+    int m_type;                     // +0x00 ENUM_MAILBOX_CHECKTYPE
+    char m_payload[0x3f88 - 4];     // +0x04 载荷，总大小 0x3f88
 };
 #endif
 

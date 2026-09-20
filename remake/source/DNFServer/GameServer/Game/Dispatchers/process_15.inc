@@ -19,11 +19,7 @@ int Dispatcher_SkillInit::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         p->m_4, 0);
     }
     MSG_SKILL_INIT& req = reinterpret_cast<MSG_SKILL_INIT&>(msg);
-    // b28d-D0: 源字段 char / 目标字段 unsigned char 异型 ⇒ 4.4 恒 `movzbl mem,%eax;
-    //   mov %eax,%edx` 两段；ORIG 0x081e5a01 单段 `movzbl 0xd(%eax),%edx`。
-    //   档③同型化：以 uchar 视图读源字段（P235 具名视图，布局不变）。
-    struct SkillInitMsgView { char m_pad[0xd]; unsigned char m_0d; };
-    p->m_8 = reinterpret_cast<SkillInitMsgView&>(req).m_0d;
+    p->m_8 = static_cast<unsigned char>(req.m_0d);
     // ORIG 0x081e59xx：末次使用仍从 p 的局部槽 -0x10 reload（`mov -0x10(%ebp),%eax`），
     // 直传形参 param 会被 4.4 折成 `mov 0x14(%ebp),%eax`。
     process_skill_init(user, *p);

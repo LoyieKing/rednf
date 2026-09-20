@@ -1,4 +1,4 @@
 unsigned char* StringData::getBuffer()
 {
-    return reinterpret_cast<unsigned char*>(this + 1);
+    return reinterpret_cast<unsigned char*>(m_buf);
 }

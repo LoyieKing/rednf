@@ -1,4 +1,4 @@
 unsigned char CUserCharacInfo::IsSaveBloodInoutValue()
 {
-    return CUR->m_saveBloodInout;
+    return m_selected->m_fieldEBF;
 }

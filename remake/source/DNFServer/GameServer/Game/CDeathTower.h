@@ -277,6 +277,7 @@ namespace WongWork
     bool onLeaveUser(CUser*);  /* ORIG 0x084636f2 尾恒 mov $1,ret；caller xor$1/test%al bool 归一形（P9/P159） */
     int onTimer(TIMER_MESSAGE, unsigned int);
     void reset();
+    int* getTimerKeys() { return m_timerKeys; }
     void setIdx(int);
     int setTowerState(ENUM_TOWER_STATE);
 

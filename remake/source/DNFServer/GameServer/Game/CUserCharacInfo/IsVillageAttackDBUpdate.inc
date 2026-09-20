@@ -2,5 +2,5 @@
 //   ⇒ 返回 bool 且三目两臂同型（字段已 bool 化）。
 bool CUserCharacInfo::IsVillageAttackDBUpdate() const
 {
-    return m_selected ? CUR->m_villageAttackDBUpdate : false;
+    return m_selected ? m_selected->m_field1244 : false;
 }

@@ -2,6 +2,6 @@ void CUserCharacInfo::resetPremiumBonusExp()
 {
     if (m_selected)
     {
-    CUR->m_premiumBonusExp = 0;
+    m_selected->m_field128D = 0;
     }
 }

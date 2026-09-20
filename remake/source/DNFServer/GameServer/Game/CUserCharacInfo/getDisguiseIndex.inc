@@ -1,4 +1,4 @@
 unsigned short CUserCharacInfo::getDisguiseIndex()
 {
-    return m_selected ? CUR->m_disguiseIndex : 0;
+    return m_selected ? m_selected->m_fieldEEB : 0;
 }

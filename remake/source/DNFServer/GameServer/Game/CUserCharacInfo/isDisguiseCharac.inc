@@ -4,7 +4,7 @@ bool CUserCharacInfo::isDisguiseCharac()
 {
     if (m_selected)
     {
-        return CUR->m_isDisguiseCharac;
+        return m_selected->m_fieldEE9;
     }
     return false;
 }

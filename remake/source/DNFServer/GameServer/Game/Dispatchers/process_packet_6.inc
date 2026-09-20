@@ -3,8 +3,8 @@ int Dispatcher_ExchangeSlot::process_packet(CUser* user, CMDPacketStruct::STBase
 {
     // [objdump 0x081408a4] pReq→-0x10 / pRes→-0xc；field08 回显 → check_error
     // early-return → exchangeSlot(&slot1,&slot2) → 两段 memcpy 回显。
-    AltarExchangeSlotReqView* pReq =
-        reinterpret_cast<AltarExchangeSlotReqView*>(&req);
+    CMDPacketStruct::_ReqAdvanceAltarExchangeSlot* pReq =
+        reinterpret_cast<CMDPacketStruct::_ReqAdvanceAltarExchangeSlot*>(&req);
     CMDPacketStruct::_ResAdvanceAltarExchangeSlot* pRes =
         reinterpret_cast<CMDPacketStruct::_ResAdvanceAltarExchangeSlot*>(&resp);
     pRes->m_field08 = pReq->m_field10;                     // field08 回显（int）
@@ -19,8 +19,8 @@ int Dispatcher_ExchangeSlot::process_packet(CUser* user, CMDPacketStruct::STBase
     //   单条 `lea disp(%base),%reg`；改回实参位内联取址（P23/P134 内联实参形），
     //   让 4.4 自行分配 —— 绑定期反而被拆成 `add $imm,%eax; mov %eax,%ecx` 两段。
     pRes->m_nErrorCode = user->m_advanceAltar.exchangeSlot(
-        pReq->m_slot1.m_data, pReq->m_slot2.m_data);
-    std::memcpy(pRes->m_slot1, pReq->m_slot1.m_raw, 0xc);  // slotA 回显
-    std::memcpy(pRes->m_slot2, pReq->m_slot2.m_raw, 0xc);  // slotB 回显
+        pReq->m_slotData1, pReq->m_slotData2);
+    std::memcpy(pRes->m_slot1, pReq->m_slot1, 0xc);  // slotA 回显
+    std::memcpy(pRes->m_slot2, pReq->m_slot2, 0xc);  // slotB 回显
     return 0;
 }

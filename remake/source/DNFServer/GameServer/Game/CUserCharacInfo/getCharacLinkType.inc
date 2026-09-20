@@ -1,4 +1,4 @@
 char CUserCharacInfo::getCharacLinkType()
 {
-    return m_selected ? (char)CUR->m_characLinkType : 0;
+    return m_selected ? (char)m_selected->m_characLinkType : 0;
 }

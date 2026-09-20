@@ -1,5 +1,5 @@
 void CUserCharacInfo::setCurCharacLastPlayTickPowerWar(long tick)
 {
     enableSaveCharacStat();
-    CUR->m_lastPlayTickPowerWar = tick;
+    m_selected->m_field7f = tick;
 }

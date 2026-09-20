@@ -1,4 +1,4 @@
 char CUserCharacInfo::getUpgradeSeparateFlaseFlag()
 {
-    return m_selected ? (char)CUR->m_upgradeSeparateFalse : 0;
+    return m_selected ? (char)m_selected->m_field1274 : 0;
 }

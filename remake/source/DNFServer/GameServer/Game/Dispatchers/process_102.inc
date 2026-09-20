@@ -38,7 +38,7 @@ int Dispatcher_LimitNpcBuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& p
     info.m_itemIdReq = user->GetUID();             // local_30（+0xa）
     info.m_dbid = user->get_acc_id();              // local_2c（+0xe）
     info.m_charNo = (unsigned int)user->get_charac_no(-1);   // local_28（+0x12）
-    info.m_itemId = *(unsigned int*)((char*)&msg + 0xd);     // local_24（+0x16）
+    info.m_itemId = reinterpret_cast<MSG_LIMIT_NPC_BUY_ITEM*>(&msg)->m_itemId;
     info.m_count = 1;                              // local_20（+0x1a）
     CMonitorServerProxy* proxy =
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());

@@ -2,6 +2,6 @@ void CUserCharacInfo::ResetCurCharacEventAddItemCount()
 {
     if (m_selected)
     {
-    CUR->m_curCharacEventAddItemCount = 0;
+    m_selected->m_field123C = 0;
     }
 }

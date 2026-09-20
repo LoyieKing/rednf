@@ -2,14 +2,14 @@ void CUserCharacInfo::setCurCharacVill(char vill)
 {
     if (!m_selected)
         return;
-    CUR->m_villPrev = CUR->m_vill;
+    m_selected->m_field25 = m_selected->m_field22;
     if (G_GameWorld()->IsPVPChannel())
     {
-        CUR->m_villPvP = 2;
+        m_selected->m_field23 = 2;
     }
     else
     {
         enableSaveCharacStat();
-        CUR->m_vill = (unsigned char)vill;
+        m_selected->m_field22 = (unsigned char)vill;
     }
 }

@@ -309,9 +309,8 @@ namespace WongWork
 namespace {
 struct CPartyHackView
 {
-    char m_pad0[0xcac];
-    CDungeon* m_pDungeon;                    // +0xcac（CDungeon*；0xb24 内嵌
-                                             // CBattle_Field 仍用真实类型 cast 取址）
+    char m_pad0[0xb24];
+    CBattle_Field m_battleField;             // +0xb24（m_pDungeon @ BF+0x188 = party+0xcac）
 };
 }
 

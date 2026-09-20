@@ -2,6 +2,6 @@ void CUserCharacInfo::SetCurConditionEventStep(short step)
 {
     if (m_selected)
     {
-    CUR->m_curConditionEventStep = (unsigned short)step;
+    m_selected->m_field1232 = (unsigned short)step;
     }
 }

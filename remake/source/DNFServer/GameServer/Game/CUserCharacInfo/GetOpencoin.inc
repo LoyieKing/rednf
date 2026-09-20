@@ -1,4 +1,4 @@
 unsigned char CUserCharacInfo::GetOpencoin()
 {
-    return CUR->m_opencoin;
+    return m_selected->m_fielde70;
 }

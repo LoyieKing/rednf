@@ -18,7 +18,8 @@
 #include "PvP_Room.h"            // create_room / get_index / make_room_info
 #include "CParty.h"              // CParty::send_invite_pvp
 #include "CFairPvPScore.h"       // fair_pvp::CFairPvPScore::GetGiveItem
-#include "PacketGuard.h"         // PacketGuard : InterfacePacketBuf（put_header/put_byte/put_short/finalize/clear）
+#include "PacketGuard.h"
+#include "PacketDispatcher.h"  // MSG_BASE         // PacketGuard : InterfacePacketBuf（put_header/put_byte/put_short/finalize/clear）
 #include "CSwitchLog.h"          // CSwitchLog（ORIG 854fd3c/854fd64）
 #include "LogManager.h"          // LogManager::logFormat
 #include "GameEnums.h"           // ENUM_CMDPACKET / PVP_BATTLE_MODE / ENUM_CHARAC_EXPAND_TYPE
@@ -26,9 +27,8 @@
 // MSG_MAKE_PVP_ROOM：权威定义当前在 DisPatcherCore.cpp wave1 声明区（sizeof 0x3d，
 // dispatch_sig memset 0x3d 实证；DisPatcherCore.h 仅前置声明）。此处按同一布局
 #pragma pack(push, 1)
-struct MSG_MAKE_PVP_ROOM
+struct MSG_MAKE_PVP_ROOM : MSG_BASE
 {
-    char m_pad0[0xd];        // +0x00..0x0c
     char m_field0d;          // +0x0d 门类型（<0 失败）
     char m_name[0x1e];       // +0x0e..0x2b 房名
     short m_field2c;         // +0x2c

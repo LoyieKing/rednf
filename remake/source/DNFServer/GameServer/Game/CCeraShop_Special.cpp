@@ -118,12 +118,7 @@ struct SlotExtendPayloadView
 // P82 具名视图：SIG_SAVE_CRAZY_LEVELUP_EVENT 载荷（ORIG 0x08327454 逐字段
 // `mov -0xc(%ebp),%edx; mov %eax,0x5(%edx)` / `0x9(%edx)` 实证）。
 #pragma pack(push, 1)
-struct SaveCrazyLevelupPayloadView
-{
-    char m_tag[5];                // +0x00（"0707\0"）
-    unsigned int m_accId;         // +0x05
-    int m_characNo;               // +0x09（与 get_charac_no() 同型 ⇒ LHS-first）
-};
+typedef SIG_SAVE_CRAZY_LEVELUP_EVENT SaveCrazyLevelupPayloadView;
 #pragma pack(pop)
 // ============================================================================
 // [round5 TU 拆分 2026-09-10] **部件包含式聚合器**：全部实现已按「一函数一部件」

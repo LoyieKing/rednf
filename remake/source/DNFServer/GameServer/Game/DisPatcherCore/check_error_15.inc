@@ -20,12 +20,12 @@ int DisPatcher_ChangeSkill::check_error(CUser* user, MSG_BASE& msg)
     // （35 条 / 31 条，ndiff 17/23），原 if/else-if 形 28 条为最优 ⇒ N18b 封顶维持。
     if (treeIdx == -1 || treeIdx == 0)
     {
-        if (pReq->m_head[0xd] == 1)
+        if (pReq->m_head0d == 1)
         {
             return 0x13;
         }
     }
-    else if (pReq->m_head[0xd] != 1)
+    else if (pReq->m_head0d != 1)
     {
         return 0x13;
     }

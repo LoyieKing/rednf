@@ -387,6 +387,8 @@ static_assert(sizeof(EPowerWarPointValue) == 2,
 static_assert(sizeof(EFatigueBatteryValue) == 2,
               "packed enum view must stay 2 bytes (+0x4f)");
 
+#include "SkillSlot.h"  // sizeof(SkillSlot): overlay m_skill must cover live object
+
 #pragma pack(push, 1)
 struct CharacInfoFields
 {
@@ -423,7 +425,9 @@ struct CharacInfoFields
     char m_pad83[5];                   // +0x83..0x88
     _Additioal_info m_addInfo;       // +0x88（字段化=typed 成员，0x52）
     char m_inven[0x892 - 0xda];        // +0xda..0x892（CInventory 内嵌）
-    char m_skill[0xdaa - 0x892];       // +0x892..0xdaa
+    // Track live SkillSlot, not ORIG 0x518. gcc13 ComboSkillMap is 0x18 not 0x15
+    // so SkillSlot is 0x51c; CUR->cargo/maps/scalars after this must follow.
+    char m_skill[sizeof(SkillSlot)];
     // [b28d-solo-CUserCharacInfo N107/P106] 真实 CCargo 类型（sizeof 0x14）：
     // char[0x14] 占位使 `&CUR->m_cargo` 退化为数组取址 ⇒ 4.4 恒 `add $0xdaa`；
     // 真实成员取址复现 ORIG `lea 0xdaa(%edx),%ecx`。
@@ -568,7 +572,7 @@ struct CharacInfoFields
     int m_characLinkBonusExp;              // +0x1247
     int m_characLinkBonusGold;             // +0x124b
     char m_pad124f[5];                     // +0x124f
-    char m_skillCommand[0x18];             // +0x1254
+    char m_skillCommand[0x18];             // live map; offset follows sizeof(SkillSlot)
     unsigned short m_memberBonusFatigue;   // +0x126c
     unsigned char m_guildSecede;           // +0x126e
     int m_lastPlayDungeonIndex;            // +0x126f
@@ -613,8 +617,8 @@ struct CharacInfoFields
     bool m_cubePremiumSaved;               // +0x14d0（R7a04: ORIG 定义侧 0x08696d18 `movzbl 直返` + 消费点 0x08650d11 直存 ⇒ bool）
 };
 #pragma pack(pop)
-static_assert(sizeof(CharacInfoFields) == 0x14d1,
-              "_Charac_info layout drift (ORIG size 0x14d1 @CUserCharacInfo worklist)");
+static_assert(sizeof(CharacInfoFields) == 0x14d1 - 0x518 + sizeof(SkillSlot),
+              "CharacInfoFields must track live SkillSlot size");
 
 // ============================================================================
 // CUserCharacInfo

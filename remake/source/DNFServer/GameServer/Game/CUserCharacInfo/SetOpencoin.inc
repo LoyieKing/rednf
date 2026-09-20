@@ -2,10 +2,10 @@ void CUserCharacInfo::SetOpencoin(char value)
 {
     if (m_selected)
     {
-        if ((char)CUR->m_opencoin != value)
+        if ((char)m_selected->m_fielde70 != value)
         {
             enableSaveCharacStat();
-            CUR->m_opencoin = (unsigned char)value;
+            m_selected->m_fielde70 = (unsigned char)value;
         }
     }
 }

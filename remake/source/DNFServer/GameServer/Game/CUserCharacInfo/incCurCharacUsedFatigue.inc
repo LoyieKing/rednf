@@ -3,6 +3,6 @@ void CUserCharacInfo::incCurCharacUsedFatigue(unsigned short value)
     if (m_selected)
     {
     enableSaveCharacStat();
-    CUR->m_usedFatigue = (unsigned short)(CUR->m_usedFatigue + value);
+    m_selected->m_field4d = (unsigned short)(m_selected->m_field4d + value);
     }
 }

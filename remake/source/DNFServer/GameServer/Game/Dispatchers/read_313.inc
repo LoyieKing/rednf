@@ -1,12 +1,12 @@
 // ==== Dispatcher_AvatarOptionChange::read (ORIG 0x081e04f2) ====
 int Dispatcher_AvatarOptionChange::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    AocMsgView& m = *reinterpret_cast<AocMsgView*>(&msg);
-    if (!packet.get_short(m.m_consumeSlot))
+    MSG_CHANGE_AVATAR_OPTION& m = *reinterpret_cast<MSG_CHANGE_AVATAR_OPTION*>(&msg);
+    if (!packet.get_short(reinterpret_cast<short&>(m.m_consumeSlot)))
         return LineFunc(0x5380,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    if (m.m_consumeSlot < 0 || m.m_consumeSlot > 0x137)
+    if ((short)m.m_consumeSlot < 0 || m.m_consumeSlot > 0x137)
         return LineFunc(0x5383,
                         __PRETTY_FUNCTION__,
                         0, 0);
@@ -18,11 +18,11 @@ int Dispatcher_AvatarOptionChange::read(PacketBuf& packet, MSG_BASE& msg)
         return LineFunc(0x5389,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    if (!packet.get_short(m.m_avatarSlot))
+    if (!packet.get_short(reinterpret_cast<short&>(m.m_avatarSlot)))
         return LineFunc(0x538c,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    if (m.m_avatarSlot < 0 || m.m_avatarSlot > 0x68)
+    if ((short)m.m_avatarSlot < 0 || m.m_avatarSlot > 0x68)
         return LineFunc(0x5390,
                         __PRETTY_FUNCTION__,
                         0, 0);
@@ -34,7 +34,7 @@ int Dispatcher_AvatarOptionChange::read(PacketBuf& packet, MSG_BASE& msg)
         return LineFunc(0x5396,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    if (!packet.get_byte(m.m_option))
+    if (!packet.get_byte(reinterpret_cast<char&>(m.m_option)))
         return LineFunc(0x5399,
                         __PRETTY_FUNCTION__,
                         0, 0);

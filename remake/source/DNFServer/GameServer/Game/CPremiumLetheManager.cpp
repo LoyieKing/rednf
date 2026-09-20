@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "CDataManager.h"
+#include "STExpertJobScript.h"
 #include "CStreamGuard.h"
 #include "CUser.h"
 #include "InterfacePacketBuf.h"

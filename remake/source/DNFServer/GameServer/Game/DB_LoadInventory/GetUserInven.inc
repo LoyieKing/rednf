@@ -42,6 +42,14 @@
 bool DB_LoadInventory::GetUserInven(SIG_LOAD_INVENTORY* sig)
 {
     static const int handleIdx = 3;
+#if !remake_verify
+    // DNF-FIX: GetOutBuffer 不跑 SIG 构造；未解压槽脏 m_addInfo 会发给客户端。
+    memset(sig->m_invenType1, 0, sizeof(sig->m_invenType1));
+    memset(sig->m_invenType2, 0, sizeof(sig->m_invenType2));
+    memset(sig->m_invenType3, 0, sizeof(sig->m_invenType3));
+    memset(sig->m_equipMirror, 0, sizeof(sig->m_equipMirror));
+    memset(sig->m_cargo, 0, sizeof(sig->m_cargo));
+#endif
     // b28d-214③/N78：ORIG 对三缓冲区发 rep stos 内联清零（无 memset call）
     // ⇒ 用数组零初始化器复现。
     char equipBuf[0x37a] = {0};

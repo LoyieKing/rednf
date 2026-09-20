@@ -1,4 +1,4 @@
 char CUserCharacInfo::getCurCharacEventCharacterGrowtype()
 {
-    return m_selected ? CUR->m_eventCharacterGrowtype : 0;
+    return m_selected ? m_selected->m_field123f : 0;
 }

@@ -1,4 +1,4 @@
 unsigned int CUserCharacInfo::getCurCharacDungeonHelpAbuseExp() const
 {
-    return m_selected ? CUR->m_dungeonHelpAbuseExp : 0;
+    return m_selected ? m_selected->m_resetDwordDf8 : 0;
 }

@@ -16,6 +16,17 @@ void UserQuest::get_quest_info(char* buf) const
     //   P329 已核全内联无具名局部可删 ⇒ 无新旋钮，维持（新=DIFF 136/136 gap=0,
     //   blocks=5）。
     stSelectQuestParam selectParam(m_user);
+#if !remake_verify
+    cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
+        "[DNF-DIAG QPARAM] job=%d grow=%d/%d lv=%d pvp=%d side=%d expert=%d/%d tg_npc=%d tg_q=%d tg_oq=%d tg_open=%d",
+        selectParam.m_job, selectParam.m_firstGrow, selectParam.m_secondGrow,
+        selectParam.m_level, selectParam.m_pvpGrade, (int)selectParam.m_powerSide,
+        selectParam.m_expertJobType, selectParam.m_expertJobLevel,
+        GlobalData::s_timeGate_->getNpcIndex(),
+        GlobalData::s_timeGate_->getQuestIndex(),
+        GlobalData::s_timeGate_->getOpenedQuestIndex(),
+        (int)GlobalData::s_timeGate_->isOpen());
+#endif
 
     InterfacePacketBuf* pb = reinterpret_cast<InterfacePacketBuf*>(buf);
     pb->put_header(0, 0x15);
@@ -44,10 +55,30 @@ void UserQuest::get_quest_info(char* buf) const
             goto L_skip;
         }
         ++count;
+#if !remake_verify
+        {
+            Quest* q = G_CDataManager()->m_questList->find_quest(questIdx);
+            if (q)
+                cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
+                    "[DNF-DIAG QUESTINFO] id=%d expose=%d type=%d lv=%d-%d lim=%d ahead=%u npc=%d open=%d",
+                    questIdx, (int)q->m_exposeQuest, q->m_type,
+                    q->m_levelMin, q->m_levelMax, q->m_questCountLimit,
+                    (unsigned)q->m_intDataList.size(), q->m_npcIdx,
+                    (int)q->IsOpenScheduleQuest());
+            else
+                cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
+                    "[DNF-DIAG QUESTINFO] id=%d MISSING", questIdx);
+        }
+#endif
         pb->put_short(questIdx);
     L_skip: ;
     }
 
     pb->put_short(index, count);
     pb->finalize(true);
+#if !remake_verify
+    cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
+        "[DNF-DIAG QPKT] size=%d count=%d questCount=%d",
+        pb->get_len(), count, selectParam.m_questCount);
+#endif
 }

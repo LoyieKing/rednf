@@ -27,9 +27,7 @@ int Dispatcher_PrecheckSoloTeleport::process(CUser* user, MSG_BASE& msg, ParamBa
         // ORIG 0x0822c5d2 ctor；+0x0a 起 21 字节名字区 strncpy(msg+0xd, 长度
         // *(int*)(msg+0x2c))；+0x1f int = getCurCharacNo(0x080cbc4e)；SendPacket 0x23。
         Packet_Monitor_Request_Charac_Info pkt;
-        strncpy(reinterpret_cast<char*>(&pkt) + 0xa,
-                reinterpret_cast<char*>(&m) + 0xd,
-                m.m_2c);
+        strncpy(pkt.m_data, m.m_0d, m.m_2c);
         pkt.m_field1f = user->getCurCharacNo();
 
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())

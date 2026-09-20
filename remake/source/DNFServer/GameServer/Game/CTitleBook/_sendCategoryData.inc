@@ -27,6 +27,10 @@ void CTitleBook::_sendCategoryData(CUser* user, unsigned short extra,
         }
     }
     packet.put_int(count);
+#if !remake_verify
+    cMyTrace(__PRETTY_FUNCTION__, 0, 5)("[DNF-DIAG TITLE] cat=%d count=%d type=%d extra=%u",
+        (int)category, count, (int)type, (unsigned)extra);
+#endif
     for (int i = 0; i < TITLE_BOOK_MAX[(int)category]; ++i)
     {
         Inven_Item* item = m_category[(int)category] + i;

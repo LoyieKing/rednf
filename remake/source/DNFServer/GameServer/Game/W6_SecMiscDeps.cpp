@@ -96,17 +96,6 @@ char WongWork::CWebEvent::m_strEventName[10][0x12] = {
 
 // ============================ WongWork::CSecurityCard =======================
 
-namespace
-{
-// CSecurityCard 答案表布局视图（ORIG 表基址 this+0x08，`movzbl 0x8(%eax,%edx,1)`
-// 实证；仅 TU 局部 POD 布局视图，无成员函数/无符号发射）。
-struct CSecurityCardAnswerView
-{
-    char m_pad08[8];
-    unsigned char m_table[0x64];
-};
-}
-
 #include "W6_SecMiscDeps/checkAnswer.inc"
 
 

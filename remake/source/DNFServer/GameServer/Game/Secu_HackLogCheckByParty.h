@@ -9,13 +9,13 @@ class CUser;
 class CMap;
 class map_monster;
 #include <vector>
+#include "PacketDispatcher.h"
 
 // MSG_MONSTER_DIE（网络填充结构，ORIG 访问至少到 +0xa21；
 // setKillMonsterInfo 0x82794d6 使用 +0xa1e/+0xa1a 两个计数值——语义推断：
 // +0xa1e 为耗时类、+0xa1a 为经验类累计）。
-struct __attribute__((packed)) MSG_MONSTER_DIE
+struct __attribute__((packed)) MSG_MONSTER_DIE : MSG_BASE
 {
-    char m_pad0[0xd];                   // +0x00（msg 头部，dispatch_sig 不读）
     // ORIG wire 布局按 DisPatcher_DieMob::dispatch_sig（0x081eb0c4）读取序
     // 全量展开；数组容量/偏移由循环寻址精确复现（256 项、无重叠）。
     unsigned short m_mobSeq;            // +0x0d（击杀的 mob 序号）

@@ -1,4 +1,4 @@
 int CUserCharacInfo::GetCurCharacLuckPoint()
 {
-    return m_selected ? CUR->m_luckPoint : 0;
+    return m_selected ? m_selected->m_fielde71 : 0;
 }

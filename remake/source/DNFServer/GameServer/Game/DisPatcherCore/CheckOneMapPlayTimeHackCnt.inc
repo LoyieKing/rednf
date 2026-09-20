@@ -125,8 +125,7 @@ void DisPatcher_MoveMap::CheckOneMapPlayTimeHackCnt(CUser* user, MSG_MOVE_MAP& i
         // `mov $0x1,%eax; jmp; mov $0x0,%eax; test %al,%al; je`（.o 1971f-1972d）。
         // 4.4.6 探针实测：`if(!A && B)` 含 4 条岛 / 嵌套 if 无岛 ⇒ 预期 our −5。
         // 内层 if 与块体缩进保持原样（不重排 200 行），仅拆条件行。
-        if (!reinterpret_cast<CPartyBattleFieldView*>(party)
-                 ->m_battleField.check_start_point())
+        if (!(party)->m_battleField.check_start_point())
         if (info.m_23[idx] > limit)
         {
             // [DpcMisc-C3] 分支极性/块序还原（P59/P222 + 语义直证）：ORIG 0x081c50bf

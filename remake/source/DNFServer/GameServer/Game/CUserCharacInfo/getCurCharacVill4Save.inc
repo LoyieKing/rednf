@@ -1,4 +1,4 @@
 unsigned char CUserCharacInfo::getCurCharacVill4Save() const
 {
-    return CUR->m_vill;
+    return m_selected->m_field22;
 }

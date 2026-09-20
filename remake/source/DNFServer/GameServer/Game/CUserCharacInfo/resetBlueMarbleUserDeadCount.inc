@@ -2,6 +2,6 @@ void CUserCharacInfo::resetBlueMarbleUserDeadCount()
 {
     if (m_selected)
     {
-    CUR->m_blueMarbleUserDeadCount = 0;
+    m_selected->m_field14BE = 0;
     }
 }

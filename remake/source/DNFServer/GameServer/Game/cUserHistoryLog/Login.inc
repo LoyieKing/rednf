@@ -23,9 +23,7 @@ void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int 
     int rareCount = 0;                           // local_4c（rarity 0/1 计数）
     int petCount = 0;                            // local_48（invenType=2 计数）
 
-    money = reinterpret_cast<CInventory*>(
-                reinterpret_cast<char*>(const_cast<_Charac_info*>(m_user->getCurCharacR()))
-                + 0xda)->get_money();
+    money = m_user->getCurCharacInvenR()->get_money();
 
     for (int slot = 10; slot < 0x14; ++slot)
     {

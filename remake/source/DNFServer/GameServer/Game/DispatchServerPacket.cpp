@@ -113,155 +113,180 @@
 #include "Packet_Web_Notice_Single.h"  // 0x… case 包结构（shared/packet/include）
 #include "../../../shared/packet/include/Packet_Web_Notify_Message_To_Guild.h"  // 显式路径:Game 同名空壳优先级会遮蔽 -I
 
+#include "../../../shared/packet/include/PacketHeader.h"
 #pragma pack(push, 1)
-struct GuildKeyIntView {              // 0x3fc 等：+0xa 公会键 int 视角（字段 unsigned，ORIG 直落 int 实参）
-    char m_pad0[0xa];   int m_guildKey;
+struct GuildKeyIntView : PacketHeader {              // 0x3fc 等：+0xa 公会键 int 视角（字段 unsigned，ORIG 直落 int 实参）
+    int m_guildKey;
 };
-struct IntView0a { char m_pad0[0xa]; int m_v; };
-struct IntView0b { char m_pad0[0xb]; int m_v; };
-struct IntView0d { char m_pad0[0xd]; int m_v; };
-struct IntView0e { char m_pad0[0xe]; int m_v; };
-struct IntView0f { char m_pad0[0xf]; int m_v; };
-struct IntView12 { char m_pad0[0x12]; int m_v; };
-struct IntView14 { char m_pad0[0x14]; int m_v; };
-struct IntView29 { char m_pad0[0x29]; int m_v; };
-struct UIntView0a { char m_pad0[0xa]; unsigned int m_v; };
-struct UIntView0e { char m_pad0[0xe]; unsigned int m_v; };
-struct UIntView0f { char m_pad0[0xf]; unsigned int m_v; };
-struct UIntView12 { char m_pad0[0x12]; unsigned int m_v; };
-struct UIntView14 { char m_pad0[0x14]; unsigned int m_v; };
-struct UCharView0a { char m_pad0[0xa]; unsigned char m_v; };
+struct IntView0a : PacketHeader {
+    int m_v;
+};
+struct IntView0b : PacketHeader { char m_afterHdr; int m_v; };
+struct IntView0d : MSG_BASE { int m_v; };
+struct IntView0e : PacketHeader  { char m_afterHdr[0x4]; int m_v; };
+struct IntView0f { char m_afterHdr[0x5]; int m_v; };
+struct IntView12 : PacketHeader  { char m_afterHdr[0x8]; int m_v; };
+struct IntView14 { char m_afterHdr[0xa]; int m_v; };
+struct IntView29 : PacketHeader { char m_afterHdr[31]; int m_v; };
+struct UIntView0a : PacketHeader {
+    unsigned int m_v;
+};
+struct UIntView0e : PacketHeader  { char m_afterHdr[0x4]; unsigned int m_v; };
+struct UIntView0f { char m_afterHdr[0x5]; unsigned int m_v; };
+struct UIntView12 : PacketHeader  { char m_afterHdr[0x8]; unsigned int m_v; };
+struct UIntView14 { char m_afterHdr[0xa]; unsigned int m_v; };
+struct UCharView0a : PacketHeader {
+    unsigned char m_v;
+};
 
-struct RevengeView {                  // 0x1b6a：+0xa 奖励类型 int，+0xe 关闭时间 uint
-    char m_pad0[0xa];   int m_reward;   unsigned int m_closeTime;
+struct RevengeView : PacketHeader {                  // 0x1b6a：+0xa 奖励类型 int，+0xe 关闭时间 uint
+    int m_reward;   unsigned int m_closeTime;
 };
-struct NoticeGuildSecedeView {        // = Packet_Monitor_Notice_Guild_Secede_ToUser（0x3fe，Guild/DNFGuild.h）
-    char m_pad0[0xa];    unsigned int m_channel;   // +0xa（GetIdByChannel）
+struct NoticeGuildSecedeView : PacketHeader {        // = Packet_Monitor_Notice_Guild_Secede_ToUser（0x3fe，Guild/DNFGuild.h）
+    unsigned int m_channel;   // +0xa（GetIdByChannel）
 };
-struct GuildMemberLoginOutView {      // = Packet_Monitor_Notice_Guild_Member_Login_out（0x407，Guild/DNFGuild.h）
-    char m_pad0[0xb];    int m_channel;            // +0xb
+struct GuildMemberLoginOutView : PacketHeader  {      // = Packet_Monitor_Notice_Guild_Member_Login_out（0x407，Guild/DNFGuild.h）
+    char m_afterHdr;
+    int m_channel;            // +0xb
 };
-struct NoticeGuildInfoView {          // = Packet_Monitor_Notice_Guild_Info（0x40a，Guild/DNFGuild.h）
-    char m_pad0[0xa];    unsigned int m_channel;   // +0xa（GetIdByChannel）
+struct NoticeGuildInfoView : PacketHeader {          // = Packet_Monitor_Notice_Guild_Info（0x40a，Guild/DNFGuild.h）
+    unsigned int m_channel;   // +0xa（GetIdByChannel）
 };
-struct GuildCreateToUserView {        // = Packet_Monitor_Notice_Guild_Create_ToUser（0x40c，Guild/DNFPacketTranslater.h）
-    char m_pad0[0x29];   unsigned int m_member;    // +0x29
+struct GuildCreateToUserView : PacketHeader  {        // = Packet_Monitor_Notice_Guild_Create_ToUser（0x40c，Guild/DNFPacketTranslater.h）
+    char m_afterHdr[0x1f];
+    unsigned int m_member;    // +0x29
 };
-struct GuildMemberGradeView {         // = Packet_Monitor_Notify_GuildMemberGrade（0x42c，Guild/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_channel;   // +0xa（GetIdByChannel）
+struct GuildMemberGradeView : PacketHeader {         // = Packet_Monitor_Notify_GuildMemberGrade（0x42c，Guild/DNFPacketTranslater.h）
+    unsigned int m_channel;   // +0xa（GetIdByChannel）
 };
-struct GuildMemberInfoView {          // = Packet_Monitor_Notice_Guild_Member_Info（0x431，Guild/DNFUser.h）
-    char m_pad0[0xa];    int m_channel;            // +0xa
+struct GuildMemberInfoView : PacketHeader {          // = Packet_Monitor_Notice_Guild_Member_Info（0x431，Guild/DNFUser.h）
+    int m_channel;            // +0xa
 };
-struct GuildInviteToInvitedView {     // = Packet_Guild_Call_Guild_Invite_To_Invited（0x435，Guild/DNFPacketTranslater.h）
-    char m_pad0[0xe];    unsigned int m_e;         // +0xe
+struct GuildInviteToInvitedView : PacketHeader  {     // = Packet_Guild_Call_Guild_Invite_To_Invited（0x435，Guild/DNFPacketTranslater.h）
+    char m_afterHdr[0x4];
+    unsigned int m_e;         // +0xe
 };
-struct GuildInviteToCallerView {      // = Packet_Guild_Reply_Guild_Invite_To_Caller（0x437，Guild/DNFPacketTranslater.h）
-    char m_pad0[0xe];    unsigned int m_e;         // +0xe
+struct GuildInviteToCallerView : PacketHeader  {      // = Packet_Guild_Reply_Guild_Invite_To_Caller（0x437，Guild/DNFPacketTranslater.h）
+    char m_afterHdr[0x4];
+    unsigned int m_e;         // +0xe
 };
-struct GuildMasterDelegateView {      // = Packet_Guild_Notice_Guild_Master_Delegate（0x43d，Guild/DNFGuild.h）
-    char m_pad0[0xe];    int m_channel;            // +0xe
+struct GuildMasterDelegateView : PacketHeader  {      // = Packet_Guild_Notice_Guild_Master_Delegate（0x43d，Guild/DNFGuild.h）
+    char m_afterHdr[0x4];
+    int m_channel;            // +0xe
 };
-struct HasBeenGuildMasterView {       // = Packet_Notice_Has_Been_Guild_Master（0x43e，Guild/DNFPacketTranslater.h）
-    char m_pad0[0xe];    unsigned int m_channel;   // +0xe
+struct HasBeenGuildMasterView : PacketHeader  {       // = Packet_Notice_Has_Been_Guild_Master（0x43e，Guild/DNFPacketTranslater.h）
+    char m_afterHdr[0x4];
+    unsigned int m_channel;   // +0xe
 };
-struct GuildNameChangeView {          // = Packet_Guild_Notice_Guild_Name_Change（0x446，Guild/DNFGuild.h）
-    char m_pad0[0x12];   unsigned int m_channel;   // +0x12
+struct GuildNameChangeView : PacketHeader  {          // = Packet_Guild_Notice_Guild_Name_Change（0x446，Guild/DNFGuild.h）
+    char m_afterHdr[0x8];
+    unsigned int m_channel;   // +0x12
 };
-struct AllUserMinForGuildView {       // = Packet_Send_All_User_Info_Minimum_For_Guild_System（0x447，Guild/DNFUser.h）
-    char m_pad0[0x12];   int m_channel;            // +0x12
+struct AllUserMinForGuildView : PacketHeader  {       // = Packet_Send_All_User_Info_Minimum_For_Guild_System（0x447，Guild/DNFUser.h）
+    char m_afterHdr[0x8];
+    int m_channel;            // +0x12
 };
-struct MonitorMemberLoginOutView {    // = Packet_Monitor_Notice_Member_Member_Login_out（0x4b6，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xb];    unsigned int m_idByChannel;  // +0xb
+struct MonitorMemberLoginOutView : PacketHeader  {    // = Packet_Monitor_Notice_Member_Member_Login_out（0x4b6，Monitor/DNFPacketTranslater.h）
+    char m_afterHdr;
+    unsigned int m_idByChannel;  // +0xb
 };
-struct MemberEnterReplyView {         // = Packet_Monitor_Member_Enter_Reply_ToResponser（0x4b9，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xd];    unsigned int m_idByChannel;  // +0xd
+struct MemberEnterReplyView : MSG_BASE {  // Packet_Monitor_Member_Enter_Reply_ToResponser 0x4b9
+    unsigned int m_idByChannel;  // +0xd
 };
-struct MemberEnterOkView {            // = Packet_Monitor_Notice_Member_Enter_Ok（0x4ba，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xd];    unsigned int m_idByChannel;  // +0xd
+struct MemberEnterOkView : MSG_BASE {  // Packet_Monitor_Notice_Member_Enter_Ok 0x4ba
+    unsigned int m_idByChannel;  // +0xd
 };
-struct MemberSecedeView {             // = Packet_Monitor_Member_Secede_To_Seceder（0x4bc，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct MemberSecedeView : PacketHeader {             // = Packet_Monitor_Member_Secede_To_Seceder（0x4bc，Monitor/DNFPacketTranslater.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct DeleteMemberIdView {           // = Packet_Monitor_Notice_Delete_Member_Id（0x4bd，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct DeleteMemberIdView : PacketHeader {           // = Packet_Monitor_Notice_Delete_Member_Id（0x4bd，Monitor/DNFPacketTranslater.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct ReqMemberEnterToRespView {     // = Packet_Monitor_Request_Member_Enter_To_Responser（0x4b8，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct ReqMemberEnterToRespView : PacketHeader {     // = Packet_Monitor_Request_Member_Enter_To_Responser（0x4b8，Monitor/DNFPacketTranslater.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct UserRepelView {                // = Packet_Monitor_User_Repel（0x4c1，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct UserRepelView : PacketHeader {                // = Packet_Monitor_User_Repel（0x4c1，Monitor/DNFPacketTranslater.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct TowerRankingView {             // = Packet_Request_Charac_Tower_Ranking（0x4cb，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xe];    unsigned int m_idByChannel;  // +0xe
+struct TowerRankingView : PacketHeader  {             // = Packet_Request_Charac_Tower_Ranking（0x4cb，Monitor/DNFPacketTranslater.h）
+    char m_afterHdr[0x4];
+    unsigned int m_idByChannel;  // +0xe
 };
-struct MemberExpLevelUpView {         // = Packet_Monitor_Notice_MemberExp_LevelUp（0x642，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct MemberExpLevelUpView : PacketHeader {         // = Packet_Monitor_Notice_MemberExp_LevelUp（0x642，Monitor/DNFPacketTranslater.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct PowerWarEndView {              // = Packet_Notice_Power_war_End_Info（0x6b0，Guild/PowerManager.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct PowerWarEndView : PacketHeader {              // = Packet_Notice_Power_war_End_Info（0x6b0，Guild/PowerManager.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct ChannelGuildAgitView {         // = Packet_Channel_Guild_Agit_Info（0x6e2，Guild/DNFGuild.h）
-    char m_pad0[0xa];    unsigned int m_channel;      // +0xa（GetIdByChannel）
+struct ChannelGuildAgitView : PacketHeader {         // = Packet_Channel_Guild_Agit_Info（0x6e2，Guild/DNFGuild.h）
+    unsigned int m_channel;      // +0xa（GetIdByChannel）
 };
-struct NoticeGuildCargoView {         // = Packet_Notice_Guild_Cargo（0x712，Guild/GuildCargo.h）
-    char m_pad0[0xa];    unsigned int m_a;            // +0xa
+struct NoticeGuildCargoView : PacketHeader {         // = Packet_Notice_Guild_Cargo（0x712，Guild/GuildCargo.h）
+    unsigned int m_a;            // +0xa
 };
-struct CleanPadPointView {            // = Packet_Set_CleanPad_Point（0xb60，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct CleanPadPointView : PacketHeader {            // = Packet_Set_CleanPad_Point（0xb60，Monitor/DNFPacketTranslater.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct PunishCancelView {             // = Packet_Punish_Cancel（0xb64，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct PunishCancelView : PacketHeader {             // = Packet_Punish_Cancel（0xb64，Monitor/DNFPacketTranslater.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct SecuConnectWebView {           // = Packet_SecuService_Connect_Web（0xb65，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct SecuConnectWebView : PacketHeader {           // = Packet_SecuService_Connect_Web（0xb65，Monitor/DNFPacketTranslater.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct FactoryHubUserView {           // = Packet_Notice_Find_Factory_Hub_User（0x100f，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct FactoryHubUserView : PacketHeader {           // = Packet_Notice_Find_Factory_Hub_User（0x100f，Monitor/DNFPacketTranslater.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct VillageRewardView {            // = Packet_VillageAttackedReward（0x1775，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct VillageRewardView : PacketHeader {            // = Packet_VillageAttackedReward（0x1775，Monitor/DNFPacketTranslater.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct VillageScoreView {             // = Packet_VillageAttackedScore（0x1778，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct VillageScoreView : PacketHeader {             // = Packet_VillageAttackedScore（0x1778，Monitor/DNFPacketTranslater.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct GuildFundResultView {          // = Packet_Add_Guild_Fund_Result（0x1bbd，Guild/DNFPacketTranslater.h）
-    char m_pad0[0xf];    unsigned int mf;             // +0xf
+struct GuildFundResultView : PacketHeader  {          // = Packet_Add_Guild_Fund_Result（0x1bbd，Guild/DNFPacketTranslater.h）
+    char m_afterHdr[0x5];
+    unsigned int mf;             // +0xf
 };
-struct TodayGuildMemberView {         // = Packet_Notify_Today_Guild_Member（0x1bc1，Guild/DNFGuild.h）
-    char m_pad0[0x12];   unsigned int m_channel;      // +0x12
+struct TodayGuildMemberView : PacketHeader  {         // = Packet_Notify_Today_Guild_Member（0x1bc1，Guild/DNFGuild.h）
+    char m_afterHdr[0x8];
+    unsigned int m_channel;      // +0x12
 };
-struct ApproveJoinResultView {        // = Packet_Approve_Join_Guild_Result（0x1bc3，Guild/DNFPacketTranslater.h）
-    char m_pad0[0x12];   unsigned int m12;            // +0x12
+struct ApproveJoinResultView : PacketHeader  {        // = Packet_Approve_Join_Guild_Result（0x1bc3，Guild/DNFPacketTranslater.h）
+    char m_afterHdr[0x8];
+    unsigned int m12;            // +0x12
 };
-struct AttendanceReplyView {          // = Packet_Guild_Attendance_Info_Reply（0x1bc7，Guild/PacketCounter.h）
-    char m_pad0[0xe];    unsigned int m_b;            // +0xe
+struct AttendanceReplyView : PacketHeader  {          // = Packet_Guild_Attendance_Info_Reply（0x1bc7，Guild/PacketCounter.h）
+    char m_afterHdr[0x4];
+    unsigned int m_b;            // +0xe
 };
-struct AchieveAttendanceView {        // = Packet_Achieve_Guild_Attendance（0x1bc8，Guild/DNFGuild.h）
-    char m_pad0[0xe];    unsigned int m_channel;      // +0xe（接收者 GetIdByChannel）
+struct AchieveAttendanceView : PacketHeader  {        // = Packet_Achieve_Guild_Attendance（0x1bc8，Guild/DNFGuild.h）
+    char m_afterHdr[0x4];
+    unsigned int m_channel;      // +0xe（接收者 GetIdByChannel）
 };
-struct TimeSyncLoginView {            // = Packet_Send_Time_Sync_For_Login（0x1f4c，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xe];    unsigned int m_idByChannel;  // +0xe
+struct TimeSyncLoginView : PacketHeader  {            // = Packet_Send_Time_Sync_For_Login（0x1f4c，Monitor/DNFPacketTranslater.h）
+    char m_afterHdr[0x4];
+    unsigned int m_idByChannel;  // +0xe
 };
-struct GuildBoardReplyView {          // = Packet_Guild_Reply_Guild_Board（0x2328，Guild/PacketCounter.h）
-    char m_pad0[0xf];    unsigned int m_f;            // +0xf
+struct GuildBoardReplyView : PacketHeader  {          // = Packet_Guild_Reply_Guild_Board（0x2328，Guild/PacketCounter.h）
+    char m_afterHdr[0x5];
+    unsigned int m_f;            // +0xf
 };
-struct CollectRewardView {            // = Packet_CollectItemsReward（0x27e8，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xa];    unsigned int m_idByChannel;  // +0xa
+struct CollectRewardView : PacketHeader {            // = Packet_CollectItemsReward（0x27e8，Monitor/DNFPacketTranslater.h）
+    unsigned int m_idByChannel;  // +0xa
 };
-struct GuildMarkChangeView {          // = Packet_Monitor_Notice_Guild_Mark_Change_ToUser（0x3ff，Guild/DNFGuild.h）
-    char m_pad0[0xa];    int m_channel;               // +0xa（GetIdByChannel）
+struct GuildMarkChangeView : PacketHeader {          // = Packet_Monitor_Notice_Guild_Mark_Change_ToUser（0x3ff，Guild/DNFGuild.h）
+    int m_channel;               // +0xa（GetIdByChannel）
     unsigned int m_charNo;             // +0xe（GetUniqCharNo）
     unsigned int m_charNo2;            // +0x12（变更标记角色 charNo；ORIG 日志误标 guildkey）
 };
-struct SetGuildKeyView {              // = Packet_Monitor_Set_Guild_Key（0x40b，Guild/DNFUser.h）
-    char m_pad0[0xa];    int m_channel;               // +0xa
+struct SetGuildKeyView : PacketHeader {              // = Packet_Monitor_Set_Guild_Key（0x40b，Guild/DNFUser.h）
+    int m_channel;               // +0xa
 };
-struct GuildMemberMemoView {          // = Packet_Guild_Notify_Guild_Member_Memo（0x4d2，Guild/DNFGuild.h）
-    char m_pad0[0xa];    int m_channel;               // +0xa（GetIdByChannel）
+struct GuildMemberMemoView : PacketHeader {          // = Packet_Guild_Notify_Guild_Member_Memo（0x4d2，Guild/DNFGuild.h）
+    int m_channel;               // +0xa（GetIdByChannel）
 };
-struct BlackListNoticeView {          // = Packet_Monitor_Notice_Black_List（0x5e2，Monitor/DNFPacketTranslater.h）
-    char m_pad0[0xe];    unsigned int m_idByChannel;  // +0xe
+struct BlackListNoticeView : PacketHeader  {          // = Packet_Monitor_Notice_Black_List（0x5e2，Monitor/DNFPacketTranslater.h）
+    char m_afterHdr[0x4];
+    unsigned int m_idByChannel;  // +0xe
 };
 #pragma pack(pop)
 

@@ -2,6 +2,6 @@ void CUserCharacInfo::SetCurCharacDungeonPlayCount(int count)
 {
     if (m_selected)
     {
-    CUR->m_dungeonPlayCount = count;
+    m_selected->m_fielde79 = count;
     }
 }

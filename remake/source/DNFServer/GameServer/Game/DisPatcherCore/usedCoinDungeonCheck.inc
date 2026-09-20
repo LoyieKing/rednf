@@ -16,8 +16,7 @@ int DisPatcher_UseCoin::usedCoinDungeonCheck(CUser* user, CParty* party)
     {
         // CParty+0xb24 内嵌 CBattle_Field。ORIG 0x81ca...：`mov 0x10(%ebp);add $0xb24;
         // mov %eax,(%esp);call` 无中间指针局部 → 表达式内联。
-        dungeonIndex = reinterpret_cast<CPartyBattleFieldView*>(party)
-                           ->m_battleField.get_dungeon_index();
+        dungeonIndex = (party)->m_battleField.get_dungeon_index();
     }
     CDungeon* dungeon = G_CDataManager()->find_dungeon(dungeonIndex);
     if (dungeon == 0)

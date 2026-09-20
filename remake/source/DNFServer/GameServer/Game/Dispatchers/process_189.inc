@@ -24,8 +24,8 @@ int Dispatcher_GuildAttendanceInfo::process(CUser* user, MSG_BASE& msg, ParamBas
     local_23.m_fieldB = (unsigned int)user->getCurCharacNo();
     // b28c-33：ORIG 无独立 char 局部（该 -0xd 槽即对象 +0x12=m_fieldC），且 msg+0xd
     // 为单条 disp 读（`movzbl 0xd(%eax),%eax`）⇒ 具名成员 + 具名视图，去掉 add 链。
-    struct MsgView { char m_pad[0xd]; unsigned char m_field0d; };
-    local_23.m_fieldC = reinterpret_cast<MsgView*>(local_10)->m_field0d;
+    local_23.m_fieldC = static_cast<unsigned char>(
+        reinterpret_cast<MSG_GUILD_ATTENDANCE*>(local_10)->m_field0d);
     // b28d-solo-Dispatchers: P200/P52 —— ORIG 0x081d550b `movzwl -0x1d(%ebp),%eax;
     //   movzwl %ax,%esi` 后跨 GetServerGroup/GetServerProxy 保活，源码为**短整表达式
     //   直传**（无具名局部、无 register 绑定）：len 与 &local_23 由链式表达式实参物化。

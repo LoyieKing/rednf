@@ -738,9 +738,8 @@ public:
 //   AddAvatar 口径：+0x12 char 槽位 / +0x13 u8 天数 / +0x14 u16 数量
 //   SetEnchant 口径：+0x12 int 槽位 / +0x16 int 强化值
 //   RequestMid/UserRepel 口径：+0x12 起为名称缓冲（长度取 +0x0e，≤0x1d）
-struct MSG_DEBUG_COMMAND
+struct MSG_DEBUG_COMMAND : MSG_BASE
 {
-    unsigned char m_head[0xd];       // +0x00..0x0c
     unsigned char m_command;         // +0x0d
     int m_arg;                       // +0x0e（b28c-lane12 曾试 int→unsigned int
                                      //   以复现 setBlackCount 单段直落，TU 级

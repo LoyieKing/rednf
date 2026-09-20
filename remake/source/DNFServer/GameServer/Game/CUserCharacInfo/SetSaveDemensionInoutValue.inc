@@ -1,4 +1,4 @@
 void CUserCharacInfo::SetSaveDemensionInoutValue(bool flag)
 {
-    CUR->m_saveDemensionInout = flag;
+    m_selected->m_fieldEB8 = flag;
 }

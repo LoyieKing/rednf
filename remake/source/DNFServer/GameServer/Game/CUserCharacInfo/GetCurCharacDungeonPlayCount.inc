@@ -1,4 +1,4 @@
 int CUserCharacInfo::GetCurCharacDungeonPlayCount() const
 {
-    return m_selected ? CUR->m_dungeonPlayCount : 0;
+    return m_selected ? m_selected->m_fielde79 : 0;
 }

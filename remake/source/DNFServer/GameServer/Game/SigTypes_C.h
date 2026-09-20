@@ -369,8 +369,9 @@ static_assert(0x005 + sizeof(((SIG_LOAD_CHARAC_HOTKEY_OPTION*)0)->m_hotkey) == 0
 
 struct SIG_LOAD_CLEANPAD_POINT
 {
-    char m_pad[0x3cf0];
+    int m_value[0xf3c];
 };
+static_assert(sizeof(SIG_LOAD_CLEANPAD_POINT) == 0x3cf0, "SIG_LOAD_CLEANPAD_POINT ABI drift");
 
 // 字段化（LinkClosureB-2，DB_LoadDimension::makeRequest 0x08431d8c 证据，
 // sizeof 不变）：
@@ -383,10 +384,14 @@ struct SIG_LOAD_DIMENSION
     char m_pad0d[3];
 };
 
+#pragma pack(push, 1)
 struct SIG_LOAD_DNF_HACK_LOG
 {
-    char m_pad[0x3cf4];
+    unsigned int m_mId;
+    unsigned int m_cnt[0xf3c];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_LOAD_DNF_HACK_LOG) == 0x3cf4, "SIG_LOAD_DNF_HACK_LOG ABI drift");
 
 // ORIG sizeof = 0x1810（CACHE_CHARACTER_TYPE@+0x1d2f3 → +0x1eb03）。
 // CUser::GetDungeonClear @0x864de58：+0xc 清零 int，+0x10 起 CDungeonClear::toString(buf,0x1800)。
@@ -741,15 +746,21 @@ struct SIG_LOAD_ETC
             unsigned char  m_questShopTagLoaded;     // +0xd6fb（tag 装载成功置 1）
             char           m_padD6FC[4];             // +0xd6fc
             unsigned short m_itemMakingSkill[11];    // +0xd700（weapon..magic_stone）
-            char           m_padD716[6];             // +0xd716
-            int            m_todFirstLayerStartDate; // +0xd71c
-            int            m_todTodayEnterCount;     // +0xd720
-            unsigned short m_todLastClearLayer;      // +0xd724
-            short          m_todEnterCountByWeek;    // +0xd726（get_short，
-                                                     //   LoadTODUserState.md 布局
-                                                     //   int,int,ushort,short,int,int）
-            int            m_todDate;                // +0xd728
-            int            m_todLastClearDate;       // +0xd72c
+            char           m_padD716[2];             // +0xd716
+            union
+            {
+                char       m_todUserState[0x18];     // +0xd718 SIG_REQUEST_TOD_USER_STATE
+                struct
+                {
+                    int            m_todStateCharacNo;       // +0xd718
+                    int            m_todFirstLayerStartDate; // +0xd71c
+                    int            m_todTodayEnterCount;     // +0xd720
+                    unsigned short m_todLastClearLayer;      // +0xd724
+                    short          m_todEnterCountByWeek;    // +0xd726
+                    int            m_todDate;                // +0xd728
+                    int            m_todLastClearDate;       // +0xd72c
+                };
+            };
             // [b28d-Main·检查点14 P235/P322] +0xd730 12B 同址 union 视角：
             //   ORIG LoadAuraAvatarOption 0x084084af `mov -0x1c(%ebp),%ecx; add $0x35cc,%ecx;
             //   mov -0x20(%ebp),%edx; mov %edx,(%eax,%ecx,4)`（4B store + 无符号索引序）
@@ -772,7 +783,8 @@ struct SIG_LOAD_ETC
     };
     unsigned char m_blueMarbleEnterCount;            // +0x14a98
     SIG_ATTENDANCE_EVENT m_attendanceEvent;          // +0x14a99
-    char     m_comboSkill[0x14b60 - 0x14aaa];        // +0x14aaa
+    char     m_comboSkill[0xb2];                     // +0x14aaa SIG_COMBO_SKILL
+    char     m_seriaRoomAniDeco[4];                  // +0x14b5c seriaRoom_AniDeco
 
     SIG_LOAD_ETC();   // ORIG W 0x08491f86（定义 SigTypes_C.cpp：子对象逐区构造）
     // ORIG D1/D2 W 0x084921f0：GameResultType[0x64] 析构循环 + PvpResultType 析构。
@@ -795,10 +807,23 @@ static_assert(offsetof(SIG_LOAD_ETC, m_achievement) == 0xb1a4,
 static_assert(offsetof(SIG_LOAD_ETC, m_curVillageAttackCount) == 0xc9ac,
               "SIG_LOAD_ETC m_curVillageAttackCount offset drift");
 
+#pragma pack(push, 1)
+struct SIG_LOAD_EVENTITEM_ENTRY
+{
+    unsigned int m_dbId;
+    unsigned int m_itemId;
+    unsigned int m_stackCount;
+    unsigned int m_eventCode;
+};
 struct SIG_LOAD_EVENTITEM
 {
-    char m_pad[0x5c];
+    unsigned int m_eventId;
+    unsigned int m_characNo;
+    int m_itemCount;
+    SIG_LOAD_EVENTITEM_ENTRY m_entries[5];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_LOAD_EVENTITEM) == 0x5c, "SIG_LOAD_EVENTITEM ABI drift");
 
 // ---- 临时生物期限（ORIG C1 W 0x0848f976：两 int 均置 -1）----
 // 使用点：CInventory::LoadCreatureTempPeriod（CInventory.h 前向声明）、
@@ -815,10 +840,14 @@ struct SIG_POSTAL_CREATURE_TEMP_PERIOD
     }
 };
 
+#include "CGameOption.h"
 struct SIG_LOAD_GAME_OPTION
 {
-    char m_pad[0x4b0];
+    CETCOption m_etc;
+    CQuickChattingOption m_quick[2];
+    CChattingEmoticonConfig m_emoticon;
 };
+static_assert(sizeof(SIG_LOAD_GAME_OPTION) == 0x4b0, "SIG_LOAD_GAME_OPTION ABI drift");
 
 // ORIG SIG_SAVE_PC_ROOM_RENT_ITEM（CUser::GetPcRoomRentInfo @0x86769ea 填充）：
 // 容器 2 个 0xc 条目；条目类型权威名 SIG_SAVE_PC_ROOM_RENT_INFO
@@ -1052,8 +1081,9 @@ static_assert(0x050 + sizeof(((SIG_LOAD_POWER_WAR_STATUE_INFO*)0)->m_guildId) ==
 
 struct SIG_LOAD_PU_USER_INFO
 {
-    char m_pad[0x1];
+    unsigned char m_flag;
 };
+static_assert(sizeof(SIG_LOAD_PU_USER_INFO) == 0x1, "SIG_LOAD_PU_USER_INFO ABI drift");
 
 // ---- PvP 好友列表（Community SendLogin 载荷）----
 // ORIG：CCommunityServerProxy::SendLogin 0x0846ca06 实证——

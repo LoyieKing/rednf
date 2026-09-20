@@ -2,6 +2,6 @@ void CUserCharacInfo::SetCurRevengeDungeonCount(unsigned char count)
 {
     if (m_selected)
     {
-    CUR->m_revengeDungeonCount = count;
+    m_selected->m_field1243 = count;
     }
 }

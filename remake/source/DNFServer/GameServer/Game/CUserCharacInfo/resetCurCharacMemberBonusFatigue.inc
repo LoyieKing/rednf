@@ -1,5 +1,5 @@
 void CUserCharacInfo::resetCurCharacMemberBonusFatigue()
 {
     enableSaveCharacStat();
-    CUR->m_memberBonusFatigue = 0;
+    m_selected->m_field126c = 0;
 }

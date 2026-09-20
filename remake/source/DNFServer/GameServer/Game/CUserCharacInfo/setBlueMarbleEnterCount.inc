@@ -2,6 +2,6 @@ void CUserCharacInfo::setBlueMarbleEnterCount(unsigned char count)
 {
     if (m_selected)
     {
-    CUR->m_blueMarbleEnterCount = count;
+    m_selected->m_field14BD = count;
     }
 }

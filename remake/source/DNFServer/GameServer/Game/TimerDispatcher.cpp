@@ -242,11 +242,6 @@ public:
 // ======== 具体分发器生命周期 + dispatch_sig stub ========
 // CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（与 GmCmds_D.cpp/
 // DisPatcherCore.cpp 同款；CParty.h 以 pad 占位，Main 裁定 TU 局部视图）。
-struct CPartyBattleFieldView
-{
-    char m_pad[0xb24];
-    CBattle_Field m_battleField;   // +0xb24
-};
 // stub 体待后续批次按 docs/class_func_reports 还原；地址=该函数 ORIG 起点。
 
 __attribute__((weak)) TimerCheckConn::TimerCheckConn() throw() {}

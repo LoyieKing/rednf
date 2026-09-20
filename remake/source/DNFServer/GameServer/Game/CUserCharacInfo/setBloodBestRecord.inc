@@ -10,8 +10,8 @@ void CUserCharacInfo::setBloodBestRecord(unsigned int time, int round, int recor
         round = 0xf;
     {
     std::map<int, stBloodBestRecord>::iterator it =
-        CUR->m_bloodBestMap.m_map.find(record);
-    if (it == CUR->m_bloodBestMap.m_map.end())
+        m_selected->m_bloodBestRecords.find(record);
+    if (it == m_selected->m_bloodBestRecords.end())
     {
         if (!flag)
             setBloodBestRecordUpdate(true);
@@ -23,34 +23,34 @@ void CUserCharacInfo::setBloodBestRecord(unsigned int time, int round, int recor
         stBloodBestRecord local;
         local.m_round = round;
         local.m_time = time;
-        CUR->m_bloodBestMap.m_map.insert(
+        m_selected->m_bloodBestRecords.insert(
             std::make_pair<int&, stBloodBestRecord&>(record, local));
-        CUR->m_bloodBestRound = round;
-        CUR->m_bloodBestTime = time;
+        m_selected->m_fieldEC4 = round;
+        m_selected->m_fieldEC8 = time;
     }
     else
     {
-        CUR->m_bloodBestRound = it->second.m_round;
-        CUR->m_bloodBestTime = it->second.m_time;
-        if (round < CUR->m_bloodBestRound)
+        m_selected->m_fieldEC4 = it->second.m_round;
+        m_selected->m_fieldEC8 = it->second.m_time;
+        if (round < m_selected->m_fieldEC4)
             goto L_SBR_END2;
-        if (CUR->m_bloodBestTime == time &&
-            CUR->m_bloodBestRound == round)
+        if (m_selected->m_fieldEC8 == time &&
+            m_selected->m_fieldEC4 == round)
             goto L_SBR_END3;
         {
-            if (CUR->m_bloodBestRound == round)
+            if (m_selected->m_fieldEC4 == round)
             {
                 setBloodBestRecordUpdate(true);
-                CUR->m_bloodBestTime = std::min(CUR->m_bloodBestTime, time);
+                m_selected->m_fieldEC8 = std::min(m_selected->m_fieldEC8, static_cast<int>(time));
             }
             else
             {
                 setBloodBestRecordUpdate(true);
-                CUR->m_bloodBestTime = time;
-                CUR->m_bloodBestRound = round;
+                m_selected->m_fieldEC8 = time;
+                m_selected->m_fieldEC4 = round;
             }
-            it->second.m_round = CUR->m_bloodBestRound;
-            it->second.m_time = CUR->m_bloodBestTime;
+            it->second.m_round = m_selected->m_fieldEC4;
+            it->second.m_time = m_selected->m_fieldEC8;
         }
     }
     }

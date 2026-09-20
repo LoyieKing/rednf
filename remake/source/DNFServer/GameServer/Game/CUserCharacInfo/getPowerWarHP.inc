@@ -1,4 +1,4 @@
 unsigned short CUserCharacInfo::getPowerWarHP()
 {
-    return m_selected ? CUR->m_powerWarHP : 0;
+    return m_selected ? m_selected->m_powerWarData.m_data0 : 0;
 }

@@ -162,11 +162,10 @@ public:                            // 参数类型按 ORIG mangled Eij=(int, uns
 // MSG_RES_PVP_RANK（ORIG C1 0x08235378/D1 0x0823538e：仅构造/析构 +0xd PvpResultType，
 // sizeof 0x91 实证）。wave1 最小建模（当前全仓无定义；待迁 PacketTypes.h 权威区）。
 #pragma pack(push, 1)
-struct MSG_RES_PVP_RANK
+struct MSG_RES_PVP_RANK : MSG_BASE
 {
     MSG_RES_PVP_RANK() {}
     ~MSG_RES_PVP_RANK() {}
-    char m_pad0[0xd];        // +0x00..0x0c（MSG_BASE 头区）
     PvpResultType m_result;  // +0x0d..0x90
 };                           // sizeof = 0x91
 #pragma pack(pop)
@@ -178,9 +177,8 @@ struct MSG_RES_PVP_RANK
 // +0x2f int 密码长（<=8）、+0x33 char 密码/校验缓冲、+0x3c byte battleMode。
 // （int m_field2f 需 pack(1) 才落在 +0x2f；ORIG ExtractPacket 0x081f81ba 实证。）
 #pragma pack(push, 1)
-struct MSG_MAKE_PVP_ROOM
+struct MSG_MAKE_PVP_ROOM : MSG_BASE
 {
-    char m_pad0[0xd];        // +0x00..0x0c
     char m_field0d;          // +0x0d
     char m_name[0x1e];       // +0x0e..0x2b
     short m_field2c;         // +0x2c
@@ -194,20 +192,10 @@ struct MSG_MAKE_PVP_ROOM
 // CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（CParty.h 以
 // m_battleField[0x158] 等 pad 占位、未引入 CBattle_Field 类型；Main 裁定
 // 本组 TU 局部视图，与 CParty.cpp 同口径）。布局：pad 0xb24 + BF 0xcd0。
-struct CPartyBattleFieldView
-{
-    char m_pad[0xb24];
-    CBattle_Field m_battleField;   // +0xb24
-};
 
 // WongWork::CDeathTower 私有区局部视图（m_timerKeys[10]@+0xb3c 为 private，
 // CDeathTower.h:254；ORIG 跨类直访该区——本 TU 按 P1 组件视图具名取址，
 // 与 CPartyBattleFieldView 同口径）。
-struct CDeathTowerTimerKeyView
-{
-    char m_pad[0xb3c];
-    int m_timerKeys[10];           // +0xb3c（TIMER_MESSAGE 0x48..）
-};
 
 // DisPatcher_Login::dispatch_sig 栈上登录载荷区（ORIG -0x1a7(%ebp) 起 0xbf 字节，
 // ORIG 0x081e8c78；证据 docs/class_func_reports/DisPatcher_Login/dispatch_sig.md：
@@ -249,9 +237,8 @@ struct STRentAvatarEntry
     unsigned char m_rentDaysType;  // entry+0x00（1=30d / 2=365d / 0=7d / 其它=错误）
     unsigned long m_itemId;        // entry+0x01（4B；get_int(unsigned long&)）
 };
-struct STRentAvatarReq
+struct STRentAvatarReq : MSG_BASE
 {
-    char m_pad0[0xd];                   // +0x00..0x0c（ORIG 未出线）
     unsigned char m_count;              // +0x0d
     STRentAvatarEntry m_entries[9];     // +0x0e..0x3a（ORIG 上限 count<=9）
     char m_tailPad[4];                  // +0x3b..0x3e（保持 ORIG 栈区 0x3f 尺寸）
@@ -269,9 +256,8 @@ static_assert(sizeof(STRentAvatarReq) == 0x3f, "STRentAvatarReq size");
 //   （0x081cb53d / 0x081cb585）；process_packet_jpn.md 0x081cb476 `lea 0x11(%eax)`
 //   作 strncpy 源。
 #pragma pack(push, 1)
-struct STFriendReqView
+struct STFriendReqView : MSG_BASE
 {
-    char m_head[0xd];         // +0x00..0x0c 包头
     int m_nameLen;            // +0x0d（get_int(int&)）
     char m_name[0x1e];        // +0x11..0x2e（get_str 0x1e / strncpy 0x1e）
     char m_pad2F[0x15];       // +0x2f..0x43（ORIG 未出线，保持 sizeof 0x44）
@@ -283,9 +269,8 @@ static_assert(sizeof(STFriendReqView) == 0x44, "STFriendReqView size");
 // `add $0xd` 取成员（0x081ede34 `lea -0x2f(%ebp),%eax; add $0xd,%eax`）⇒ 原码是
 // pack(1) 结构体局部（val@+0x0d，sizeof 0x10），非裸 short。
 #pragma pack(push, 1)
-struct IncreStatusSigView
+struct IncreStatusSigView : MSG_BASE
 {
-    char m_head[0xd];     // +0x00..0x0c 包头
     short m_val;          // +0x0d（get_short(short&)）
 };
 #pragma pack(pop)
@@ -300,9 +285,8 @@ static_assert(sizeof(IncreStatusSigView) == 0xf, "IncreStatusSigView size");
 //  test %al,%al`（唯 bool 取反形，0x081...）；0x33..0x38 = get_short(0x33)+get_int(0x35)
 //  两字段（ORIG `add $0x33` / `add $0x35` 单步）。sizeof 与 MSG_MOVE_MAP 一致 0x42。
 #pragma pack(push, 1)
-struct MoveMapMsgView
+struct MoveMapMsgView : MSG_BASE
 {
-    char m_head[0xd];
     signed char m_x;
     signed char m_y;
     unsigned int m_fieldF;
@@ -325,9 +309,8 @@ static_assert(sizeof(MoveMapMsgView) == 0x42, "MoveMapMsgView size");
 // ORIG 0x0820b8db `lea -0x21(%ebp),%eax; add $0xd` + get_shortERt、
 // 0x0820b920 `add $0xf` + get_shortERt，0x0820b96c `movzwl -0x14(%ebp)` 读回）。
 #pragma pack(push, 1)
-struct STMultiBoxLotteryReq
+struct STMultiBoxLotteryReq : MSG_BASE
 {
-    char m_pad0[0xd];              // +0x00..0x0c（ORIG 未出线）
     unsigned short m_field0d;      // +0x0d（multibox_lottery_item 第 1 实参；语义未证）
     unsigned short m_field0f;      // +0x0f（multibox_lottery_item 第 2 实参；语义未证）
 };
@@ -442,9 +425,8 @@ static const int CREATECHARACTEREQUIP[22] =
 // （ORIG 081c0297 `mov 0xe(%eax),%eax` 单步 disp 证据），冻结头 m_padE[4] 的
 // 等偏移/等宽强类型化，sizeof(0x38) 不变；已同步列 PacketTypes 字段化请求给 Main。
 #pragma pack(push, 1)
-struct MSG_CREATE_CHARAC_VIEW
+struct MSG_CREATE_CHARAC_VIEW : MSG_BASE
 {
-    char m_head[0xd];   // +0x0
     unsigned char m_slot;  // +0xd
     int m_nameLen;      // +0xe（ORIG read 081c02db get_intERi 目标）
     char m_name[0x1e];  // +0x12..+0x2f

@@ -72,8 +72,7 @@ void CItemLock::PopItemLock(CUser* user)
             // [b28d-41] ORIG 0x8542d71 直接读 item->m_addInfo2（无
             // `if (item != 0)` 守卫）⇒ 删除多余条件（P171）。
             // [b28d-solo-CItemLock] 内联 receiver（ORIG 0x8542d88 无 history 槽）。
-            ((cUserHistoryLog*)((char*)user + 0x79700))
-                ->ItemLockUsingLog(3, (int)space, slotVal,
+            user->m_historyLog.ItemLockUsingLog(3, (int)space, slotVal,
                                    item->m_addInfo, item->m_addInfo2);
             // 体尾 continue：erase(it++) 已推进迭代器，跳过下方 ++it（ORIG 体尾
             // jmp 至条件块）。

@@ -353,7 +353,7 @@ void CParty::ClearDungeon()
         //   static_cast 不再合法，改 reinterpret_cast（语义/codegen 不变）。
         const float* hellValues = reinterpret_cast<const float*>(
             G_CDataManager()->get_hellparty_script_values());
-        bd(this).SetHellPartyValueTotal((int)*(int*)((char*)hellValues + 8));
+        bd(this).SetHellPartyValueTotal(*(const int*)(hellValues + 2));
     }
     // ORIG 0x85aa27e..0x85aa2b0 比较 CParty+0xcee/0xcef/0xcdc（= CBattle_Field
     // +0x1ca m_killedAllHellGroups / +0x1cb m_field1cb / +0x1b8

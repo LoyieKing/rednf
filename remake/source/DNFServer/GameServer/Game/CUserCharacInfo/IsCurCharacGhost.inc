@@ -4,6 +4,6 @@ bool CUserCharacInfo::IsCurCharacGhost()
     // 终值，无 int promote 二段 movzbl %al；bool 声明反产 test;je;mov$1 规范化）
     // ⇒ 返回类型 unsigned char（技巧 33，mangled 无返回类型）。
     if (m_selected)
-        return CUR->m_ghost;
+        return m_selected->m_fieldE66;
     return 0;
 }

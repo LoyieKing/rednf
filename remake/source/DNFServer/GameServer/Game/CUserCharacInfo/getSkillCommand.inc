@@ -1,4 +1,4 @@
 const char* CUserCharacInfo::getSkillCommand() const
 {
-    return m_selected ? (const char*)CUR->m_skillCommand : 0;
+    return m_selected ? reinterpret_cast<const char*>(&m_selected->m_skillCommandsMap) : 0;
 }

@@ -1,4 +1,4 @@
 unsigned char CUserCharacInfo::GetOneDayLetheFlag() const
 {
-    return m_selected ? CUR->m_oneDayLetheFlag : 0;
+    return m_selected ? m_selected->m_padEB3 : 0;
 }

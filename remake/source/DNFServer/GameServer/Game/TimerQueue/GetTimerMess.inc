@@ -9,16 +9,19 @@ bool TimerQueue::GetTimerMess(TimerEntry& entry) throw()
     }
 
     entry = m_queue.top();
-    if (entry.time <= cur)
-    {
-        m_queue.pop();
+    // ORIG 0x08630f4a..0x08630f66：hi 有符号 vs 0（jg 未到期 / jl 到期），
+    // hi==0 时 lo 无符号 vs cur（ja 未到期）。cur 高 32 位恒 0。
+    if (entry.words.hi > 0)
+        return false;
+    if (entry.words.hi == 0 && entry.words.lo > cur)
+        return false;
 
-        std::map<int, int>::iterator it = m_map.find(entry.msg);
-        if (it != m_map.end())
-        {
-            it->second -= 1;
-        }
-        return true;
+    m_queue.pop();
+
+    std::map<int, int>::iterator it = m_map.find(entry.msg);
+    if (it != m_map.end())
+    {
+        it->second -= 1;
     }
-    return false;
+    return true;
 }

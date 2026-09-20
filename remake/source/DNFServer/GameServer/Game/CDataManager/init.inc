@@ -579,6 +579,24 @@ bool CDataManager::init()
     }
     if (schedules.size() != 0)
     {
+#if !remake_verify
+        // Client HUD 领主之塔文案：每天下午 16:00~18:00、每天晚上 21:00~24:00。
+        // etc 原文是 00:00-23:59；按客户端文案改 hour（type 4/0 下午，type 1 晚上）。
+        for (unsigned int si = 0; si < schedules.size(); ++si)
+        {
+            _DailySchedule& e = schedules[si];
+            if (e.m_type == 4 || e.m_type == 0)
+            {
+                e.m_startHour = 16; e.m_startMin = 0; e.m_startSec2 = 0;
+                e.m_endHour = 18; e.m_endMin = 0; e.m_endSec2 = 0;
+            }
+            else if (e.m_type == 1)
+            {
+                e.m_startHour = 21; e.m_startMin = 0; e.m_startSec2 = 0;
+                e.m_endHour = 23; e.m_endMin = 59; e.m_endSec2 = 59;
+            }
+        }
+#endif
         GlobalData::s_DailyScheduleManager->AddDailSchedule(schedules);
     }
 

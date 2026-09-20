@@ -340,10 +340,22 @@ static_assert(offsetof(SIG_AUTO_MARKET_CONDITIONS_CONTROL, m_view.m_rows[1]) == 
 static_assert(offsetof(SIG_AUTO_MARKET_CONDITIONS_CONTROL, m_view.m_flag) == 0x68,
               "SIG_AUTO_MARKET_CONDITIONS_CONTROL m_flag offset drift");
 
+#pragma pack(push, 1)
+struct SIG_AUTO_PUNISH_RULE_BLACK_IP_ENTRY
+{
+    unsigned int m_ip;
+    unsigned char m_start;
+    unsigned char m_end;
+    char m_pad0a[2];
+};
 struct SIG_AUTO_PUNISH_RULE_BLACK_IP
 {
-    char m_pad[0x3e84];
+    unsigned short m_count;
+    char m_pad02[2];
+    SIG_AUTO_PUNISH_RULE_BLACK_IP_ENTRY m_entries[0x7d0];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_AUTO_PUNISH_RULE_BLACK_IP) == 0x3e84, "SIG_AUTO_PUNISH_RULE_BLACK_IP ABI drift");
 
 // [Lane31W8LTDBTaskView] 字段化 + 匿名 union 双视角：ORIG DB_ReloadAutoPunishRule
 // HackType::dispatch 0x0842d??? 写 +0x00 cnt(hackType==0 分支)/+0x04 etc 低 32/
@@ -566,10 +578,13 @@ struct SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER
     }
 };
 
+#pragma pack(push, 1)
 struct SIG_BREAK_AWAY_UV_LIST
 {
-    char m_pad[0x1f];
+    char m_playInfo[0x1f];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_BREAK_AWAY_UV_LIST) == 0x1f, "SIG_BREAK_AWAY_UV_LIST ABI drift");
 
 // b28d-21（D21）具名化：ORIG 0x0844b31c makeRequest 逐字段写实证
 //（+0x0 accId 4B、+0x4 itemUid 4B、+0x8 ushort 清零、+0xc count int）；
@@ -638,10 +653,16 @@ struct SIG_CHECK_ADD_FRIEND
 };
 static_assert(sizeof(SIG_CHECK_ADD_FRIEND) == 0x24, "SIG_CHECK_ADD_FRIEND ABI drift");
 
+#pragma pack(push, 1)
 struct SIG_CHECK_CHARAC_NAME
 {
-    char m_pad[0x24];
+    unsigned int m_mId;        // +0x00
+    char m_charName[0x1e];     // +0x04
+    unsigned char m_byte22;    // +0x22
+    unsigned char m_pad23;     // +0x23
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_CHECK_CHARAC_NAME) == 0x24, "SIG_CHECK_CHARAC_NAME ABI drift");
 
 // 具名化（G6 HackAnM 批次；DB_SelectCharacMid::makeRequest ORIG T 0x0844676c
 // 报告偏移：+0/+4/+8/+0xc uint 四域，+0x10 strncpy(name,0x1e)，尾 2 字节对齐）。
@@ -655,10 +676,17 @@ struct SIG_CHECK_CHAR_MID
     char m_pad2e[2];             // +0x2e 对齐尾（sizeof 保持 0x30）
 };
 
+#pragma pack(push, 1)
 struct SIG_CHECK_CHAR_MID_RESULT
 {
-    char m_pad[0x14];
+    unsigned int m_field00;
+    unsigned int m_field04;
+    unsigned int m_field08;
+    unsigned int m_field0c;
+    unsigned int m_mId;
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_CHECK_CHAR_MID_RESULT) == 0x14, "SIG_CHECK_CHAR_MID_RESULT ABI drift");
 
 // 具名化（证据：Dispatcher_CheckJoinGuild::process ORIG 0x081d4xxx memset 0x1c 后
 // strncpy(+0,name,0x16)，serverGroup 写 +0x16；DB_CheckJoinGuild::makeRequest 0x0843cc06
@@ -706,12 +734,17 @@ struct SIG_CHECK_MY_ACCOUNT_IN_DB
 
 struct SIG_CHECK_MY_ACCOUNT_OK
 {
-    char m_pad[0xc];
+    unsigned int m_a;
+    unsigned int m_money;
+    unsigned int m_id;
 };
+static_assert(sizeof(SIG_CHECK_MY_ACCOUNT_OK) == 0xc, "SIG_CHECK_MY_ACCOUNT_OK ABI drift");
 
 struct SIG_CHECK_USER_SECU_REWARD
 {
-    char m_pad[0x8];
+    unsigned int m_mId;
+    unsigned int m_param3;
 };
+static_assert(sizeof(SIG_CHECK_USER_SECU_REWARD) == 0x8, "SIG_CHECK_USER_SECU_REWARD ABI drift");
 
 #endif  // DNF_GAME_SIG_TYPES_A_H_

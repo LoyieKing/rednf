@@ -1,4 +1,4 @@
 const CCargo* CUserCharacInfo::getCurCharacCargoR() const
 {
-    return &CUR->m_cargo;
+    return &m_selected->m_cargo;
 }

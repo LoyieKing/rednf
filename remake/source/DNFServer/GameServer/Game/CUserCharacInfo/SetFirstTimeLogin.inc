@@ -1,4 +1,4 @@
 void CUserCharacInfo::SetFirstTimeLogin(bool flag)
 {
-    CUR->m_firstTimeLogin = flag;
+    m_selected->m_fieldEB7 = flag;
 }

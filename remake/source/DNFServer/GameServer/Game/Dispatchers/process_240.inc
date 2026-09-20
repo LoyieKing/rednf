@@ -17,18 +17,12 @@ int Dispatcher_Delete_GuildBoard_Text::process(CUser* user, MSG_BASE& msg, Param
     (void)deadParam;
     // 局部视图：m_7c 取 unsigned int（SendGuildBoardDelete 第 1 形参即 unsigned int，
     //   省掉 int→unsigned 的中间 mov；ORIG 0x081d33d2 `mov 0x89(%eax),%edi` 单条直载。
-    struct __attribute__((packed)) GuildBoardMsgView
-    {
-        char m_head[0xd];          // MSG_BASE 头
-        char m_pad[0x7c];          // STGuildBoardDBInfo 前导
-        unsigned int m_7c;         // +0x89
-    };
-    MSG_BASE& boardMsg = msg;       // -0x1c 槽
+    MSG_GUILD_BOARD& boardMsg = reinterpret_cast<MSG_GUILD_BOARD&>(msg);
     // ORIG 0x081d33a0 段：guildkey→esi / characNo→ebx / textIdx→edi 三实参右到左求值，
     //   跨 receiver 链（P52）保活，无具名槽 ⇒ 全内联进实参位
     GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
         ->SendGuildBoardDelete(
-            reinterpret_cast<GuildBoardMsgView&>(boardMsg).m_7c,
+            static_cast<unsigned int>(boardMsg.m_info.m_7c),
             user->getCurCharacNo(),
             (unsigned int)user->get_charac_guildkey());
     return 0;

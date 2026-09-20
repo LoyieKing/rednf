@@ -1,4 +1,4 @@
 int CUserCharacInfo::getBloodBestRoundRecord()
 {
-    return CUR->m_bloodBestRound;
+    return m_selected->m_fieldEC4;
 }

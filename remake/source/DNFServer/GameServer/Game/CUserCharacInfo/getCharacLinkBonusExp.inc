@@ -1,4 +1,4 @@
 int CUserCharacInfo::getCharacLinkBonusExp()
 {
-    return m_selected ? CUR->m_characLinkBonusExp : 0;
+    return m_selected ? m_selected->m_field1247 : 0;
 }

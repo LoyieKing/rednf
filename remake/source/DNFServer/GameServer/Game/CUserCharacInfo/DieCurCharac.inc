@@ -9,9 +9,9 @@ void CUserCharacInfo::DieCurCharac(int responTime, CUser* user)
     if (m_selected)
     {
     enableSaveCharacStat();
-    CUR->m_ghost = 1;
-    CUR->m_chaosStateTime = GlobalData::s_systemTime_.getCurSec() - CUR->m_chaosDieTime;
-    CUR->m_chaosDieTime = GlobalData::s_systemTime_.getCurSec() + responTime;
+    m_selected->m_fieldE66 = 1;
+    m_selected->m_fieldE61 = GlobalData::s_systemTime_.getCurSec() - m_selected->m_fielde5d;
+    m_selected->m_fielde5d = GlobalData::s_systemTime_.getCurSec() + responTime;
     int ghostTime = 0;
     // [b28d-solo-CUserCharacInfo P198②/P225] ORIG 0x086462b0 直测
     // `test %al,%al; je`（无 bool 物化）⇒ 条件整体内联，勿用具名/register bool。

@@ -40,8 +40,7 @@ int CItemLock::DoItemUnlock(CUser* user, int space, int slot)
     SendRequestItemUnlock(user, space, slot, remain);
 
     // [b28d-solo-CItemLock] 内联 receiver（ORIG 0x8542488 无 history 槽）。
-    ((cUserHistoryLog*)((char*)user + 0x79700))
-        ->ItemLockUsingLog(1, space, slot, item->m_addInfo,
+    user->m_historyLog.ItemLockUsingLog(1, space, slot, item->m_addInfo,
                            item->m_addInfo2);
     return 1;
 }

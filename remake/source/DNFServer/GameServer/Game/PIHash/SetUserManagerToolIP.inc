@@ -29,8 +29,8 @@ void SetUserManagerToolIP(CUser* user, SIG_UPDATE_LOGOUT* sig)
     //   `mov base,%eax; add $0x27/$0x8e418,%eax; movzbl (%eax),%eax`；成员访问形被
     //   4.4 折成单条 disp（旧 N102 判词），char* 常量算术形恒产 add+movzbl 两步
     //   （探针 probe3 c2/c5/c6/c8 实证；偏移为既有文档化偏移，语义逐字等价）。
-    if (*(char*)((char*)sig + 0x27) == '\0' &&
-        *(char*)((char*)user + 0x8e418) != '\0')
+    if (sig->m_ipBuf[0] == '\0' &&
+        user->m_mcap.m_pcRoomIp[0] != '\0')
     {
         std::memset(sig->m_ipBuf, 0, 0x10);
         std::strncpy(sig->m_ipBuf, user->m_mcap.m_pcRoomIp, 0x10);

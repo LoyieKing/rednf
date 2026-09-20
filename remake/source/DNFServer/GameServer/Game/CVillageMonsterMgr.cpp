@@ -34,21 +34,6 @@
 // CParty.h 尚未具名该子区；本 TU 以局部视图按 ORIG 偏移具名访问（不跨 TU）。
 // 字段对应：OnFightVillageMonster 0x86b4672 写 / OnKillVillageMonster 0x86b4866 读。
 // ============================================================================
-namespace
-{
-
-struct CPartyVillageStateView
-{
-    unsigned char m_pad0[0xc4c];
-    unsigned short m_villageMonsterZone;   // +0xc4c（BF+0x128；0 = 未在村战）
-    int m_villageVill;                     // +0xc50（战斗对象 vill）
-    int m_villageArea;                     // +0xc54（战斗对象 area）
-    int m_villageMonsterField24;           // +0xc58（怪物 m_field24）
-    unsigned char m_pad1[0xcb8 - 0xc5c];
-    int m_villageMonsterField20;           // +0xcb8（怪物 m_field20）
-};
-
-}  // anonymous namespace
 
 #include "CVillageMonsterMgr/include.inc"
 

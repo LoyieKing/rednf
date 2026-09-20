@@ -18,9 +18,9 @@ bool CUser::Send(PacketGuard& packet)   // b28c-L5 SIGFIX：ORIG 串 bool；
         const unsigned char* hp =
             reinterpret_cast<const unsigned char*>(pBuf->get_packet(0));
         {
-            const int dn = 48;
+            const int dn = 80;
             const int n = pBuf->get_len() < dn ? pBuf->get_len() : dn;
-            char hx[3 * 48 + 1];
+            char hx[3 * 80 + 1];
             hx[0] = 0;
             for (int k = 0; k < n; ++k)
             {
@@ -33,11 +33,13 @@ bool CUser::Send(PacketGuard& packet)   // b28c-L5 SIGFIX：ORIG 串 bool；
             }
             hx[n * 3] = 0;
             cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
-                "[DNF-DIAG OUT] class=%d id=%u size=%u len=%d hex=%s",
+                "[DNF-DIAG OUT] class=%d id=%u size=%u len=%d ra=%p hex=%s",
                 (int)hp[0],
                 (unsigned int)(unsigned short)(hp[1] | (hp[2] << 8)),
                 (unsigned int)(unsigned short)(hp[3] | (hp[4] << 8)),
-                (int)pBuf->get_len(), hx);
+                (int)pBuf->get_len(),
+                __builtin_return_address(0),
+                hx);
         }
     }
 #endif

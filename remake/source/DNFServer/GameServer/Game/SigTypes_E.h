@@ -13,7 +13,9 @@
 #include "MissionTypes.h"  // MissionInfo（SIG_REQUEST_PVP_MISSION_LIST 任务列表）
 #include "PvpResultType.h"  // SIG_SAVE_PVP 前段 PvpResultType 镜像（无依赖叶子头）
 #include "Packet_PvPResult.h"  // 权威定义（shared/packet/include；原占位 char m_pad[0x80] 移除）
-#include "PacketHeader.h"  // [R18pkt] Packet_Mannerless_User_Accusation 的真继承基类
+#include "PacketHeader.h"
+#include "CEnvironment.h"  // ENUM_SERVER_GROUP
+#include "TowerOfDespairMgr.h"  // _APCInfo  // [R18pkt] Packet_Mannerless_User_Accusation 的真继承基类
 
 // 字段化（W8DB，ORIG 0x0842ff4e DB_SaveGameOption_1::dispatch 证据：
 // NumberToString(*(uint*)sig)=m_id、compress(sig+4,0x48)；写侧
@@ -25,10 +27,14 @@ struct SIG_SAVE_GAME_OPTION_1
 };
 static_assert(sizeof(SIG_SAVE_GAME_OPTION_1) == 0x4c,
               "SIG_SAVE_GAME_OPTION_1 ABI drift");
+#pragma pack(push, 1)
 struct SIG_SAVE_GAME_OPTION_QUICKCHAT
 {
-    char m_pad[0x25c];
+    unsigned int m_mId;
+    char m_data[0x258];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_GAME_OPTION_QUICKCHAT) == 0x25c, "SIG_SAVE_GAME_OPTION_QUICKCHAT ABI drift");
 
 // SIG_LIMIT_ITEM_INFO —— 限购物品信息（ORIG 唯一消费者 CUser::SetLimitInfo 0x086888f8；
 // 条目区按 ORIG 读点 +0x08 long createTime / +0x0c itemId / +0x10=i*0x10 照抄）。
@@ -46,10 +52,14 @@ struct SIG_LIMIT_ITEM_INFO
     Entry m_entries[1];      // +0x0c 起，可变长（sizeof 之外按 count 扩展）
 };
 
+#pragma pack(push, 1)
 struct SIG_SAVE_GEO_REJECT
 {
-    char m_pad[0x20];
+    char m_rejIp[0x10];
+    char m_rejCCode[0x10];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_GEO_REJECT) == 0x20, "SIG_SAVE_GEO_REJECT ABI drift");
 
 // 具名化（Fix11 real10b；proceed_trade @0x8530e64 填包 + DB_SaveGoldZeroTradeLog
 // @0x084227f6 读包交叉实证）：
@@ -231,13 +241,24 @@ static_assert(sizeof(SIG_SAVE_SAME_MID_OTHER_CHAR_LOGIN_HACK) == 0x20,
 
 struct SIG_SECOND_USER_DATA
 {
-    char m_pad[0x14];
+    unsigned int m_mId;
+    unsigned int m_goldLo;
+    unsigned int m_goldHi;
+    int m_tradeCnt;
+    unsigned int m_punished;
 };
+static_assert(sizeof(SIG_SECOND_USER_DATA) == 0x14, "SIG_SECOND_USER_DATA ABI drift");
 
 struct SIG_SECOND_USER_DATA_SET
 {
-    char m_pad[0x18];
+    unsigned int m_goldLo;
+    unsigned int m_goldHi;
+    unsigned int m_tradeCnt;
+    unsigned int m_pad0c;
+    unsigned int m_punished;
+    unsigned int m_mId;
 };
+static_assert(sizeof(SIG_SECOND_USER_DATA_SET) == 0x18, "SIG_SECOND_USER_DATA_SET ABI drift");
 
 // 字段化（SecuLink 批次 2026-09-05，裸偏移清理；union 叠加保留 m_pad 基名）。
 // 证据：makeRequest ORIG 0x0842bb5c（docs/class_func_reports/
@@ -312,10 +333,19 @@ struct SIG_SECURITY_CARD_ISSUE
 static_assert(sizeof(SIG_SECURITY_CARD_ISSUE) == 0x90,
               "SIG_SECURITY_CARD_ISSUE ABI drift");
 
+#pragma pack(push, 1)
 struct SIG_SECURITY_CARD_RETRANSFER
 {
-    char m_pad[0x8c];
+    unsigned int m_mId;
+    char m_certKey[0x21];
+    char m_card[0x6];
+    char m_serverKey[0x27];
+    char m_serial[0xc];
+    char m_phone[0x29];
+    char m_pad87[5];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_SECURITY_CARD_RETRANSFER) == 0x8c, "SIG_SECURITY_CARD_RETRANSFER ABI drift");
 
 // 字段化（W8DB，ORIG makeRequest 0x0843a34e：+0 uint accId、+4 uint type、
 // +8 ushort flag、+0xa strncpy 0x10 uid；dispatch 0x0843a11e 双义读：
@@ -368,8 +398,9 @@ static_assert(sizeof(SIG_SECU_SERVICE_REWARD) == 0x8,
 
 struct SIG_SEND_USER_REWARD
 {
-    char m_pad[0x4];
+    unsigned int m_reward;
 };
+static_assert(sizeof(SIG_SEND_USER_REWARD) == 0x4, "SIG_SEND_USER_REWARD ABI drift");
 
 struct SIG_STATISTIC_CERASHOP_GIFT_LOG
 {
@@ -415,8 +446,9 @@ static_assert(offsetof(SIG_SWAP_CREATURE_ITEM, m_empty2) == 0x14,
               "SIG_SWAP_CREATURE_ITEM m_empty2 offset drift");
 struct SIG_TOD_RELOADED_USER_APC
 {
-    char m_pad[0x758];
+    _APCInfo m_apc[10];
 };
+static_assert(sizeof(SIG_TOD_RELOADED_USER_APC) == 0x758, "SIG_TOD_RELOADED_USER_APC ABI drift");
 
 // 具名化（HdrFieldC）：sizeof 0x30 不变。写侧 DB_UpdateAutoMarketConditionsControl::
 //   makeRequest ORIG T 0x08433d70（LinkMiscSecuTimerSolo.cpp 转写 + 报告）：
@@ -441,8 +473,12 @@ struct SIG_UPDATE_AVATAR_JEWEL_SOCKET
 
 struct SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD
 {
-    char m_pad[0x10];
+    unsigned int m_characNo;
+    unsigned int m_bestTime;
+    int m_bestRound;
+    int m_dungeonIndex;
 };
+static_assert(sizeof(SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD) == 0x10, "SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD ABI drift");
 
 struct SIG_UPDATE_CHARACTER_DAY_EVENT
 {
@@ -481,15 +517,31 @@ struct SIG_UPDATE_COMPOUND_EMBLEM_STATISTIC
     unsigned int m_values[7];      // +0x04..+0x1c（param_2..param_8）
 };
 
+#pragma pack(push, 1)
 struct SIG_UPDATE_DIMENSION
 {
-    char m_pad[0x10];
+    unsigned int m_characNo;
+    signed char m_dungeon[6];
+    char m_pad0a;
+    char m_pad0b;
+    signed char m_bloodDungeon1;
+    char m_dimensionInoutSave;
+    char m_bloodInoutSave;
+    char m_pad0f;
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_UPDATE_DIMENSION) == 0x10, "SIG_UPDATE_DIMENSION ABI drift");
 
+#pragma pack(push, 1)
 struct SIG_UPDATE_LOGIN
 {
-    char m_pad[0x20];
+    unsigned int m_accId;
+    int m_channelNo;
+    int m_serverGroup;
+    char m_loginIp[0x14];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_UPDATE_LOGIN) == 0x20, "SIG_UPDATE_LOGIN ABI drift");
 
 #pragma pack(push, 1)
 struct SIG_UPDATE_LOGOUT
@@ -759,7 +811,7 @@ static_assert(offsetof(stCeraShopIPGRequest_t, m_optEntries) == 0x164, "stCeraSh
 
 // ---- Additional types for GetOutBuffer instantiations ----
 struct MSG_STAT_BREAKJAR { char m_pad[0xc]; };
-struct MSG_STAT_COMPOSITON { char m_pad[0xd]; };
+struct MSG_STAT_COMPOSITON { char m_data[0xd]; };
 struct MSG_STAT_DUNGEONCLEAR { char m_pad[0x19]; };
 struct MSG_STAT_PVPPLAY { char m_pad[0x10]; };
 #include "MSG_STAT_RANKRES.h"   // 权威 MSG_STAT_RANKRES（0x6c，替换占位）
@@ -794,7 +846,19 @@ struct __attribute__((packed)) Packet_Mannerless_User_Accusation : public Packet
 };
 static_assert(sizeof(Packet_Mannerless_User_Accusation) == 0x15f,
               "Packet_Mannerless_User_Accusation ABI drift (R18pkt)");
-struct SIG_AVATAR_MOVE { char m_pad[0x16]; };
+#pragma pack(push, 1)
+struct SIG_AVATAR_MOVE
+{
+    int m_unused0;
+    int m_uiId0;
+    int m_uiId1;
+    unsigned char m_slot1;
+    unsigned char m_slot0;
+    int m_clearAvatarId0;
+    int m_clearAvatarId1;
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_AVATAR_MOVE) == 0x16, "SIG_AVATAR_MOVE ABI drift");
 // SIG_BILLING_RECORD —— 0x10e 字节计费记录（DB_BillingRecord 消费）。
 // 字段化证据（写侧 ItemVendingMachine::BillingRecord ORIG 0x0817991e 逐条栈槽，
 // docs/class_func_reports/ItemVendingMachine/BillingRecord.md；读侧
@@ -861,11 +925,92 @@ struct SIG_CERASHOP_ERROR_LOG
         : m_field0(0), m_field4(0), m_field8(0), m_fieldc(0),
           m_field10(0), m_field14(0), m_field18(0) {}
 };
-struct SIG_CIRCULATION_STATISTIC { char m_pad[0xc8]; };
-struct SIG_DELETE_CHANNEL { char m_pad[0xc]; };
-struct SIG_INSERT_CHANNEL { char m_pad[0x5c]; };
-struct SIG_INSERT_TICKET { char m_pad[0x8]; };
-struct SIG_MANNERLESS_USER { char m_pad[0x13a]; };
+#pragma pack(push, 1)
+struct SIG_CIRCULATION_STATISTIC
+{
+    int m_occTime;
+    int m_level;
+    int m_dungeonDrop;
+    int m_resultCard;
+    int m_sellStore;
+    int m_questReward;
+    int m_deathTowerReward;
+    int m_illusionTowerReward;
+    int m_warAreaDrop;
+    int m_memberTax;
+    char m_pad28[0xc];
+    int m_bloodDungeonReward;
+    char m_pad38[0x4];
+    int m_bloodDungeonLotto;
+    int m_powerDungeonDrop;
+    int m_powerDungeonResultCard;
+    char m_pad48[0x8];
+    int m_buyStore;
+    int m_staminaRecovery;
+    int m_repairItem;
+    int m_privateStoreCommission;
+    int m_goldCard;
+    char m_pad64[0x4];
+    int m_goldDrop;
+    int m_upgrade;
+    int m_questUse;
+    int m_mailCommission;
+    int m_punishUser;
+    int m_restrictTrade;
+    int m_guildLevelUp;
+    int m_guildSkill;
+    int m_guildMail;
+    int m_itemCompound;
+    char m_pad90[0x4];
+    int m_warAreaEnter;
+    int m_assaultGold;
+    int m_bloodDungeonEnter;
+    int m_buyCerashop;
+    int m_upgradeGuildAgit;
+    int m_upgradeGuildCargo;
+    char m_padac[0x1c];
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_CIRCULATION_STATISTIC) == 0xc8, "SIG_CIRCULATION_STATISTIC ABI drift");
+struct SIG_DELETE_CHANNEL
+{
+    int m_gcNo;
+    ENUM_SERVER_GROUP m_field4;
+    char m_pad08[4];
+};
+static_assert(sizeof(SIG_DELETE_CHANNEL) == 0xc, "SIG_DELETE_CHANNEL ABI drift");
+#pragma pack(push, 1)
+struct SIG_INSERT_CHANNEL
+{
+    int m_gcNo;
+    char m_pad4[2];
+    char m_gcIp[0x10];
+    unsigned short m_gcPort;
+    short m_gcMax;
+    char m_gcGame;
+    char m_gcChannel[0x1e];
+    short m_gcChGroup;
+    char m_gcChanneltype[0x19];
+    int m_gcType;
+    ENUM_SERVER_GROUP m_serverGroup;
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_INSERT_CHANNEL) == 0x5c, "SIG_INSERT_CHANNEL ABI drift");
+struct SIG_INSERT_TICKET
+{
+    unsigned int m_village;
+    int m_field4;
+};
+static_assert(sizeof(SIG_INSERT_TICKET) == 0x8, "SIG_INSERT_TICKET ABI drift");
+#pragma pack(push, 1)
+struct SIG_MANNERLESS_USER
+{
+    char m_reporterId[0x1d];
+    char m_targetId[0x1d];
+    char m_reason[0x100];
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_MANNERLESS_USER) == 0x13a, "SIG_MANNERLESS_USER ABI drift");
 // 字段化（Lane33，ORIG 证据：写侧 StatisticsNatType::UpdateNatType @0x0860caa8..0x0860cafd
 // 逐字段 `mov <pair.first>+N,%edx; mov -0xc(%ebp),%eax; mov %edx,N(%eax)`（N=0/4/8/0xc）
 // 与 `mov -0xc(%ebp),%eax; mov -0x10(%ebp),%edx; mov %edx,0x10(%eax)`（time_t 同型直存）；
@@ -890,8 +1035,25 @@ static_assert(offsetof(SIG_NAT_TYPE, m_natTypeOther) == 0x04, "SIG_NAT_TYPE m_na
 static_assert(offsetof(SIG_NAT_TYPE, m_failCnt) == 0x08, "SIG_NAT_TYPE m_failCnt offset drift");
 static_assert(offsetof(SIG_NAT_TYPE, m_successCnt) == 0x0c, "SIG_NAT_TYPE m_successCnt offset drift");
 static_assert(offsetof(SIG_NAT_TYPE, m_time) == 0x10, "SIG_NAT_TYPE m_time offset drift");
-struct SIG_REMOVE_EVENTITEM { char m_pad[0x18]; };
-struct SIG_REMOVE_FEATURED_GOODSIDX { char m_pad[0x14]; };
+#pragma pack(push, 1)
+struct SIG_REMOVE_EVENTITEM
+{
+    int m_count;
+    unsigned int m_ids[5];
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_REMOVE_EVENTITEM) == 0x18, "SIG_REMOVE_EVENTITEM ABI drift");
+#pragma pack(push, 1)
+struct SIG_REMOVE_FEATURED_GOODSIDX
+{
+    unsigned int m_mId;
+    int m_pad04;
+    int m_eventId;
+    int m_serverId;
+    int m_pad10;
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_REMOVE_FEATURED_GOODSIDX) == 0x14, "SIG_REMOVE_FEATURED_GOODSIDX ABI drift");
 // SIG_REQUEST_PVP_MISSION_LIST —— PvP 任务存档结构（ORIG 0x14a 字节）。
 // CMissionList_Charac.cpp 曾以本地 struct 定义（与权威冲突）；按 ORIG 迁移至本头。
 // ORIG 证据（df_game_r）：
@@ -962,18 +1124,161 @@ struct SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD) == 0x1a8, "SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD ABI drift");
-struct SIG_SAVE_ACCOUNT_INFO { char m_pad[0x70]; };
-struct SIG_SAVE_CHARACINFO4GUILD { char m_pad[0x14]; };
-struct SIG_SAVE_EXPAND_CHARAC { char m_pad[0x89c]; };
-struct SIG_SAVE_FEATURED_GOODSIDX { char m_pad[0x14]; };
-struct SIG_SAVE_PREMIUM_INFO { char m_pad[0x18]; };
-struct SIG_SAVE_RANK { char m_pad[0x1f48]; };
-struct SIG_SELECT_SERVER_MESSAGE { char m_pad[0x4]; };
-struct SIG_UPDATE_CHANNEL { char m_pad[0x3a]; };
-struct SIG_UPDATE_DETAIL_CHANNEL { char m_pad[0x10]; };
-struct SIG_UPDATE_GROWTYPE { char m_pad[0x5]; };
-struct SIG_UPDATE_NPC_RELATIONSHIP { char m_pad[0x260]; };
-struct SIG_UPDATE_SERVER_MESSAGE { char m_pad[0x60]; };
+#pragma pack(push, 1)
+struct SIG_SAVE_ACCOUNT_INFO
+{
+    unsigned int m_mId;
+    unsigned char m_pcbangFlag;
+    char m_pad05[3];
+    unsigned int m_lastPlayTime;
+    char m_pad0c[0x10];
+    char m_ip[12];
+    char m_endIp[4];
+    char m_macAddr[0x10];
+    char m_rest[0x34];
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_ACCOUNT_INFO) == 0x70, "SIG_SAVE_ACCOUNT_INFO ABI drift");
+#pragma pack(push, 1)
+struct SIG_SAVE_CHARACINFO4GUILD
+{
+    int m_guildId;
+    int m_pad04;
+    int m_characNo;
+    int m_growType;
+    int m_lev;
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_CHARACINFO4GUILD) == 0x14, "SIG_SAVE_CHARACINFO4GUILD ABI drift");
+#pragma pack(push, 1)
+struct SIG_SAVE_EXPAND_CHARAC
+{
+    unsigned int m_characNo;
+    Inven_Item m_items[0x24];
+    char m_switch1;
+    char m_switch2;
+    char m_pad89a[2];
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_EXPAND_CHARAC) == 0x89c, "SIG_SAVE_EXPAND_CHARAC ABI drift");
+#pragma pack(push, 1)
+struct SIG_SAVE_FEATURED_GOODSIDX
+{
+    unsigned int m_mId;
+    int m_characNo;
+    int m_eventId;
+    int m_serverId;
+    int m_obtainDate;
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_FEATURED_GOODSIDX) == 0x14, "SIG_SAVE_FEATURED_GOODSIDX ABI drift");
+#pragma pack(push, 1)
+struct SIG_SAVE_PREMIUM_INFO
+{
+    unsigned int m_mId;
+    unsigned int m_preType;
+    unsigned int m_serviceStart;
+    unsigned int m_serviceEnd;
+    unsigned int m_eventId;
+    unsigned int m_serverId;
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_PREMIUM_INFO) == 0x18, "SIG_SAVE_PREMIUM_INFO ABI drift");
+#pragma pack(push, 1)
+struct SIG_SAVE_RANK_ROW
+{
+    union {
+        int m_characNo;
+        unsigned short m_rankOfPrev;
+    };
+    int m_count;
+    char m_pad08[4];
+    int m_dungeonNo;
+    unsigned char m_difficulty;
+    char m_pad11[0x2f];
+    char m_statsPad[8];
+    unsigned short m_style;
+    unsigned short m_technic;
+    int m_attacked;
+};
+struct SIG_SAVE_RANK
+{
+    SIG_SAVE_RANK_ROW m_rows[100];
+    unsigned short m_rankOfPrev;
+    char m_pad1f42[6];
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_RANK_ROW) == 0x50, "SIG_SAVE_RANK_ROW ABI drift");
+static_assert(sizeof(SIG_SAVE_RANK) == 0x1f48, "SIG_SAVE_RANK ABI drift");
+#pragma pack(push, 1)
+struct SIG_SELECT_SERVER_MESSAGE
+{
+    short m_server;
+    short m_channel;
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_SELECT_SERVER_MESSAGE) == 0x4, "SIG_SELECT_SERVER_MESSAGE ABI drift");
+#pragma pack(push, 1)
+struct SIG_UPDATE_CHANNEL
+{
+    int m_gcNo;
+    short m_gcNow;
+    int m_swordmanCnt;
+    int m_fighterCnt;
+    int m_gunnerCnt;
+    int m_mageCnt;
+    int m_priestCnt;
+    int m_atGunnerCnt;
+    int m_thiefCnt;
+    char m_pad22[0x10];
+    int m_hangame;
+    int m_nexon;
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_UPDATE_CHANNEL) == 0x3a, "SIG_UPDATE_CHANNEL ABI drift");
+#pragma pack(push, 1)
+struct SIG_UPDATE_DETAIL_CHANNEL
+{
+    int m_playerStatus;
+    int m_dungeonIndex;
+    int m_channelNo;
+    int m_occCount;
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_UPDATE_DETAIL_CHANNEL) == 0x10, "SIG_UPDATE_DETAIL_CHANNEL ABI drift");
+#pragma pack(push, 1)
+struct SIG_UPDATE_GROWTYPE
+{
+    unsigned int m_characNo;
+    signed char m_growType;
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_UPDATE_GROWTYPE) == 0x5, "SIG_UPDATE_GROWTYPE ABI drift");
+#pragma pack(push, 1)
+struct SIG_UPDATE_NPC_RELATIONSHIP
+{
+    int m_characNo;
+    int m_npcCnt;
+    char m_npcData[0x258];
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_UPDATE_NPC_RELATIONSHIP) == 0x260, "SIG_UPDATE_NPC_RELATIONSHIP ABI drift");
+#pragma pack(push, 1)
+struct SIG_UPDATE_SERVER_MESSAGE
+{
+    int m_serverInfo;
+    int m_channelNo;
+    unsigned char m_kind;
+    unsigned char m_messageIndex;
+    char m_pad0a[2];
+    int m_messageLen;
+    char m_message[0x34];
+    int m_characNameLen;
+    char m_characName[0x14];
+    int m_updateTime;
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_UPDATE_SERVER_MESSAGE) == 0x60, "SIG_UPDATE_SERVER_MESSAGE ABI drift");
 // 字段化（W8DB，ORIG 0x0842945e DB_InsertValueStatistic::dispatch 实证：
 // +0x00..+0x68 共 28 个 uint，log_value_stat 列序 occ_time(from_unixtime
 // [0])/level[1]/uv[2]/drop_gold[3]/drop_item[4]/result_card_gold[5]/

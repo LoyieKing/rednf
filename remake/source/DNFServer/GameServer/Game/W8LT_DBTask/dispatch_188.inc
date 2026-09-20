@@ -9,7 +9,7 @@ bool DB_CheckDoubleGuildAddress::dispatch(int userIdx, int slot, Stream* stream)
                                                   E_SERVER_GROUP_NONE);
     SIG_DOUBLE_CHECK_GUILD_ADDRESS* sig =
         stream->GetOutBuffer<SIG_DOUBLE_CHECK_GUILD_ADDRESS>();
-    db->set_query("seLect * from guild_info where guild_url='%s'", (char*)sig);
+    db->set_query("seLect * from guild_info where guild_url='%s'", sig->m_guildUrl);
     // 同 DB_CheckDoubleGuildName（ORIG 0x842ab78 同构）：`!exec` 直判 return 0
     // 岛 + body 显式块；第二 << 实参 = slot（0x10(%ebp)）。
     if (!db->exec(true))

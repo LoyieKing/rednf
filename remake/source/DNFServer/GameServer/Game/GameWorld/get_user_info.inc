@@ -1,6 +1,9 @@
 // [b28d-11b] N：帧差 0x10 + PacketGuard 槽位（N82）@0x086cad68
 void GameWorld::get_user_info(CUser* user, int targetId, int type)
 {
+    LogManager::logFormat(1, "world.cpp", __PRETTY_FUNCTION__, 0x73a,
+        "[DNF-DIAG GETUSERINFO] targetId=%d type=%d characList=%u",
+        targetId, type, user ? (unsigned)user->get_charac_count() : 0u);
     PacketGuard packet;
     if (type == 2)
     {

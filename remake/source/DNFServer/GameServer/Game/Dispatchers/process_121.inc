@@ -27,17 +27,12 @@ int Dispatcher_InformNotice_2nd::process(CUser* user, MSG_BASE& msg, ParamBase& 
     // ORIG 0x081e30fa：msg 指针槽 -0x10 在 GetCharacExpandData 之前物化，
     // 用点是 `mov -0x10(%ebp),%eax; mov 0xd(%eax),%eax`（单级带 disp 读）
     // ⇒ 具名视图指针 + packed 视图字段（禁 `add $0xd` 两段裸偏移，§4.3）。
-    struct __attribute__((packed)) Notice2ndMsgView
-    {
-        char m_head[0xd];
-        unsigned int m_flag;      // +0x0d
-    };
-    Notice2ndMsgView* const mv = reinterpret_cast<Notice2ndMsgView*>(&msg);
+    MSG_INFORM_NOTICE_2ND& req = reinterpret_cast<MSG_INFORM_NOTICE_2ND&>(msg);
     CCharacInformNotice* notice = reinterpret_cast<CCharacInformNotice*>(
         user->GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE_19));
     if (notice != 0)
     {
-        notice->handleInformNoticeFlag(mv->m_flag);
+        notice->handleInformNoticeFlag(static_cast<unsigned int>(req.m_noticeFlag));
     }
     return 0;
 }

@@ -1,4 +1,4 @@
 unsigned int CUserCharacInfo::getCurCharacTradeGoldDaily()
 {
-    return m_selected ? CUR->m_reliablePerson.GetTradeGoldDaily() : 0;
+    return m_selected ? reinterpret_cast<CReliablePerson*>(m_selected->m_reliablePerson)->GetTradeGoldDaily() : 0;
 }

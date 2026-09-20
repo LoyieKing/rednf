@@ -27,11 +27,11 @@
 #define DNF_MSG_COMPOUND_AVATAR_H
 
 #include <cstddef>
+#include "PacketDispatcher.h"
 
 #pragma pack(push, 1)
-struct MSG_COMPOUND_AVATAR
+struct MSG_COMPOUND_AVATAR : MSG_BASE
 {
-    char m_head[0xd];                // +0x00..+0x0c 包头（ORIG 本函数不读）
     unsigned short m_avatarSlot;     // +0x0d（movzwl → tagCompoundInfo+0x90；
                                      //   CInventory::GetInvenSlot(1,(short)) 槽位）
     unsigned short m_materialSlotA;  // +0x0f（movzwl → info+0x08 + GetInvenSlot(2,(short))

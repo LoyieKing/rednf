@@ -1,4 +1,4 @@
 int CUserCharacInfo::getBlueMarbleUserDeadCount() const
 {
-    return m_selected ? CUR->m_blueMarbleUserDeadCount : 0;
+    return m_selected ? m_selected->m_field14BE : 0;
 }

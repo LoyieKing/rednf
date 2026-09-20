@@ -1,4 +1,4 @@
 int CUserCharacInfo::GetPowerWarAssaultCount()
 {
-    return m_selected ? CUR->m_powerWarAssaultCount : 0;
+    return m_selected ? m_selected->m_field1221 : 0;
 }

@@ -18,9 +18,8 @@ int DisPatcher_SetPVPTeam::dispatch_sig(CUser* user, PacketBuf& packet)
     // `movzbl -0x11(%ebp),%eax`。旧试形（未调声明序）实测 137→145 劣化 ⇒ 本次连带
     // 声明序一起对齐。⚠不可用 `__attribute__((packed))`（4.4 拒绝绑定紧实字段到引用）。
 #pragma pack(push, 1)
-    struct SetPVPTeamMsgView
+    struct SetPVPTeamMsgView : MSG_BASE
     {
-        char m_head[0xd];
         char m_team;
     };
 #pragma pack(pop)

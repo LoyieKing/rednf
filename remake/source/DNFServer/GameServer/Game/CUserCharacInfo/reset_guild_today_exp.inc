@@ -1,5 +1,5 @@
 void CUserCharacInfo::reset_guild_today_exp()
 {
-    if (m_selected && CUR->m_guildkey != 0)
-        CUR->m_guildTodayExp = 0;
+    if (m_selected && m_selected->m_guildId != 0)
+        m_selected->m_fieldDEF = 0;
 }

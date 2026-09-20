@@ -52,31 +52,26 @@ void CUser::UpdateCharacView()
         updateCharacViewVisibleData(*(it.operator->()), recs[recIdx].m_data);
 
         recs[recIdx].m_data.m_lastPlayTime =
-            (long)(*reinterpret_cast<const CharacListElemView*>(
-                        it.operator->())).m_createTime;
-        recs[recIdx].m_data.m_field8c =
-            (*reinterpret_cast<const CharacListElemView*>(
-                 it.operator->())).m_fielde5d;
+            (long)(*reinterpret_cast<const CommonTime*>(
+                it.operator->()->m_delReqTime));
+        recs[recIdx].m_data.m_field8c = it.operator->()->m_fielde5d;
 
-        // bit0 ← 禁玩标记（info+0x1240 非零）。
+        // bit0 ← 禁玩标记（m_pad1240 非零）。
         recs[recIdx].m_data.m_flags = (unsigned char)(
             ((unsigned int)recs[recIdx].m_data.m_flags & 0xfeu) |
-            (((*reinterpret_cast<const CharacListElemView*>(
-                    it.operator->())).m_field1240 != 0) ? 1u : 0u));
+            ((it.operator->()->m_pad1240 != 0) ? 1u : 0u));
 
         recs[recIdx].m_data.m_field1d = it->m_field14b7;
         recs[recIdx].m_data.m_field1e = it->m_field14b8;
 
-        // bit4 ← info+0xe40 的 bit1（ORIG shl $6 / sar $7 取位）。
+        // bit4 ← m_tagVisibleFlags bit1（ORIG shl $6 / sar $7 取位）。
         recs[recIdx].m_data.m_flags = (unsigned char)(
             ((unsigned int)recs[recIdx].m_data.m_flags & 0xefu) |
             (((((unsigned int)(unsigned char)
-                    (*reinterpret_cast<const CharacListElemView*>(
-                         it.operator->())).m_fielde40
+                    it.operator->()->m_tagVisibleFlags.m_flag
                 << 6) >> 7) & 1u) << 4));
 
-        recs[recIdx + 1].m_headField =
-            reinterpret_cast<const CharacListElemView&>(*it).m_expireSec;
+        recs[recIdx + 1].m_headField = it.operator->()->m_field12ad;
 
         ++recIdx;
     }

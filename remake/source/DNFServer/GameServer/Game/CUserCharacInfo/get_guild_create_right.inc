@@ -1,4 +1,4 @@
 unsigned char CUserCharacInfo::get_guild_create_right()
 {
-    return m_selected ? CUR->m_guildCreateRight : 0;
+    return m_selected ? m_selected->m_fielddc2 : 0;
 }

@@ -1,4 +1,4 @@
 unsigned short CUserCharacInfo::getCurCharacFatigueGrownUpBuff() const
 {
-    return m_selected ? CUR->m_fatigueGrownUpBuff : 0;
+    return m_selected ? m_selected->m_field37 : 0;
 }

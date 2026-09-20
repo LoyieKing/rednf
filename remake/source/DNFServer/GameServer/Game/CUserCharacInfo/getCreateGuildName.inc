@@ -1,4 +1,4 @@
 char* CUserCharacInfo::getCreateGuildName()
 {
-    return m_selected ? (char*)CUR->m_guildName : 0;
+    return m_selected ? (char*)m_selected->m_padDC5 : 0;
 }

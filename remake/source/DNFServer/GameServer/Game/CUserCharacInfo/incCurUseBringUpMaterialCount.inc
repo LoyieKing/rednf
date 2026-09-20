@@ -2,7 +2,7 @@ void CUserCharacInfo::incCurUseBringUpMaterialCount()
 {
     if (m_selected)
     {
-    ++CUR->m_curUseBringUpMaterialCount;
-    ++CUR->m_curUseBringUpMaterialTotal;
+    ++m_selected->m_pad1279;
+    ++m_selected->m_field127a;
     }
 }

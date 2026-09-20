@@ -1,5 +1,5 @@
 CCargo* CUserCharacInfo::getCurCharacCargoW()
 {
     enableSaveCargo();
-    return &CUR->m_cargo;
+    return &m_selected->m_cargo;
 }

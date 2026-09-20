@@ -1,4 +1,4 @@
 unsigned short CUserCharacInfo::GetCurCharacEventAddItemCount()
 {
-    return m_selected ? CUR->m_curCharacEventAddItemCount : 0;
+    return m_selected ? m_selected->m_field123C : 0;
 }

@@ -87,28 +87,22 @@ bool DB_DeathTowerLoadTopRanker::dispatch(int userIdx, int slot, Stream* stream)
                 // P183：ORIG 每次字段访问重发完整 `lea+add` 地址链（无具名指针
                 // 缓存；缓存 3 个指针多占 0x10 帧并省物化次数）
                 if (!db->get_ushort(
-                        0, reinterpret_cast<DB_TowerRankerRankView*>(
-                               (char*)out + 6)->m_ranks[k]))
+                        0, out->m_ranks[k]))
                     return 0;
                 if (!db->get_ushort(
-                        1, reinterpret_cast<DB_TowerRankerRowView*>(
-                               (char*)out + 0xfa0 + k * 0x6c)->m_towerIndex))
+                        1, out->m_rows[k].m_towerIndex))
                     return 0;
                 if (!db->get_binary(
-                        2, reinterpret_cast<DB_TowerRankerRowView*>(
-                               (char*)out + 0xfa0 + k * 0x6c)->m_memberInfo,
+                        2, out->m_rows[k].m_memberInfo,
                         0x17))
                     return 0;
                 if (!db->get_uint(
-                        3, reinterpret_cast<DB_TowerRankerPlayView*>(
-                               (char*)out + 0x1000 + k * 0x6c)->m_stage))
+                        3, out->m_rows[k].m_stage))
                     return 0;
                 if (!db->get_uint(
-                        4, reinterpret_cast<DB_TowerRankerPlayView*>(
-                               (char*)out + 0x1000 + k * 0x6c)->m_playTime))
+                        4, out->m_rows[k].m_playTime))
                     return 0;
-                reinterpret_cast<DB_TowerRankerRowView*>(
-                    (char*)out + 0xfa0 + k * 0x6c)->m_type =
+                out->m_rows[k].m_type =
                     (unsigned short)rank;
             }
         }

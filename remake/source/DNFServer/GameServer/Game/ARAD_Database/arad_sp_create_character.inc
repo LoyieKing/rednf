@@ -48,8 +48,8 @@ int CREATE_QUERY::arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig)
     // 列序 element_resist(第11实参) ← blob_to_str(db,0,sig+0x36,8)＝-0x7c；
     //      spec_property(第12实参) ← blob_to_str(db,1,sig+0x3e,0x22)＝-0x80。
     // 故源码先求值 spec_property(+0x3e,0x22)、后求值 element_resist(+0x36,8)（cdecl 右→左）。
-    char* specProperty   = db->blob_to_str(1, reinterpret_cast<char*>(sig) + 0x3e, 0x22); // -0x80
-    char* elementResist  = db->blob_to_str(0, reinterpret_cast<char*>(sig) + 0x36, 8);    // -0x7c
+    char* specProperty   = db->blob_to_str(1, (char*)SIG_ATTR(sig, m_specProperty), 0x22); // -0x80
+    char* elementResist  = db->blob_to_str(0, (char*)SIG_ATTR(sig, m_elementResist), 8);    // -0x7c
     unsigned int magDef  = SIG_ATTR(sig, m_magDef);                          // -0x78
     unsigned int magAtk  = SIG_ATTR(sig, m_magAtk);                          // -0x74
     unsigned int phyDef  = SIG_ATTR(sig, m_phyDef);                          // -0x70

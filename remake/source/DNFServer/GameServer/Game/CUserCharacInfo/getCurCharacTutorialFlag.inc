@@ -1,4 +1,4 @@
 int CUserCharacInfo::getCurCharacTutorialFlag()
 {
-    return m_selected ? CUR->m_tutorialFlags : 0;
+    return m_selected ? m_selected->m_field51 : 0;
 }

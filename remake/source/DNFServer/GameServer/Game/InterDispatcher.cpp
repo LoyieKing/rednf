@@ -2,6 +2,7 @@
 // [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
 //   每个完整函数块已移入 InterDispatcher/<Func>.inc（不参与编译、内部不含 #include）。
 //   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
+#include "../../../shared/packet/include/PacketHeader.h"
 //   namespace 开闭 / 宏 / 视图 / 函数间的任何非函数行），只把**完整函数块**
 //   换成一行 #include；include 的**位置即原函数定义位置**。
 //   ⇒ 仍是**同一个 TU**：旗标/头集/后端/CMake 条目自动继承；GI 键与
@@ -472,9 +473,9 @@ struct Inter_LoadCharacPktView
 //   我方旧写 `data + 0xc` / `data + 0x68b`（指针算术）会发 `mov 0x10(%ebp),%eax;
 //   add $0xNN,%eax` 两段（本 diff N 侧 insert）。聚合器 Inter_LoadCharacPktView
 //   只覆盖 +0x0c（无 +0x68b），故本件自带同布局局部视图补齐。
-struct Inter_LoadCharacAt0cViewI
+struct Inter_LoadCharacAt0cViewI : PacketHeader
 {
-    char m_pad0[0xc];
+    char m_afterHdr[0x2];
     unsigned int m_c;                               // +0x0c
 };
 struct Inter_LoadCharacAt68bViewI
@@ -661,9 +662,8 @@ struct Inter_DeleteChannelPktView
 #pragma pack(push, 1)
 // Inter_MonitorBuddyInOutPktView —— Inter_MonitorBuddyInOut::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorBuddyInOutPktView
+struct Inter_MonitorBuddyInOutPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x4];  // 未消费
     unsigned char m_12;       // +0x12
@@ -705,9 +705,9 @@ public:
 #pragma pack(push, 1)
 // Inter_MonitorLoginOKPktView —— Inter_MonitorLoginOK::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorLoginOKPktView
+struct Inter_MonitorLoginOKPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     unsigned int m_e;               // +0x0e
     char m_pad12[0x11];  // +0x12..未消费
     unsigned char m_23;             // +0x23
@@ -725,9 +725,8 @@ struct Inter_MonitorLoginOKPktView
 #pragma pack(push, 1)
 // Inter_MonitorCallUserInfoPktView —— Inter_MonitorCallUserInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorCallUserInfoPktView
+struct Inter_MonitorCallUserInfoPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned char m_a;              // +0x0a
 };
 #pragma pack(pop)
@@ -745,9 +744,8 @@ struct Inter_MonitorCallUserInfoPktView
 #pragma pack(push, 1)
 // Inter_MonitorUserGetoutPktView —— Inter_MonitorUserGetout::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorUserGetoutPktView
+struct Inter_MonitorUserGetoutPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
 };
 #pragma pack(pop)
@@ -769,9 +767,8 @@ struct Inter_MonitorUserGetoutPktView
 #pragma pack(push, 1)
 // Inter_TcpServerConnectPktView —— Inter_TcpServerConnect::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_TcpServerConnectPktView
+struct Inter_TcpServerConnectPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     char m_a;                       // +0x0a
 };
 #pragma pack(pop)
@@ -785,11 +782,11 @@ struct Inter_TcpServerConnectPktView
 #pragma pack(push, 1)
 // Inter_MonitorReplyBuddyListPktView —— Inter_MonitorReplyBuddyList::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorReplyBuddyListPktView
+struct Inter_MonitorReplyBuddyListPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
     unsigned char m_e;              // +0x0e
+    BuddyList m_list;               // +0x0f
 };
 #pragma pack(pop)
 
@@ -802,9 +799,8 @@ struct Inter_MonitorReplyBuddyListPktView
 #pragma pack(push, 1)
 // Inter_MonitorCeraUpdatePktView —— Inter_MonitorCeraUpdate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorCeraUpdatePktView
+struct Inter_MonitorCeraUpdatePktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
 };
 #pragma pack(pop)
@@ -870,9 +866,8 @@ struct Inter_LoadEventItemPktView
 #pragma pack(push, 1)
 // Inter_MonitorEventItemUpdatePktView —— Inter_MonitorEventItemUpdate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorEventItemUpdatePktView
+struct Inter_MonitorEventItemUpdatePktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
     unsigned int m_e;               // +0x0e
     unsigned int m_12;              // +0x12
@@ -891,9 +886,8 @@ struct Inter_MonitorEventItemUpdatePktView
 #pragma pack(push, 1)
 // Inter_MonitorServerEventStartPktView —— Inter_MonitorServerEventStart::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorServerEventStartPktView
+struct Inter_MonitorServerEventStartPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     unsigned short m_e;       // +0x0e
     short m_10;               // +0x10
@@ -908,9 +902,8 @@ struct Inter_MonitorServerEventStartPktView
 //   `movzwl 0x10(%eax),%eax; movswl %ax,%edx`（无符号读 + 符号截断）⇒ 与 unsigned short 自洽。
 //   聚合器 Inter_MonitorServerEventStartPktView.m_10 声明为 short（R1 禁改聚合器，
 //   故本件自带同布局视图；✅ 建议属主把聚合器该字段改为 unsigned short）。
-struct Inter_MonitorServerEventStartPktViewI
+struct Inter_MonitorServerEventStartPktViewI : PacketHeader
 {
-    char m_pad0[0xa];               // +0x00..未消费
     unsigned int m_a;               // +0x0a  (P248: ORIG 084cf451 `mov 0xa(%eax),%edi` 单段 = 与 InsertTimer 第 6 形参 unsigned int 同型)
     unsigned short m_e;             // +0x0e
     unsigned short m_10;            // +0x10
@@ -936,9 +929,9 @@ struct Inter_MonitorServerEventStartPktViewI
 #pragma pack(push, 1)
 // Inter_MonitorNoticeGuildEnterPktView —— Inter_MonitorNoticeGuildEnter::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeGuildEnterPktView
+struct Inter_MonitorNoticeGuildEnterPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     int m_e;                  // +0x0e
     unsigned short m_12;      // +0x12
     int m_14;                 // +0x14
@@ -961,9 +954,9 @@ struct Inter_MonitorNoticeGuildEnterPktView
 //   ⇒ 字段与 get_charac_no(int) 返回值失配 = unsigned int（探针 t3 实证，同 38/39/40）。
 //   聚合器 Inter_MonitorNoticeGuildEnterPktView.m_e 为 int（R1 禁改聚合器，
 //   故本件自带同布局视图；✅ 建议属主把聚合器该字段改为 unsigned int）。
-struct Inter_MonitorNoticeGuildEnterPktViewI
+struct Inter_MonitorNoticeGuildEnterPktViewI : PacketHeader
 {
-    char m_pad0[0xe];               // +0x00..未消费
+    char m_afterHdr[0x4];               // +0x00..未消费
     unsigned int m_e;               // +0x0e
     unsigned short m_12;            // +0x12
     int m_14;                       // +0x14
@@ -990,9 +983,9 @@ struct Inter_MonitorNoticeGuildEnterPktViewI
 #pragma pack(push, 1)
 // Inter_MonitorNoticeGuildSecedePktView —— Inter_MonitorNoticeGuildSecede::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeGuildSecedePktView
+struct Inter_MonitorNoticeGuildSecedePktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e（ORIG 比较处两步 spill＝unsigned 字段→get_charac_no(int) 失配）
     int m_12;                 // +0x12
     char m_pad16[0x4];  // 未消费
@@ -1013,9 +1006,8 @@ struct Inter_MonitorNoticeGuildSecedePktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeGuildMarkChangePktView —— Inter_MonitorNoticeGuildMarkChange::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeGuildMarkChangePktView
+struct Inter_MonitorNoticeGuildMarkChangePktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     int m_e;                  // +0x0e（P254 枚型实测劣化 ⇒ 回退 int，N22 封顶）
     unsigned int m_12;        // +0x12
@@ -1031,9 +1023,8 @@ struct Inter_MonitorNoticeGuildMarkChangePktView
 //   int 字段给 3 行 `mov <slot>,%edx; mov 0xe(%edx),%edx; cmp %edx,%eax`）。
 //   聚合器 Inter_MonitorNoticeGuildMarkChangePktView.m_e 为 int（R1 禁改聚合器，
 //   故本件自带同布局视图；✅ 建议属主把聚合器该字段改为 unsigned int）。
-struct Inter_MonitorNoticeGuildMarkChangePktViewI
+struct Inter_MonitorNoticeGuildMarkChangePktViewI : PacketHeader
 {
-    char m_pad0[0xa];               // +0x00..未消费
     int m_a;                        // +0x0a
     unsigned int m_e;               // +0x0e
     unsigned int m_12;              // +0x12
@@ -1049,9 +1040,9 @@ struct Inter_MonitorNoticeGuildMarkChangePktViewI
 #pragma pack(push, 1)
 // Inter_MonitorNoticeGuildDismissPktView —— Inter_MonitorNoticeGuildDismiss::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorNoticeGuildDismissPktView
+struct Inter_MonitorNoticeGuildDismissPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     int m_e;                        // +0x0e（P254 枚型实测劣化 ⇒ 回退 int，N22 封顶）
 };
 #pragma pack(pop)
@@ -1065,9 +1056,9 @@ struct Inter_MonitorNoticeGuildDismissPktView
 //   `mov <slot>,%edx; mov 0xe(%edx),%edx; cmp %edx,%eax`，unsigned int 才给 ORIG 的 4 行形）。
 //   聚合器 Inter_MonitorNoticeGuildDismissPktView.m_e 声明为 int（R1 禁改聚合器，
 //   故本件自带同布局视图；✅ 建议属主把聚合器该字段改为 unsigned int）。
-struct Inter_MonitorNoticeGuildDismissPktViewI
+struct Inter_MonitorNoticeGuildDismissPktViewI : PacketHeader
 {
-    char m_pad0[0xe];               // +0x00..未消费
+    char m_afterHdr[0x4];               // +0x00..未消费
     unsigned int m_e;               // +0x0e
 };
 #pragma pack(pop)
@@ -1081,9 +1072,9 @@ struct Inter_MonitorNoticeGuildDismissPktViewI
 #pragma pack(push, 1)
 // Inter_MonitorNoticeGuildChatMsgPktView —— Inter_MonitorNoticeGuildChatMsg::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeGuildChatMsgPktView
+struct Inter_MonitorNoticeGuildChatMsgPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     int m_e;                  // +0x0e
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
     char m_pad13[0x1d];  // 未消费
@@ -1100,9 +1091,9 @@ struct Inter_MonitorNoticeGuildChatMsgPktView
 //   ⇒ 字段与 get_charac_no(int) 返回值失配 = unsigned int（探针 t3 实证，同 38/39）。
 //   聚合器 Inter_MonitorNoticeGuildChatMsgPktView.m_e 为 int（R1 禁改聚合器，
 //   故本件自带同布局视图；✅ 建议属主把聚合器该字段改为 unsigned int）。
-struct Inter_MonitorNoticeGuildChatMsgPktViewI
+struct Inter_MonitorNoticeGuildChatMsgPktViewI : PacketHeader
 {
-    char m_pad0[0xe];               // +0x00..未消费
+    char m_afterHdr[0x4];               // +0x00..未消费
     unsigned int m_e;               // +0x0e
     char m_12[1];                   // +0x12 串/字节区首元素（容量未建模）
     char m_pad13[0x1d];             // 未消费
@@ -1120,9 +1111,9 @@ struct Inter_MonitorNoticeGuildChatMsgPktViewI
 #pragma pack(push, 1)
 // Inter_MonitorCallGuildMembersPktView —— Inter_MonitorCallGuildMembers::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorCallGuildMembersPktView
+struct Inter_MonitorCallGuildMembersPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     // §4.3 N（记不回退）：+0x34 ST_Guild_Mem_Info* 数组基址——补 view 具名基址槽会使
     // sizeof(view) 变化，触发本函数内对 view 尺寸敏感的立即数装载（movl $size），破坏 AE，故保留 reinterpret_cast。
     unsigned int m_e;         // +0x0e（unsigned→int 返回失配的 4 行 spill 形态）
@@ -1144,9 +1135,9 @@ struct Inter_MonitorCallGuildMembersPktView
 #pragma pack(push, 1)
 // Inter_MonitorCallGuildMembersNextPktView —— Inter_MonitorCallGuildMembersNext::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorCallGuildMembersNextPktView
+struct Inter_MonitorCallGuildMembersNextPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     // §4.3 N：+0x17 ST_Guild_Mem_Info* 基址——补 view 基址槽改 sizeof(view) 触发尺寸敏感装载破 AE，保留 reinterpret_cast。
     unsigned int m_e;               // +0x0e（同上 unsigned→int 失配两步 spill 形态）
     int m_12;                       // +0x12
@@ -1163,9 +1154,9 @@ struct Inter_MonitorCallGuildMembersNextPktView
 #pragma pack(push, 1)
 // Inter_MonitorCallGuildAllMembersPktView —— Inter_MonitorCallGuildAllMembers::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorCallGuildAllMembersPktView
+struct Inter_MonitorCallGuildAllMembersPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     // §4.3 N：+0x34 ST_Guild_Mem_Info* 基址——同上，view 基址槽破坏 AE，保留 reinterpret_cast。
     unsigned int m_e;         // +0x0e（同上）
     int m_12;                 // +0x12
@@ -1186,9 +1177,9 @@ struct Inter_MonitorCallGuildAllMembersPktView
 #pragma pack(push, 1)
 // Inter_MonitorCallGuildAllMembersNextPktView —— Inter_MonitorCallGuildAllMembersNext::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorCallGuildAllMembersNextPktView
+struct Inter_MonitorCallGuildAllMembersNextPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     // §4.3 N：+0x17 ST_Guild_Mem_Info* 基址——同上，view 基址槽破坏 AE，保留 reinterpret_cast。
     unsigned int m_e;               // +0x0e（同上 unsigned→int 失配两步 spill 形态）
     int m_12;                       // +0x12
@@ -1211,9 +1202,9 @@ struct Inter_MonitorCallGuildAllMembersNextPktView
 // 0x17，4.4 按 (0x10 | 余量) 切分常量）。
 struct MonitorGuildNameElemView { char m_pad0[5]; char m_name[0x17]; char m_padt[2]; };
 #pragma pack(pop)
-struct Inter_MonitorNoticeGuildNamesPktView
+struct Inter_MonitorNoticeGuildNamesPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     unsigned int m_e;               // +0x0e（ORIG 0x084cb012 mov 0xe(%eax)）
     union
     {
@@ -1232,9 +1223,8 @@ struct Inter_MonitorNoticeGuildNamesPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeGuildLoginOutPktView —— Inter_MonitorNoticeGuildLoginOut::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeGuildLoginOutPktView
+struct Inter_MonitorNoticeGuildLoginOutPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     signed char m_a;          // +0x0a
     char m_padb[0x4];  // 未消费
     unsigned int m_f;         // +0x0f（同上 unsigned→int 失配两步 spill 形态）
@@ -1253,9 +1243,8 @@ struct Inter_MonitorNoticeGuildLoginOutPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeOtherChannelChatPktView —— Inter_MonitorNoticeOtherChannelChat::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeOtherChannelChatPktView
+struct Inter_MonitorNoticeOtherChannelChatPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     signed char m_e;          // +0x0e
     char m_padf[0x4];  // 未消费
@@ -1276,9 +1265,8 @@ struct Inter_MonitorNoticeOtherChannelChatPktView
 //   ⇒ +0x13 字段与 get_charac_no(int) 返回值失配 = unsigned int（探针 t3 实证）。
 //   聚合器 Inter_MonitorNoticeOtherChannelChatPktView.m_13 为 int（R1 禁改聚合器，
 //   故本件自带同布局视图；✅ 建议属主把聚合器该字段改为 unsigned int）。
-struct Inter_MonitorNoticeOtherChannelChatPktViewI
+struct Inter_MonitorNoticeOtherChannelChatPktViewI : PacketHeader
 {
-    char m_pad0[0xa];               // +0x00..未消费
     int m_a;                        // +0x0a
     signed char m_e;                // +0x0e
     char m_padf[0x4];               // 未消费
@@ -1300,9 +1288,9 @@ struct Inter_MonitorNoticeOtherChannelChatPktViewI
 #pragma pack(push, 1)
 // Inter_MonitorCallGuildInfoPktView —— Inter_MonitorCallGuildInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorCallGuildInfoPktView
+struct Inter_MonitorCallGuildInfoPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     unsigned int m_e;               // +0x0e（同上）
     unsigned char m_12;             // +0x12
 };
@@ -1318,9 +1306,9 @@ struct Inter_MonitorCallGuildInfoPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeGuildInfoPktView —— Inter_MonitorNoticeGuildInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeGuildInfoPktView
+struct Inter_MonitorNoticeGuildInfoPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e（ORIG 比较点 `mov %eax,%edx` 中转，P211/P265 档③）
     char m_pad12[0x4];  // 未消费
     char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
@@ -1356,9 +1344,9 @@ struct Inter_MonitorNoticeGuildInfoPktView
 #pragma pack(push, 1)
 // Inter_MonitorSetGuildKeyPktView —— Inter_MonitorSetGuildKey::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorSetGuildKeyPktView
+struct Inter_MonitorSetGuildKeyPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e
     unsigned int m_12;        // +0x12
 };
@@ -1373,9 +1361,8 @@ struct Inter_MonitorSetGuildKeyPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeGuildCreatePktView —— Inter_MonitorNoticeGuildCreate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeGuildCreatePktView
+struct Inter_MonitorNoticeGuildCreatePktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     unsigned int m_a;         // +0x0a
     unsigned int m_e;         // +0x0e（同上 unsigned→int 失配两步 spill 形态）
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
@@ -1391,9 +1378,8 @@ struct Inter_MonitorNoticeGuildCreatePktView
 #pragma pack(push, 1)
 // Inter_MonitorGuildMemberNamingReplyPktView —— Inter_MonitorGuildMemberNamingReply::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorGuildMemberNamingReplyPktView
+struct Inter_MonitorGuildMemberNamingReplyPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     char m_pade[0x4];  // +0xe..未消费
     int m_12;                       // +0x12
@@ -1409,9 +1395,8 @@ struct Inter_MonitorGuildMemberNamingReplyPktView
 #pragma pack(push, 1)
 // Inter_MonitorSetSubGuildMasterReplyPktView —— Inter_MonitorSetSubGuildMasterReply::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorSetSubGuildMasterReplyPktView
+struct Inter_MonitorSetSubGuildMasterReplyPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x4];  // 未消费
     int m_12;                 // +0x12
@@ -1432,9 +1417,9 @@ struct Inter_MonitorSetSubGuildMasterReplyPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeGuildMemberInfoPktView —— Inter_MonitorNoticeGuildMemberInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorNoticeGuildMemberInfoPktView
+struct Inter_MonitorNoticeGuildMemberInfoPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     int m_e;                        // +0x0e
     char m_pad12[0x15];  // +0x12..未消费
     unsigned char m_27;             // +0x27
@@ -1450,9 +1435,9 @@ struct Inter_MonitorNoticeGuildMemberInfoPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeChangeGuildMemberGradePktView —— Inter_MonitorNoticeChangeGuildMemberGrade::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorNoticeChangeGuildMemberGradePktView
+struct Inter_MonitorNoticeChangeGuildMemberGradePktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     int m_e;                        // +0x0e
     unsigned char m_12;             // +0x12
 };
@@ -1467,9 +1452,9 @@ struct Inter_MonitorNoticeChangeGuildMemberGradePktView
 #pragma pack(push, 1)
 // Inter_GuildNoticeGuildMessagePktView —— Inter_GuildNoticeGuildMessage::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_GuildNoticeGuildMessagePktView
+struct Inter_GuildNoticeGuildMessagePktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     int m_e;                  // +0x0e
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
 };
@@ -1484,9 +1469,8 @@ struct Inter_GuildNoticeGuildMessagePktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeMemberLoginOutPktView —— Inter_MonitorNoticeMemberLoginOut::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeMemberLoginOutPktView
+struct Inter_MonitorNoticeMemberLoginOutPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     unsigned char m_a;        // +0x0a（ORIG 0x084cc8xx put_byte 处 movzbl %al,%eax 零扩展 ⇒ unsigned）
     char m_padb[0x4];  // 未消费
     unsigned int m_f;         // +0x0f（同上 unsigned→int 失配两步 spill 形态）
@@ -1508,9 +1492,9 @@ struct Inter_MonitorNoticeMemberLoginOutPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeRequestMemberEnterToRequesterPktView —— Inter_MonitorNoticeRequestMemberEnterToRequester::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeRequestMemberEnterToRequesterPktView
+struct Inter_MonitorNoticeRequestMemberEnterToRequesterPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e（unsigned 字段→get_charac_no(int) 失配两步 spill 形态）
     unsigned char m_12;       // +0x12（ORIG 0x084cc9xx movzbl %al,%eax 零扩展 ⇒ unsigned）
     char m_13[1];             // +0x13 串/字节区首元素（容量未建模）
@@ -1526,9 +1510,9 @@ struct Inter_MonitorNoticeRequestMemberEnterToRequesterPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeRequestMemberEnterToResponserPktView —— Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeRequestMemberEnterToResponserPktView
+struct Inter_MonitorNoticeRequestMemberEnterToResponserPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     int m_e;                  // +0x0e
     short m_12;               // +0x12
     char m_14[1];             // +0x14 串/字节区首元素（容量未建模）
@@ -1543,9 +1527,9 @@ struct Inter_MonitorNoticeRequestMemberEnterToResponserPktView
 //   ⇒ 字段与 get_charac_no(int) 返回值失配 = unsigned int（探针 t3 实证）。
 //   聚合器 Inter_MonitorNoticeRequestMemberEnterToResponserPktView.m_e 为 int
 //   （R1 禁改聚合器，故本件自带同布局视图；✅ 建议属主把聚合器该字段改为 unsigned int）。
-struct Inter_MonitorNoticeRequestMemberEnterToResponserPktViewI
+struct Inter_MonitorNoticeRequestMemberEnterToResponserPktViewI : PacketHeader
 {
-    char m_pad0[0xe];               // +0x00..未消费
+    char m_afterHdr[0x4];               // +0x00..未消费
     unsigned int m_e;               // +0x0e
     short m_12;                     // +0x12
     char m_14[1];                   // +0x14 串/字节区首元素（容量未建模）
@@ -1563,9 +1547,8 @@ struct Inter_MonitorNoticeRequestMemberEnterToResponserPktViewI
 #pragma pack(push, 1)
 // Inter_MonitorNoticeMemberEnterOkPktView —— Inter_MonitorNoticeMemberEnterOk::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeMemberEnterOkPktView
+struct Inter_MonitorNoticeMemberEnterOkPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     unsigned char m_result;   // +0x0a
     unsigned char m_sub;      // +0x0b
     unsigned char m_flag;     // +0x0c
@@ -1588,9 +1571,8 @@ struct Inter_MonitorNoticeMemberEnterOkPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeMemberEnterReplyPktView —— Inter_MonitorNoticeMemberEnterReply::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeMemberEnterReplyPktView
+struct Inter_MonitorNoticeMemberEnterReplyPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     unsigned char m_a;        // +0x0a
     unsigned char m_b;        // +0x0b（ORIG `movzbl %al` 无符号扩展）
     unsigned char m_c;        // +0x0c
@@ -1613,9 +1595,9 @@ struct Inter_MonitorNoticeMemberEnterReplyPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeMemberSecedePktView —— Inter_MonitorNoticeMemberSecede::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeMemberSecedePktView
+struct Inter_MonitorNoticeMemberSecedePktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e
     unsigned char m_12;       // +0x12
     char m_13[1];             // +0x13 串/字节区首元素（容量未建模）
@@ -1631,9 +1613,9 @@ struct Inter_MonitorNoticeMemberSecedePktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeMemberSecedeToSecederPktView —— Inter_MonitorNoticeMemberSecedeToSeceder::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeMemberSecedeToSecederPktView
+struct Inter_MonitorNoticeMemberSecedeToSecederPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     // ORIG +0x5c 两步 spill（`mov %eax,%edx`+`mov -0x14(%ebp),%eax`）＝本字段 unsigned 与
     // get_charac_no(int) 返回类型 signedness 失配形态（探针 t1/g1 实证）。
     unsigned int m_e;         // +0x0e
@@ -1651,9 +1633,9 @@ struct Inter_MonitorNoticeMemberSecedeToSecederPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeDeleteMemberIdPktView —— Inter_MonitorNoticeDeleteMemberId::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorNoticeDeleteMemberIdPktView
+struct Inter_MonitorNoticeDeleteMemberIdPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     unsigned int m_e;               // +0x0e（同上 unsigned→int 失配两步 spill 形态）
 };
 #pragma pack(pop)
@@ -1667,9 +1649,9 @@ struct Inter_MonitorNoticeDeleteMemberIdPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeMemberChatMsgPktView —— Inter_MonitorNoticeMemberChatMsg::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeMemberChatMsgPktView
+struct Inter_MonitorNoticeMemberChatMsgPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e（ORIG 比较点 `mov %eax,%edx` 中转，P211/P265 档③）
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
     char m_pad13[0x1d];  // 未消费
@@ -1688,9 +1670,9 @@ struct Inter_MonitorNoticeMemberChatMsgPktView
 #pragma pack(push, 1)
 // Inter_MonitorCallMemberListPktView —— Inter_MonitorCallMemberList::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorCallMemberListPktView
+struct Inter_MonitorCallMemberListPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     int m_charID;                   // +0x0e 语义名←函数头注释
     unsigned char m_12;             // +0x12
 };
@@ -1741,9 +1723,9 @@ struct Inter_MonitorCallMemberListEntryWinView
 //   ⇒ +0x0e 字段与 get_charac_no(int) 返回值失配 = unsigned int（探针 t3 实证）。
 //   聚合器 Inter_MonitorCallMemberListPktView.m_charID 为 int（R1 禁改聚合器，
 //   故本件自带同布局视图；✅ 建议属主把聚合器该字段改为 unsigned int）。
-struct Inter_MonitorCallMemberListPktViewI
+struct Inter_MonitorCallMemberListPktViewI : PacketHeader
 {
-    char m_pad0[0xe];               // +0x0..未消费
+    char m_afterHdr[0x4];               // +0x0..未消费
     unsigned int m_charID;          // +0x0e
     unsigned char m_12;             // +0x12
 };
@@ -1759,9 +1741,9 @@ struct Inter_MonitorCallMemberListPktViewI
 #pragma pack(push, 1)
 // Inter_MonitorPayTaxToUpperPktView —— Inter_MonitorPayTaxToUpper::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorPayTaxToUpperPktView
+struct Inter_MonitorPayTaxToUpperPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     int m_charID;             // +0x0e
     int m_12;                 // +0x12
     unsigned int m_16;        // +0x16
@@ -1777,9 +1759,9 @@ struct Inter_MonitorPayTaxToUpperPktView
 //   ⇒ +0x0e 字段与 get_charac_no(int) 返回值失配 = unsigned int（探针 t3 实证）。
 //   聚合器 Inter_MonitorPayTaxToUpperPktView.m_charID 为 int（R1 禁改聚合器，
 //   故本件自带同布局视图；✅ 建议属主把聚合器该字段改为 unsigned int）。
-struct Inter_MonitorPayTaxToUpperPktViewI
+struct Inter_MonitorPayTaxToUpperPktViewI : PacketHeader
 {
-    char m_pad0[0xe];               // +0x0..未消费
+    char m_afterHdr[0x4];               // +0x0..未消费
     unsigned int m_charID;          // +0x0e
     // ORIG 084ce279 `mov 0x12(%eax),%eax; mov %eax,%ebx`（gain_money 前中转）
     //   ＝与 int 形参失配；084ce415 `put_int(pPkt->m_12)` 单段 ⇒ put_int 形参同为 unsigned
@@ -1886,9 +1868,8 @@ struct Inter_AvatarChangeStatPktView
 #pragma pack(push, 1)
 // Inter_TriggerEventStartPktView —— Inter_TriggerEventStart::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_TriggerEventStartPktView
+struct Inter_TriggerEventStartPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     // ORIG +0x15 两步装载（Ghidra `*(undefined4 *)(param_3 + 10)` → TriggerEventStart(int,...)）
     // ＝unsigned 字段→int 形参的 signedness 失配形态（探针 t1 实证）。
     unsigned int m_a;               // +0x0a
@@ -1905,9 +1886,8 @@ struct Inter_TriggerEventStartPktView
 #pragma pack(push, 1)
 // Inter_TriggerEventEndPktView —— Inter_TriggerEventEnd::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_TriggerEventEndPktView
+struct Inter_TriggerEventEndPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     unsigned int m_a;         // +0x0a
 };
 #pragma pack(pop)
@@ -1992,9 +1972,8 @@ struct Inter_MailBox_Req_SendPktView
 #pragma pack(push, 1)
 // Inter_Monitor_Notify_New_MailPktView —— Inter_Monitor_Notify_New_Mail::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_Monitor_Notify_New_MailPktView
+struct Inter_Monitor_Notify_New_MailPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
 };
 #pragma pack(pop)
@@ -2020,9 +1999,8 @@ struct Inter_Monitor_Notify_New_MailPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeMessagePktView —— Inter_MonitorNoticeMessage::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeMessagePktView
+struct Inter_MonitorNoticeMessagePktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     char m_a;                 // +0x0a
     char m_b[1];              // +0xb 串/字节区首元素（容量未建模）
 };
@@ -2072,9 +2050,9 @@ struct Inter_MonitorGuildWarInfoItemView
     unsigned short m_1a;              // +0x08（abs +0x1a）
     char m_1c[0x17];                  // +0x0a（abs +0x1c，stride 0x21）
 };
-struct Inter_MonitorGuildWarInfoPktView
+struct Inter_MonitorGuildWarInfoPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;                  // +0x0e
     Inter_MonitorGuildWarInfoItemView m_items[10];  // +0x12，stride 0x21
 };
@@ -2093,9 +2071,8 @@ struct Inter_MonitorGuildWarInfoPktView
 #pragma pack(push, 1)
 // Inter_MonitorForbidChatPktView —— Inter_MonitorForbidChat::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorForbidChatPktView
+struct Inter_MonitorForbidChatPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     size_t m_e;               // +0x0e
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
@@ -2132,9 +2109,8 @@ struct Inter_MouseRegisterPktView
 #pragma pack(push, 1)
 // Inter_Monitor_MegaphoneMsgPktView —— Inter_Monitor_MegaphoneMsg::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_Monitor_MegaphoneMsgPktView
+struct Inter_Monitor_MegaphoneMsgPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     char m_a;                 // +0x0a 服务器组（send_server_group 第二实参，ORIG +0x126 movzbl/movsbl）
     unsigned char m_b;        // +0x0b
     unsigned short m_c;       // +0x0c
@@ -2155,9 +2131,9 @@ struct Inter_Monitor_MegaphoneMsgPktView
 #pragma pack(push, 1)
 // Inter_Monitor_RegisterBlackListResultPktView —— Inter_Monitor_RegisterBlackListResult::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_Monitor_RegisterBlackListResultPktView
+struct Inter_Monitor_RegisterBlackListResultPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     char m_e[1];              // +0xe 串/字节区首元素（容量未建模）
     char m_padf[0x1d];  // 未消费
     unsigned int m_2c;        // +0x2c
@@ -2174,9 +2150,9 @@ struct Inter_Monitor_RegisterBlackListResultPktView
 #pragma pack(push, 1)
 // Inter_Monitor_DeleteBlackListResultPktView —— Inter_Monitor_DeleteBlackListResult::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_Monitor_DeleteBlackListResultPktView
+struct Inter_Monitor_DeleteBlackListResultPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     char m_e[1];              // +0xe 串/字节区首元素（容量未建模）
     char m_padf[0x1d];  // 未消费
     unsigned int m_2c;        // +0x2c
@@ -2193,9 +2169,9 @@ struct Inter_Monitor_DeleteBlackListResultPktView
 #pragma pack(push, 1)
 // Inter_Monitor_RequestBlackListResultPktView —— Inter_Monitor_RequestBlackListResult::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_Monitor_RequestBlackListResultPktView
+struct Inter_Monitor_RequestBlackListResultPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     unsigned char m_e;              // +0x0e
 };
 #pragma pack(pop)
@@ -2256,9 +2232,8 @@ struct Inter_MonitorNoticeBlackListPktView
 #pragma pack(push, 1)
 // Inter_WebNoticeSinglePktView —— Inter_WebNoticeSingle::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_WebNoticeSinglePktView
+struct Inter_WebNoticeSinglePktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     unsigned char m_a;        // +0x0a
     char m_b[1];              // +0xb 串/字节区首元素（容量未建模）
 };
@@ -2273,9 +2248,9 @@ struct Inter_WebNoticeSinglePktView
 #pragma pack(push, 1)
 // Inter_MemberExpLevelUpPktView —— Inter_MemberExpLevelUp::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MemberExpLevelUpPktView
+struct Inter_MemberExpLevelUpPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     int m_e;                        // +0x0e
     unsigned char m_12;             // +0x12
 };
@@ -2290,9 +2265,8 @@ struct Inter_MemberExpLevelUpPktView
 #pragma pack(push, 1)
 // Inter_MonitorAddBuddyPktView —— Inter_MonitorAddBuddy::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorAddBuddyPktView
+struct Inter_MonitorAddBuddyPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x4];  // 未消费
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
@@ -2316,9 +2290,8 @@ struct Inter_MonitorAddBuddyPktView
 #pragma pack(push, 1)
 // Inter_MonitorDelBuddyPktView —— Inter_MonitorDelBuddy::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorDelBuddyPktView
+struct Inter_MonitorDelBuddyPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x4];  // 未消费
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
@@ -2389,9 +2362,9 @@ struct Inter_ReqChangeCharacNamePktView
 #pragma pack(push, 1)
 // Inter_ReqQueryCharacInfoPktView —— Inter_ReqQueryCharacInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_ReqQueryCharacInfoPktView
+struct Inter_ReqQueryCharacInfoPktView : PacketHeader
 {
-    char m_pad0[0x20];  // 未消费
+    char m_afterHdr[0x16];  // 未消费
     int m_20;                 // +0x20
     char m_pad24[0x4];  // 未消费
     signed char m_28;         // +0x28
@@ -2412,9 +2385,9 @@ struct Inter_ReqQueryCharacInfoPktView
 #pragma pack(push, 1)
 // Inter_ReportMannerlessPktView —— Inter_ReportMannerless::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_ReportMannerlessPktView
+struct Inter_ReportMannerlessPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     int m_e;                        // +0x0e
     char m_pad12[0xc];  // +0x12..未消费
     unsigned int m_1e;              // +0x1e
@@ -2432,9 +2405,8 @@ struct Inter_ReportMannerlessPktView
 #pragma pack(push, 1)
 // Inter_ChagneUserHandicapPktView —— Inter_ChagneUserHandicap::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_ChagneUserHandicapPktView
+struct Inter_ChagneUserHandicapPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
     int m_e;                        // +0x0e
     int m_12;                       // +0x12
@@ -2450,9 +2422,9 @@ struct Inter_ChagneUserHandicapPktView
 #pragma pack(push, 1)
 // Inter_GMRequestMidPktView —— Inter_GMRequestMid::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_GMRequestMidPktView
+struct Inter_GMRequestMidPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     int m_e;                  // +0x0e
     int m_12;                 // +0x12
     char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
@@ -2481,9 +2453,8 @@ struct Inter_GMRequestMidPktView
 #pragma pack(push, 1)
 // Inter_ReplyGuildLetterPktView —— Inter_ReplyGuildLetter::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_ReplyGuildLetterPktView
+struct Inter_ReplyGuildLetterPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
     char m_pade[0x4];  // +0xe..未消费
     char m_12;                      // +0x12
@@ -2499,9 +2470,8 @@ struct Inter_ReplyGuildLetterPktView
 #pragma pack(push, 1)
 // Inter_CallGuildInviteToCallerPktView —— Inter_CallGuildInviteToCaller::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_CallGuildInviteToCallerPktView
+struct Inter_CallGuildInviteToCallerPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a（同上 unsigned→int 失配两步 spill 形态）
     char m_pade[0x4];  // +0xe..未消费
     int m_12;                       // +0x12
@@ -2517,9 +2487,8 @@ struct Inter_CallGuildInviteToCallerPktView
 #pragma pack(push, 1)
 // Inter_CallGuildInviteToInvitedPktView —— Inter_CallGuildInviteToInvited::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_CallGuildInviteToInvitedPktView
+struct Inter_CallGuildInviteToInvitedPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x4];  // 未消费
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
@@ -2537,9 +2506,8 @@ struct Inter_CallGuildInviteToInvitedPktView
 #pragma pack(push, 1)
 // Inter_ReplyGuildInviteToInvitedPktView —— Inter_ReplyGuildInviteToInvited::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_ReplyGuildInviteToInvitedPktView
+struct Inter_ReplyGuildInviteToInvitedPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a（同上 unsigned→int 失配两步 spill 形态）
     char m_pade[0x4];  // +0xe..未消费
     int m_12;                       // +0x12
@@ -2555,9 +2523,8 @@ struct Inter_ReplyGuildInviteToInvitedPktView
 #pragma pack(push, 1)
 // Inter_ReplyGuildInviteToCallerPktView —— Inter_ReplyGuildInviteToCaller::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_ReplyGuildInviteToCallerPktView
+struct Inter_ReplyGuildInviteToCallerPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     unsigned int m_a;         // +0x0a（P342 异型轴一次尝试：callee int ↔ 字段 unsigned 触发
                               //   ORIG `mov %eax,%edx` 中转；S1 协议单形试）
     char m_pade[0x4];  // 未消费
@@ -2585,9 +2552,9 @@ struct Inter_LoadDeathTowerBestRecordPktView
 #pragma pack(push, 1)
 // Inter_LoadDeathTowerBestRecordRecWinView —— Inter_LoadDeathTowerBestRecord::dispatch_sig 窗口 rec 元素视图
 //   （rec 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
-struct Inter_LoadDeathTowerBestRecordRecWinView
+struct Inter_LoadDeathTowerBestRecordRecWinView : PacketHeader
 {
-    char m_pad0[0x10];  // 未消费
+    char m_afterHdr[0x6];  // 未消费
     unsigned char m_10;         // +0x10 §4.3 成员数组基址槽（stDeathTowerRecordMemberInfo_t*）
     char m_pad11[0x5b];  // 未消费
     int m_6c;                 // +0x6c
@@ -2666,9 +2633,8 @@ struct Inter_MonitorDeathTowerRankingPktView
 #pragma pack(push, 1)
 // Inter_ReplyGuildSecedePktView —— Inter_ReplyGuildSecede::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_ReplyGuildSecedePktView
+struct Inter_ReplyGuildSecedePktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     unsigned int m_a;         // +0x0a
     short m_e;                // +0x0e
     // [L9·2026-09-11 子代理 B-PATCH#1] int→unsigned int 同型化（P211/P265 档③；sizeof/偏移/mangled
@@ -2693,9 +2659,8 @@ struct Inter_ReplyGuildSecedePktView
 #pragma pack(push, 1)
 // Inter_NoticeGuildMasterDelegatePktView —— Inter_NoticeGuildMasterDelegate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_NoticeGuildMasterDelegatePktView
+struct Inter_NoticeGuildMasterDelegatePktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     unsigned int m_a;       // +0x0a（同上 unsigned→int 失配两步 spill 形态）
     char m_pade[0x4];  // 未消费
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
@@ -2711,9 +2676,8 @@ struct Inter_NoticeGuildMasterDelegatePktView
 #pragma pack(push, 1)
 // Inter_GuildReplyGuildMasterDelegatePktView —— Inter_GuildReplyGuildMasterDelegate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_GuildReplyGuildMasterDelegatePktView
+struct Inter_GuildReplyGuildMasterDelegatePktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a（同上 unsigned→int 失配两步 spill 形态）
     char m_pade[0x4];  // +0xe..未消费
     int m_12;                       // +0x12
@@ -2729,9 +2693,8 @@ struct Inter_GuildReplyGuildMasterDelegatePktView
 #pragma pack(push, 1)
 // Inter_NoticeHasBeenGuildMasterPktView —— Inter_NoticeHasBeenGuildMaster::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NoticeHasBeenGuildMasterPktView
+struct Inter_NoticeHasBeenGuildMasterPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
 };
 #pragma pack(pop)
@@ -2781,9 +2744,8 @@ struct Inter_DBCheckDoubleGuildAddressPktView
 #pragma pack(push, 1)
 // Inter_ReplyGuildCreatePktView —— Inter_ReplyGuildCreate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_ReplyGuildCreatePktView
+struct Inter_ReplyGuildCreatePktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     unsigned int m_a;       // +0x0a（同上 unsigned→int 失配两步 spill 形态）
     char m_pade[0x4];  // 未消费
     int m_result;             // +0x12
@@ -2799,9 +2761,9 @@ struct Inter_ReplyGuildCreatePktView
 #pragma pack(push, 1)
 // Inter_NoticeGuildNameOnGuildCreatePktView —— Inter_NoticeGuildNameOnGuildCreate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NoticeGuildNameOnGuildCreatePktView
+struct Inter_NoticeGuildNameOnGuildCreatePktView : PacketHeader
 {
-    char m_pad0[0x12];  // +0x0..未消费
+    char m_afterHdr[0x8];  // +0x0..未消费
     unsigned int m_12;              // +0x12
     char m_pad16[0x17];  // +0x16..未消费
     unsigned char m_2d;             // +0x2d
@@ -2835,9 +2797,8 @@ struct Inter_SecurityCardIssuePktView
 #pragma pack(push, 1)
 // Inter_SecurityCardActivatePktView —— Inter_SecurityCardActivate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_SecurityCardActivatePktView
+struct Inter_SecurityCardActivatePktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     char m_a;                       // +0x0a
 };
 #pragma pack(pop)
@@ -2931,9 +2892,9 @@ struct Inter_AutoPunishRuleHackTypePktView
 #pragma pack(push, 1)
 // Inter_AutoPunishRuleHackTypeEntryWinView —— Inter_AutoPunishRuleHackType::dispatch_sig 窗口 entry 元素视图
 //   （entry 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
-struct Inter_AutoPunishRuleHackTypeEntryWinView
+struct Inter_AutoPunishRuleHackTypeEntryWinView : PacketHeader
 {
-    char m_pad0[0x10];  // 未消费
+    char m_afterHdr[0x6];  // 未消费
     unsigned short m_10;      // +0x10
     unsigned short m_12;      // +0x12
     unsigned short m_14;      // +0x14
@@ -2977,9 +2938,8 @@ struct Inter_AutoPunishRuleHackTypeEntrySubView
 #pragma pack(push, 1)
 // Inter_ReplyPowerWarScorePktView —— Inter_ReplyPowerWarScore::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_ReplyPowerWarScorePktView
+struct Inter_ReplyPowerWarScorePktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     int m_e;                        // +0x0e
 };
@@ -2994,9 +2954,8 @@ struct Inter_ReplyPowerWarScorePktView
 #pragma pack(push, 1)
 // Inter_ReplyJoinPowerPktView —— Inter_ReplyJoinPower::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_ReplyJoinPowerPktView
+struct Inter_ReplyJoinPowerPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     char m_pade[0x4];  // +0xe..未消费
     unsigned int m_12;              // +0x12（P342 异型轴一次尝试：callee int ↔ 字段 unsigned
@@ -3011,9 +2970,9 @@ struct Inter_ReplyJoinPowerPktView
 // [G2A-PC 手法1/P248] ORIG 084d4942 对 guildDbInfo+0x1b 发单段 `movzbl 0x1b(%eax),%eax`；
 //   我方旧写 `*(reinterpret_cast<const unsigned char*>(guildDbInfo) + 0x1b)` 多发
 //   `add $0x1b,%eax` 一条 ⇒ 原码是视图成员访问（pack(1) 常量偏移）。
-struct Inter_ReplyJoinPowerGuildDbByteViewI
+struct Inter_ReplyJoinPowerGuildDbByteViewI : PacketHeader
 {
-    char m_pad0[0x1b];
+    char m_afterHdr[0x11];
     unsigned char m_c;                              // +0x1b (ORIG 084d4942 movzbl 单段 = unsigned char)
 };
 #pragma pack(pop)
@@ -3027,9 +2986,8 @@ struct Inter_ReplyJoinPowerGuildDbByteViewI
 #pragma pack(push, 1)
 // Inter_SecedePowerPktView —— Inter_SecedePower::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_SecedePowerPktView
+struct Inter_SecedePowerPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     char m_pade[0x4];  // +0xe..未消费
     int m_12;                       // +0x12
@@ -3044,9 +3002,9 @@ struct Inter_SecedePowerPktView
 //   （结构体成员 = base+disp 形）；我方旧写 `*(reinterpret_cast<const unsigned char*>
 //   (guildDbInfo) + 0x1b)` 会多发 `add $0x1b,%eax` 一条 ⇒ 原码是视图成员访问。
 //   pack(1) 布局与聚合器无关（本件自带，只覆盖 +0x1b 一字节）。
-struct Inter_SecedePowerGuildDbByteViewI
+struct Inter_SecedePowerGuildDbByteViewI : PacketHeader
 {
-    char m_pad0[0x1b];
+    char m_afterHdr[0x11];
     unsigned char m_c;                              // +0x1b (P248: ORIG 084d4b3a movzbl 单段 = unsigned char)
 };
 #pragma pack(pop)
@@ -3060,9 +3018,8 @@ struct Inter_SecedePowerGuildDbByteViewI
 #pragma pack(push, 1)
 // Inter_NoticePowerWarStartTimePktView —— Inter_NoticePowerWarStartTime::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NoticePowerWarStartTimePktView
+struct Inter_NoticePowerWarStartTimePktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned char m_a;              // +0x0a
     unsigned char m_b;              // +0x0b
     unsigned char m_c;              // +0x0c
@@ -3079,9 +3036,8 @@ struct Inter_NoticePowerWarStartTimePktView
 #pragma pack(push, 1)
 // Inter_NoticePowerWarEndTimePktView —— Inter_NoticePowerWarEndTime::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NoticePowerWarEndTimePktView
+struct Inter_NoticePowerWarEndTimePktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned char m_a;              // +0x0a
     int m_b;                        // +0x0b
     int m_f;                        // +0x0f
@@ -3097,9 +3053,8 @@ struct Inter_NoticePowerWarEndTimePktView
 #pragma pack(push, 1)
 // Inter_NoticePowerWarInfoPktView —— Inter_NoticePowerWarInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NoticePowerWarInfoPktView
+struct Inter_NoticePowerWarInfoPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     int m_e;                        // +0x0e
     signed char m_12;               // +0x12
@@ -3115,9 +3070,8 @@ struct Inter_NoticePowerWarInfoPktView
 #pragma pack(push, 1)
 // Inter_NoticePowerWarProlongPktView —— Inter_NoticePowerWarProlong::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NoticePowerWarProlongPktView
+struct Inter_NoticePowerWarProlongPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
 };
 #pragma pack(pop)
@@ -3131,9 +3085,9 @@ struct Inter_NoticePowerWarProlongPktView
 #pragma pack(push, 1)
 // Inter_ChangeGuildNamePktView —— Inter_ChangeGuildName::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_ChangeGuildNamePktView
+struct Inter_ChangeGuildNamePktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e
     char m_pad12[0x4];  // 未消费
     unsigned char m_16;       // +0x16
@@ -3150,9 +3104,9 @@ struct Inter_ChangeGuildNamePktView
 #pragma pack(push, 1)
 // Inter_NoticeChangeGuildNameToMembersPktView —— Inter_NoticeChangeGuildNameToMembers::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_NoticeChangeGuildNameToMembersPktView
+struct Inter_NoticeChangeGuildNameToMembersPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e（P211：与 get_charac_no 返回值异型触发 regmove 中转）
     char m_pad12[0x4];  // 未消费
     char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
@@ -3168,9 +3122,9 @@ struct Inter_NoticeChangeGuildNameToMembersPktView
 #pragma pack(push, 1)
 // Inter_SendAllUserInfoMiniumForGuildSystemPktView —— Inter_SendAllUserInfoMiniumForGuildSystem::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_SendAllUserInfoMiniumForGuildSystemPktView
+struct Inter_SendAllUserInfoMiniumForGuildSystemPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     unsigned int m_e;               // +0x0e
 };
 #pragma pack(pop)
@@ -3196,9 +3150,8 @@ struct Inter_SendAllUserInfoMiniumForGuildSystemPktView
 #pragma pack(push, 1)
 // Inter_NotifyAuctionMailPktView —— Inter_NotifyAuctionMail::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NotifyAuctionMailPktView
+struct Inter_NotifyAuctionMailPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     char m_pade[0x4];  // +0xe..未消费
     unsigned char m_12;             // +0x12
@@ -3552,9 +3505,9 @@ struct Inter_PvPChannelInfoPktView
 #pragma pack(push, 1)
 // Inter_PvPChannelUserCountPktView —— Inter_PvPChannelUserCount::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_PvPChannelUserCountPktView
+struct Inter_PvPChannelUserCountPktView : PacketHeader
 {
-    char m_pad0[0x12];  // +0x0..未消费
+    char m_afterHdr[0x8];  // +0x0..未消费
     unsigned int m_12;              // +0x12
     unsigned int m_16;              // +0x16
     unsigned int m_1a;              // +0x1a
@@ -3691,9 +3644,8 @@ struct Inter_BlackIPMonitorRecWinView
 #pragma pack(push, 1)
 // Inter_BlackIPMonitorDeleteIPPktView —— Inter_BlackIPMonitorDeleteIP::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_BlackIPMonitorDeleteIPPktView
+struct Inter_BlackIPMonitorDeleteIPPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
 };
 #pragma pack(pop)
@@ -3701,9 +3653,9 @@ struct Inter_BlackIPMonitorDeleteIPPktView
 #pragma pack(push, 1)
 // Inter_BlackIPMonitorDeleteIPRecWinView —— Inter_BlackIPMonitorDeleteIP::dispatch_sig 窗口 rec 元素视图
 //   （rec 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
-struct Inter_BlackIPMonitorDeleteIPRecWinView
+struct Inter_BlackIPMonitorDeleteIPRecWinView : PacketHeader
 {
-    char m_pad0[0x1e];  // 未消费
+    char m_afterHdr[0x14];  // 未消费
     unsigned int m_1e;        // +0x1e
 };
 #pragma pack(pop)
@@ -3725,9 +3677,9 @@ struct Inter_BlackIPMonitorDeleteIPRecWinView
 //   而 ORIG 084d8859 `lea (%ecx,%eax,1),%eax; add $0x10,%eax; mov 0xe(%eax),%ecx` 读 **+0x1e**
 //   （真·错读 2 字节）⇒ 补 pack(1)（局部，仅包住该 struct）。
 #pragma pack(push, 1)
-struct Inter_BlackIPMonitorDeleteIPRecLeafView
+struct Inter_BlackIPMonitorDeleteIPRecLeafView : PacketHeader
 {
-    char m_pad0[0xe];              // 子结构 +0x00..+0x0d
+    char m_afterHdr[0x4];              // 子结构 +0x00..+0x0d
     unsigned int m_val;            // 子结构 +0x0e == 条目 +0x1e
 };
 #pragma pack(pop)
@@ -3779,9 +3731,9 @@ struct Inter_DisconnectMonitorServerPktView
 #pragma pack(push, 1)
 // Inter_ResposncePCRoomPlyerListPktView —— Inter_ResposncePCRoomPlyerList::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_ResposncePCRoomPlyerListPktView
+struct Inter_ResposncePCRoomPlyerListPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     int m_e;                        // +0x0e
     unsigned char m_12;             // +0x12
 };
@@ -3790,9 +3742,9 @@ struct Inter_ResposncePCRoomPlyerListPktView
 #pragma pack(push, 1)
 // Inter_ResposncePCRoomPlyerListEntryWinView —— Inter_ResposncePCRoomPlyerList::dispatch_sig 窗口 entry 元素视图
 //   （entry 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
-struct Inter_ResposncePCRoomPlyerListEntryWinView
+struct Inter_ResposncePCRoomPlyerListEntryWinView : PacketHeader
 {
-    char m_pad0[0x25];  // 未消费
+    char m_afterHdr[0x1b];  // 未消费
     unsigned char m_25;       // +0x25
 };
 #pragma pack(pop)
@@ -3806,9 +3758,9 @@ struct Inter_ResposncePCRoomPlyerListEntryWinView
 #pragma pack(push, 1)
 // Inter_ResposncePCRoomPlyerCountPktView —— Inter_ResposncePCRoomPlyerCount::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_ResposncePCRoomPlyerCountPktView
+struct Inter_ResposncePCRoomPlyerCountPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     unsigned int m_e;               // +0x0e
     int m_12;                       // +0x12
 };
@@ -3823,9 +3775,8 @@ struct Inter_ResposncePCRoomPlyerCountPktView
 #pragma pack(push, 1)
 // Inter_NoticePCRoomPlayerLoginOutPktView —— Inter_NoticePCRoomPlayerLoginOut::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_NoticePCRoomPlayerLoginOutPktView
+struct Inter_NoticePCRoomPlayerLoginOutPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     signed char m_a;          // +0x0a
     char m_padb[0x4];  // 未消费
     unsigned int m_f;         // +0x0f（同上 unsigned→int 失配两步 spill 形态）
@@ -3843,9 +3794,8 @@ struct Inter_NoticePCRoomPlayerLoginOutPktView
 #pragma pack(push, 1)
 // Inter_NoticePowerWarRankPktView —— Inter_NoticePowerWarRank::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NoticePowerWarRankPktView
+struct Inter_NoticePowerWarRankPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
     unsigned int m_e;               // +0x0e
     unsigned int m_12;              // +0x12
@@ -3916,9 +3866,8 @@ struct Inter_UpdateServerMessagePktView
 #pragma pack(push, 1)
 // Inter_NoticeServerMessageInfoPktView —— Inter_NoticeServerMessageInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_NoticeServerMessageInfoPktView
+struct Inter_NoticeServerMessageInfoPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     unsigned char m_a;        // +0x0a
     unsigned char m_b;        // +0x0b
     unsigned char m_c;        // +0x0c
@@ -3941,9 +3890,9 @@ struct Inter_NoticeServerMessageInfoPktView
 #pragma pack(push, 1)
 // Inter_NoticeGuildMemoPktView —— Inter_NoticeGuildMemo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_NoticeGuildMemoPktView
+struct Inter_NoticeGuildMemoPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
     char m_pad13[0x1d];  // 未消费
@@ -3960,9 +3909,9 @@ struct Inter_NoticeGuildMemoPktView
 #pragma pack(push, 1)
 // Inter_PowerWarProcessInfoPktView —— Inter_PowerWarProcessInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_PowerWarProcessInfoPktView
+struct Inter_PowerWarProcessInfoPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     int m_e;                        // +0x0e
     int m_12;                       // +0x12
     int m_16;                       // +0x16
@@ -3981,9 +3930,9 @@ struct Inter_PowerWarProcessInfoPktView
 #pragma pack(push, 1)
 // Inter_PowerWarEndInfoPktView —— Inter_PowerWarEndInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_PowerWarEndInfoPktView
+struct Inter_PowerWarEndInfoPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     int m_e;                        // +0x0e
     unsigned char m_12;             // +0x12
     int m_13;                       // +0x13
@@ -4003,9 +3952,9 @@ struct Inter_PowerWarEndInfoPktView
 #pragma pack(push, 1)
 // Inter_NoticeCreateGuildAgitPktView —— Inter_NoticeCreateGuildAgit::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NoticeCreateGuildAgitPktView
+struct Inter_NoticeCreateGuildAgitPktView : PacketHeader
 {
-    char m_pad0[0x12];  // +0x0..未消费
+    char m_afterHdr[0x8];  // +0x0..未消费
     int m_12;                       // +0x12
 };
 #pragma pack(pop)
@@ -4019,9 +3968,9 @@ struct Inter_NoticeCreateGuildAgitPktView
 #pragma pack(push, 1)
 // Inter_NoticeDeleteGuildAgitPktView —— Inter_NoticeDeleteGuildAgit::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NoticeDeleteGuildAgitPktView
+struct Inter_NoticeDeleteGuildAgitPktView : PacketHeader
 {
-    char m_pad0[0x12];  // +0x0..未消费
+    char m_afterHdr[0x8];  // +0x0..未消费
     int m_12;                       // +0x12
     unsigned char m_16;             // +0x16
 };
@@ -4036,10 +3985,13 @@ struct Inter_NoticeDeleteGuildAgitPktView
 #pragma pack(push, 1)
 // Inter_NoticeLoadGuildAgitPktView —— Inter_NoticeLoadGuildAgit::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NoticeLoadGuildAgitPktView
+struct Inter_NoticeLoadGuildAgitPktView : PacketHeader
 {
-    char m_pad0[0x16];  // +0x0..未消费
-    unsigned char m_16;             // +0x16
+    char m_afterHdr[0xc];  // +0x0a..+0x15
+    union {
+        unsigned char m_16;                 // +0x16
+        STGuildAgitDBInfo m_agit;           // +0x16
+    };
 };
 #pragma pack(pop)
 
@@ -4056,9 +4008,8 @@ struct Inter_NoticeLoadGuildAgitPktView
 #pragma pack(push, 1)
 // Inter_MonitorPunishUserReqPktView —— Inter_MonitorPunishUserReq::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorPunishUserReqPktView
+struct Inter_MonitorPunishUserReqPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     signed char m_a;                // +0x0a
     unsigned short m_b;             // +0x0b
     unsigned int m_accIds[1];       // +0x0d（ORIG 084db31c `mov 0xd(%eax,%edx,4)` scaled 直证）
@@ -4083,9 +4034,9 @@ struct Inter_MonitorPunishUserReqPktView
 #pragma pack(push, 1)
 // Inter_PcroomResponsePktView —— Inter_PcroomResponse::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_PcroomResponsePktView
+struct Inter_PcroomResponsePktView : PacketHeader
 {
-    char m_pad0[0x12];  // 未消费
+    char m_afterHdr[0x8];  // 未消费
     unsigned int m_12;        // +0x12
     long m_16;                // +0x16（ORIG 084db82c `mov 0x16(%eax),%eax` 4 字节读；
                               //   原 char 槽为转写宽度误，已按 handleSetUserPCRoom 形参 long 修正）
@@ -4108,9 +4059,8 @@ struct Inter_PcroomResponsePktView
 #pragma pack(push, 1)
 // Inter_ItemLimitEdition_Sell_StartPktView —— Inter_ItemLimitEdition_Sell_Start::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_ItemLimitEdition_Sell_StartPktView
+struct Inter_ItemLimitEdition_Sell_StartPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     unsigned char m_flag;     // +0x0a
     unsigned int m_b;         // +0x0b
 };
@@ -4125,9 +4075,9 @@ struct Inter_ItemLimitEdition_Sell_StartPktView
 #pragma pack(push, 1)
 // Inter_ItemLimitEdition_Sell_EndPktView —— Inter_ItemLimitEdition_Sell_End::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_ItemLimitEdition_Sell_EndPktView
+struct Inter_ItemLimitEdition_Sell_EndPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e
 };
 #pragma pack(pop)
@@ -4158,9 +4108,9 @@ struct Inter_ItemLimitEdition_Sell_EndPktViewI
 #pragma pack(push, 1)
 // Inter_ItemLimitEdition_UpdatePktView —— Inter_ItemLimitEdition_Update::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_ItemLimitEdition_UpdatePktView
+struct Inter_ItemLimitEdition_UpdatePktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     unsigned int m_e;               // +0x0e
 };
 #pragma pack(pop)
@@ -4175,9 +4125,9 @@ struct Inter_ItemLimitEdition_UpdatePktView
 #pragma pack(push, 1)
 // Inter_ItemLimitEdition_ReplyPktView —— Inter_ItemLimitEdition_Reply::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_ItemLimitEdition_ReplyPktView
+struct Inter_ItemLimitEdition_ReplyPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e
     unsigned int m_12;        // +0x12
     unsigned char m_16;       // +0x16
@@ -4241,9 +4191,8 @@ struct Inter_SetIPCountEntry
     unsigned short m_e;         // 相对包体 +0x0e + i*0x14
     Inter_SetIPCountSub m_sub;  // 相对包体 +0x10 + i*0x14
 };
-struct Inter_SetIPCountPktView
+struct Inter_SetIPCountPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned char m_a;              // +0x0a
     unsigned char m_b;              // +0x0b
     Inter_SetIPCountEntry m_entries[1];  // +0x0c 起，元素 stride 0x14
@@ -4279,9 +4228,8 @@ struct Inter_SetFullIPCountEntry
     unsigned short m_e;         // 相对包体 +0x0e + i*0x18
     Inter_SetFullIPCountSub m_sub;  // 相对包体 +0x10 + i*0x18
 };
-struct Inter_SetFullIPCountPktView
+struct Inter_SetFullIPCountPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned char m_a;              // +0x0a
     unsigned char m_b;              // +0x0b
     Inter_SetFullIPCountEntry m_entries[1];  // +0x0c 起，元素 stride 0x18
@@ -4308,9 +4256,9 @@ static_assert(sizeof(Inter_SetFullIPCountEntry) == 0x18, "SetFullIPCountEntry st
 #pragma pack(push, 1)
 // Inter_ApplyTempPowerSidePktView —— Inter_ApplyTempPowerSide::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_ApplyTempPowerSidePktView
+struct Inter_ApplyTempPowerSidePktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     unsigned int m_e;               // +0x0e（同上）
     char m_pad12[0x4];  // +0x12..未消费
     unsigned char m_16;             // +0x16
@@ -4323,9 +4271,9 @@ struct Inter_ApplyTempPowerSidePktView
 // [G2A-PC 手法1/P248] ORIG 084dcd33 对 guildDbInfo+0x1b 发单段 `movzbl 0x1b(%eax),%eax`；
 //   我方旧写 `*(reinterpret_cast<const unsigned char*>(guildDbInfo) + 0x1b)` 多发
 //   `add $0x1b,%eax` 一条 ⇒ 原码是 pack(1) 视图成员访问。
-struct Inter_ApplyTempPowerSideGuildDbByteViewI
+struct Inter_ApplyTempPowerSideGuildDbByteViewI : PacketHeader
 {
-    char m_pad0[0x1b];
+    char m_afterHdr[0x11];
     unsigned char m_c;                              // +0x1b (ORIG 084dcd33 movzbl 单段 = unsigned char)
 };
 #pragma pack(pop)
@@ -4366,9 +4314,9 @@ struct Inter_LoadPowerWarInfoPktView
 #pragma pack(push, 1)
 // Inter_SetFactoryHubUserPktView —— Inter_SetFactoryHubUser::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_SetFactoryHubUserPktView
+struct Inter_SetFactoryHubUserPktView : PacketHeader
 {
-    char m_pad0[0xf];  // 未消费
+    char m_afterHdr[0x5];  // 未消费
     char m_f[1];              // +0xf 串/字节区首元素（容量未建模）
     char m_pad10[0x1d];  // 未消费
     unsigned char m_2d;       // +0x2d
@@ -4403,9 +4351,9 @@ struct Inter_SetFactoryHubUserNotConnPktView
 #pragma pack(push, 1)
 // Inter_Set_CleanPad_PointPktView —— Inter_Set_CleanPad_Point::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_Set_CleanPad_PointPktView
+struct Inter_Set_CleanPad_PointPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     unsigned short m_e;             // +0x0e
 };
 #pragma pack(pop)
@@ -4452,9 +4400,9 @@ struct GuildCargoEntryV
 };
 static_assert(sizeof(GuildCargoEntryV) == 0x35,
               "GuildCargoEntryV ORIG stride 0x35（imul $0x35 实证）");
-struct Inter_GuildCargoPktView
+struct Inter_GuildCargoPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费（entry 区经 GuildCargoEntryV cast 视图消费）
+    char m_afterHdr[0x4];  // +0x0..未消费（entry 区经 GuildCargoEntryV cast 视图消费）
     unsigned int m_e;         // +0x0e（同上）
     char m_pad12[0x18d8];  // 未消费
     unsigned int m_18ea;      // +0x18ea
@@ -4487,9 +4435,9 @@ struct Inter_GuildCargoPktView
 #pragma pack(push, 1)
 // Inter_NoticeGuildCargoPktView —— Inter_NoticeGuildCargo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_NoticeGuildCargoPktView
+struct Inter_NoticeGuildCargoPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e（ORIG 比较点 `mov %eax,%edx` 中转，P211/P265 档③）
     char m_pad12[0x18d8];  // 未消费
     unsigned int m_18ea;      // +0x18ea
@@ -4524,9 +4472,9 @@ struct Inter_NoticeGuildCargoTail
 #pragma pack(push, 1)
 // Inter_GuildCargoHistoryPktView —— Inter_GuildCargoHistory::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_GuildCargoHistoryPktView
+struct Inter_GuildCargoHistoryPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     // [L9-G PATCH#1] P211/P265 档③ 同型化：ORIG 比较点 `mov %eax,%edx; mov -0x14(%ebp),%eax;
     //   mov 0xe(%eax),%eax; cmp %eax,%edx`；探针 /tmp/L9/B/pb_cmp.cpp fu(unsigned) 同形。
     unsigned int m_e;               // +0x0e
@@ -4548,9 +4496,9 @@ struct Inter_GuildCargoHistoryPktView
 #pragma pack(push, 1)
 // Inter_GuildCargoCheckPushItemPktView —— Inter_GuildCargoCheckPushItem::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_GuildCargoCheckPushItemPktView
+struct Inter_GuildCargoCheckPushItemPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     int m_e;                  // +0x0e
     unsigned char m_12;       // +0x12
     int m_13;                 // +0x13
@@ -4573,9 +4521,9 @@ struct Inter_GuildCargoCheckPushItemPktView
 #pragma pack(push, 1)
 // Inter_GuildCargoPushItemPktView —— Inter_GuildCargoPushItem::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_GuildCargoPushItemPktView
+struct Inter_GuildCargoPushItemPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     int m_e;                  // +0x0e
     unsigned char m_12;       // +0x12
     int m_13;                 // +0x13
@@ -4607,9 +4555,9 @@ struct Inter_GuildCargoPushItemPktView
 #pragma pack(push, 1)
 // Inter_GuildCargoPopItemPktView —— Inter_GuildCargoPopItem::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_GuildCargoPopItemPktView
+struct Inter_GuildCargoPopItemPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     int m_e;                        // +0x0e
     int m_12;                       // +0x12
     char m_pad16[0x1];
@@ -4639,9 +4587,9 @@ struct Inter_GuildCargoPopItemPktView
 #pragma pack(push, 1)
 // Inter_GuildCargoMoveItemPktView —— Inter_GuildCargoMoveItem::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_GuildCargoMoveItemPktView
+struct Inter_GuildCargoMoveItemPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e（[b28c-31] P211 字段侧旋钮：ORIG 0x084debd7
                               // `call get_charac_no; mov %eax,%edx; … cmp %eax,%edx`
                               // 为异型中转形 ⇒ 字段 unsigned 与 callee int 异型）
@@ -4660,9 +4608,9 @@ struct Inter_GuildCargoMoveItemPktView
 #pragma pack(push, 1)
 // Inter_GuildCargoUpgradePktView —— Inter_GuildCargoUpgrade::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_GuildCargoUpgradePktView
+struct Inter_GuildCargoUpgradePktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e
     unsigned char m_12;       // +0x12
 };
@@ -4678,9 +4626,8 @@ struct Inter_GuildCargoUpgradePktView
 #pragma pack(push, 1)
 // Inter_GuildBoardDataPktView —— Inter_GuildBoardData::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_GuildBoardDataPktView
+struct Inter_GuildBoardDataPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned short m_a;             // +0x0a
     unsigned short m_c;             // +0x0c
     unsigned char m_e;              // +0x0e
@@ -4699,9 +4646,8 @@ struct Inter_GuildBoardDataPktView
 #pragma pack(push, 1)
 // Inter_GuildBoardDeletePktView —— Inter_GuildBoardDelete::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_GuildBoardDeletePktView
+struct Inter_GuildBoardDeletePktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     short m_a;                // +0x0a
     char m_padc[0x7];  // 未消费
     unsigned int m_13;        // +0x13
@@ -4717,9 +4663,9 @@ struct Inter_GuildBoardDeletePktView
 #pragma pack(push, 1)
 // Inter_TakeScreenShotPktView —— Inter_TakeScreenShot::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_TakeScreenShotPktView
+struct Inter_TakeScreenShotPktView : PacketHeader
 {
-    char m_pad0[0xb];  // +0x0..未消费
+    char m_afterHdr;  // +0x0..未消费
     int m_b;                        // +0x0b
 };
 #pragma pack(pop)
@@ -4733,9 +4679,8 @@ struct Inter_TakeScreenShotPktView
 #pragma pack(push, 1)
 // Inter_VillageAttackedStartPktView —— Inter_VillageAttackedStart::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_VillageAttackedStartPktView
+struct Inter_VillageAttackedStartPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     int m_e;                        // +0x0e
     int m_12;                       // +0x12
@@ -4752,9 +4697,8 @@ struct Inter_VillageAttackedStartPktView
 #pragma pack(push, 1)
 // Inter_VillageAttackedEndPktView —— Inter_VillageAttackedEnd::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_VillageAttackedEndPktView
+struct Inter_VillageAttackedEndPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
     unsigned int m_e;               // +0x0e
     unsigned int m_12;              // +0x12
@@ -4770,9 +4714,8 @@ struct Inter_VillageAttackedEndPktView
 #pragma pack(push, 1)
 // Inter_VillageAttackedCountdownPktView —— Inter_VillageAttackedCountdown::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_VillageAttackedCountdownPktView
+struct Inter_VillageAttackedCountdownPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
 };
 #pragma pack(pop)
@@ -4786,9 +4729,8 @@ struct Inter_VillageAttackedCountdownPktView
 #pragma pack(push, 1)
 // Inter_VillageAttackedUpdatePktView —— Inter_VillageAttackedUpdate::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_VillageAttackedUpdatePktView
+struct Inter_VillageAttackedUpdatePktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     int m_e;                        // +0x0e
     int m_12;                       // +0x12
@@ -4804,9 +4746,9 @@ struct Inter_VillageAttackedUpdatePktView
 #pragma pack(push, 1)
 // Inter_VillageAttackedScorePktView —— Inter_VillageAttackedScore::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_VillageAttackedScorePktView
+struct Inter_VillageAttackedScorePktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     unsigned int m_e;               // +0x0e（同上 unsigned→int 失配两步 spill 形态）
     int m_12;                       // +0x12
     int m_16;                       // +0x16
@@ -4825,9 +4767,9 @@ struct Inter_VillageAttackedScorePktView
 #pragma pack(push, 1)
 // Inter_VillageAttackedRewardPktView —— Inter_VillageAttackedReward::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_VillageAttackedRewardPktView
+struct Inter_VillageAttackedRewardPktView : PacketHeader
 {
-    char m_pad0[0xe];  // +0x0..未消费
+    char m_afterHdr[0x4];  // +0x0..未消费
     int m_e;                        // +0x0e
     int m_12;                       // +0x12
     int m_16;                       // +0x16
@@ -4847,9 +4789,8 @@ struct Inter_VillageAttackedRewardPktView
 #pragma pack(push, 1)
 // Inter_FullLevelBroadCastPktView —— Inter_FullLevelBroadCast::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_FullLevelBroadCastPktView
+struct Inter_FullLevelBroadCastPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     char m_a[1];              // +0xa 串/字节区首元素（容量未建模）
 };
 #pragma pack(pop)
@@ -4899,9 +4840,8 @@ struct Inter_SetSecounUserDataPktView
 #pragma pack(push, 1)
 // Inter_SetARSInfoPktView —— Inter_SetARSInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_SetARSInfoPktView
+struct Inter_SetARSInfoPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
     unsigned char m_e;              // +0x0e
 };
@@ -4910,9 +4850,9 @@ struct Inter_SetARSInfoPktView
 #pragma pack(push, 1)
 // Inter_SetARSInfoEntryWinView —— Inter_SetARSInfo::dispatch_sig 窗口 entry 元素视图
 //   （entry 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
-struct Inter_SetARSInfoEntryWinView
+struct Inter_SetARSInfoEntryWinView : PacketHeader
 {
-    char m_pad0[0xf];  // 未消费
+    char m_afterHdr[0x5];  // 未消费
     unsigned short m_f;       // +0x0f
     unsigned short m_11;      // +0x11
     unsigned short m_13;      // +0x13
@@ -4941,9 +4881,8 @@ struct Inter_SetARSInfoElemView
     unsigned char m_18;    // +0x09 ⇒ +0x18
     unsigned short m_19;   // +0x0a ⇒ +0x19
 };
-struct Inter_SetARSInfoListView
+struct Inter_SetARSInfoListView : PacketHeader
 {
-    char m_pad0[0xa];           // +0x0..+0x9
     int m_a;                    // +0x0a（P290：ORIG 084e09xx `mov 0xa(%eax),%ebx` 单段 ⇒ 与
                                 //   使用上下文(int 比较/上界)同型 ⇒ int）
     unsigned char m_e;          // +0x0e
@@ -4960,9 +4899,8 @@ struct Inter_SetARSInfoListView
 #pragma pack(push, 1)
 // Inter_OnTimeEventRewardStartPktView —— Inter_OnTimeEventRewardStart::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_OnTimeEventRewardStartPktView
+struct Inter_OnTimeEventRewardStartPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     unsigned int m_e;         // +0x0e
     // P290：ORIG 084e0e5x 两处实参装载为**两段**（`mov 0x12(%eax),%eax; mov %eax,%edx` /
@@ -4992,9 +4930,8 @@ struct Inter_OnTimeEventRewardStartPktView
 #pragma pack(push, 1)
 // Inter_PvPBuddyConnListPktView —— Inter_PvPBuddyConnList::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_PvPBuddyConnListPktView
+struct Inter_PvPBuddyConnListPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     char m_pade[0x4];  // +0xe..未消费
     int m_12;                       // +0x12
@@ -5010,9 +4947,8 @@ struct Inter_PvPBuddyConnListPktView
 #pragma pack(push, 1)
 // Inter_ReqAddPvPBuddyPktView —— Inter_ReqAddPvPBuddy::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_ReqAddPvPBuddyPktView
+struct Inter_ReqAddPvPBuddyPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x4];  // 未消费
     char m_12;                // +0x12
@@ -5029,9 +4965,8 @@ struct Inter_ReqAddPvPBuddyPktView
 #pragma pack(push, 1)
 // Inter_AddPvPBuddyResultPktView —— Inter_AddPvPBuddyResult::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_AddPvPBuddyResultPktView
+struct Inter_AddPvPBuddyResultPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x4];  // 未消费
     char m_12;                // +0x12
@@ -5051,9 +4986,8 @@ struct Inter_AddPvPBuddyResultPktView
 #pragma pack(push, 1)
 // Inter_RemovePvPBuddyResultPktView —— Inter_RemovePvPBuddyResult::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_RemovePvPBuddyResultPktView
+struct Inter_RemovePvPBuddyResultPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x4];  // 未消费
     signed char m_12;         // +0x12
@@ -5072,9 +5006,8 @@ struct Inter_RemovePvPBuddyResultPktView
 #pragma pack(push, 1)
 // Inter_NoticePvPBuddyInOutPktView —— Inter_NoticePvPBuddyInOut::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_NoticePvPBuddyInOutPktView
+struct Inter_NoticePvPBuddyInOutPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x4];  // 未消费
     unsigned char m_12;       // +0x12
@@ -5252,9 +5185,8 @@ struct Inter_LoadAccountCargoPktView
 // Inter_MultiMailBoxReqSendItemView —— 包内条目区（+0x60 起，stride 0xb）视图；
 //   ORIG 084e2896/084e28b8/084e28d8 = `add $0x60` 后 disp 0xa/0xc/0x10
 //   （条目基址为动态表达式 ⇒ ORIG 保留 add 0x60 与成员 disp 两段）。
-struct Inter_MultiMailBoxReqSendItemView
+struct Inter_MultiMailBoxReqSendItemView : PacketHeader
 {
-    char m_pad0[0xa];
     unsigned short m_slot;          // +0x0a
     unsigned int m_itemId;          // +0x0c
     unsigned int m_extra;           // +0x10
@@ -5264,9 +5196,9 @@ struct Inter_MultiMailBoxReqSendItemView
 #pragma pack(push, 1)
 // Inter_MultiMailBoxReqSendPktView —— Inter_MultiMailBoxReqSend::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MultiMailBoxReqSendPktView
+struct Inter_MultiMailBoxReqSendPktView : PacketHeader
 {
-    char m_pad0[0x1d];  // 未消费
+    char m_afterHdr[0x13];  // 未消费
     unsigned int m_1d;        // +0x1d
     char m_pad21[0x8];  // 未消费
     unsigned int m_29;        // +0x29
@@ -5290,9 +5222,9 @@ struct Inter_MultiMailBoxReqSendPktView
 #pragma pack(push, 1)
 // Inter_ReqQueryCharacInfoMailboxPktView —— Inter_ReqQueryCharacInfoMailbox::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_ReqQueryCharacInfoMailboxPktView
+struct Inter_ReqQueryCharacInfoMailboxPktView : PacketHeader
 {
-    char m_pad0[0x20];  // 未消费
+    char m_afterHdr[0x16];  // 未消费
     int m_20;                 // +0x20
     char m_pad24[0x4];  // 未消费
     signed char m_28;         // +0x28
@@ -5312,9 +5244,8 @@ struct Inter_ReqQueryCharacInfoMailboxPktView
 #pragma pack(push, 1)
 // Inter_ReqGameServerInfoPktView —— Inter_ReqGameServerInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_ReqGameServerInfoPktView
+struct Inter_ReqGameServerInfoPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     char m_a;                       // +0x0a
     unsigned char m_b;              // +0x0b
 };
@@ -5329,9 +5260,8 @@ struct Inter_ReqGameServerInfoPktView
 #pragma pack(push, 1)
 // Inter_MonitorRegistGameServerAckPktView —— Inter_MonitorRegistGameServerAck::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_MonitorRegistGameServerAckPktView
+struct Inter_MonitorRegistGameServerAckPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     char m_a;                       // +0x0a
     char m_b;                       // +0x0b
 };
@@ -5360,9 +5290,8 @@ struct Inter_LoadMileagePktView
 #pragma pack(push, 1)
 // Inter_GuildExpBookDeletePktView —— Inter_GuildExpBookDelete::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_GuildExpBookDeletePktView
+struct Inter_GuildExpBookDeletePktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     unsigned int m_e;         // +0x0e
     unsigned int m_12;        // +0x12
@@ -5408,9 +5337,9 @@ struct Inter_GuildExpBookDeletePktView
 #pragma pack(push, 1)
 // Inter_Send_Charac_no_from_monitorPktView —— Inter_Send_Charac_no_from_monitor::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_Send_Charac_no_from_monitorPktView
+struct Inter_Send_Charac_no_from_monitorPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     int m_e;                  // +0x0e
     int m_12;                 // +0x12
     char m_16[1];             // +0x16 串/字节区首元素（容量未建模）
@@ -5426,9 +5355,8 @@ struct Inter_Send_Charac_no_from_monitorPktView
 #pragma pack(push, 1)
 // Inter_SendPeriodicMessagePktView —— Inter_SendPeriodicMessage::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_SendPeriodicMessagePktView
+struct Inter_SendPeriodicMessagePktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     char m_a;                       // +0x0a
 };
 #pragma pack(pop)
@@ -5442,9 +5370,8 @@ struct Inter_SendPeriodicMessagePktView
 #pragma pack(push, 1)
 // Inter_SendTimeSyncPktView —— Inter_SendTimeSync::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_SendTimeSyncPktView
+struct Inter_SendTimeSyncPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned short m_a;             // +0x0a
     unsigned short m_c;             // +0x0c
 };
@@ -5459,9 +5386,9 @@ struct Inter_SendTimeSyncPktView
 #pragma pack(push, 1)
 // Inter_SendTimeSyncLoginPktView —— Inter_SendTimeSyncLogin::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_SendTimeSyncLoginPktView
+struct Inter_SendTimeSyncLoginPktView : PacketHeader
 {
-    char m_pad0[0x12];  // +0x0..未消费
+    char m_afterHdr[0x8];  // +0x0..未消费
     unsigned short m_12;            // +0x12
     unsigned short m_14;            // +0x14
 };
@@ -5510,9 +5437,9 @@ struct Inter_SendTimeSyncLoginPktView
 #pragma pack(push, 1)
 // Inter_TodayGuildMemberPktView —— Inter_TodayGuildMember::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_TodayGuildMemberPktView
+struct Inter_TodayGuildMemberPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     // [b28d-lane2] P248 档②：ORIG 0x084e37d0 段两处 `mov 0xe/0x16(%eax),%ebx` 均单段
     // 直落 callee-saved ⇒ 字段与 getCurCharacNo() 返回值同型（unsigned）；int 字段会使
     // 4.4 插 `mov %eax,%ebx` 中转（2 处 × 1 条）。
@@ -5604,9 +5531,8 @@ struct Inter_JoinGuildInfoPktView
 #pragma pack(push, 1)
 // Inter_ApproveJoinGuildPktView —— Inter_ApproveJoinGuild::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_ApproveJoinGuildPktView
+struct Inter_ApproveJoinGuildPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_a;               // +0x0a
     int m_e;                        // +0x0e
     char m_pad12[0x4];  // +0x12..未消费
@@ -5658,9 +5584,8 @@ struct Inter_GuildJoinListEntryWinView
 #pragma pack(push, 1)
 // Inter_GuildAttendanceInfoPktView —— Inter_GuildAttendanceInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_GuildAttendanceInfoPktView
+struct Inter_GuildAttendanceInfoPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     char m_pade[0x4];  // +0xe..未消费
     signed char m_12;               // +0x12
@@ -5683,9 +5608,8 @@ struct Inter_GuildAttendanceInfoPktView
 #pragma pack(push, 1)
 // Inter_AchieveGuildAttendancePktView —— Inter_AchieveGuildAttendance::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_AchieveGuildAttendancePktView
+struct Inter_AchieveGuildAttendancePktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     char m_pade[0x4];  // +0xe..未消费
     int m_12;                       // +0x12
@@ -5738,9 +5662,9 @@ struct Inter_UpdatePurchaseCashItemBonusPktView
 #pragma pack(push, 1)
 // Inter_PunishCancelPktView —— Inter_PunishCancel::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_PunishCancelPktView
+struct Inter_PunishCancelPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     short m_e;                // +0x0e
     short m_10;               // +0x10
 };
@@ -5777,9 +5701,8 @@ public:
 #pragma pack(push, 1)
 // Inter_BroadcastMsgPktView —— Inter_BroadcastMsg::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_BroadcastMsgPktView
+struct Inter_BroadcastMsgPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     unsigned char m_e;        // +0x0e
     char m_f[1];              // +0xf 串/字节区首元素（容量未建模）
@@ -5803,9 +5726,9 @@ struct Inter_BroadcastMsgPktView
 #pragma pack(push, 1)
 // Inter_UpdateSecuServiceStateMsgWinView —— Inter_UpdateSecuServiceState::dispatch_sig 窗口 msg 元素视图
 //   （msg 基址表达式见声明行注释；字段宽度=本 TU 原 cast 类型，按 ORIG 报告汇编核实）。
-struct Inter_UpdateSecuServiceStateMsgWinView
+struct Inter_UpdateSecuServiceStateMsgWinView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned char m_e;        // +0x0e
     unsigned char m_f;        // +0x0f
     char m_pad10[0x4];  // 未消费
@@ -5870,9 +5793,9 @@ struct Inter_GoldControlMoneyActionCancelPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeGuildChatMsgHyperLinkPktView —— Inter_MonitorNoticeGuildChatMsgHyperLink::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeGuildChatMsgHyperLinkPktView
+struct Inter_MonitorNoticeGuildChatMsgHyperLinkPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     int m_e;                  // +0x0e
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
     char m_pad13[0x1d];  // 未消费
@@ -5896,9 +5819,9 @@ struct Inter_MonitorNoticeGuildChatMsgHyperLinkPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeMemberChatMsgHyperLinkPktView —— Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeMemberChatMsgHyperLinkPktView
+struct Inter_MonitorNoticeMemberChatMsgHyperLinkPktView : PacketHeader
 {
-    char m_pad0[0xe];  // 未消费
+    char m_afterHdr[0x4];  // 未消费
     unsigned int m_e;         // +0x0e（同上 unsigned→int 失配两步 spill 形态）
     char m_12[1];             // +0x12 串/字节区首元素（容量未建模）
     char m_pad13[0x1d];  // 未消费
@@ -5919,9 +5842,8 @@ struct Inter_MonitorNoticeMemberChatMsgHyperLinkPktView
 #pragma pack(push, 1)
 // Inter_MonitorNoticeOtherChannelChatHyperLinkPktView —— Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorNoticeOtherChannelChatHyperLinkPktView
+struct Inter_MonitorNoticeOtherChannelChatHyperLinkPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x5];  // 未消费
     int m_13;                 // +0x13
@@ -5943,9 +5865,8 @@ struct Inter_MonitorNoticeOtherChannelChatHyperLinkPktView
 //   含 ItemView 的组合视图；m_items[0].m_linkType/m_itemCount 与既有 m_35/m_36 同址
 //   （探针 /tmp/L9/H/p4.cpp：`m_items[0].m_linkType` ⇒ `movzx eax,[eax+0x35]` 单条等价）。
 #pragma pack(push, 1)
-struct Inter_MonitorNoticeOtherChannelChatHyperLinkListView
+struct Inter_MonitorNoticeOtherChannelChatHyperLinkListView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x5];  // 未消费
     int m_13;                 // +0x13
@@ -5975,9 +5896,8 @@ struct Inter_MonitorNoticeOtherChannelChatHyperLinkListView
 #pragma pack(push, 1)
 // Inter_Monitor_MegaphoneMsgHyperLinkPktView —— Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_Monitor_MegaphoneMsgHyperLinkPktView
+struct Inter_Monitor_MegaphoneMsgHyperLinkPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     signed char m_a;          // +0x0a
     unsigned char m_b;        // +0x0b
     unsigned short m_c;       // +0x0c
@@ -6014,9 +5934,8 @@ struct Inter_Monitor_MegaphoneMsgHyperLinkPktView
 #pragma pack(push, 1)
 // Inter_HadesActionPktView —— Inter_HadesAction::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_HadesActionPktView
+struct Inter_HadesActionPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x4];  // 未消费
     unsigned int m_12;        // +0x12
@@ -6058,9 +5977,9 @@ struct Inter_SelectCharacMidPktView
 #pragma pack(push, 1)
 // Inter_NpcLimitBuyItemInfoAllPktView —— Inter_NpcLimitBuyItemInfoAll::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NpcLimitBuyItemInfoAllPktView
+struct Inter_NpcLimitBuyItemInfoAllPktView : PacketHeader
 {
-    char m_pad0[0x16];  // +0x0..未消费
+    char m_afterHdr[0xc];  // +0x0..未消费
     int m_16;                       // +0x16
 };
 #pragma pack(pop)
@@ -6074,9 +5993,8 @@ struct Inter_NpcLimitBuyItemInfoAllPktView
 #pragma pack(push, 1)
 // Inter_NpcLimitBuyItemChangeInfoPktView —— Inter_NpcLimitBuyItemChangeInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_NpcLimitBuyItemChangeInfoPktView
+struct Inter_NpcLimitBuyItemChangeInfoPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     int m_e;                        // +0x0e
 };
@@ -6101,9 +6019,8 @@ struct Inter_NpcLimitBuyItemInfoRenewRec
     int m_f1;   // +0x04
     int m_f2;   // +0x08
 };
-struct Inter_NpcLimitBuyItemInfoRenewPktView
+struct Inter_NpcLimitBuyItemInfoRenewPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
     Inter_NpcLimitBuyItemInfoRenewRec m_recs[1];  // +0x0e，步长 0xc（越界读照抄 ORIG，P171）
 };
@@ -6118,9 +6035,8 @@ struct Inter_NpcLimitBuyItemInfoRenewPktView
 #pragma pack(push, 1)
 // Inter_MonitorReplyCharacInfoPktView —— Inter_MonitorReplyCharacInfo::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_MonitorReplyCharacInfoPktView
+struct Inter_MonitorReplyCharacInfoPktView : PacketHeader
 {
-    char m_pad0[0xa];  // 未消费
     int m_a;                  // +0x0a
     char m_pade[0x4];  // 未消费
     int m_12;                 // +0x12
@@ -6253,9 +6169,9 @@ struct Inter_OwnerisVIPTailView
 #pragma pack(push, 1)
 // Inter_CollectItemsRewardPktView —— Inter_CollectItemsReward::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_CollectItemsRewardPktView
+struct Inter_CollectItemsRewardPktView : PacketHeader
 {
-    char m_pad0[0x12];  // +0x0..未消费
+    char m_afterHdr[0x8];  // +0x0..未消费
     unsigned char m_12;             // +0x12
 };
 #pragma pack(pop)
@@ -6290,9 +6206,9 @@ public:
 #pragma pack(push, 1)
 // Inter_CollectItemsRewardBroadcastPktView —— Inter_CollectItemsRewardBroadcast::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   宽度=ORIG 访问指令，逐处对照 docs/class_func_reports 汇编核实）。
-struct Inter_CollectItemsRewardBroadcastPktView
+struct Inter_CollectItemsRewardBroadcastPktView : PacketHeader
 {
-    char m_pad0[0x12];  // 未消费
+    char m_afterHdr[0x8];  // 未消费
     unsigned char m_12;       // +0x12
     char m_pad13[0x1];  // 未消费
     char m_14[1];             // +0x14 串/字节区首元素（容量未建模）
@@ -6341,9 +6257,8 @@ struct Inter_RequestTagCharacInfoPktView
 #pragma pack(push, 1)
 // Inter_EmergencyPatchMessagePktView —— Inter_EmergencyPatchMessage::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_EmergencyPatchMessagePktView
+struct Inter_EmergencyPatchMessagePktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned char m_a;              // +0x0a
 };
 #pragma pack(pop)
@@ -6396,9 +6311,8 @@ struct Inter_LoadCharacTypeHotKeyPktView
 #pragma pack(push, 1)
 // Inter_UpdateMiniCraneSeedPktView —— Inter_UpdateMiniCraneSeed::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；
 //   各字段宽度=转换前 reinterpret_cast 类型，逐处对照 ORIG 报告汇编指令核实）。
-struct Inter_UpdateMiniCraneSeedPktView
+struct Inter_UpdateMiniCraneSeedPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     int m_a;                        // +0x0a
 };
 #pragma pack(pop)
@@ -6561,9 +6475,8 @@ struct Inter_LoadEventLevelupSupportEntryPktView
 //   故本 TU 以同布局镜像视图承载，字段表见下方逐项 ORIG 证据）。
 //   ORIG 084e65a2 逐访问：+0x0a `mov 0xa(%eax),%ebx`（getUser 第1参）/+0x12 `mov 0x12(%eax)`/03
 //   +0x16 `mov 0x16(%eax)`/+0x1a `mov 0x1a(%eax)`/+0x22 `mov 0x22(%eax); test`（全字判 + movzbl %al 传参）。
-struct Inter_NpcLimitBuyItemInfoPktView
+struct Inter_NpcLimitBuyItemInfoPktView : PacketHeader
 {
-    char m_pad0[0xa];  // +0x0..未消费
     unsigned int m_itemIdReq;       // +0x0a（权类同名）
     unsigned int m_dbid;            // +0x0e（本函数未消费）
     unsigned int m_charNo;          // +0x12

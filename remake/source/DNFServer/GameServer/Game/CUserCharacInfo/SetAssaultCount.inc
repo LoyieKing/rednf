@@ -2,6 +2,6 @@ void CUserCharacInfo::SetAssaultCount(int count)
 {
     if (m_selected)
     {
-    CUR->m_assaultCount = count;
+    m_selected->m_fielde45 = count;
     }
 }

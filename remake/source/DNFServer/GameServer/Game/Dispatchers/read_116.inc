@@ -1,8 +1,7 @@
 int Dispatcher_ApproveJoinGuild::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    // ORIG 0x T：读 unsigned int(msg+0xd)，失败记 LineFunc(0x355a)
-    char* p = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(p + 0xd)))
+    MSG_APPROVE_JOIN_GUILD& req = *reinterpret_cast<MSG_APPROVE_JOIN_GUILD*>(&msg);
+    if (!packet.get_int(req.m_characNo))
     {
         return LineFunc(0x355a, __PRETTY_FUNCTION__, 0, 0);
     }

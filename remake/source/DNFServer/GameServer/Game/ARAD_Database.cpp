@@ -63,7 +63,8 @@ struct SigCreateCharacAttrView
     unsigned short m_phyDef;     // +0x30
     unsigned short m_magAtk;     // +0x32
     unsigned short m_magDef;     // +0x34
-    char m_pad36[0x60 - 0x36];   // +0x36..+0x5f（spec_property 8B / element 0x22B 区）
+    unsigned char m_elementResist[8];    // +0x36
+    unsigned char m_specProperty[0x22];  // +0x3e
     unsigned int   m_invenWt;    // +0x60
     unsigned short m_hpRegen;    // +0x64
     unsigned short m_mpRegen;    // +0x66

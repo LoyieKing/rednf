@@ -3,6 +3,6 @@ void CUserCharacInfo::set_growth_power_reward(int reward)
     if (m_selected)
     {
     enableSaveCharacStat();
-    CUR->m_growthPowerReward = (unsigned char)reward;
+    m_selected->m_field1280 = (unsigned char)reward;
     }
 }

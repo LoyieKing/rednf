@@ -2,6 +2,6 @@ void CUserCharacInfo::SetIsInitSkillFlag(bool flag)
 {
     if (m_selected)
     {
-        CUR->m_isInitSkillFlag = flag;
+        m_selected->m_fieldEB4 = flag;
     }
 }

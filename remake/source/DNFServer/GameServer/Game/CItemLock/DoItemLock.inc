@@ -42,8 +42,7 @@ int CItemLock::DoItemLock(CUser* user, int space, int slot)
     // [b28d-solo-CItemLock] 内联 receiver（§4.3 跨 TU 隔离例外见顶注）：ORIG
     // 0x85422e3 无 history 具名槽，`mov 0xc(%ebp),%ecx; add $0x79700,%ecx` 在
     // item 字段实参之后求值（P0/P52 内联形）。
-    ((cUserHistoryLog*)((char*)user + 0x79700))
-        ->ItemLockUsingLog(0, space, slot, item->m_addInfo,
+    user->m_historyLog.ItemLockUsingLog(0, space, slot, item->m_addInfo,
                            item->m_addInfo2);
     return 1;
 }

@@ -14,7 +14,7 @@ int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
     int unusedGuard;                    // -0x38（ORIG 死存储 movl $0x6）
     int sellResult;                     // -0x34
     int sellTimeRet;                    // -0x30
-    void* party;                        // -0x2c
+    CParty* party;                      // -0x2c
     CMap* map;                          // -0x24
     Village* village;                   // -0x20
     Area* area;                         // -0x1c
@@ -127,7 +127,7 @@ int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
 
     if (user->get_state() == 5)
     {
-        party = static_cast<CParty*>(user->GetParty());
+        party = user->GetParty();
         if (party != 0)
         {
             // [G5-SigA] P183：ORIG 0x081f31fd/0x081f323c 每次都重发完整寻址链
@@ -136,11 +136,9 @@ int DisPatcher_SellItem::dispatch_sig(CUser* user, PacketBuf& packet)
             // 单条 load，改回逐次重算表达式。
             // CParty+0xb24 内嵌 CBattle_Field（局部视图 CPartyBattleFieldView）
             map = (CMap*)G_CDataManager()->find_map(
-                reinterpret_cast<CPartyBattleFieldView*>(party)
-                    ->m_battleField.get_cur_map());
+                (party)->m_battleField.get_cur_map());
             if (map != 0 && map->getAssignedNPCCount() == 0 &&
-                !reinterpret_cast<CPartyBattleFieldView*>(party)
-                     ->m_battleField.IsAssignNPCByPotion())
+                !(party)->m_battleField.IsAssignNPCByPotion())
             {
                 WongWork::CHackAnalyzer* hackAnalyzer = user->getHackAnalyzer();
                 hackAnalyzer->addServerHackCnt(user,

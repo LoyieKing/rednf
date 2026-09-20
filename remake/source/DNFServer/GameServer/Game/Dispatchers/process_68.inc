@@ -20,15 +20,15 @@ int Dispatcher_HatchCreature::process(CUser* user, MSG_BASE& msg, ParamBase& par
 
     // [G1Dproc 2026-09-10] ORIG 0x081cd4c5 `mov 0x10(%ebp),%eax; mov %eax,-0x10(%ebp)`
     //   ⇒ msg 引用槽在**第二段**（LineFunc 早退之后）才初始化，声明须下移。
-    char* pMsg = (char*)&msg;
+    const MSG_HATCH_CREATURE& req = *reinterpret_cast<const MSG_HATCH_CREATURE*>(&msg);
     // [G1Dproc] ORIG 0x081cd4fd（0x081cd4fd movzwl 0xe / movswl → %esi；call
     //   GetInvenTypeFromItemSpace → %ebx）：slot 与 invenType **均无具名槽**（P0）
     //   ⇒ 内联嵌套实参；实参右→左（slot 先、invenType 次、this 最后）与 ORIG 同序。
     const Inven_Item* item =
         user->getCurCharacInvenRefR()->GetInvenRef(
             GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)
-                reinterpret_cast<const MSG_HATCH_CREATURE*>(pMsg)->m_itemSpace),
-            (int)reinterpret_cast<const MSG_HATCH_CREATURE*>(pMsg)->m_slotIdx);
+                req.m_itemSpace),
+            (int)req.m_slotIdx);
     if (item == 0)
     {
         return LineFunc(0x2533,

@@ -2,6 +2,6 @@ void CUserCharacInfo::SetProperDungeonClearCount(short count)
 {
     if (m_selected)
     {
-    CUR->m_properDungeonClearCount = (unsigned short)count;
+    m_selected->m_field1236 = (unsigned short)count;
     }
 }

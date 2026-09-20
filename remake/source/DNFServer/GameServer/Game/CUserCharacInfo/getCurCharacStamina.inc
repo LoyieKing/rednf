@@ -1,4 +1,4 @@
 unsigned char CUserCharacInfo::getCurCharacStamina() const
 {
-    return CUR->m_stamina;
+    return m_selected->m_stamina;
 }

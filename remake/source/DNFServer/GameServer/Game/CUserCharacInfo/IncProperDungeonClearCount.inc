@@ -2,6 +2,6 @@ void CUserCharacInfo::IncProperDungeonClearCount()
 {
     if (m_selected)
     {
-    ++CUR->m_properDungeonClearCount;
+    ++m_selected->m_field1236;
     }
 }

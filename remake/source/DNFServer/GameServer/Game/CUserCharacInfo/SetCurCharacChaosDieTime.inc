@@ -3,6 +3,6 @@ void CUserCharacInfo::SetCurCharacChaosDieTime(int t)
     enableSaveCharacStat();
     if (m_selected)
     {
-    CUR->m_chaosDieTime = t;
+    m_selected->m_fielde5d = t;
     }
 }

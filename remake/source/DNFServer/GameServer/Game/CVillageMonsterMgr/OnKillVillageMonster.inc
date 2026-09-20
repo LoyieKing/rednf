@@ -12,11 +12,11 @@ int CVillageMonsterMgr::OnKillVillageMonster(CUser* user, bool flag)
     if (party == 0)
         return 0x15;
     unsigned short zone =
-        ((CPartyVillageStateView*)party)->m_villageMonsterZone;
+        (unsigned short)party->m_battleField.m_villageMonsterId;
     if (zone == 0)
         return 0x15;
-    Zone z((unsigned char)((CPartyVillageStateView*)party)->m_villageVill,
-           (unsigned char)((CPartyVillageStateView*)party)->m_villageArea);
+    Zone z((unsigned char)party->m_battleField.m_villageMonsterCount,
+           (unsigned char)party->m_battleField.m_field130);
     std::map<Zone, CVillageMonsterArea>::iterator it = m_areas.find(z);
     if (it == m_areas.end())
         return 0x15;

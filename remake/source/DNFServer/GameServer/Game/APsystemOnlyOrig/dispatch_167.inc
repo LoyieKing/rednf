@@ -55,12 +55,12 @@ bool DB_TOD_Reset_UserAPC::dispatch(int userIdx, int slot, Stream* stream)
                                                      i);
             return 0;
         }
-        db->get_int(0, reinterpret_cast<_APCInfo*>(sig)[i].m_userCharacNo);
+        db->get_int(0, sig->m_apc[i].m_userCharacNo);
     }
     for (int i = 0; i < nRows && i < 10; ++i)
     {
-        if (reinterpret_cast<_APCInfo*>(sig)[i].m_userCharacNo != 0)
-            GetAPCUserInfo(reinterpret_cast<_APCInfo*>(sig)[i]);
+        if (sig->m_apc[i].m_userCharacNo != 0)
+            GetAPCUserInfo(sig->m_apc[i]);
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;

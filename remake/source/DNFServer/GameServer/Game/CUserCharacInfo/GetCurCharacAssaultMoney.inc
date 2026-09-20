@@ -1,4 +1,4 @@
 int CUserCharacInfo::GetCurCharacAssaultMoney()
 {
-    return m_selected ? CUR->m_assaultMoney : 0;
+    return m_selected ? m_selected->m_field12B1 : 0;
 }

@@ -1,4 +1,4 @@
 int CUserCharacInfo::GetCurCharacMaxEquipLevel() const
 {
-    return m_selected ? CUR->m_maxEquipLevel : 0;
+    return m_selected ? m_selected->m_field14C2 : 0;
 }

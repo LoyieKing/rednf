@@ -17,5 +17,5 @@ void CUserCharacInfo::calcCurCharacSchoolPoint(int fatigue)
     unsigned int index = used / 10u;
     if (index > 0x17)
         index = 0x17;
-    CUR->m_reliablePerson.m_schoolPoint += point[index];
+    m_selected->m_schoolPoint += point[index];
 }

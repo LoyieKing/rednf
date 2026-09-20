@@ -2,6 +2,6 @@ void CUserCharacInfo::set_member_pay_tex_money_to_upper(int money)
 {
     if (m_selected)
     {
-    CUR->m_memberPayTexMoney = money;
+    m_selected->m_fieldE33 = money;
     }
 }

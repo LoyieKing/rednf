@@ -2,6 +2,6 @@ void CUserCharacInfo::SetProperDungeonUser()
 {
     if (m_selected)
     {
-    CUR->m_properDungeonUser = 1;
+    m_selected->m_field1238 = 1;
     }
 }

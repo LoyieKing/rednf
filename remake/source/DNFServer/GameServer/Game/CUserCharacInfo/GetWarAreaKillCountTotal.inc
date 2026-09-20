@@ -8,6 +8,6 @@ float CUserCharacInfo::GetWarAreaKillCountTotal()
     }
     float total = 0.0f;
     for (int i = 0; i < 4; ++i)
-        total += CUR->m_warAreaKill[i];
+        total += m_selected->m_warAreaKill[i];
     return total;
 }

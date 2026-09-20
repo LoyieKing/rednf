@@ -30,13 +30,13 @@ bool WongWork::CSecurityCard::checkAnswer(unsigned char ansA, unsigned char ansB
         return false;
     }
     if (static_cast<signed char>(
-            reinterpret_cast<const CSecurityCardAnswerView*>(this)->m_table[
+            m_serial[
                 static_cast<signed char>(m_question3c[1]) * 10 +
                 static_cast<signed char>(m_question3c[0])]) ==
         static_cast<int>(ansA))
     {
         if (static_cast<signed char>(
-                reinterpret_cast<const CSecurityCardAnswerView*>(this)->m_table[
+                m_serial[
                     static_cast<signed char>(m_question3c[3]) * 10 +
                     static_cast<signed char>(m_question3c[2])]) ==
             static_cast<int>(ansB))

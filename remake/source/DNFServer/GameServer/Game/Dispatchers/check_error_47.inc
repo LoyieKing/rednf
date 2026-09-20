@@ -30,28 +30,22 @@ unsigned int Dispatcher_GuildCargoPushItem::check_error(CUser* user, MSG_BASE& m
     //   改为显式 pad 的非 packed 视图（偏移由布局唯一决定：char[0xd] → +0x0d/+0x0e/+0x10
     //   与 ORIG 逐字段一致），并把引用改为具名指针（ORIG 0x081d0fe1 `mov %eax,-0x1c(%ebp)`
     //   为 msg 指针槽）。
-    struct PushParamView
-    {
-        char m_pad0d[0xd];           // +0x00..+0x0c（msg 头/命令字段）
-        unsigned char m_itemSpace;   // +0x0d
-        unsigned short m_slot;       // +0x0e
-        int m_reqAddInfo;            // +0x10
-    };
-    const PushParamView* pv = reinterpret_cast<const PushParamView*>(&msg);
+    const MSG_GUILD_CARGO_PUSH_ITEM* pv =
+        reinterpret_cast<const MSG_GUILD_CARGO_PUSH_ITEM*>(&msg);
     // [G3 2026-09-11] P28/P331 声明序=ORIG 序：ORIG 0x081d0fe4 先
     //   `call getCurCharacInvenR; mov %eax,-0x18(%ebp)`，0x081d0fff 才 call
     //   GetInvenTypeFromItemSpace ⇒ inven 声明必须在前。
     const CInventory* inven = user->getCurCharacInvenR();
-    const int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)pv->m_itemSpace);
-    const Inven_Item slotItem = inven->GetInvenSlot(invenType, (int)pv->m_slot);
+    const int invenType = GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)pv->m_field0d);
+    const Inven_Item slotItem = inven->GetInvenSlot(invenType, (int)pv->m_field0e);
 
     const int err =
         GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)8);
     if (err != 0)
         return err;
-    if (user->CheckItemLock(invenType, (int)pv->m_slot))
+    if (user->CheckItemLock(invenType, (int)pv->m_field0e))
         return 0xd5;
-    if (pv->m_reqAddInfo == 0 || slotItem.m_addInfo != pv->m_reqAddInfo)
+    if (pv->m_field10 == 0 || slotItem.m_addInfo != pv->m_field10)
         return 0xc5;
     // [G3 2026-09-11] P0：ORIG 0x081d10b5 `call find_item; mov %eax,-0xc(%ebp);
     //   cmpl $0x0,-0xc(%ebp); jne 081d10ca` ⇒ 原码有具名局部。

@@ -1,4 +1,4 @@
 const char* CUserCharacInfo::getCurCharacSkillR() const
 {
-    return (const char*)CUR->m_skill;
+    return reinterpret_cast<const char*>(&m_selected->m_skillSlot);
 }

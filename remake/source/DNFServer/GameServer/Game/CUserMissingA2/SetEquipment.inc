@@ -52,6 +52,5 @@ void CUser::SetEquipment(int slot, void* invenData, int size, void* outData)
             *cnt = *cnt + 1;
         }
     }
-    ((CInventory*)((char*)&m_characList[slot] + 0xda))
-        ->SetInvenData(0, invenData, size);
+    m_characList[slot].m_curCharacInven.SetInvenData(0, invenData, size);
 }

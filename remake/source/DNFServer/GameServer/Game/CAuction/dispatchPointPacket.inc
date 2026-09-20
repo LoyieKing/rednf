@@ -332,7 +332,7 @@ bool CDispatchServerPacket::dispatchPointPacket(char* data)
                 "DispatchServerPacket.cpp", 0x1613), true);
             (*guard)->operator<<(0x2a5);
             (*guard)->operator<<(v->m_s0a);
-            guard->put_binary(v, (int)v->m_totalLen);
+            guard->put_binary(v, (int)v->packetSize);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
             break;
         }
@@ -343,7 +343,7 @@ bool CDispatchServerPacket::dispatchPointPacket(char* data)
                 "DispatchServerPacket.cpp", 0x1620), true);
             (*guard)->operator<<(0x2a6);
             (*guard)->operator<<(v->m_s0f);
-            guard->put_binary(v, (int)v->m_totalLen);
+            guard->put_binary(v, (int)v->packetSize);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
             break;
         }
@@ -354,7 +354,7 @@ bool CDispatchServerPacket::dispatchPointPacket(char* data)
                 "DispatchServerPacket.cpp", 0x162c), true);
             (*guard)->operator<<(0x2a7);
             (*guard)->operator<<(v->m_s0a);
-            guard->put_binary(v, (int)v->m_totalLen);
+            guard->put_binary(v, (int)v->packetSize);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
             break;
         }
@@ -365,7 +365,7 @@ bool CDispatchServerPacket::dispatchPointPacket(char* data)
                 "DispatchServerPacket.cpp", 0x1638), true);
             (*guard)->operator<<(0x2a8);
             (*guard)->operator<<(-1);
-            guard->put_binary(v, (int)v->m_totalLen);
+            guard->put_binary(v, (int)v->packetSize);
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
             break;
         }

@@ -11,23 +11,8 @@ int DisPatcher_GetItem::read(PacketBuf& packet, MSG_BASE& msg)
     // uchar/char 混搭 RHS 必产 %dl 中转）。以函数内同布局视图承载 m_17=bool。
     // pack(1) 对齐 MSG_GET_ITEM（PacketTypes.h 同为 pack(push,1)）。
     #pragma pack(push, 1)
-    struct View
-    {
-        char m_head[0xd];
-        unsigned short m_0d;
-        unsigned char m_0f;
-        unsigned char m_10;
-        unsigned short m_11;
-        unsigned short m_13;
-        unsigned short m_15;
-        bool m_17;
-        union { unsigned char m_pad18[2]; unsigned short m_18; };
-        unsigned short m_1a;
-        unsigned short m_1c;
-    };
     #pragma pack(pop)
-    static_assert(sizeof(View) == 0x1e, "View layout");
-    View& req = *reinterpret_cast<View*>(&msg);
+    MSG_GET_ITEM& req = *reinterpret_cast<MSG_GET_ITEM*>(&msg);
     if (!packet.get_short(req.m_0d))
     {
         return LineFunc(0xe2d,

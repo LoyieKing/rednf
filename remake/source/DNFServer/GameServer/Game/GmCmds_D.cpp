@@ -84,11 +84,6 @@ namespace game_master
 
 // CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（CParty.h 以 pad 占位、
 // 未引入 CBattle_Field 类型；Main 裁定本组 TU 局部视图，与 CParty.cpp 口径一致）。
-struct CPartyBattleFieldView
-{
-    char m_pad[0xb24];
-    CBattle_Field m_battleField;   // +0xb24
-};
 
 // ---------------------------------------------------------------------------
 // asm 桥已清零（§4.5/§8）：

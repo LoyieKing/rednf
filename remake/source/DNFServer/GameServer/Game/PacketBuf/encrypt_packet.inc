@@ -31,6 +31,10 @@ void PacketBuf::encrypt_packet()
             allocated = 1;
         }
 
+        // Cipher::Encrypt pads srcLen to block size but still reads past the
+        // body. Pooled PacketBuf leftover bytes become ciphertext. Zero the
+        // next 16 bytes (max block) so padding is defined, matching a fresh buf.
+        memset(m_ptr + m_size, 0, 16);
         G_Cipher()->Encrypt(*(unsigned short*)(m_ptr + PKT_SIZE_OFF),
                             (unsigned char*)(m_ptr + PKT_BODY_OFF), m_size - PKT_BODY_OFF,
                             (unsigned char*)buffer, &bufferSize);

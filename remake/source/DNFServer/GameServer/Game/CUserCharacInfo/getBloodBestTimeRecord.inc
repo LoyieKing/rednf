@@ -1,4 +1,4 @@
 unsigned int CUserCharacInfo::getBloodBestTimeRecord()
 {
-    return CUR->m_bloodBestTime;
+    return m_selected->m_fieldEC8;
 }

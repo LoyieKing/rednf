@@ -1,4 +1,4 @@
 unsigned char CUserCharacInfo::IsSaveDemensionInoutValue()
 {
-    return CUR->m_saveDemensionInout;
+    return m_selected->m_fieldEB8;
 }

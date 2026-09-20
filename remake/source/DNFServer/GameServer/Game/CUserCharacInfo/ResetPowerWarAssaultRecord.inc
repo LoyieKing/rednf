@@ -3,7 +3,7 @@ void CUserCharacInfo::ResetPowerWarAssaultRecord()
     if (m_selected)
     {
     enableSaveCharacStat();
-    CUR->m_powerWarAssaultCount = 0;
-    CUR->m_powerWarAssaultVictoryCount = 0;
+    m_selected->m_field1221 = 0;
+    m_selected->m_field1225 = 0;
     }
 }

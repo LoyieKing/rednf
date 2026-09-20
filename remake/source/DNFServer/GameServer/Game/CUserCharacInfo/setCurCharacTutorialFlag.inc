@@ -20,9 +20,9 @@ bool CUserCharacInfo::setCurCharacTutorialFlag(unsigned int flag)
             // [b28d-solo-CUserCharacInfo N6 翻案] `1 << flag`（int 字面量）保 ORIG 的
             // `mov $1,%ebx; mov %ebx,%esi; shl %cl,%esi`；`1u <<` 被 4.4 折成
             // `shr %cl; and $1`（探针 /tmp/s156_probe/p12.cpp f1 vs f4）。
-            if ((CUR->m_tutorialFlags & (1 << flag)) != 0)
+            if ((m_selected->m_field51 & (1 << flag)) != 0)
                 return false;
-            CUR->m_tutorialFlags |= 1 << flag;
+            m_selected->m_field51 |= 1 << flag;
             return true;
         }
         if (flag < 0x80)
@@ -47,10 +47,10 @@ bool CUserCharacInfo::setCurCharacTutorialFlag(unsigned int flag)
         // `js <false>; cmpl $0xf; jle <body>; mov $0; jmp; <body>:`（P222 包裹恒产
         // `jg <skip>` 岛）。
         PASS:
-            if ((((signed char)CUR->m_tutorialFlags2[byteIndex]) >> bit & 1) != 0)
+            if ((((signed char)m_selected->m_tradeRestrictData[byteIndex]) >> bit & 1) != 0)
                 return false;
-            CUR->m_tutorialFlags2[byteIndex] =
-                (unsigned char)(CUR->m_tutorialFlags2[byteIndex] | (1 << bit));
+            m_selected->m_tradeRestrictData[byteIndex] =
+                (unsigned char)(m_selected->m_tradeRestrictData[byteIndex] | (1 << bit));
             return true;
         }
     }

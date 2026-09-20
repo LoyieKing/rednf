@@ -14,7 +14,7 @@ int CUserCharacInfo::getCurCharacEscaladeTutorialFlag(unsigned int flag)
             // [b28d-L14 实证] ORIG 0x0864751e 无 mask 槽：`1<<flag` 以表达式内联
             // （mov $1,%ebx; mov %ebx,%esi; shl %cl,%esi），P0 禁具名局部缓存。
             // [b28d-solo-CUserCharacInfo N6 翻案] `1 << flag` 保 shl（探针 p12 f4）。
-            if ((CUR->m_tutorialFlags & (1 << flag)) != 0)
+            if ((m_selected->m_field51 & (1 << flag)) != 0)
                 return 1;
         }
         else if (flag < 0x80)
@@ -35,7 +35,7 @@ int CUserCharacInfo::getCurCharacEscaladeTutorialFlag(unsigned int flag)
         // [b28d-solo-CUserCharacInfo P169] 复现 ORIG 0x0864757a 段
         // `js <false>; cmpl $0xf; jle <body>; mov $0; jmp; <body>:`。
         PASS:
-            return (int)((signed char)CUR->m_tutorialFlags2[byteIndex]) >> bitIndex & 1;
+            return (int)((signed char)m_selected->m_tradeRestrictData[byteIndex]) >> bitIndex & 1;
         }
     }
     return 0;

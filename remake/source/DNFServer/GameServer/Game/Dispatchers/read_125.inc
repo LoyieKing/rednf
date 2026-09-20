@@ -1,8 +1,7 @@
 int Dispatcher_MemberEnterReply::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    // ORIG 0x T：读 unsigned char(msg+0xd)，失败记 LineFunc(0x21d4)
-    char* p = reinterpret_cast<char*>(&msg);
-    if (!packet.get_byte(*reinterpret_cast<unsigned char*>(p + 0xd)))
+    MSG_MEMBER_ENTER_REPLY& req = *reinterpret_cast<MSG_MEMBER_ENTER_REPLY*>(&msg);
+    if (!packet.get_byte(req.m_reply))
     {
         return LineFunc(0x21d4, __PRETTY_FUNCTION__, 0, 0);
     }

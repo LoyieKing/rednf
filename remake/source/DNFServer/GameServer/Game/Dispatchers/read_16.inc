@@ -1,10 +1,11 @@
 int Dispatcher_BingoQuiz::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    // ORIG 0x T：读 int(msg+0xd)，失败记 LineFunc(0x1de)
-    char* p = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(p + 0xd)))
+    MSG_BINGO_QUIZ& req = *reinterpret_cast<MSG_BINGO_QUIZ*>(&msg);
+    int value = 0;
+    if (!packet.get_int(value))
     {
         return LineFunc(0x1de, __PRETTY_FUNCTION__, 0, 0);
     }
+    req.m_0d = value;
     return 0;
 }

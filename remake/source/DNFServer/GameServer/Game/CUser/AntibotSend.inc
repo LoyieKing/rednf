@@ -24,11 +24,18 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
     //   短路物化**到 -0x2d（`mov $1/$0 + mov %al,-0x2d`），verify 仅在需求为真时调用。
     typedef int (*VerifyFn)(void*, int, unsigned short);   // vtable +0x34
     bool encReq = packet.isEncryptRequired() &&
-        // [g03 · P58 类型化指针（同 prepareDisconnect 翻正形）] void*** 三层 cast 使 4.4 多一条
-        //   `mov %eax,%esi` 中转；改真实类型化指针数组（VerifyFn* / EncryptFn*）即单段直落。
         ((VerifyFn)(*(VerifyFn**)GlobalData::s_antibotChecker_)[0x34 / 4])(
             GlobalData::s_antibotChecker_, getAntibotKey(), packetId) != 0;
-    if (encReq)
+#if !remake_verify
+    cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
+        "[DNF-DIAG ENC] id=%u encReq=%d need=%d len=%d",
+        (unsigned)packetId, (int)encReq, (int)packet.isEncryptRequired(),
+        packet.get_len());
+#endif
+    // 0x165 TITLE: client parses inner 0x165 as plaintext after 561 unwrap.
+    // G_Cipher XTEA of 0x165 crashes Squirrel. ORIG 561-wraps when verify!=0;
+    // SDK verify returns 0 for 0x165 here, so use the same 561 envelope as 0x15.
+    if (encReq || packetId == 0x165)
     {
         // §4.5 例外：s_antibotChecker_（GlobalData.h `void*`）承自外部
         // 【b22 终判·第三方】CreateAntiServerObj(ORIG 0x082a6539 W) 反汇编实证
@@ -64,7 +71,14 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
         }
         else
         {
-            ((InterfacePacketBuf*)&guard)->put_binary(buf, bufLen);
+#if !remake_verify
+            cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
+                "[DNF-DIAG 561] id=%u in=%d outLen=%d",
+                (unsigned)packetId, packet.get_len(), outLen);
+#endif
+            // ORIG 0x86482d3: put_binary(buf, outLen) 用 Encrypt 回写长度，
+            // 不是 VLA bufLen(=get_len()+500)。多 500B 垃圾会让 561 解出来 INT3。
+            ((InterfacePacketBuf*)&guard)->put_binary(buf, outLen);
             ((InterfacePacketBuf*)&guard)->finalize(false);
             return Send(guard);   // 0x8648313 起 return = Send 返回值透传
         }
@@ -86,6 +100,10 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
         data = sendBuf.get_packet(0);
         len = sendBuf.get_len();
         sendBuf.encFinalize();
+#if !remake_verify
+        cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
+            "[DNF-DIAG GCI] id=%u afterEnc=%d", (unsigned)packetId, len);
+#endif
     }
     _NS_PI_2ND_SendHash_SC(data, (unsigned short)len, this);
     int sret = m_network.send_packet(data, len);

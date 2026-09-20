@@ -1,4 +1,4 @@
 std::vector<ContinuousItemInfo>* CUserCharacInfo::GetCurCharacEffectItemList()
 {
-    return &CUR->m_effectItemList.m_list;
+    return &m_selected->m_continuousItemListB;
 }

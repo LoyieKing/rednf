@@ -26,8 +26,8 @@ int CUser::ChangeGrowType_Item(int newFirst, short slotNo)
     changer.SkillInitialize(this, 0, true);
     int job = CUserCharacInfo::get_charac_job();
     int level = CUserCharacInfo::get_charac_level();
-    addSkillOnCreateCharacter((_Mastered_skill*)((int)getCurCharacSkillW() + 0x46), job);
-    addSkillOnCreateCharacter((_Mastered_skill*)((int)getCurCharacSkillW() + 0x1de), job);
+    addSkillOnCreateCharacter(((SkillSlot*)getCurCharacSkillW())->m_skillSlot, job);
+    addSkillOnCreateCharacter(((SkillSlot*)getCurCharacSkillW())->m_skillSlot2, job);
 
     int beforeGrow = (int)CUserCharacInfo::getCurCharFirstGrowType();
     // [b23S3C] P183/P0：ORIG secondGrow 无槽，movzbl %al 直入 0x8(%esp) 实参

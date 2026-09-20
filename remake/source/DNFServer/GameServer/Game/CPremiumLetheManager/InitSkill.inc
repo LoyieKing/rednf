@@ -56,13 +56,13 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
         if (kind == SKILL_TREE_NONE || kind == SKILL_TREE_1)
         {
             addSkillOnCreateCharacter(
-                (_Mastered_skill*)(user->getCurCharacSkillW() + 0x46),
+                ((SkillSlot*)user->getCurCharacSkillW())->m_skillSlot,
                 user->get_charac_job());
         }
         else
         {
             addSkillOnCreateCharacter(
-                (_Mastered_skill*)(user->getCurCharacSkillW() + 0x1de),
+                ((SkillSlot*)user->getCurCharacSkillW())->m_skillSlot2,
                 user->get_charac_job());
         }
         std::vector<std::pair<int, int> > vec;
@@ -103,18 +103,16 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
             // skillIdx/vector 指针全为内联右值（expertJob→%ebx、level→%esi、
             // skillIdx→%edi、vector 每处重发 `script+0xc`，无具名槽）；
             // 仅 `script` 具名（ORIG -0x30）。实参右→左求值序亦逐条对应。
-            void* script = G_CDataManager()->GetExpertJobScript(
+            STExpertJobScript* script = (STExpertJobScript*)G_CDataManager()->GetExpertJobScript(
                 user->GetCurCharacExpertJobType());
             if (script != 0)
             {
                 unsigned int i2;
-                for (i2 = 0;
-                     i2 < ((std::vector<std::pair<int, int> >*)((char*)script + 0xc))->size();
-                     ++i2)
+                for (i2 = 0; i2 < script->m_growSkillVec.size(); ++i2)
                 {
                     ((SkillSlot*)user->getCurCharacSkillW())->growtype_skill(
                         user->get_charac_job(),
-                        (*(std::vector<std::pair<int, int> >*)((char*)script + 0xc))[i2].first,
+                        script->m_growSkillVec[i2].first,
                         user->GetCurExpertJobLevel(
                             user->GetCurCharacExpertJobExp()),
                         kind);

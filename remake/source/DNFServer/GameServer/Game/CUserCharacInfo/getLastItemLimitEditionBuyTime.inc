@@ -1,4 +1,4 @@
 long CUserCharacInfo::getLastItemLimitEditionBuyTime() const
 {
-    return m_selected ? CUR->m_lastItemLimitEditionBuyTime : 0;
+    return m_selected ? m_selected->m_field122E : 0;
 }

@@ -22,9 +22,8 @@ int DisPatcher_SetPVPMapIndex::dispatch_sig(CUser* user, PacketBuf& packet)
     // （父泳道 00:4x 编译失败实证）；改 `#pragma pack` 形（与聚合器 IncreStatusSigView 同法，
     // probe /tmp/probe_pack.cpp 实证：pragma 形可绑引用，attribute 形报错）。
 #pragma pack(push, 1)
-    struct SetPVPMapIndexMsgView
+    struct SetPVPMapIndexMsgView : MSG_BASE
     {
-        char m_head[0xd];
         short m_mapIdx;
     };
 #pragma pack(pop)

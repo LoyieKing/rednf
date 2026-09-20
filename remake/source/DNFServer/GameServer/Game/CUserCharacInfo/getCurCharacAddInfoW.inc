@@ -1,5 +1,5 @@
 void* CUserCharacInfo::getCurCharacAddInfoW()
 {
     enableSaveCharacInfo();
-    return (void*)&CUR->m_addInfo;
+    return (void*)&m_selected->m_additioalInfo;
 }

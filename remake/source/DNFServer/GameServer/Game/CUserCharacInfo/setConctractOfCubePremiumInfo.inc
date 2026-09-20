@@ -2,8 +2,8 @@ bool CUserCharacInfo::setConctractOfCubePremiumInfo(bool active, unsigned char c
 {
     if (!m_selected)
         return false;
-    CUR->m_cubePremiumSaved = 1;
-    CUR->m_cubePremiumContract = active;
-    CUR->m_cubePremiumCount = count;
+    m_selected->m_field14D0 = 1;
+    m_selected->m_field14CE = active;
+    m_selected->m_field14CF = count;
     return true;
 }

@@ -1,4 +1,4 @@
 int CUserCharacInfo::GetCurCharacChaosDieTime()
 {
-    return m_selected ? CUR->m_chaosDieTime : 0;
+    return m_selected ? m_selected->m_fielde5d : 0;
 }

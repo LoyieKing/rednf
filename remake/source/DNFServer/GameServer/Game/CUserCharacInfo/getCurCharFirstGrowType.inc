@@ -1,4 +1,4 @@
 char CUserCharacInfo::getCurCharFirstGrowType() const
 {
-    return m_selected ? (char)CUR->m_growType.first : 0;
+    return m_selected ? (char)m_selected->m_field29.m_sub : 0;
 }

@@ -20,7 +20,7 @@ void GameWorld::send_buddy_conn_list(unsigned int accId, BuddyList* list, int co
             // §4.3 例外保留地址形式：BuddyList 全仓仅前向声明（GameWorld.h），
             // 无任何字段建模证据；0x2a = ORIG 该记录步长（ORIG 逐条 put_binary
             // 后按 0x2a 递增指针），非普通成员裸偏移访问。
-            cur = (BuddyList*)((char*)cur + 0x2a);
+            ++cur;
         }
         packet.finalize(true);
         user->Send(packet);

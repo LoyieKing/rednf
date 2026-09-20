@@ -10,13 +10,12 @@ bool CCreatureMgr::UpdateCreatureItemResult(SIG_CREATURE_ITEM* sig)
     // `(void*)sig->m_item` 在 4.4 恒折 `add $0x4,%eax`（探针 /tmp/b61_probe2
     // gB..gI + /tmp/b61_probe3 gJ 全 add）；改显式指针算术 `(char*)sig + 4`
     // 产 ORIG 的 lea 形（探针 gK/gL/gM）。+4 = m_item 区偏移（SigTypes_B.h）。
-    reinterpret_cast<Inven_Item_Compatible*>((char*)sig + 4)->makeInvenItem(localItem);
+    sig->m_itemView.makeInvenItem(localItem);
 
     // ORIG tail `call; xor $0x1,%eax(dead flags-consumed); …mov$0`＝P168a② 直分支
     // 负判形（==0/! 早返失败），成功路径 fall-through 共享尾 mov$1。
     if (!LoadCreatureItem(&localItem,
-                          reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
-                              (char*)sig + 0x2c)))
+                          reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(&sig->m_slot)))
         return false;
     if (sig->m_field64 == 4)
         SendCreatureItemInfo(sig);

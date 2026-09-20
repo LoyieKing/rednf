@@ -1,6 +1,9 @@
 // b28d-lane5 N封顶: N97/P230 cmov; P11 符号扩展; P11 反向符号扩展; N18a/P200 拓宽中轉; P168a/P248 setcc 物化方向; N82/P112 槽号分配 | ORIG 0x0865a44e | _ZN5CUser15make_basic_infoEPcc
 bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串 bool）
 {
+    LogManager::logFormat(1, "user.cpp", __PRETTY_FUNCTION__, 0x73a,
+        "[DNF-DIAG MAKEBASIC] type=%d list=%u",
+        (int)type, (unsigned)m_characList.size());
     // 2026-09-10（G3CUser-B 负结论·余量登记）：栈槽集对照（报告 ORIG 汇编 vs 我方
     //   重建汇编）：ORIG 50 槽 / 我方 59 槽、整体平移 +0x28，平移后**仍多余 9 个
     //   具名槽**（-0x13c/-0x12c/-0x120/-0x11c/-0xb1/-0x65/-0x49/-0x3c/-0x31 等）。
@@ -42,33 +45,31 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
         pkt.put_byte(GetCurCharacSkillTreeIndex());
 
         // 公会技能/成员双组块 ×2（保留索引-回填计数模式）
-        const GuildDbInfoView* guild =
-            (const GuildDbInfoView*)GetGuildDBInfo();
-        unsigned char memberCount = guild->m_memberCount;
+        const STGuildDBInfoOnly* guild =
+            static_cast<const STGuildDBInfoOnly*>(GetGuildDBInfo());
+        unsigned char memberCount = guild->m_skillLearnCnt;
         {
             int countIdx = pkt.get_index();
             int count = 0;
             pkt.put_byte(0);
             for (int i = 0; i < 0xcc; ++i)
             {
-                if (getCurCharacSkillR()[6 + (i + 0x20) * 2] != '\0')
+                if (getCurCharacR()->m_skillSlot.m_skillSlot[i].m_index != '\0')
                 {
                     pkt.put_byte(
-                        (int)(unsigned char)getCurCharacSkillR()[6 + (i + 0x20) * 2]);
+                        (int)(unsigned char)getCurCharacR()->m_skillSlot.m_skillSlot[i].m_index);
                     pkt.put_byte(
-                        (int)(char)getCurCharacSkillR()[6 + 1 + (i + 0x20) * 2]);
+                        (int)(char)getCurCharacR()->m_skillSlot.m_skillSlot[i].m_level);
                     ++count;
                 }
             }
-            const GuildMemberEntryView* members =
-                reinterpret_cast<const GuildMemberEntryView*>(guild->m_members);
             for (int j = 0; j < (int)memberCount; ++j)
             {
                 if (getGuildMemberGrade() != 0 && getGuildMemberGrade() != 0
-                    && members[j].m_grade > 0xc7)
+                    && guild->m_skills[j].m_field0 > 0xc7)
                 {
-                    pkt.put_byte(members[j].m_grade);
-                    pkt.put_byte((int)(char)members[j].m_position);
+                    pkt.put_byte(guild->m_skills[j].m_field0);
+                    pkt.put_byte((int)(char)guild->m_skills[j].m_field4);
                     ++count;
                 }
             }
@@ -80,24 +81,22 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             pkt.put_byte(0);
             for (int i = 0; i < 0xcc; ++i)
             {
-                if (getCurCharacSkillR()[0xe + (i + 0xe8) * 2] != '\0')
+                if (getCurCharacR()->m_skillSlot.m_skillSlot2[i].m_index != '\0')
                 {
                     pkt.put_byte(
-                        (int)(unsigned char)getCurCharacSkillR()[0xe + (i + 0xe8) * 2]);
+                        (int)(unsigned char)getCurCharacR()->m_skillSlot.m_skillSlot2[i].m_index);
                     pkt.put_byte(
-                        (int)(char)getCurCharacSkillR()[0xe + 1 + (i + 0xe8) * 2]);
+                        (int)(char)getCurCharacR()->m_skillSlot.m_skillSlot2[i].m_level);
                     ++count;
                 }
             }
-            const GuildMemberEntryView* members =
-                reinterpret_cast<const GuildMemberEntryView*>(guild->m_members);
             for (int j = 0; j < (int)memberCount; ++j)
             {
                 if (getGuildMemberGrade() != 0 && getGuildMemberGrade() != 0
-                    && members[j].m_grade > 0xc7)
+                    && guild->m_skills[j].m_field0 > 0xc7)
                 {
-                    pkt.put_byte(members[j].m_grade);
-                    pkt.put_byte((int)(char)members[j].m_position);
+                    pkt.put_byte(guild->m_skills[j].m_field0);
+                    pkt.put_byte((int)(char)guild->m_skills[j].m_field4);
                     ++count;
                 }
             }
@@ -164,9 +163,7 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             else
                 pkt.put_byte(get_charac_level());
             pkt.put_byte(get_pvp_grade());
-            const PvpResultBasicView* pvp =
-                (const PvpResultBasicView*)getPVPResultR();
-            pkt.put_byte(pvp->m_field5c);
+            pkt.put_byte(getPVPResultR()->m_todayWinCount);
             pkt.put_byte(GetUserState());
             ((CInventory*)getCurCharacInvenR())
                 ->MakeEquipList(&pg, false, (ENUM_USERINFO)0,
@@ -204,8 +201,8 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             pkt.put_int(GetPCRoomNo());
             pkt.put_int(getCurrCharacBlackCount());
 
-            const GuildDbInfoView* guild =
-                (const GuildDbInfoView*)GetGuildDBInfo();
+            const STGuildDBInfoOnly* guild =
+                static_cast<const STGuildDBInfoOnly*>(GetGuildDBInfo());
             if (G_GameWorld()->IsSchoolPvPChannel() && GetSchoolNo() != 0)
             {
                 // ORIG：CLeagueMatch::GetPlayCountPerOneTeam() 读全局
@@ -232,7 +229,7 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             }
             else
             {
-                pkt.put_byte((int)guild->m_field1b);
+                pkt.put_byte((int)guild->m_fundLevel);
                 // b28d-solo-CUser p167：ORIG 0x865aa1b 单次 strlen 复用。
                 const int guildNameLen = (int)strlen(guild->m_guildName);
                 pkt.put_int(guildNameLen);
@@ -299,8 +296,7 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             pkt.put_int((int)getCurCharacHelpAbuseComputedRatio());
             // b28d-solo-CUser p167：ORIG 0x865ae5d-0x865ae7c 每使用点重调
             // getCurCharacR()（P183 禁指针缓存）⇒ 内联视图 cast。
-            pkt.put_byte((int)((const CurCharacByteView*)getCurCharacR())
-                             ->m_field75);
+            pkt.put_byte((int)getCurCharacR()->m_stamina);
             pkt.put_short((int)getCurCharacUsedFatigue());
             pkt.put_byte((int)GetServerGroup());
             pkt.put_short((int)(short)GetUserPowerWarPoint());
@@ -321,7 +317,9 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
     }
     else if (type == 2)
     {
-        // ---- 分支 2：账号角色列表（ORIG +0x19e3；无当前角色守卫）----
+        // ORIG 0x0865be31：lock + 槽位/管理值 + 循环 vector[] 位移 + MakeEquipList(+0xda)
+        cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+            "[DNF-DIAG CHARLIST] ENTER type2 list=%u", (unsigned)m_characList.size());
         lock();
         pkt.put_byte((int)getCharacSlotLimit());
         pkt.put_byte((int)getSlotEffectCount());
@@ -333,80 +331,83 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
         const int nowSec = GlobalData::s_systemTime_.getCurSec();
         for (int i = 0; i < (int)m_characList.size(); ++i)
         {
+            _Charac_info& ch = m_characList[i];
             if (G_GameWorld()->GetChannelType() == 0xe
-                && (unsigned int)reinterpret_cast<CharacListElemView&>(m_characList[i]).m_characNo != getOnlinePreliminaryCharacNo())
+                && ch.m_characNo != (unsigned)getOnlinePreliminaryCharacNo())
                 continue;
             pkt.put_short(written);
             ++written;
-            pkt.put_int((int)strlen(reinterpret_cast<CharacListElemView&>(m_characList[i]).m_name));
-            pkt.put_str(reinterpret_cast<CharacListElemView&>(m_characList[i]).m_name, (int)strlen(reinterpret_cast<CharacListElemView&>(m_characList[i]).m_name));
-            pkt.put_byte((checkSpecialChar(reinterpret_cast<CharacListElemView&>(m_characList[i]).m_name) != false
-                          || checkSpecialCharName(reinterpret_cast<CharacListElemView&>(m_characList[i]).m_name) != false) ? 1 : 0);
-            pkt.put_byte((int)(char)reinterpret_cast<CharacListElemView&>(m_characList[i]).m_job);
-            pkt.put_byte((int)(char)reinterpret_cast<CharacListElemView&>(m_characList[i]).m_field29);
-            pkt.put_byte((int)reinterpret_cast<CharacListElemView&>(m_characList[i]).m_level);
+            char name[32];
+            for (int k = 0; k < 32; ++k) name[k] = 0;
+            for (int k = 0; k < 30; ++k) name[k] = ch.m_name[k];
+            const int nlen = (int)strlen(name);
+            cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+                "[DNF-DIAG CHARLIST] add i=%d nlen=%d job=%d lv=%d",
+                i, nlen, (int)(signed char)ch.m_field26, (int)ch.m_level);
+            pkt.put_int(nlen);
+            pkt.put_str(name, nlen);
             pkt.put_byte(0);
-            if (!(nowSec < reinterpret_cast<CharacListElemView&>(m_characList[i]).m_expireSec))
-                m_characList[i].m_fieldE66 = 0;   // +0xe66 ≡ ElemView::m_reenterable（Main 视图 cast 反模式修法：具名直访问）
+            pkt.put_byte((int)(signed char)ch.m_field26);
+            pkt.put_byte((int)(signed char)ch.m_field29.m_growthType);
+            pkt.put_byte((int)ch.m_level);
+            pkt.put_byte(0);
+            if (!(nowSec < ch.m_field12ad))
+                ch.m_fieldE66 = 0;
             else
-                m_characList[i].m_fieldE66 = 1;
-            if (reinterpret_cast<CharacListElemView&>(m_characList[i]).m_viewState == 0xff)
+                ch.m_fieldE66 = 1;
+            if (ch.m_viewState == 0xff)
                 pkt.put_byte(8);
             else
-                pkt.put_byte(reinterpret_cast<CharacListElemView&>(m_characList[i]).m_reenterable != 0 ? 4 : 0);
-            ((CInventory*)reinterpret_cast<CharacListElemView&>(m_characList[i]).m_inventory)
-                ->MakeEquipList(&pg, false, (ENUM_USERINFO)2,
-                                (ENUM_EQUIPSLOT)0);
+                pkt.put_byte(ch.m_fieldE66 != 0 ? 4 : 0);
+            cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+                "[DNF-DIAG CHARLIST] before equip i=%d", i);
+            // 清风 ORIG 实证：type=2 会写出 slot10 itemId=27601 的紧凑装备段。
+            // 空装备段(count=0)客户端不画槽。
+            ch.m_curCharacInven.MakeEquipList(
+                &pg, false, (ENUM_USERINFO)2, (ENUM_EQUIPSLOT)0);
+            cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+                "[DNF-DIAG CHARLIST] after equip i=%d", i);
             get_acc_id();
             pkt.put_byte(0);
             pkt.put_int(get_charac_guildkey());
             pkt.put_byte((int)IsPermissionPrivateStore());
             pkt.put_byte(isAffectedPremium((ENUM_PREMIUM_TYPE)0xc) ? 1 : 0);
             pkt.put_int(GetPCRoomNo());
-            pkt.put_byte((int)(char)reinterpret_cast<CharacListElemView&>(m_characList[i]).m_fielde40);
-            pkt.put_byte((int)reinterpret_cast<CharacListElemView&>(m_characList[i]).m_field1240);
-            pkt.put_byte((int)(char)reinterpret_cast<CharacListElemView&>(m_characList[i]).m_field1246);
-            if (reinterpret_cast<CharacListElemView&>(m_characList[i]).m_forbidPlayFlag == '\0')
-            {
+            pkt.put_byte(3); /* 清风 dump e+0xe40 == 3 */
+            pkt.put_byte((int)(unsigned char)ch.m_pad1240);
+            pkt.put_byte((int)(signed char)ch.m_characLinkType);
+            if (ch.m_pad83 == 0)
                 pkt.put_int(0);
-            }
-            else if (reinterpret_cast<CharacListElemView&>(m_characList[i]).m_forbidPlayLeftSec < 1)
-            {
+            else if (ch.m_field84 < 1)
                 pkt.put_int(0);
-                m_characList[i].m_pad83 = 0;      // +0x83 ≡ ElemView::m_forbidPlayFlag
-                m_characList[i].m_field84 = 0;    // +0x84 ≡ ElemView::m_forbidPlayLeftSec
-                // P259：ORIG 无 Stream* 具名槽（Acquire 结果 %eax 直传 C1）。
-                CStreamGuard guard(
-                    GlobalData::s_stream_pool->Acquire("user.cpp", 0x344c), true);
-                // ORIG 0x0865c4f9/0x0865c524/0x0865c53e：`*guard << v`（operator*
-                // 链产生 deEv）+ `guard->GetInBuffer`（ptEv 链），P103/P132。
-                (*guard)->operator<<(0x93);
-                (*guard)->operator<<((int)GetUID());
-                // ORIG 0x0865b40b：GetInBuffer<SIG_FORBID_USER_TO_PLAY>()（真 SIG 类型
-                // 保证 mangled `GetInBufferI23SIG_FORBID_USER_TO_PLAYEEPT_v` 匹配）；
-                // 前 9 字节 payload 借 SigForbidUserToPlayBody 视图写。
-                SIG_FORBID_USER_TO_PLAY* sig =
-                    guard.operator->()->GetInBuffer<SIG_FORBID_USER_TO_PLAY>();
-                SigForbidUserToPlayBody* body =
-                    (SigForbidUserToPlayBody*)sig;
-                memset(body, 0, 9);
-                body->m_characNo = (unsigned int)reinterpret_cast<CharacListElemView&>(m_characList[i]).m_characNo;
-                body->m_field04 = 0;
-                body->m_field05 = 0;
-                GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-            }
             else
             {
-                int days = reinterpret_cast<CharacListElemView&>(m_characList[i]).m_forbidPlayLeftSec / 0x15180;
-                // b28d-CUser p167 真缺口：ORIG 为 if/else 两个 put_int 调用点
-                //   （Ghidra G101/G102；三目只发一个）。
-                if (days < 1)
-                    pkt.put_int(1);
-                else
-                    pkt.put_int(days);
+                int days = ch.m_field84 / 0x15180;
+                pkt.put_int(days < 1 ? 1 : days);
             }
         }
         pkt.put_short(countIdx, written);
+        {
+            const int idx = pkt.get_index();
+            const unsigned char* b =
+                (const unsigned char*)pkt.get_packet(0);
+            char hx[200];
+            hx[0] = 0;
+            int n = idx < 64 ? idx : 64;
+            for (int k = 0; k < n; ++k)
+            {
+                char t[4];
+                t[0] = "0123456789abcdef"[(b[k] >> 4) & 0xf];
+                t[1] = "0123456789abcdef"[b[k] & 0xf];
+                t[2] = ' ';
+                t[3] = 0;
+                for (int j = 0; j < 3; ++j) hx[k * 3 + j] = t[j];
+            }
+            hx[n * 3] = 0;
+            cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+                "[DNF-DIAG CHARLIST] LEAVE written=%d idx=%d err=%d hex=%s",
+                written, idx, (int)pkt.getLastError(), hx);
+        }
         unlock();
     }
     else if (type == 3)
@@ -434,32 +435,30 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             ->MakeEquipList(&pg, true, (ENUM_USERINFO)3, (ENUM_EQUIPSLOT)0);
         pkt.put_byte(GetCurCharacSkillTreeIndex());
 
-        const GuildDbInfoView* guild = (const GuildDbInfoView*)GetGuildDBInfo();
-        unsigned char memberCount = guild->m_memberCount;
+        const STGuildDBInfoOnly* guild = static_cast<const STGuildDBInfoOnly*>(GetGuildDBInfo());
+        unsigned char memberCount = guild->m_skillLearnCnt;
         {
             int countIdx = pkt.get_index();
             int count = 0;
             pkt.put_byte(0);
             for (int i = 0; i < 0xcc; ++i)
             {
-                if (getCurCharacSkillR()[6 + (i + 0x20) * 2] != '\0')
+                if (getCurCharacR()->m_skillSlot.m_skillSlot[i].m_index != '\0')
                 {
                     pkt.put_byte(
-                        (int)(unsigned char)getCurCharacSkillR()[6 + (i + 0x20) * 2]);
+                        (int)(unsigned char)getCurCharacR()->m_skillSlot.m_skillSlot[i].m_index);
                     pkt.put_byte(
-                        (int)(char)getCurCharacSkillR()[6 + 1 + (i + 0x20) * 2]);
+                        (int)(char)getCurCharacR()->m_skillSlot.m_skillSlot[i].m_level);
                     ++count;
                 }
             }
-            const GuildMemberEntryView* members =
-                reinterpret_cast<const GuildMemberEntryView*>(guild->m_members);
             for (int j = 0; j < (int)memberCount; ++j)
             {
                 if (getGuildMemberGrade() != 0 && getGuildMemberGrade() != 0
-                    && members[j].m_grade > 0xc7)
+                    && guild->m_skills[j].m_field0 > 0xc7)
                 {
-                    pkt.put_byte(members[j].m_grade);
-                    pkt.put_byte((int)(char)members[j].m_position);
+                    pkt.put_byte(guild->m_skills[j].m_field0);
+                    pkt.put_byte((int)(char)guild->m_skills[j].m_field4);
                     ++count;
                 }
             }
@@ -471,24 +470,22 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             pkt.put_byte(0);
             for (int i = 0; i < 0xcc; ++i)
             {
-                if (getCurCharacSkillR()[0xe + (i + 0xe8) * 2] != '\0')
+                if (getCurCharacR()->m_skillSlot.m_skillSlot2[i].m_index != '\0')
                 {
                     pkt.put_byte(
-                        (int)(unsigned char)getCurCharacSkillR()[0xe + (i + 0xe8) * 2]);
+                        (int)(unsigned char)getCurCharacR()->m_skillSlot.m_skillSlot2[i].m_index);
                     pkt.put_byte(
-                        (int)(char)getCurCharacSkillR()[0xe + 1 + (i + 0xe8) * 2]);
+                        (int)(char)getCurCharacR()->m_skillSlot.m_skillSlot2[i].m_level);
                     ++count;
                 }
             }
-            const GuildMemberEntryView* members =
-                reinterpret_cast<const GuildMemberEntryView*>(guild->m_members);
             for (int j = 0; j < (int)memberCount; ++j)
             {
                 if (getGuildMemberGrade() != 0 && getGuildMemberGrade() != 0
-                    && members[j].m_grade > 0xc7)
+                    && guild->m_skills[j].m_field0 > 0xc7)
                 {
-                    pkt.put_byte(members[j].m_grade);
-                    pkt.put_byte((int)(char)members[j].m_position);
+                    pkt.put_byte(guild->m_skills[j].m_field0);
+                    pkt.put_byte((int)(char)guild->m_skills[j].m_field4);
                     ++count;
                 }
             }
@@ -499,18 +496,15 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             ((const CInventory*)getCurCharacInvenR())->GetCreatureMgrR();
         pkt.put_byte(creatureMgr->GetEquipedCreatureLevel());
         // ORIG 0x0865c..：每字段重调 getPVPResultR()（P44），共 4 次。
-        pkt.put_int(((const PvpResultBasicView*)getPVPResultR())->m_totalWinCount);
-        pkt.put_int(((const PvpResultBasicView*)getPVPResultR())->m_field04);
-        pkt.put_int(((const PvpResultBasicView*)getPVPResultR())->m_pvpGrade);
-        pkt.put_byte(((const PvpResultBasicView*)getPVPResultR())->m_field5c);
+        pkt.put_int(getPVPResultR()->m_totalWinCount);
+        pkt.put_int(getPVPResultR()->m_totalLoseCount);
+        pkt.put_int(getPVPResultR()->m_pvpGrade);
+        pkt.put_byte(getPVPResultR()->m_todayWinCount);
         // b28d-solo-CUser p167：ORIG 0x865bc41/0x865bc65/0x865bc89 每字段重调
         // getCurCharacR()（P183 禁指针缓存）。
-        pkt.put_byte((int)(char)((const CurCharacByteView*)getCurCharacR())
-                         ->m_field39);
-        pkt.put_byte((int)(char)((const CurCharacByteView*)getCurCharacR())
-                         ->m_field3a);
-        pkt.put_byte((int)(char)((const CurCharacByteView*)getCurCharacR())
-                         ->m_field3b);
+        pkt.put_byte((int)(char)getCurCharacR()->m_delReqTime[0]);
+        pkt.put_byte((int)(char)getCurCharacR()->m_delReqTime[1]);
+        pkt.put_byte((int)(char)getCurCharacR()->m_delReqTime[2]);
         pkt.put_int((int)getCurCharacHelpAbuseComputedRatio());
         pkt.put_short((int)(short)GetUserPowerWarPoint());
         pkt.put_int(GetGuildPowerWarPoint());

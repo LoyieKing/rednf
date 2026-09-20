@@ -3,6 +3,6 @@ void CUserCharacInfo::setCurCharacFatigueGrownUpBuff(unsigned short value)
     if (m_selected)
     {
         enableSaveCharacStat();
-        CUR->m_fatigueGrownUpBuff = value;
+        m_selected->m_field37 = value;
     }
 }

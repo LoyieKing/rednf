@@ -52,8 +52,6 @@ int DEFAULT_MAX_FATIGUE = 156;  // 原 GameStubs.cpp 定义迁移
 
 // 具型视图直读（CUserCharacInfo.h 匿名 union m_selView）：值 cast 触发 4.4
 // 二段拷贝（探针 /tmp/bl10/p2.cpp getE vs getF），直读复现 ORIG 单段装载。
-#define CUR (m_selView)
-
 // ORIG 平坦窗口视图（P1 组件视图：pad 前置使成员寻址折叠为单条 disp/scale 指令，
 // 与具名字段等偏移；ORIG 源码即以“基址+魔数下标”形态书写，直接成员下标会丢
 // 常量项使指令序列回退）：
@@ -82,11 +80,6 @@ struct LoadEtcEffectItemWindow
 // [b28d-solo-CUserCharacInfo N107/P106] m_inven 真实类型视图：CharacInfoFields 内
 // `char m_inven[]` 占位使取址退化为数组加法（4.4 恒 `add $0xda`）；经真实
 // CInventory 成员取址复现 ORIG `lea 0xda(%edx),%ecx`。pack(1) 保持 +0xda。
-struct CharacInvenView
-{
-    char m_pad0[0xda];
-    CInventory m_inven;    // +0xda（CInventory 内嵌）
-};
 #pragma pack(pop)
 static_assert(offsetof(WarAreaKillWindow, m_warAreaKillFlat) == 0xe,
               "war area kill window base drift (ORIG flds 0xe(%edx,%ebx,4))");
@@ -94,8 +87,8 @@ static_assert(offsetof(LoadEtcCoolItemWindow, m_entries) == 0x10,
               "cooltime flat base drift (ORIG mov %edx,0x10(%eax,%ecx,8))");
 static_assert(offsetof(LoadEtcEffectItemWindow, m_entries) == 0x8,
               "effect flat base drift (ORIG mov %edx,0x8(%eax,%ecx,8))");
-static_assert(offsetof(CharacInvenView, m_inven) == 0xda,
-              "inven view base drift (ORIG lea 0xda(%edx),%ecx)");
+static_assert(offsetof(_Charac_info, m_curCharacInven) == 0xda,
+              "inven member base drift (ORIG lea 0xda(%edx),%ecx)");
 
 #include "CUserCharacInfo/dtor_CUserCharacInfo.inc"
 

@@ -1,7 +1,5 @@
 void CUserCharacInfo::resetCurCharacSchoolPoint()
 {
     if (m_selected)
-    {
-    CUR->m_reliablePerson.m_schoolPoint = 0;
-    }
+        m_selected->m_schoolPoint = 0;
 }

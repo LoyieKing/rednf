@@ -5,11 +5,11 @@
 int Dispatcher_CeraPackageOpen::process(CUser* user, MSG_BASE& msg,
                                         ParamBase& param)
 {
-    char* const M = reinterpret_cast<char*>(&msg);
-    char* const P = reinterpret_cast<char*>(&param);
+    MSG_OPEN_CERAPACKAGE& req = *reinterpret_cast<MSG_OPEN_CERAPACKAGE*>(&msg);
+    stOpenCeraPackage& out = static_cast<stOpenCeraPackage&>(param);
 
     const int err = check_error(user, msg);
-    *reinterpret_cast<int*>(P + 4) = err;                   // stOpenCeraPackage::m_4
+    out.m_4 = err;
     if (err != 0)
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x207),
@@ -17,7 +17,7 @@ int Dispatcher_CeraPackageOpen::process(CUser* user, MSG_BASE& msg,
         return 0;
     }
 
-    const short slot = *reinterpret_cast<const short*>(M + 0xe);
+    const short slot = static_cast<short>(req.m_0e);
     if (user->CheckItemLock(1, static_cast<int>(slot)))
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x207), 4);
@@ -53,15 +53,13 @@ int Dispatcher_CeraPackageOpen::process(CUser* user, MSG_BASE& msg,
         //   movzbl 0x10(%eax),%eax` = 每轮重读 msg+0x10 字段（全函数无具名 count 槽、
         //   循环体内无该字段写点 ⇒ 字段值恒定但 ORIG 逐轮重读）⇒ 删具名 subCount 缓存，
         //   循环条件内联表达式（P0：ORIG 无槽往返 ⇒ 原码为内联右值）。
-        for (int i = 0; i < (int)(unsigned int)(unsigned char)M[0x10]; ++i)
+        for (int i = 0; i < (int)(unsigned int)req.m_count; ++i)
         {
             // ORIG pair<int,int> ctor（Rm/Rh）：first=*(ulong*)(M+(i+2)*8+4) 低 32 位，
             // second=*(uchar*)(M+(i+2)*8+8)。显式 pair 构造（非 make_pair）。
             // ORIG 符号 _ZNSt4pairIiiEC1IRmRhEEOT_OT0_：非 const ulong&/uchar& 左值
-            unsigned long v1 =
-                *(unsigned long*)(M + (i + 2) * 8 + 4);
-            unsigned char v2 =
-                *(unsigned char*)(M + (i + 2) * 8 + 8);
+            unsigned long v1 = req.m_items[i].m_id;
+            unsigned char v2 = req.m_items[i].m_flag;
             ceraParam.m_pairs.push_back(std::pair<int, int>(v1, v2));
         }
 

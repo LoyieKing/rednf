@@ -26,7 +26,6 @@ void CUser::SetCharacInfo(int count, char* data)
         // `imul $0x94,%eax,%eax; add -0x1c(%ebp),%eax` 属 P30/N107 地址物化族封顶。
         char* rec = data + i * 0x94;
         info.Reset();                                  // _Charac_info::Reset
-        char* p = reinterpret_cast<char*>(&info);
         info.m_characNo = *reinterpret_cast<int*>(rec);                  // characNo
         strncpy(info.m_name, rec + 4, 0x1e);                             // m_name
         // [R11a06 2026-09-12 ④ 修复] 旧译文 `p[0x18]=rec[0x18]; p[0x19]=rec[0x19];
@@ -47,19 +46,17 @@ void CUser::SetCharacInfo(int count, char* data)
             static_cast<unsigned char>(*(data + i * 0x94 + 0x19));       // +0x29
         info.m_level = *reinterpret_cast<short*>(data + i * 0x94 + 0x1a);  // +0x27 short
 
-        for (int k = 0; k < 0xc; ++k)                  // 背包槽镜像表（0x3d stride）
+        for (int k = 0; k < 0xc; ++k)
         {
-            *reinterpret_cast<int*>(p + 0xf8 + k * 0x3d) =
+            info.m_curCharacInven.m_invenItem[k].m_addInfo =
                 *reinterpret_cast<int*>(rec + (k + 4) * 8 + 8);
         }
-        for (int k = 0; k < 0xc; ++k)                  // 外观槽数组（8 字节槽，info+0x75c）
+        for (int k = 0; k < 0xc; ++k)
         {
-            *reinterpret_cast<int*>(p + 0x75e + k * 8) =
-                *reinterpret_cast<int*>(rec + (k + 4) * 8 + 8);
-            *reinterpret_cast<short*>(p + 0x762 + k * 8) =
-                *reinterpret_cast<short*>(rec + (k + 4) * 8 + 0xc);
-            *reinterpret_cast<short*>(p + 0x764 + k * 8) =
-                *reinterpret_cast<short*>(rec + (k + 4) * 8 + 0xe);
+            CInventory::AvatarVisibleData& vis = info.m_curCharacInven.m_avatarVisible[k];
+            vis.m_field0 = *reinterpret_cast<int*>(rec + (k + 4) * 8 + 8);
+            vis.m_field4 = *reinterpret_cast<short*>(rec + (k + 4) * 8 + 0xc);
+            vis.m_field6 = *reinterpret_cast<short*>(rec + (k + 4) * 8 + 0xe);
         }
 
         // growType：==1 或 ==0xff 原样，否则 0（→ info+0x14c6）
@@ -130,10 +127,8 @@ void CUser::SetCharacInfo(int count, char* data)
         //  mov %al,(%edx)`（我方 .o 0x824fa02）落 ebp-0x21 = 本函数 `char* p`
         //  局部（-0x24）的**最高字节** ⇒ 破坏自身 ci 指针，随后两处
         //  CInventory/CCargo::SetInventoryMemory(&p->…) 收野指针（内存破坏级）。
-        reinterpret_cast<CInventory*>(p + 0xda)
-            ->SetInventoryMemory(&m_inventoryMemory);                 // this+0x79794
-        reinterpret_cast<CCargo*>(p + 0xdaa)
-            ->SetInventoryMemory(&m_inventoryMemory);
+        info.m_curCharacInven.SetInventoryMemory(&m_inventoryMemory);
+        info.m_cargo.SetInventoryMemory(&m_inventoryMemory);
         m_characList.push_back(info);
     }
 

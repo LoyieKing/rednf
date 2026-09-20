@@ -178,6 +178,12 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
               NumberToString((unsigned int)user->get_acc_id(), 0),
               user->getClientVersion(), p2pRet);
         }
+        cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+            "[DNF-DIAG ANTIBOT] fn=%p checker=%p ret=%d seq=%d acc=%u ver=%u",
+            (void*)addClient, checker, antibotRet,
+            G_CEnvironment()->getProcessSequence(),
+            (unsigned)user->get_acc_id(),
+            user->getClientVersion());
         user->setAntibotKey(antibotRet);
     }
 

@@ -45,7 +45,7 @@ bool DisPatcher_DeleteItem::exercise_mode(CUser* user, MSG_BASE& msg, ParamBase&
                         // ORIG 0x81c1bf0 调嵌套版 CDeathTower::stMapMonsterKillChecker_t
                         // ::setUseSkillMaterial（W 0x0823464c）——勿用全局版（布局不同）。
                         reinterpret_cast<WongWork::CDeathTower::stMapMonsterKillChecker_t*>(
-                            &reinterpret_cast<CDeathTowerTimerKeyView*>(tower)->m_timerKeys[7])
+                            &tower->getTimerKeys()[7])
                             ->setUseSkillMaterial(GlobalData::s_systemTime_.getCurTickCount());
                     }
                 }

@@ -2,6 +2,6 @@ void CUserCharacInfo::SetCurCharacLuckPointUpdateTimeCount(int count)
 {
     if (m_selected)
     {
-    CUR->m_luckPointUpdateTimeCount = count;
+    m_selected->m_fieldE75 = count;
     }
 }

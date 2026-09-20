@@ -1,5 +1,5 @@
 void CUserCharacInfo::addCurcharacStamina(unsigned char value)
 {
     enableSaveCharacStat();
-    CUR->m_stamina = (unsigned char)(CUR->m_stamina + value);
+    m_selected->m_stamina = (unsigned char)(m_selected->m_stamina + value);
 }

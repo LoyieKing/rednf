@@ -1320,8 +1320,9 @@ case 0x421:  // "[point by type]"
         // `lea 0x60(%esi),%ecx` + `mov %eax,0xc(%edx,%ecx,4)` 为直接实证；
         // 旧写法 `0x18c + i*0x180` 系误读 Ghidra 表达式（真语义 bug，已修）。
         // §4.3 例外：ORIG 遗留线形算术（跨成员指针加法），无对应具名数组成员。
-        for (int i = 0; i <= 2; ++i)
-            *(int*)((char*)script + 0xc + (0x60 + i) * 4) = ScanInt((bool*)0);
+        script->m_warRoom18c.m_0 = ScanInt((bool*)0);
+        script->m_warRoom18c.m_4 = ScanInt((bool*)0);
+        script->m_warRoom18c.m_8 = ScanInt((bool*)0);
         break;
     }
 

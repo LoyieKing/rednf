@@ -2,6 +2,6 @@ void CUserCharacInfo::setCharacLinkBonusExp(unsigned int exp)
 {
     if (m_selected)
     {
-    CUR->m_characLinkBonusExp = exp;
+    m_selected->m_field1247 = exp;
     }
 }

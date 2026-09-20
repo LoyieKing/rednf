@@ -3,6 +3,6 @@ void CUserCharacInfo::setCurCharacTagCharacNo(unsigned int no)
     if (m_selected)
     {
     enableSaveCharacManageInfo();
-    CUR->m_tagCharacNo = no;
+    m_selected->m_field14b8 = no;
     }
 }

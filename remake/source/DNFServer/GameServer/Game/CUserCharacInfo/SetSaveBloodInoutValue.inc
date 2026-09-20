@@ -1,4 +1,4 @@
 void CUserCharacInfo::SetSaveBloodInoutValue(bool flag)
 {
-    CUR->m_saveBloodInout = flag;
+    m_selected->m_fieldEBF = flag;
 }

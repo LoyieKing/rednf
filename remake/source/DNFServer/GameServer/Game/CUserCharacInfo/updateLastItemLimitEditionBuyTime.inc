@@ -2,6 +2,6 @@ void CUserCharacInfo::updateLastItemLimitEditionBuyTime(long t)
 {
     if (m_selected)
     {
-    CUR->m_lastItemLimitEditionBuyTime = t;
+    m_selected->m_field122E = t;
     }
 }

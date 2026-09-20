@@ -1,4 +1,4 @@
 int CUserCharacInfo::getRequestRenameState() const
 {
-    return m_selected ? CUR->m_characViewState : 0;
+    return m_selected ? m_selected->m_viewState : 0;
 }

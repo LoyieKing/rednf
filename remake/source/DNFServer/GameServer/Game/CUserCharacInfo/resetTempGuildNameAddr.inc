@@ -2,7 +2,7 @@ void CUserCharacInfo::resetTempGuildNameAddr()
 {
     if (m_selected)
     {
-    memset(CUR->m_guildName, 0, sizeof(CUR->m_guildName));
-    memset(CUR->m_guildAddr, 0, sizeof(CUR->m_guildAddr));
+    memset(m_selected->m_padDC5, 0, sizeof(m_selected->m_padDC5));
+    memset(m_selected->m_padDDC, 0, sizeof(m_selected->m_padDDC));
     }
 }

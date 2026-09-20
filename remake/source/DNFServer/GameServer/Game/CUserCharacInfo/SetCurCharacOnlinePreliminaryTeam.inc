@@ -2,7 +2,5 @@ void CUserCharacInfo::SetCurCharacOnlinePreliminaryTeam(
     online_preliminary::COnlinePreliminaryTeam* team)
 {
     if (m_selected)
-    {
-    CUR->m_onlinePreliminaryTeam = team;
-    }
+        m_selected->m_fieldE89 = reinterpret_cast<int>(team);
 }

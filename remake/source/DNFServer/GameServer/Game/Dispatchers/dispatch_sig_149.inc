@@ -43,9 +43,9 @@ int Dispatcher_CheckGuildAddressDouble::dispatch_sig(CUser* user, PacketBuf& pac
     **guard << (int)user->GetUID();
     SIG_DOUBLE_CHECK_GUILD_ADDRESS* sig =
         guard->GetInBuffer<SIG_DOUBLE_CHECK_GUILD_ADDRESS>();
-    memset(sig, 0, 0xd);
+    memset(sig->m_guildUrl, 0, sizeof(sig->m_guildUrl));
     // [G3 2026-09-11 候选] 同 126：ORIG memcpy 第 3 参 edx 中转（我方少 1 条）。
-    memcpy(sig, addr, static_cast<unsigned int>(len));
+    memcpy(sig->m_guildUrl, addr, static_cast<unsigned int>(len));
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     return 0;                                              // guard 析构 0x0861c8d2
 }

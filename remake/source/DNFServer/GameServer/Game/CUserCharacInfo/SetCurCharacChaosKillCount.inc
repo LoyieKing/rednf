@@ -2,6 +2,6 @@ void CUserCharacInfo::SetCurCharacChaosKillCount(int count)
 {
     if (m_selected)
     {
-    CUR->m_chaosKillCount = count;
+    m_selected->m_fielde55 = count;
     }
 }

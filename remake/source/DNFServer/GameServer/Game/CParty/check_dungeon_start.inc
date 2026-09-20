@@ -41,8 +41,7 @@ int CParty::check_dungeon_start(CDungeon const* dungeon)
             // b28d-solo-CParty：ORIG 0x859fcbb `test %al,%al; jg` 为**有符号**判定
             // （P196 符号性判据）⇒ 字段 unsigned char 按 (signed char) 读，
             // 无符号读会折成 `jne`。
-            if ((signed char)reinterpret_cast<const CharacInfoFields*>(
-                    m_member[i].m_pUser->getCurCharacR())->m_ultimateInout[2] < 1 &&
+            if ((signed char)m_member[i].m_pUser->getCurCharacR()->m_ultimateInout[2] < 1 &&
                 m_battleField.m_bloodState != 1)
                 return 0xf5;
         }

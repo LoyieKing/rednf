@@ -20,20 +20,19 @@ void CUser::SendMultiMail(bool certified)
     // `mov 0x8(%ebp),%eax; add $0x8e246,%eax`（**单常量 add**，无 block 具名槽）。前轮两试
     // 均败在取址形：`m_pad8e101 + 0x145` 被 4.4 拆成两条 add（$0x8e101 + $0x145）。本次改
     // `(char*)this + 绝对常量`：this 直接加常量，4.4 前端折成单条 add（形同 ORIG）。
-#define CUOO_MM(k) (reinterpret_cast<char*>(this) + (k))
     // [DualCUOO 2026-09-09 双判据 gap] ORIG 0x0868a2e6 先 `mov 0xc(%ebp),%eax;
     // mov %al,-0x3fac(%ebp)`（bool 规范化溢出槽）再 `movzbl -0x3fac; xor $1; test;
     // je 0868a33d`，且 0868a2fd 的 SendCmdErrorPacket(0x13c,0x87)+memset 是**if 分支**
     // ⇒ 源码是 `if (!certified) {…} else {主体}`，分支体顺序按 ORIG 交换（行为等价）。
     if (!certified) {
         SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0x87);
-        memset(CUOO_MM(0x8e246), 0, 0x1a6);
+        memset(m_multiMailMsgData, 0, sizeof(m_multiMailMsgData));
     }
     else {
         MSG_CHECK_MAIL_RECEIVER check;
         check.set<MSG_CHECK_MAIL_RECEIVER::ENUM_MAILBOX_CHECKTYPE_2>(
-            *reinterpret_cast<MSG_MULTI_MAILBOX_SEND*>(CUOO_MM(0x8e246)));
-        int rc = WongWork::CMailBoxHelper::ReqDBCheckReceiver(this, CUOO_MM(0x8e257), &check);
+            *reinterpret_cast<MSG_MULTI_MAILBOX_SEND*>(m_multiMailMsgData));
+        int rc = WongWork::CMailBoxHelper::ReqDBCheckReceiver(this, reinterpret_cast<MSG_MULTI_MAILBOX_SEND*>(m_multiMailMsgData)->m_title11, &check);
         // [H6 2026-09-11 单旋钮·否定分支在前的块序] ORIG 0x0868a3a4 段 = `je <循环头>` +
         // **直落**失败块（SendCmdErrorPacket 后 `jmp <尾 memset>`），循环紧随其后 ⇒ 原码是
         // `if (rc != 0) { error } else { 循环 }`（与 `if (!certified)` 同一否定优先风格）。
@@ -51,28 +50,28 @@ void CUser::SendMultiMail(bool certified)
             // `(char*)this + K` 形只能产 `add $K,%eax; mov (%eax)` 两条。改走具名数组成员
             // `m_pad8e101[0x178]`（char[0x2ec] @+0x8e101 ⇒ +0x8e279）与 `&m_pad8e101[0x174]`
             // （⇒ +0x8e275）即复现单 disp。
-            for (int i = 0; i < static_cast<int>(static_cast<unsigned char>(m_pad8e101[0x178])); ++i) {
+            MSG_MULTI_MAILBOX_SEND* mm = reinterpret_cast<MSG_MULTI_MAILBOX_SEND*>(m_multiMailMsgData);
+            for (int i = 0; i < static_cast<int>(mm->m_count33); ++i) {
                 // [H6 2026-09-11 单旋钮·短路条件复原] ORIG 0x0868a3f8 段为 `call IsAvatarItem;
                 // xor $1,%eax; test %al,%al; je <false 岛 0x868a41c>` 后接 `call get_rarity;
                 // cmp $1,%eax; jg <同一 false 岛>`，false 岛产 `mov $0x0,%eax` 再 `test; je`
                 // ⇒ 原码是**短路合条件** `if (!IsAvatarItem() && get_rarity() <= 1)`。
                 // 旧三层 if/else 赋 `skip` 产 4.4 无 xor 形 + 额外 skip 槽（-0x15）。
                 CItem* item = G_CDataManager()->find_item(
-                    *reinterpret_cast<int*>(CUOO_MM(0x8e27d + i * 0xb)));
+                    *reinterpret_cast<int*>(&mm->m_body34[3 + i * 0xb]));
                 if (item != 0) {
                     if (!item->IsAvatarItem() && item->get_rarity() <= 1) {
                         fatigueGift = true;
                     }
                 }
-                if (*reinterpret_cast<int*>(CUOO_MM(0x8e27d + i * 0xb)) == 0) {
+                if (*reinterpret_cast<int*>(&mm->m_body34[3 + i * 0xb]) == 0) {
                     fatigueGift = true;
                 }
                 IncrementTradeGold(
-                                   *reinterpret_cast<int*>(&m_pad8e101[0x174]),  // +0x8e275 = gold@+0x2f
+                                   static_cast<int>(mm->m_gold2f),
                                    static_cast<int>(fatigueGift));
             }
         }
-        memset(CUOO_MM(0x8e246), 0, 0x1a6);
+        memset(m_multiMailMsgData, 0, sizeof(m_multiMailMsgData));
     }
-#undef CUOO_MM
 }

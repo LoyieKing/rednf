@@ -2,6 +2,6 @@ void CUserCharacInfo::resetBlueMarbleEnterCount()
 {
     if (m_selected)
     {
-    CUR->m_blueMarbleEnterCount = 0;
+    m_selected->m_field14BD = 0;
     }
 }

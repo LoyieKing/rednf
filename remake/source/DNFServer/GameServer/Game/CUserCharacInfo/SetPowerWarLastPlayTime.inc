@@ -2,6 +2,6 @@ void CUserCharacInfo::SetPowerWarLastPlayTime(long t)
 {
     if (m_selected)
     {
-    CUR->m_powerWarLastPlayTime = t;
+    m_selected->m_powerWarData.m_data8 = t;
     }
 }

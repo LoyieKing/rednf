@@ -31,8 +31,7 @@ int CVillageMonsterMgr::OnFightVillageMonster(CUser* user, unsigned short zone)
     std::map<Zone, CVillageMonsterArea>::iterator it = m_areas.find(findZone);
     if (it == m_areas.end())
         return 0x15;
-    CPartyVillageStateView* party =
-        (CPartyVillageStateView*)user->GetParty();
+    CParty* party = user->GetParty();
     if (party == 0)
         return 0x15;
     CVillageMonsterArea* areaObj = &it->second;
@@ -41,16 +40,16 @@ int CVillageMonsterMgr::OnFightVillageMonster(CUser* user, unsigned short zone)
     int ret = areaObj->OnFightVillageMonster(user, zone, out1, out2);
     if (ret == 0)
     {
-        party->m_villageMonsterZone = zone;
-        party->m_villageVill = (int)(signed char)user->getCurCharacVill();
-        party->m_villageArea = user->get_area(false);
-        party->m_villageMonsterField24 = out2;
-        party->m_villageMonsterField20 = out1;
+        party->m_battleField.m_villageMonsterId = (short)zone;
+        party->m_battleField.m_villageMonsterCount = (int)(signed char)user->getCurCharacVill();
+        party->m_battleField.m_field130 = user->get_area(false);
+        party->m_battleField.m_field134 = out2;
+        party->m_battleField.m_dungeonIndex = out1;
         PacketGuard packet;
         packet.clear();
         packet.put_header(0, 0xf3);
         packet.finalize(true);
-        ((CParty*)party)->send_to_party(packet);
+        party->send_to_party(packet);
     }
     return ret;
 }

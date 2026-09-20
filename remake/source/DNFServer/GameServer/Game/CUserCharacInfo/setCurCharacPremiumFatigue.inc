@@ -3,6 +3,6 @@ void CUserCharacInfo::setCurCharacPremiumFatigue(unsigned short value)
     if (m_selected)
     {
     enableSaveCharacStat();
-    CUR->m_premiumFatigue = value;
+    m_selected->m_field77 = value;
     }
 }

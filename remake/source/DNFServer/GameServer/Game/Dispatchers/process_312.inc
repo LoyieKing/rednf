@@ -9,16 +9,16 @@ int Dispatcher_AvatarOptionChange::process(CUser* user, MSG_BASE& msg, ParamBase
     //   按此声明；check_error 结果**直写 param+4 后重读**（0x081e0a40 段
     //   `mov -0x20(%ebp),%edx; mov %eax,0x4(%edx)` + 每处 `mov -0x20(%ebp),%eax;
     //   mov 0x4(%eax),%eax`），无 err 具名槽。
-    AocParamView& param = *reinterpret_cast<AocParamView*>(&paramBase);
-    AocMsgView& m = *reinterpret_cast<AocMsgView*>(&msg);
+    stChangeAvatarOption& param = *reinterpret_cast<stChangeAvatarOption*>(&paramBase);
+    MSG_CHANGE_AVATAR_OPTION& m = *reinterpret_cast<MSG_CHANGE_AVATAR_OPTION*>(&msg);
 
-    param.m_errorCode = check_error(user, msg);
-    if (param.m_errorCode > 0)
+    param.m_result = check_error(user, msg);
+    if (param.m_result > 0)
         return 0;
-    if (param.m_errorCode < 0)
+    if (param.m_result < 0)
         return LineFunc(0x53ab,
                         __PRETTY_FUNCTION__,
-                        param.m_errorCode, 0);
+                        param.m_result, 0);
 
     CInventory* invW = user->getCurCharacInvenW();
 
@@ -32,13 +32,13 @@ int Dispatcher_AvatarOptionChange::process(CUser* user, MSG_BASE& msg, ParamBase
     if (shadowInv.delete_item(INVEN_TYPE_EQUIP, m.m_consumeSlot, 1,
                               (eItemDelReason)0x2f, false) != 1)
     {
-        param.m_errorCode = 0x16;
+        param.m_result = 0x16;
         return 0;
     }
     Inven_Item* shadowRef = shadowInv.GetInvenRef(INVEN_TYPE_AVATAR, m.m_avatarSlot);
     if (shadowRef == 0)
     {
-        param.m_errorCode = 0x11;
+        param.m_result = 0x11;
         return 0;
     }
 
@@ -54,8 +54,8 @@ int Dispatcher_AvatarOptionChange::process(CUser* user, MSG_BASE& msg, ParamBase
     invW->SendAvatarEvent(0x2c3, avatarRef->m_addInfo2,
                           (int)(signed char)m.m_option, 0, 0);
 
-    param.m_consumeSlot = m.m_consumeSlot;
-    param.m_avatarSlot = m.m_avatarSlot;
-    param.m_option = (unsigned char)m.m_option;
+    param.m_srcSlot = m.m_consumeSlot;
+    param.m_dstSlot = m.m_avatarSlot;
+    param.m_optionValue = m.m_option;
     return 0;
 }

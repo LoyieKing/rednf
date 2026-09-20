@@ -8,6 +8,9 @@ void CAchievement::sendList()
     PacketGuard packet;
     packet.put_header(0, 0x166);
     packet.put_int(data.m_count);
+#if !remake_verify
+    cMyTrace(__PRETTY_FUNCTION__, 0, 5)("[DNF-DIAG ACH] count=%d", data.m_count);
+#endif
     for (int i = 0; i < data.m_count; ++i)
     {
         packet.put_int((int)data.m_entries[i].m_id);

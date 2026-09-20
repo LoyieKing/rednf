@@ -33,9 +33,8 @@ int DisPatcher_Lottery::dispatch_sig(CUser* user, PacketBuf& packet)
     // 已验证成功的 pragma 形重试。⚠不可用 `__attribute__((packed))`（4.4 拒绝绑定
     // 紧实字段到 short&）。
 #pragma pack(push, 1)
-    struct LotteryMsgView
+    struct LotteryMsgView : MSG_BASE
     {
-        char m_head[0xd];
         short m_idx;
     };
 #pragma pack(pop)

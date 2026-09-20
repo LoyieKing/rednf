@@ -1,8 +1,7 @@
 int Dispatcher_GoldTakeIncreasingAmount::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    // ORIG 0x T：读 int(msg+0xd)，失败记 LineFunc(0x38d6)
-    char* p = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(p + 0xd)))
+    MSG_GOLD_TAKE_INCREASING_AMOUNT& req = *reinterpret_cast<MSG_GOLD_TAKE_INCREASING_AMOUNT*>(&msg);
+    if (!packet.get_int(req.m_overSkillTime))
     {
         return LineFunc(0x38d6, __PRETTY_FUNCTION__, 0, 0);
     }

@@ -14,11 +14,10 @@ bool CCreatureMgr::InsertCreatureItemResult(SIG_CREATURE_ITEM* sig)
     // b28d-solo-CreatureOnlyMgrRest [ORIG 0x0833b395/N107]：ORIG 仅
     // `lea -0x55; call Inven_Item::C1`（清零由 ctor reset 完成，无独立
     // memset）；`lea 0x4(%eax),%edx` = 显式指针算术 `(char*)sig + 4`。
-    reinterpret_cast<Inven_Item_Compatible*>((char*)sig + 4)->makeInvenItem(localItem);
+    sig->m_itemView.makeInvenItem(localItem);
 
     if (!LoadCreatureItem(&localItem,
-                          reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
-                              (char*)sig + 0x2c)))
+                          reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(&sig->m_slot)))
         return false;
 
     if (sig->m_field64 == 6)

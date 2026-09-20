@@ -23,6 +23,7 @@ class StringData
 public:
     int m_refCount;  // +0x00
     int m_size;      // +0x04（含结尾 0 的字节数 / 宽字符 x4）
+    char m_buf[0];   // +0x08 柔性缓冲（getBuffer）
 
     static StringData* create(int size);
     void incRef();

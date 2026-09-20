@@ -16,6 +16,7 @@ DB_Login::RV_GetGameDBCharacInfo DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* 
     }
     if (db->get_n_rows() == 0)
     {
+        cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)("[DNF-DIAG CHARVIEW] no row m_id=%d", sig->m_accId);
         return 1;
     }
     if (!db->fetch())
@@ -71,5 +72,13 @@ DB_Login::RV_GetGameDBCharacInfo DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* 
             sig->m_characCount += 1;
         }
     }
+    // [DNF-DIAG CHARVIEW] login char view load result
+    cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+        "[DNF-DIAG CHARVIEW] m_id=%d count=%d slot0_no=%d slot0_lv=%u cur=%u max=%u",
+        sig->m_accId, sig->m_characCount,
+        sig->m_characView.m_slots[0].m_characNo,
+        (unsigned)sig->m_characView.m_slots[0].m_level,
+        (unsigned)sig->m_characSlotCurCount,
+        (unsigned)sig->m_characSlotMaxCount);
     return 0;
 }

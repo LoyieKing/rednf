@@ -188,16 +188,7 @@
 #include "../../../shared/packet/include/Packet_Forbid_Chat_By_Monitor.h"   // ORIG 真类（W ctor 0x0822bc70，case5 禁言）
 
 #pragma pack(push, 1)
-struct ScrMsgView
-{
-    char m_head[0xd];              // MSG_BASE（0xd 字节）
-    unsigned char m_secuType;      // +0x0d（0=安全卡、1=密保卡 pad）
-    unsigned char m_cryptoType;    // +0x0e（check_error：非 0、<=0xd、!=5）
-    char m_data[0x1000];           // +0x0f 密文区（get_binary 读 m_dataLen 字节）
-    int m_dataLen;                 // +0x100f（ORIG 紧凑布局：0xf+0x1000=0x100f；
-                                   //   缺 pack(1) 时 int 对齐把 m_dataLen 推至 0x1010）
-    unsigned char m_answerType;    // +0x1013
-};
+typedef MSG_SECU_RPY ScrMsgView;
 
 #pragma pack(pop)
 #include "PacketDispatcher_Secu/read_321.inc"

@@ -62,8 +62,9 @@ int DisPatcher_SelectCharac::check_error(CUser* user, MSG_BASE& msg)
     // （我方原 `!A && !B` 德摩根形多发两条 `xor $1`，ORIG 无 xor）。
     // [H5 核账 2026-09-11] ours_insns 270→270（verdict 未变）：4.4 对 `!(A||B)` 与
     // `!A && !B` 恒产同一序列（短路后统一 `xor $1` 取反）⇒ 中性。语义等价（德摩根），保留。
-    if (!(CSyncSlangFilter::GetInstance()->HasSlangName(local_38) ||
-          CSyncSlangFilter::GetInstance()->HasSlang(local_38)))
+    // ORIG 0x081c6a85 test al; je continue; ebx=0x9f — 有 slang 才拒
+    if (CSyncSlangFilter::GetInstance()->HasSlangName(local_38) ||
+        CSyncSlangFilter::GetInstance()->HasSlang(local_38))
     {
         return 0x9f;
     }

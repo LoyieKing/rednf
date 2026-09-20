@@ -118,7 +118,7 @@ struct _ReqAdvanceAltarSetSlot : public STBaseRequest
     bool m_bSet;                  // +0x14（setSlot 调用 objdump 0x0814011b movzbl+
                                   //  movzbl %al 双零扩展 = bool 成员 load→arg 形态）
     char m_pad15[3];
-    unsigned char m_slot[12];     // +0x18（_SetSlotData）
+    union { unsigned char m_slot[12]; _SetSlotData m_slotData; }; // +0x18
 
     _ReqAdvanceAltarSetSlot();    // memset K=0x24 == sizeof
 };
@@ -214,8 +214,8 @@ struct _ReqAdvanceAltarExchangeSlot : public STBaseRequest
     char m_pad10[3];
     int m_field10;                // +0x10
     char m_pad14[4];              // +0x14（语义未知；slot 区自 +0x18 起）
-    unsigned char m_slot1[12];    // +0x18
-    unsigned char m_slot2[12];    // +0x24
+    union { unsigned char m_slot1[12]; _SetSlotData m_slotData1; }; // +0x18
+    union { unsigned char m_slot2[12]; _SetSlotData m_slotData2; }; // +0x24
 
     _ReqAdvanceAltarExchangeSlot();  // memset K=0x30 == sizeof
 };

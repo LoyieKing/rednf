@@ -2,6 +2,6 @@ void CUserCharacInfo::resetCurUseBringUpMaterialCount()
 {
     if (m_selected)
     {
-    CUR->m_curUseBringUpMaterialCount = 0;
+    m_selected->m_pad1279 = 0;
     }
 }

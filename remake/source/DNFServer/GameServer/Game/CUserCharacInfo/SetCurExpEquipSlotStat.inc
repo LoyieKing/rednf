@@ -2,6 +2,6 @@ void CUserCharacInfo::SetCurExpEquipSlotStat(char stat)
 {
     if (m_selected)
     {
-    CUR->m_curExEquipSlotStat = stat;
+    m_selected->m_field123e = stat;
     }
 }

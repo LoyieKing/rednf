@@ -2,6 +2,6 @@ void CUserCharacInfo::SetCurCharacAssaultFatigueCount(int count)
 {
     if (m_selected)
     {
-    CUR->m_assaultFatigueCount = count;
+    m_selected->m_fieldE6C = count;
     }
 }

@@ -1,5 +1,5 @@
 void CUserCharacInfo::getWpBonusPoint(WpBonusPointResult& out)
 {
     if (m_selected)
-        out = CUR->m_wpBonus;
+        out = m_selected->m_wpBonusPointResult;
 }

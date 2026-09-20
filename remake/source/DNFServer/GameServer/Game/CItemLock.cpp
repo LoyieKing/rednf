@@ -79,7 +79,11 @@ public:
     Inven_Item* GetCurCharacInventoryRef(unsigned short area,
                                          unsigned short slot); // ORIG 0x08680f2e
     void Send(PacketGuard& packet);                        // ORIG 0x086485ba
+    char m_layoutPad[0x79700];
+    cUserHistoryLog m_historyLog;                          // +0x79700
 };
+static_assert(__builtin_offsetof(CUser, m_historyLog) == 0x79700,
+              "CItemLock CUser m_historyLog offset");
 
 #include "CItemLock/GetInvenTypeFromItemSpace.inc"
 

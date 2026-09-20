@@ -630,7 +630,7 @@ struct _Charac_info
     int m_fieldE02;                   // +0xe02 ← Reset movl $0（R+0x116）
     int m_fieldE06;                   // +0xe06 ← Reset movl $0（R+0x14a）
     int m_fieldE0A;                   // +0xe0a ← Reset movl $0（R+0x157）
-    char m_dataE0E[0x14];             // +0xe0e ← Reset memset(0,0x14)（R+0x164）
+    float m_warAreaKill[5];           // +0xe0e（0x14；WarAreaKill 5×float）
     int m_fielde22;                   // +0xe22 ← CHARAC_DATA+0x00（data[0x5f]!=0 才写）
     int m_fieldE26;                   // +0xe26 ← Reset movl $0（R+0x181）
     int m_fieldE2A;                   // +0xe2a ← Reset movl $0（R+0x18e）
@@ -850,6 +850,28 @@ static_assert(__builtin_offsetof(_Charac_info, m_padEB5) == 0xeb5, "m_padEB5 @0x
 static_assert(__builtin_offsetof(_Charac_info, m_padEB6) == 0xeb6, "m_padEB6 @0xeb6");
 static_assert(__builtin_offsetof(_Charac_info, m_fieldEB7) == 0xeb7, "m_fieldEB7 @0xeb7");
 #endif  /* remake_verify */
+
+// Overlay CharacInfoFields must hit the same bytes as live _Charac_info members.
+// CUR-> / m_tag after SkillSlot (cargo, guild, cool/effect vectors, blood map,
+// skill-command map) go through this view.
+static_assert(sizeof(_Charac_info) == sizeof(CharacInfoFields),
+              "overlay size != live _Charac_info");
+static_assert(__builtin_offsetof(_Charac_info, m_curCharacInven) ==
+              __builtin_offsetof(CharacInfoFields, m_inven), "inven overlay");
+static_assert(__builtin_offsetof(_Charac_info, m_skillSlot) ==
+              __builtin_offsetof(CharacInfoFields, m_skill), "skill overlay");
+static_assert(__builtin_offsetof(_Charac_info, m_cargo) ==
+              __builtin_offsetof(CharacInfoFields, m_cargo), "cargo overlay");
+static_assert(__builtin_offsetof(_Charac_info, m_guildId) ==
+              __builtin_offsetof(CharacInfoFields, m_guildkey), "guild overlay");
+static_assert(__builtin_offsetof(_Charac_info, m_continuousItemListA) ==
+              __builtin_offsetof(CharacInfoFields, m_coolTimeItemList), "cool vector overlay");
+static_assert(__builtin_offsetof(_Charac_info, m_continuousItemListB) ==
+              __builtin_offsetof(CharacInfoFields, m_effectItemList), "effect vector overlay");
+static_assert(__builtin_offsetof(_Charac_info, m_bloodBestRecords) ==
+              __builtin_offsetof(CharacInfoFields, m_bloodBestMap), "blood map overlay");
+static_assert(__builtin_offsetof(_Charac_info, m_skillCommandsMap) ==
+              __builtin_offsetof(CharacInfoFields, m_skillCommand), "skill-command map overlay");
 
 
 // ---- 子对象最小类（尺寸按构造偏移推导；方法签名按 ORIG nm 核对） ----
@@ -1269,7 +1291,8 @@ public:
     // 返回 false；否则比较答案表 this+8[m_question3d*10+m_question3c] 等两元组。
     bool checkAnswer(unsigned char ansA, unsigned char ansB) const;   // 定义 W6_SecMiscDeps.cpp
 
-    char m_pad[0x2f];             // +0x00..0x2e（未命名前段，保持 CSecurityCard 真实偏移）
+    char m_pad0[8];               // +0x00..0x07
+    char m_serial[0x27];          // +0x08..0x2e（strncpy 0x27；checkAnswer 答案表）
     bool m_activate2f;              // +0x2f（isActivate；P33 bool 字段使 setter 生成 ORIG 形态）
     bool m_certified30;             // +0x30（isCertified；同上）
     char m_certFlag31;              // +0x31（getCertFlag/isCertFlagOn；ORIG setCertFlag
@@ -2646,7 +2669,9 @@ public:
     int m_humanCertifyTimerKey;                             // +0x8e0f8
     int m_humanCertifyErrorCnt;                             // +0x8e0fc
     bool m_humanCertified;                                  // +0x8e100（setHumanCertified/isHumanCertified）
-    char m_pad8e101[0x2ec];                                 // +0x8e101..0x8e3ec
+    char m_mailMsgData[0x145];                               // +0x8e101 MSG_MAILBOX_SEND
+    char m_multiMailMsgData[0x1a6];                          // +0x8e246 MSG_MULTI_MAILBOX_SEND
+    unsigned char m_multiMailFlag;                           // +0x8e3ec
     bool m_field8e3ed;                                      // +0x8e3ed
     WongWork::CMCAPManager m_mcap;                          // +0x8e3f0
     XNuclear::CHades m_hades;                               // +0x8e954

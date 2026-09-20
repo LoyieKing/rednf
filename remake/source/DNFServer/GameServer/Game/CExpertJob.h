@@ -51,8 +51,11 @@ struct MSG_STATIC_COMMAND
     {
         int m_value0e;
         unsigned int m_value0eU;
+        stItemPos_t m_pos0e;
     };
-};                               // sizeof 0x12（pack(1)）
+    unsigned char m_pad12;       // +0x12
+    stItemPos_t m_pos13;         // +0x13（OnTryEnchant 内联 stItemPos_t）
+};                               // 头 0x12 不变；+0x13 为更大命令缓冲上的具名尾
 #pragma pack(pop)
 #endif
 // ORIG _Z11EnableWorldPK5CItemS1_ T 0x0849d768（全局自由函数；Enchanter 附魔

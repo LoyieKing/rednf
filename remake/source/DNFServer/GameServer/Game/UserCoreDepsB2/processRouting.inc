@@ -145,8 +145,7 @@ void CSpecialItemRoutingManager::processRouting(CParty* party)
                     // m_stageData.m_itemMap 位于 CBossTower+0xa18
                     // （CBossStage+0x9f4 的 MapInfo +0x24）。CBossStage 后段字段
                     // 为 private 且无具名访问器，按既有 TU 惯例以地址访问。
-                    ((std::map<int, map_item>*)((char*)tower + 0xa18))
-                        ->erase(routingUniqueId);
+                    tower->stageItemMap().erase(routingUniqueId);
                 }
             }
             if (0 < deleteResult)

@@ -190,11 +190,7 @@ static_assert(sizeof(DB_AvatarOptionChangeView) == 0xc,
 // ---- DB_CreateAccountCargo::dispatch 回包视图（SIG_CREATE_ACCOUNT_CARGO_RESULT 0x8）----
 // ORIG 0x843ac52：memset 0x8 清零；成功写 +0x00=0x0、+0x04=capacity(uint)；
 // 已存在写 +0x00=0x14（movb）；回包经 MsgQueueMgr::put(DISPATCH_Q) 出队。
-struct DB_AccountCargoResultView
-{
-    unsigned char m_result;     // +0x00（0x0 创建成功 / 0x14 已存在）
-    unsigned int m_capacity;    // +0x04
-};
+typedef SIG_CREATE_ACCOUNT_CARGO_RESULT DB_AccountCargoResultView;
 
 // ---- DB_SaveRedeemItemList::dispatch 载荷视图（SIG_REDEEMINFO_LIST_TO_DB 0x59c）----
 // ORIG 0x840e074：仅读 +0x00 characNo(uint，SQL charac_no=%u)；压缩源为
@@ -339,19 +335,7 @@ struct DB_SaveRankStatsView   // sig + i*0x50 + 0x40 起
 // 写侧 CUserOnlyOrig.cpp UpdateDimensionInout：memset 0x10 后 +0x00=characNo、
 // +0x04..+0x09=6×dungeon byte、+0x0c=blood dungeon1、+0x0d/+0x0e=两保存标志。
 // ORIG dispatch 0x843230a 逐字节 movsbl 符号扩展读 dungeon（SQL %d）。
-#pragma pack(push, 1)
-struct DB_UpdateDimensionView
-{
-    unsigned int m_characNo;      // +0x00
-    signed char m_dungeon[6];     // +0x04..+0x09
-    char m_pad0a;                 // +0x0a
-    char m_pad0b;                 // +0x0b
-    signed char m_bloodDungeon1;  // +0x0c
-    char m_dimensionInoutSave;    // +0x0d（非 0 走 charac_dimension_inout）
-    char m_bloodInoutSave;        // +0x0e（非 0 走 charac_blood_inout）
-    char m_pad0f;                 // +0x0f
-};
-#pragma pack(pop)
+typedef SIG_UPDATE_DIMENSION DB_UpdateDimensionView;
 static_assert(sizeof(DB_UpdateDimensionView) == 0x10,
               "DB_UpdateDimensionView ABI drift");
 
@@ -398,15 +382,7 @@ struct DB_AvatarChangeStatIn
 // ---- DB_ForbidUserToPlay 的 SIG_FORBID_USER_TO_PLAY 载荷视图（SIG m_pad[0x9]）----
 // 写侧 Dispatchers.cpp gm_pkt::SigForbidPlayBody：memset 9B 后 +0x00=characNo、
 // +0x04=flag byte、+0x05=days int。ORIG dispatch 0x8421af4 逐字段读。
-#pragma pack(push, 1)
-struct DB_ForbidUserToPlayView
-{
-    int m_characNo;           // +0x00
-    bool m_flag;              // +0x04（ORIG 0x8421b45 movzbl 单字节装载 +
-                              // `mov %al,-0xd` 直存，bool 形无 setne 归一）
-    int m_days;               // +0x05
-};
-#pragma pack(pop)
+typedef SIG_FORBID_USER_TO_PLAY DB_ForbidUserToPlayView;
 static_assert(sizeof(DB_ForbidUserToPlayView) == 9,
               "DB_ForbidUserToPlayView ABI drift");
 
@@ -424,33 +400,11 @@ struct DB_SaveRankSigView
 // ORIG 0x8418032 逐偏移读：+0x00 gc_no / +0x04(short 符号扩展) gc_now /
 // +0x06 swordman / +0x0a fighter / +0x0e gunner / +0x12 mage / +0x16 priest /
 // +0x1a at_gunner / +0x1e thief / +0x32 hangame / +0x36 nexon。
-#pragma pack(push, 1)
-struct DB_UpdateChannelView
-{
-    int m_gcNo;              // +0x00 gc_no
-    short m_gcNow;           // +0x04 gc_now（cwtl 符号扩展）
-    int m_swordmanCnt;       // +0x06
-    int m_fighterCnt;        // +0x0a
-    int m_gunnerCnt;         // +0x0e
-    int m_mageCnt;           // +0x12
-    int m_priestCnt;         // +0x16
-    int m_atGunnerCnt;       // +0x1a
-    int m_thiefCnt;          // +0x1e
-    char m_pad22[0x10];      // +0x22..+0x31
-    int m_hangame;           // +0x32
-    int m_nexon;             // +0x36
-};
-#pragma pack(pop)
+typedef SIG_UPDATE_CHANNEL DB_UpdateChannelView;
 
 // ---- DB_UpdateGrowType::UpdateGrowType 的 SIG_UPDATE_GROWTYPE 字段视图 ----
 // ORIG 0x84181ea：+0x00 charac_no / +0x04 grow_type（movsbl 符号扩展）。
-#pragma pack(push, 1)
-struct DB_UpdateGrowTypeView
-{
-    unsigned int m_characNo;    // +0x00
-    signed char m_growType;     // +0x04（movsbl）
-};
-#pragma pack(pop)
+typedef SIG_UPDATE_GROWTYPE DB_UpdateGrowTypeView;
 
 // ---- DB_UpdateNatType::dispatch 的 SIG_NAT_TYPE 字段视图 ----
 // ORIG 0x841c74e：+0x00 nat_type / +0x04 nat_type_other / +0x08 fail_cnt /
@@ -495,27 +449,10 @@ struct DB_AvatarInsertView
 #pragma pack(pop)
 
 // ---- DB_SaveDungeonClear 的 SIG_SAVE_DUNGEON_CLEAR 字段视图（ORIG 0x841a0a6
-#pragma pack(push, 1)
-struct DB_SaveDungeonClearView
-{
-    char m_pad0[0x4];
-    int m_mId;                 // +0x04
-    char m_pad8[0x4];
-    // ORIG 0x0841a0xx：调用点传 sig+0xc 地址（`mov 0xc(%ebp),%edx; add
-    // $0xc,%edx` / `lea 0xc(%eax),%ebx` 两形并存），非解引用 ⇒ +0xc 为
-    // 线格式内联串（char 数组），此前按 char* 解引用读值属语义错位。
-    char m_dungeon[0x1800];    // +0x0c（串内容，总包 0x180c）
-};
-#pragma pack(pop)
+typedef SIG_SAVE_DUNGEON_CLEAR DB_SaveDungeonClearView;
 // ---- DB_UpdateItemLock::dispatch 的 SIG_ITEM_LOCK_UPDATE 视图 ----
 // ORIG 0x843993a：+0x00 charac_no（%u）、+0x04 起 800 字节压缩源（全长 0x324）。
-#pragma pack(push, 1)
-struct DB_UpdateItemLockView
-{
-    int m_characNo;          // +0x00
-    char m_lockData[0x320];  // +0x04..+0x323（compress_zip 源，800 字节）
-};
-#pragma pack(pop)
+typedef SIG_ITEM_LOCK_UPDATE DB_UpdateItemLockView;
 // ---- DB_SaveAchievement::dispatch 的 stAchievement_DBSaveData 字段视图 ----
 // ORIG 0x840deaa：+0x00 起 0x1800 字节压缩源（m_data 段），+0x1808 charac_no（%u）。
 #pragma pack(push, 1)
@@ -541,19 +478,7 @@ struct DB_ContinuousItemStatView
 // ---- DB_SaveAccountInfo::dispatch 的 SIG_SAVE_ACCOUNT_INFO 字段视图 ----
 // ORIG 0x8432646：+0x00 m_id(uint) / +0x04 pcbang_flag(byte) / +0x08
 // last_play_time(uint) / +0x1c ip / +0x28 end_ip / +0x2c mac_addr。
-#pragma pack(push, 1)
-struct DB_SaveAccountInfoView
-{
-    unsigned int m_mId;          // +0x00（NumberToString %s）
-    unsigned char m_pcbangFlag;  // +0x04（%d movzbl）
-    char m_pad05[3];             // +0x05..+0x07
-    unsigned int m_lastPlayTime; // +0x08（%u）
-    char m_pad0c[0x10];          // +0x0c..+0x1b
-    char m_ip[12];               // +0x1c..+0x27
-    char m_endIp[4];             // +0x28..+0x2b
-    char m_macAddr[0x10];        // +0x2c..+0x3b
-};
-#pragma pack(pop)
+typedef SIG_SAVE_ACCOUNT_INFO DB_SaveAccountInfoView;
 
 // ---- DB_SaveTitleBook::dispatch 的 stTitleBook_Save 头视图 ----
 // ORIG 0x840db00：charac_no 位于 +0x6b3a（pack(1)，0x6b3a % 4 == 2）；
@@ -659,15 +584,7 @@ namespace OS_API
 // ---- DB_UpdateDetailChannel::dispatch 的 SIG_UPDATE_DETAIL_CHANNEL 视图 ----
 // ORIG 0x841bcee 逐偏移读 +0x00/+0x04/+0x08/+0x0c 四个 int（SQL 实参序
 // occ_time/player_status/dungeon_index/channel_no/occ_count；cMyTrace 同序）。
-#pragma pack(push, 1)
-struct DB_UpdateDetailChannelView
-{
-    int m_playerStatus;    // +0x00
-    int m_dungeonIndex;    // +0x04
-    int m_channelNo;       // +0x08
-    int m_occCount;        // +0x0c
-};
-#pragma pack(pop)
+typedef SIG_UPDATE_DETAIL_CHANNEL DB_UpdateDetailChannelView;
 static_assert(sizeof(DB_UpdateDetailChannelView) == 0x10,
               "DB_UpdateDetailChannelView ABI drift");
 
@@ -676,21 +593,7 @@ static_assert(sizeof(DB_UpdateDetailChannelView) == 0x10,
 // +0x08 kind(byte) / +0x09 message_index(byte) / +0x0c message 长度(int) /
 // +0x10 message[0x34] / +0x44 charac_name 长度(int) / +0x48 charac_name[0x14] /
 // +0x5c update_time(int)，sizeof 0x60（memset/GetInBuffer 尺寸实证）。
-#pragma pack(push, 1)
-struct DB_UpdateServerMessageView
-{
-    int m_serverInfo;          // +0x00
-    int m_channelNo;           // +0x04
-    unsigned char m_kind;      // +0x08
-    unsigned char m_messageIndex;  // +0x09
-    char m_pad0a[2];           // +0x0a..+0x0b
-    int m_messageLen;          // +0x0c
-    char m_message[0x34];      // +0x10
-    int m_characNameLen;       // +0x44
-    char m_characName[0x14];   // +0x48
-    int m_updateTime;          // +0x5c
-};
-#pragma pack(pop)
+typedef SIG_UPDATE_SERVER_MESSAGE DB_UpdateServerMessageView;
 static_assert(sizeof(DB_UpdateServerMessageView) == 0x60,
               "DB_UpdateServerMessageView ABI drift");
 
@@ -765,15 +668,7 @@ public:
 // ---- DB_UpdateLogin 的 SIG_UPDATE_LOGIN 载荷视图（SIG m_pad[0x20]，pack(1)）----
 // +0x08=serverGroup（DB_Login.cpp 写 SGF<short>(sig,0x3a38) 转 int，集成 PvP
 // 时作 login_account_%d 表号）；+0x0c 起 login_ip 字符串。
-#pragma pack(push, 1)
-struct DB_UpdateLoginView
-{
-    unsigned int m_accId;      // +0x00（NumberToString %s m_id）
-    int m_channelNo;           // +0x04（SQL m_channel_no）
-    int m_serverGroup;         // +0x08（集成 PvP 时 login_account_%d 表号）
-    char m_loginIp[0x14];      // +0x0c（SQL login_ip）
-};
-#pragma pack(pop)
+typedef SIG_UPDATE_LOGIN DB_UpdateLoginView;
 static_assert(sizeof(DB_UpdateLoginView) == 0x20,
               "DB_UpdateLoginView ABI drift");
 class DB_UpdateLogin : public DBDispatcher
@@ -844,18 +739,7 @@ public:
 // SIG_AVATAR_MOVE（sizeof 0x16，SigTypes_E.h m_pad 占位）字段视图：
 // ORIG MoveAvatarItem 0x84003ca 逐偏移读 +0x04/+0x08(int ui_id)、
 // +0x0c/+0x0d(byte slot)、+0x0e/+0x12(int clear_avatar_id)。
-#pragma pack(push, 1)
-struct DB_AvatarMoveView
-{
-    char m_pad0[4];             // +0x00
-    int m_uiId0;                // +0x04
-    int m_uiId1;                // +0x08
-    unsigned char m_slot1;      // +0x0c
-    unsigned char m_slot0;      // +0x0d
-    int m_clearAvatarId0;       // +0x0e
-    int m_clearAvatarId1;       // +0x12
-};
-#pragma pack(pop)
+typedef SIG_AVATAR_MOVE DB_AvatarMoveView;
 class DB_AvatarItemMove : public DBDispatcher
 {
 public:
@@ -1792,13 +1676,7 @@ public:
     virtual bool dispatch(int userIdx, int slot, Stream* stream);
 };
 // ---- DB_U3.cpp 派发族载荷视图（本 TU 复写弱镜像真实体所需；与 DB_U3.cpp 定义逐字一致）----
-struct DBU3UnlimitIn
-{
-    unsigned int m_accId;       // +0x00
-    int m_serverId;             // +0x04
-    int m_characNo;             // +0x08
-    char m_name[0x1d];          // +0x0c
-};
+typedef SIG_INSERT_UNLIMIT_SUPPORT_LOG DBU3UnlimitIn;
 struct DBU3AchieveIn
 {
     unsigned int m_accId;                                     // +0x00
@@ -1819,12 +1697,7 @@ struct DBU3AccountHackIn
     char m_name[0x1d];       // +0x08
     unsigned int m_money;    // +0x25
 };
-struct DBU3AccountHackOut
-{
-    unsigned int m_a;        // +0x00
-    unsigned int m_money;    // +0x04
-    unsigned int m_id;       // +0x08
-};
+typedef SIG_CHECK_MY_ACCOUNT_OK DBU3AccountHackOut;
 #pragma pack(pop)
 class DB_Insert0712WinterEventCoupon : public DBDispatcher { public: DB_Insert0712WinterEventCoupon() {}
     // 弱定义发 vtable；真实强定义在 DB_U3.cpp。ORIG 0x0842e45e（T, sz 0x1ea）真实体在本 TU
@@ -2515,49 +2388,18 @@ public:
 // （SigTypes_D.h m_pad[0x44] 占位；ORIG dispatch 0x843ccf2 逐偏移读：
 // +0x00 guild_name（guild_info WHERE）/+0x18 charac_no(uint)/+0x1c m_id(uint)
 // /+0x20 server_group(uint)/+0x24 born_year('%s')/+0x27 memo(escape 源)）。
-#pragma pack(push, 1)
-struct DB_RequestJoinGuildInView
-{
-    char m_guildName[0x16];      // +0x00
-    char m_pad[2];               // +0x16..+0x17
-    unsigned int m_characNo;     // +0x18
-    unsigned int m_mId;          // +0x1c
-    unsigned int m_serverGroup;  // +0x20
-    char m_bornYear[3];          // +0x24..+0x26
-    char m_memo[0x1d];           // +0x27..+0x43
-};
-#pragma pack(pop)
-static_assert(sizeof(DB_RequestJoinGuildInView) == 0x44, "DB_RequestJoinGuildInView ABI drift");
+typedef SIG_REQUEST_JOIN_GUILD DB_RequestJoinGuildInView;
 // SIG_REQUEST_JOIN_GUILD_DB_REPLY（0x48，自然对齐，不可 pack(1)，同
 // DB_JoinGuildInfoView）：+0x00 flag(uint)/+0x04 guild_id(uint)/
 // +0x08 master_name[0x1e]/+0x26 guild_name[0x17]/+0x40 lev(int)/
 // +0x44 member_count(int)。
-struct DB_RequestJoinGuildReplyView
-{
-    unsigned int m_flag;         // +0x00
-    unsigned int m_guildId;      // +0x04
-    char m_masterName[0x1e];     // +0x08
-    char m_guildName[0x17];      // +0x26
-    int m_lev;                   // +0x40
-    int m_memberCount;           // +0x44
-};
-static_assert(sizeof(DB_RequestJoinGuildReplyView) == 0x48, "DB_RequestJoinGuildReplyView ABI drift");
+typedef SIG_REQUEST_JOIN_GUILD_DB_REPLY DB_RequestJoinGuildReplyView;
 // SIG_JOIN_GUILD_INFO（sizeof 0x64，SigTypes_B.h m_pad 占位）字段视图：
 // ORIG dispatch 0x843d286 逐偏移（自然 4 字节对齐布局：flag 后 3 字节 pad）：
 // +0x00 byte flag（get_n_rows==0 写 0，成功写 1）、+0x04 uint guild_id /
 // +0x08 char master_name[0x1e] / +0x26 char guild_name[0x17] / +0x40 int lev /
 // +0x44 int member_count / +0x48 char memo[0x1a]。不可 pack(1)（会偏移至 +0x01）。
-struct DB_JoinGuildInfoView
-{
-    unsigned char m_flag;              // +0x00
-    unsigned char m_pad1[3];           // +0x01..+0x03
-    unsigned int m_guildId;            // +0x04
-    char m_masterName[0x1e];           // +0x08
-    char m_guildName[0x17];            // +0x26
-    int m_lev;                         // +0x40
-    int m_memberCount;                 // +0x44
-    char m_memo[0x1a];                 // +0x48
-};
+typedef SIG_JOIN_GUILD_INFO DB_JoinGuildInfoView;
 class DB_JoinGuildInfo : public DBDispatcher
 {
 public:
@@ -3349,15 +3191,7 @@ struct DB_SaveSkillCharacView
 
 // SIG_DELETE_CHANNEL 该段声明为 m_pad[0xc]，此处视图具名
 // （game_channel.gc_no / 分组号）。
-#pragma pack(push, 1)
-struct DB_DeleteChannelView
-{
-    int m_gcNo;       // +0x000（game_channel.gc_no）
-    // +0x004：ORIG 0x84029ae `mov 0x4(%eax),%edx` 单步直落 ⇒ 字段与形参
-    // 同型（ENUM_SERVER_GROUP）；int 字段 + cast 恒产 `%eax` 中转双 mov（P254）。
-    ENUM_SERVER_GROUP m_field4;
-};
-#pragma pack(pop)
+typedef SIG_DELETE_CHANNEL DB_DeleteChannelView;
 
 #include "W8LT_DBTask/dispatch_11.inc"
 
@@ -3379,22 +3213,7 @@ struct DB_DeleteChannelView
 // SIG_INSERT_CHANNEL 该段声明为 m_pad[0x5c]，此处视图具名
 // （game_channel.gc_no/gc_ip/gc_port/gc_max/gc_game/gc_channel/gc_ch_group/
 //  gc_channeltype/gc_type + 选库 serverGroup；偏移全照 ORIG 汇编 0x8403734）。
-#pragma pack(push, 1)
-struct DB_InsertChannelView
-{
-    int m_gcNo;                  // +0x00（values %d / where gc_no）
-    char m_pad4[2];              // +0x04
-    char m_gcIp[0x10];           // +0x06（'%s'）
-    unsigned short m_gcPort;     // +0x16（movzwl 零扩展）
-    short m_gcMax;               // +0x18（movswl 符号扩展）
-    char m_gcGame;               // +0x1a（movsbl 符号扩展）
-    char m_gcChannel[0x1e];      // +0x1b（'%s'）
-    short m_gcChGroup;           // +0x39（cwtl 符号扩展）
-    char m_gcChanneltype[0x19];  // +0x3b（'%s'）
-    int m_gcType;                // +0x54（%d）
-    ENUM_SERVER_GROUP m_serverGroup;  // +0x58（GetDBHandle 第3参）
-};
-#pragma pack(pop)
+typedef SIG_INSERT_CHANNEL DB_InsertChannelView;
 
 #include "W8LT_DBTask/dispatch_12.inc"
 
@@ -3409,13 +3228,7 @@ struct DB_InsertChannelView
 
 // SIG_INSERT_TICKET 该段声明为 m_pad[0x8]，此处视图具名
 // （village_ticket 的 charac_no / ticket 类型）。
-#pragma pack(push, 1)
-struct DB_InsertTicketView
-{
-    unsigned int m_village;   // +0x000（inSert village_ticket %u）
-    int m_field4;             // +0x004（%d）
-};
-#pragma pack(pop)
+typedef SIG_INSERT_TICKET DB_InsertTicketView;
 
 #include "W8LT_DBTask/dispatch_13.inc"
 
@@ -3577,17 +3390,7 @@ static_assert(sizeof(DBTask) == 4 + 852 * 4,     // = 0xd54
 // ---- SIG_HADES_PUNISH（0x24）字段视图（makeRequest 0x08445dd4 写入
 // +0x00..+0x10 五 uint + strcpy +0x14；dispatch 0x08445aa6 读
 // m_id/punish_type/days/apply_flag）----
-#pragma pack(push, 1)
-struct DB_HadesPunishView
-{
-    unsigned int m_mId;        // +0x00
-    unsigned int m_punishType; // +0x04
-    unsigned int m_days;       // +0x08
-    unsigned int m_applyFlag;  // +0x0c
-    unsigned int m_field10;    // +0x10（makeRequest 第五实参 e）
-    char m_msg[0x10];          // +0x14（strcpy(msg)，0x14..0x23 尾区）
-};
-#pragma pack(pop)
+typedef SIG_HADES_PUNISH DB_HadesPunishView;
 #include "W8LT_DBTask/makeRequest_22.inc"
 
 
@@ -4144,10 +3947,10 @@ static_assert(sizeof(DB_SaveExpandCharacView) == 0x89c,
 // 寄存器分配（4.4 产 -0x15c 临时槽往返）；p167 29/29 [0缺0多]（C1/C2 同址
 // 别名）；语义逐块对照完整（set_query 实参序与 +0x10/+0x1c/+0x28/+0x38 偏移全等）。
 // ============================================================================
+#include "../../../shared/packet/include/PacketHeader.h"
 #pragma pack(push, 1)
-struct DB_UpdatePvPResultHeadView      // 载荷 +0x00 起
+struct DB_UpdatePvPResultHeadView : PacketHeader  // 载荷 +0x00 起
 {
-    char m_pad0[0x0a];
     int m_eloK;                        // +0x0a
     unsigned char m_eloSys;            // +0x0e
     unsigned char m_count;             // +0x0f
@@ -4458,15 +4261,7 @@ static_assert(sizeof(Inven_Item) == 0x3d,
 // SIG_HACK_IP_SAVE（0x28）字段视图。W7LinkDB.cpp 填充：strncpy(+0x00,startIp,
 // 0xd) 作 c_class_ip；strncpy(+0x0d,rawIp,0x10) 作 full_ip；+0x20=hack_type、
 // +0x24=hack_sub_type（ORIG 0x8436df2 逐偏移读）。
-#pragma pack(push, 1)
-struct DB_HackIPSaveView
-{
-    char m_classIp[0xd];   // +0x00（c_class_ip）
-    char m_fullIp[0x13];   // +0x0d（full_ip）
-    int m_hackType;        // +0x20
-    int m_hackSubType;     // +0x24
-};                         // 0x28
-#pragma pack(pop)
+typedef SIG_HACK_IP_SAVE DB_HackIPSaveView;
 
 #include "W8LT_DBTask/dispatch_55.inc"
 
@@ -4827,20 +4622,13 @@ struct DB_CDataManagerBlkView
 // get_compressed_blob_data(col2,0x210,0x16) → put 返 1。buf 两次 memset 语句
 // （ORIG gcc4.1 内联 rep stos；本工具链 gcc4.4 常 call memset，P4 工具链差异）。
 // ============================================================================
-#pragma pack(push, 1)
 // DB_LoadGameOption::dispatch 回包载荷视图（§4.3 裸偏移→具名字段）：
 // ORIG 0x0842f7f4 对 out+0x00/0x48/0x174/0x2a0 四子对象各 clear 一次，随后
 // uncompress_zip 目标 out+0x00(cap 0x48)/out+0x48(cap 600) 与
 // get_compressed_blob_data(col2, out+0x2a0, 0x210) —— 尺寸与 CGameOption.h
 // CETCOption(0x48)/CQuickChattingOption(0x12c)/CChattingEmoticonConfig(0x210)
 // 逐项吻合，合计 0x4b0 = sizeof(SIG_LOAD_GAME_OPTION)（SigTypes_C.h:644）。
-struct DB_GameOptionSigView
-{
-    CETCOption m_etc;                    // +0x000（0x48）
-    CQuickChattingOption m_quick[2];     // +0x048 / +0x174（0x12c×2 → +0x2a0）
-    CChattingEmoticonConfig m_emoticon;  // +0x2a0（0x210）
-};
-#pragma pack(pop)
+typedef SIG_LOAD_GAME_OPTION DB_GameOptionSigView;
 static_assert(sizeof(DB_GameOptionSigView) == 0x4b0,
               "DB_GameOptionSigView ABI drift");
 
@@ -5224,13 +5012,7 @@ struct DB_StatPVPPlay2RoomView
 // ---- SIG_LOAD_DNF_HACK_LOG 载荷视图（头为 m_pad[0x3cf4] 占位）----
 // ORIG 0x8422256 读 +0x00 m_id（uint）；0x842244b 写
 // +0x04+(hack_type-0x65)*4（hack_type 范围 0x65..0xfa0，0xf3c 项）。
-#pragma pack(push, 1)
-struct DB_DnfHackLogView
-{
-    unsigned int m_mId;         // +0x00
-    unsigned int m_cnt[0xf3c];  // +0x04（hack_type-0x65 索引）
-};
-#pragma pack(pop)
+typedef SIG_LOAD_DNF_HACK_LOG DB_DnfHackLogView;
 static_assert(sizeof(DB_DnfHackLogView) == 0x3cf4,
               "DB_DnfHackLogView ABI drift");
 
@@ -5245,13 +5027,7 @@ static_assert(sizeof(DB_DnfHackLogView) == 0x3cf4,
 // affected==0 时补 inSert（rej_ip/rej_c_code=sig+0x10）→ 恒返 1。
 // ============================================================================
 // ---- DB_WriteGeoReject::dispatch 的 SIG_SAVE_GEO_REJECT 字段视图 ----
-#pragma pack(push, 1)
-struct DB_GeoRejectView
-{
-    char m_rejIp[0x10];    // +0x00（upDate %s 直传 sig）
-    char m_rejCCode[0x10]; // +0x10（inSert 第二 %s，ORIG decay lea 0x10）
-};
-#pragma pack(pop)
+typedef SIG_SAVE_GEO_REJECT DB_GeoRejectView;
 
 #include "W8LT_DBTask/dispatch_106.inc"
 
@@ -5289,23 +5065,9 @@ struct DB_GeoRejectView
 // ============================================================================
 // SIG_CHECK_CHARAC_NAME 协议视图（+0x00=accId、+0x04=char_name 串、
 // +0x22=写入方附加字节；ORIG 0x0844317e 逐偏移读）。
-#pragma pack(push, 1)
-struct DB_CheckCharacNameView
-{
-    unsigned int m_mId;        // +0x00（与查询 m_id 比较）
-    char m_charName[0x1e];     // +0x04（SQL %s）
-    unsigned char m_byte22;    // +0x22（回包 out[1]）
-    unsigned char m_pad23;     // +0x23（对齐，未用）
-};
-#pragma pack(pop)
+typedef SIG_CHECK_CHARAC_NAME DB_CheckCharacNameView;
 // SIG_GOLD_CONTROL_EXCEPTION_MID（2 字节）回包视图。
-#pragma pack(push, 1)
-struct DB_ExceptionMidView
-{
-    unsigned char m_flag;      // +0x00
-    unsigned char m_char;      // +0x01
-};
-#pragma pack(pop)
+typedef SIG_GOLD_CONTROL_EXCEPTION_MID DB_ExceptionMidView;
 
 #include "W8LT_DBTask/dispatch_114.inc"
 
@@ -5331,10 +5093,7 @@ struct DB_SecuRewardSigView
     unsigned int m_mId;     // +0x00
     unsigned int m_param4;  // +0x04
 };
-struct DB_SecuRewardOutView
-{
-    unsigned int m_reward;  // +0x00
-};
+typedef SIG_SEND_USER_REWARD DB_SecuRewardOutView;
 #pragma pack(pop)
 #include "W8LT_DBTask/dispatch_115.inc"
 
@@ -5509,30 +5268,14 @@ struct DB_SecuRewardOutView
 // ---- DB_RemoveEventItem::dispatch 载荷视图（SIG_REMOVE_EVENTITEM 共享头
 // 仅 m_pad[0x18] 占位；ORIG 0x841ab30 循环 `mov 0x4(%eax,%edx,4),%eax`
 // 步长 4 读 +0 计数、+4 起 uint 数组）----
-#pragma pack(push, 1)
-struct DB_RemoveEventItemView
-{
-    int m_count;           // +0x00（cmp/setg 带符号循环界）
-    unsigned int m_ids[1]; // +0x04 起（可变长）
-};
-#pragma pack(pop)
+typedef SIG_REMOVE_EVENTITEM DB_RemoveEventItemView;
 
 #include "W8LT_DBTask/dispatch_120.inc"
 
 
 // ---- DB_SavePremiumInfo::dispatch 载荷视图（SIG_SAVE_PREMIUM_INFO 共享头
 // 仅 m_pad[0x18] 占位；ORIG 0x841b4be 逐偏移读六字段）----
-#pragma pack(push, 1)
-struct DB_SavePremiumInfoView
-{
-    unsigned int m_mId;          // +0x00（SQL %s 经 NumberToString(m_id,0)）
-    unsigned int m_preType;      // +0x04（%d）
-    unsigned int m_serviceStart; // +0x08（from_unixtime(%d)）
-    unsigned int m_serviceEnd;   // +0x0c
-    unsigned int m_eventId;      // +0x10
-    unsigned int m_serverId;     // +0x14
-};
-#pragma pack(pop)
+typedef SIG_SAVE_PREMIUM_INFO DB_SavePremiumInfoView;
 
 #include "W8LT_DBTask/dispatch_121.inc"
 
@@ -5543,16 +5286,7 @@ struct DB_SavePremiumInfoView
 // ---- DB_SelectCharacMid::dispatch 回包视图（SIG_CHECK_CHARAC_MID_RESULT
 // 共享头仅 m_pad[0x14] 占位；ORIG 0x8416516 写 +0x10=m_id、+0/+4/+8/+0xc
 // 复制输入）----
-#pragma pack(push, 1)
-struct DB_SelectCharacMidResultView
-{
-    unsigned int m_field00;  // +0x00
-    unsigned int m_field04;  // +0x04
-    unsigned int m_field08;  // +0x08
-    unsigned int m_field0c;  // +0x0c
-    unsigned int m_mId;      // +0x10（查询结果）
-};
-#pragma pack(pop)
+typedef SIG_CHECK_CHAR_MID_RESULT DB_SelectCharacMidResultView;
 static_assert(sizeof(DB_SelectCharacMidResultView) == 0x14,
               "DB_SelectCharacMidResultView ABI drift");
 
@@ -5618,55 +5352,7 @@ struct DB_LetterStatView
 // （channel_no=get_channel_no() 打头，occ_time 走 from_unixtime）→ exec(true)。
 // 无基类 dispatch 前置检查（ORIG 开头直接 GetDBHandle）。
 // ---- SIG_CIRCULATION_STATISTIC 载荷视图（ORIG 逐偏移读取的 35 字段）----
-#pragma pack(push, 1)
-struct DB_CirculationStatisticView
-{
-    int m_occTime;                // +0x00 occ_time
-    int m_level;                  // +0x04 level
-    int m_dungeonDrop;            // +0x08 dungeon_drop
-    int m_resultCard;             // +0x0c result_card
-    int m_sellStore;              // +0x10 sell_store
-    int m_questReward;            // +0x14 quest_reward
-    int m_deathTowerReward;       // +0x18 death_tower_reward
-    int m_illusionTowerReward;    // +0x1c illusion_tower_reward
-    int m_warAreaDrop;            // +0x20 war_area_drop
-    int m_memberTax;              // +0x24 member_tax
-    char m_pad28[0xc];            // +0x28..0x33（未读）
-    int m_bloodDungeonReward;     // +0x34 blood_dungeon_reward
-    char m_pad38[0x4];            // +0x38（未读）
-    int m_bloodDungeonLotto;      // +0x3c blood_dungeon_lotto
-    int m_powerDungeonDrop;       // +0x40 power_dungeon_drop
-    int m_powerDungeonResultCard; // +0x44 power_dungeon_result_card
-    char m_pad48[0x8];            // +0x48..0x4f（未读）
-    int m_buyStore;               // +0x50 buy_store
-    int m_staminaRecovery;        // +0x54 stamina_recovery
-    int m_repairItem;             // +0x58 repair_item
-    int m_privateStoreCommission; // +0x5c private_store_commission
-    int m_goldCard;               // +0x60 gold_card
-    char m_pad64[0x4];            // +0x64（未读）
-    int m_goldDrop;               // +0x68 gold_drop
-    int m_upgrade;                // +0x6c upgrade
-    int m_questUse;               // +0x70 quest_use
-    int m_mailCommission;         // +0x74 mail_commission
-    int m_punishUser;             // +0x78 punish_user
-    int m_restrictTrade;          // +0x7c restrict_trade
-    int m_guildLevelUp;           // +0x80 guild_level_up
-    int m_guildSkill;             // +0x84 guild_skill
-    int m_guildMail;              // +0x88 guild_mail
-    int m_itemCompound;         // +0x8c item_compound
-    char m_pad90[0x4];            // +0x90（未读）
-    // ORIG 实参写序（0x08432815-0x08432848 预读序 = 源码右→左评估逆推）：
-    // [..., item_compound, +0x9c, +0xa0, +0x94, +0x98, +0xa4, +0xa8] ⇒
-    // 列映射 blood_dungeon_enter←+0x9c、buy_cerashop←+0xa0、
-    // war_area_enter←+0x94、assault_gold←+0x98（原开发者列序，照抄）。
-    int m_warAreaEnter;           // +0x94 → war_area_enter 列
-    int m_assaultGold;            // +0x98 → assault_gold 列
-    int m_bloodDungeonEnter;      // +0x9c → blood_dungeon_enter 列
-    int m_buyCerashop;            // +0xa0 → buy_cerashop 列
-    int m_upgradeGuildAgit;       // +0xa4 upgrade_guild_agit
-    int m_upgradeGuildCargo;      // +0xa8 upgrade_guild_cargo
-};
-#pragma pack(pop)
+typedef SIG_CIRCULATION_STATISTIC DB_CirculationStatisticView;
 
 #include "W8LT_DBTask/dispatch_131.inc"
 
@@ -5764,10 +5450,7 @@ struct DB_CharacViewHeaderView
 // ---- DB_LoadCleanPadPoint::dispatch 的 SIG_LOAD_CLEANPAD_POINT 载荷视图 ----
 // SIG_LOAD_CLEANPAD_POINT（0x3cf0，SigTypes_C.h m_pad 占位）；ORIG 0x842ecf4
 // memset 0x3cf0 后按 (hack_type-0x65)*4 写 int value（hack_type ∈ (100,0xfa1)）。
-struct DB_CleanpadRatioView
-{
-    int m_value[0xf3c];   // +0x00（0x3cf0 / 4）
-};
+typedef SIG_LOAD_CLEANPAD_POINT DB_CleanpadRatioView;
 static_assert(sizeof(DB_CleanpadRatioView) == 0x3cf0,
               "DB_CleanpadRatioView ABI drift");
 
@@ -5777,11 +5460,7 @@ static_assert(sizeof(DB_CleanpadRatioView) == 0x3cf0,
 // ---- DB_LoadServerMessage::dispatch 的 SIG_SELECT_SERVER_MESSAGE 载荷视图 ----
 // SIG_SELECT_SERVER_MESSAGE（0x4，SigTypes_E.h m_pad 占位）；ORIG 0x8435ecc
 // 读 +0x00 server(ushort)/+0x02 channel(ushort) 作 SQL where 参数。
-struct DB_ServerMessageSelectView
-{
-    short m_server;    // +0x00（SQL server_info=%d）
-    short m_channel;   // +0x02（SQL channel_no=%d）
-};
+typedef SIG_SELECT_SERVER_MESSAGE DB_ServerMessageSelectView;
 static_assert(sizeof(DB_ServerMessageSelectView) == 4,
               "DB_ServerMessageSelectView ABI drift");
 
@@ -5832,22 +5511,8 @@ static_assert(sizeof(DB_BestClearTimeView) == 0x5dc8,
 // 头部 +0x00 baseSec(time_t)、+0x04 count；行数组 @+8 步长 0x14：
 // {+0x00 id; +0x04 count; +0x08 bytesLow; +0x0c bytesHigh; +0x10 avgRounded}
 // （与 MessageCounter.cpp 写入视图同布局；dispatch 只读不写）。
-#pragma pack(push, 1)
-struct DB_ResponseTimeEntryView
-{
-    unsigned int m_id;          // +0x00 packet_id
-    unsigned int m_count;       // +0x04 packet_count
-    unsigned int m_bytesLow;    // +0x08 total_response_time 低 32 位
-    unsigned int m_bytesHigh;   // +0x0c total_response_time 高 32 位
-    unsigned int m_avg;         // +0x10 avg_response_time
-};
-struct DB_ResponseTimeSigView
-{
-    int m_baseSec;              // +0x00 occ_time
-    int m_count;                // +0x04 行数
-    DB_ResponseTimeEntryView m_entries[100];   // +0x08..+0x7d7
-};
-#pragma pack(pop)
+typedef SIG_INSERT_RESPONSE_TIME_ENTRY DB_ResponseTimeEntryView;
+typedef SIG_INSERT_RESPONSE_TIME DB_ResponseTimeSigView;
 static_assert(sizeof(DB_ResponseTimeSigView) == 0x7d8,
               "DB_ResponseTimeSigView ABI drift vs SIG_INSERT_RESPONSE_TIME");
 
@@ -5927,15 +5592,7 @@ enum ENUM_SECURITYCARD_MOD_TYPE
 // ---- DB_UpdateBloodBestRecord / DB_UpdateBoosterGageData 载荷视图 ----
 // （SigTypes_E.h 为 m_pad 占位；ORIG dispatch 逐偏移读取，字段名与
 // CUserMissingA2.cpp/CBoosterGage.cpp 写入端一致。）
-#pragma pack(push, 1)
-struct DB_BloodBestRecordView
-{
-    unsigned int m_characNo;    // +0x00（SQL charac_no）
-    unsigned int m_bestTime;    // +0x04（SQL best_time）
-    int m_bestRound;            // +0x08（SQL best_round）
-    int m_dungeonIndex;         // +0x0c（SQL dungeon_index）
-};
-#pragma pack(pop)
+typedef SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD DB_BloodBestRecordView;
 static_assert(sizeof(DB_BloodBestRecordView) == 0x10,
               "DB_BloodBestRecordView ABI drift");
 
@@ -6249,17 +5906,7 @@ static_assert(sizeof(DB_ItemMakingSkillView) == 0x1a,
 // SigInsertServerLoadStatisticView 同布局：+0 serverGroup、+1 channelNo、
 // +2/+4/+6/+8 short 计数；ORIG dispatch 0x08436ad4 前两参 movsbl 符号
 // 扩展，故用 signed char）----
-#pragma pack(push, 1)
-struct DB_ServerLoadStatView
-{
-    signed char m_serverGroup;    // +0x00（SQL server_id=%d，(int)*(char*)）
-    signed char m_channelNo;      // +0x01（SQL channel_no=%d）
-    short m_dbqCnt;               // +0x02
-    short m_logdbqCnt;            // +0x04
-    short m_netqCnt;              // +0x06
-    short m_packetqCnt;           // +0x08（ORIG +0x72 起 edi←movzwl 0x8）
-};
-#pragma pack(pop)
+typedef SIG_INSERT_SERVER_LOAD_STATISTIC DB_ServerLoadStatView;
 static_assert(sizeof(DB_ServerLoadStatView) == 0xa,
               "DB_ServerLoadStatView ABI drift");
 #include "W8LT_DBTask/dispatch_194.inc"
@@ -6310,16 +5957,7 @@ struct DB_PassPadUpdateFailCntView
 // +0xc grow_type,+0x10 lev）→ GetDBHandle(8,0) 与 GetDBHandle(1,0)（后者丢弃）；
 // upDate guild_member set grow_type=%d,lev=%d where guild_id=%d and charac_no=%d
 // （grow_type, lev, guild_id, charac_no）→ return exec==1。
-#pragma pack(push, 1)
-struct DB_SaveCharacInfo4GuildView
-{
-    int m_guildId;    // +0x00
-    int m_pad0;       // +0x04
-    int m_characNo;   // +0x08
-    int m_growType;   // +0x0c
-    int m_lev;        // +0x10
-};
-#pragma pack(pop)
+typedef SIG_SAVE_CHARACINFO4GUILD DB_SaveCharacInfo4GuildView;
 
 #include "W8LT_DBTask/dispatch_199.inc"
 
@@ -6366,15 +6004,7 @@ struct DB_PvPResultMIdView
 // +0xc server_id）→ GetDBHandle(6,0)；deLete from dnf_event_entry where
 // m_id=%s and event_id=%d and server_id=%d（NumberToString(m_id,0), event_id,
 // server_id）→ return exec==1。
-#pragma pack(push, 1)
-struct DB_RemoveFeaturedGoodsIdxView
-{
-    unsigned int m_mId;    // +0x00
-    int m_pad0;            // +0x04
-    int m_eventId;         // +0x08
-    int m_serverId;        // +0x0c
-};
-#pragma pack(pop)
+typedef SIG_REMOVE_FEATURED_GOODSIDX DB_RemoveFeaturedGoodsIdxView;
 
 #include "W8LT_DBTask/dispatch_202.inc"
 
@@ -6416,16 +6046,7 @@ struct DB_RemoveFeaturedGoodsIdxView
 // obtain_date) values(%d,%s,from_unixtime(%d),%d,%d,from_unixtime(%d))（event_id,
 // NumberToString(m_id,0), obtain_date, server_id, charac_no, obtain_date）→
 // return exec==1。
-#pragma pack(push, 1)
-struct DB_SaveFeaturedGoodsIdxView
-{
-    unsigned int m_mId;        // +0x00
-    int m_characNo;            // +0x04
-    int m_eventId;             // +0x08
-    int m_serverId;            // +0x0c
-    int m_obtainDate;          // +0x10
-};
-#pragma pack(pop)
+typedef SIG_SAVE_FEATURED_GOODSIDX DB_SaveFeaturedGoodsIdxView;
 
 #include "W8LT_DBTask/dispatch_205.inc"
 
@@ -6436,12 +6057,7 @@ struct DB_SaveFeaturedGoodsIdxView
 // ORIG 0x842527a 逐偏移读 +0x00(event_id 字符串 5 字节) / +0x05(uint m_id 非
 // 对齐) / +0x09(int charac_no)，共 0xd 字节。非对齐 → pack(1)。
 #pragma pack(push, 1)
-struct DB_SaveCrazyLevelupEventView
-{
-    char m_eventId[5];      // +0x00（SQL '%s' 直接传 sig+0x0）
-    unsigned int m_memberId;  // +0x05（NumberToString(...,0) → m_id）
-    int m_characNo;         // +0x09
-};
+typedef SIG_SAVE_CRAZY_LEVELUP_EVENT DB_SaveCrazyLevelupEventView;
 #pragma pack(pop)
 static_assert(sizeof(DB_SaveCrazyLevelupEventView) == 0xd,
               "DB_SaveCrazyLevelupEventView ABI drift");
@@ -6456,19 +6072,7 @@ static_assert(sizeof(DB_SaveCrazyLevelupEventView) == 0xd,
 // ORIG 0x842d6ce 逐偏移读：+0x00 m_id / +0x04 ip[0x10]（SQL '%s'）/+0x14
 // hack_type / +0x18 cnt / +0x1c hack_sub_type / +0x20 hack_sub_cnt /
 // +0x24 punish_flag(ushort) / +0x28 etc_value。共 0x2c。
-struct DB_InsertAutoPunishFirstUserView
-{
-    unsigned int m_memberId;     // +0x00
-    char m_ip[0x10];             // +0x04
-    unsigned int m_hackType;     // +0x14
-    unsigned int m_cnt;          // +0x18
-    unsigned int m_hackSubType;  // +0x1c
-    unsigned int m_hackSubCnt;   // +0x20
-    unsigned short m_punishFlag; // +0x24
-    unsigned int m_etcValue;     // +0x28
-};
-static_assert(sizeof(DB_InsertAutoPunishFirstUserView) == 0x2c,
-              "DB_InsertAutoPunishFirstUserView ABI drift");
+typedef SIG_INSERT_AUTO_PUNISH_FIRST_USER DB_InsertAutoPunishFirstUserView;
 
 #include "W8LT_DBTask/dispatch_209.inc"
 
@@ -6476,17 +6080,7 @@ static_assert(sizeof(DB_InsertAutoPunishFirstUserView) == 0x2c,
 // ---- SIG_INSERT_AUTO_PUNISH_SECOND_USER（SigTypes_B.h m_pad[0x14] 占位）视图 ----
 // ORIG 0x842deb4 逐偏移读：+0x00 m_id / +0x04 hack_m_id / +0x08
 // total_trade_gold / +0x0c trade_gold / +0x10 punish_flag(bool)。共 0x14。
-struct DB_InsertAutoPunishSecondUserView
-{
-    unsigned int m_memberId;       // +0x00
-    unsigned int m_hackMemberId;   // +0x04
-    unsigned int m_totalTradeGold; // +0x08
-    unsigned int m_tradeGold;      // +0x0c
-    bool m_punishFlag;             // +0x10
-    char m_pad[3];                 // +0x11..+0x13
-};
-static_assert(sizeof(DB_InsertAutoPunishSecondUserView) == 0x14,
-              "DB_InsertAutoPunishSecondUserView ABI drift");
+typedef SIG_INSERT_AUTO_PUNISH_SECOND_USER DB_InsertAutoPunishSecondUserView;
 
 #include "W8LT_DBTask/dispatch_210.inc"
 
@@ -6494,12 +6088,7 @@ static_assert(sizeof(DB_InsertAutoPunishSecondUserView) == 0x14,
 // ---- SIG_MANNERLESS_USER（SigTypes_E.h m_pad[0x13a] 占位）视图 ----
 // ORIG 0x842796a 拼接三段字符串：+0x00（reporter m_id）/+0x1d（target
 // m_id）/+0x3a（reason），共 0x13a。
-struct DB_MannerlessUserView
-{
-    char m_reporterId[0x1d];  // +0x00
-    char m_targetId[0x1d];    // +0x1d
-    char m_reason[0x100];     // +0x3a
-};
+typedef SIG_MANNERLESS_USER DB_MannerlessUserView;
 static_assert(sizeof(DB_MannerlessUserView) == 0x13a,
               "DB_MannerlessUserView ABI drift");
 
@@ -6593,32 +6182,8 @@ static_assert(sizeof(DB_MannerlessUserView) == 0x13a,
 // req：+0x00 m_id、+0x04/+0x08 trade_gold(ull)、+0x0c trade_cnt、+0x10 punished。
 // set：+0x00/+0x04 trade_gold(ull)、+0x08 trade_cnt、+0x0c 0、+0x10 punished、
 //      +0x14 m_id。
-#pragma pack(push, 1)
-struct DB_AutoPunishedSecondUserReqView
-{
-    unsigned int m_mId;        // +0x00
-    unsigned int m_goldLo;     // +0x04
-    unsigned int m_goldHi;     // +0x08
-    // [b28d-solo] P167：ORIG 两分支均调 `CStreamGuard::lsEi`（int），我方
-    // unsigned 字段选中 lsEj ⇒ 目标符号差集 +2/-2；改 int 同宽同偏移
-    // （ORIG 0x0843a4xx 两处 `mov 0xc(%eax),%eax` 无零扩展，宽度证据一致）。
-    int m_tradeCnt;            // +0x0c
-    unsigned int m_punished;   // +0x10
-};
-struct DB_AutoPunishedSecondUserSetView
-{
-    unsigned int m_goldLo;     // +0x00
-    unsigned int m_goldHi;     // +0x04
-    unsigned int m_tradeCnt;   // +0x08
-    unsigned int m_pad0c;      // +0x0c
-    unsigned int m_punished;   // +0x10
-    unsigned int m_mId;        // +0x14
-};
-#pragma pack(pop)
-static_assert(sizeof(DB_AutoPunishedSecondUserReqView) == 0x14,
-              "SIG_SECOND_USER_DATA ABI drift");
-static_assert(sizeof(DB_AutoPunishedSecondUserSetView) == 0x18,
-              "SIG_SECOND_USER_DATA_SET ABI drift");
+typedef SIG_SECOND_USER_DATA DB_AutoPunishedSecondUserReqView;
+typedef SIG_SECOND_USER_DATA_SET DB_AutoPunishedSecondUserSetView;
 
 #include "W8LT_DBTask/dispatch_226.inc"
 
@@ -6637,47 +6202,18 @@ namespace {
 // ---- SIG 载荷视图（共享头均为 m_pad 占位；ORIG 反汇编读/写偏移实证）----
 
 // SIG_EXTEND_CHARAC_SLOT（0x8）：+0x00 m_id(uint) / +0x04 byte / +0x05 byte。
-#pragma pack(push, 1)
-struct SaveCharacSlotView
-{
-    unsigned int m_mId;          // +0x00
-    unsigned char m_slotEffect;  // +0x04（slot_effect_count）
-    unsigned char m_slotLimit;   // +0x05（charac_slot_limit）
-};
-#pragma pack(pop)
+typedef SIG_EXTEND_CHARAC_SLOT SaveCharacSlotView;
 
 // SIG_SAVE_CHATTING_EMOTICON（0x214）：+0x00 m_id / +0x04 起 0x210 字节压缩源。
-#pragma pack(push, 1)
-struct ChattingEmoticonView
-{
-    unsigned int m_mId;          // +0x00
-    char m_data[0x210];          // +0x04
-};
-#pragma pack(pop)
+typedef SIG_SAVE_CHATTING_EMOTICON ChattingEmoticonView;
 
 // SIG_SAVE_GAME_OPTION_QUICKCHAT（0x25c）：+0x00 m_id / +0x04 起 0x258 字节压缩源。
-#pragma pack(push, 1)
-struct QuickChattingView
-{
-    unsigned int m_mId;          // +0x00
-    char m_data[0x258];          // +0x04
-};
-#pragma pack(pop)
+typedef SIG_SAVE_GAME_OPTION_QUICKCHAT QuickChattingView;
 
 // SIG_SECURITY_CARD_RETRANSFER（0x8c）载荷视图（dispatch @0x842c362 读偏移实证）：
 // +0x00 m_id / +0x04 cert_key / +0x25 card / +0x2b server_key / +0x52 serial /
 // +0x5e phone[0x29]。
-#pragma pack(push, 1)
-struct SecuRetransferReqView
-{
-    unsigned int m_mId;          // +0x00
-    char m_certKey[0x21];        // +0x04
-    char m_card[0x6];            // +0x25
-    char m_serverKey[0x27];      // +0x2b
-    char m_serial[0xc];          // +0x52
-    char m_phone[0x29];          // +0x5e
-};
-#pragma pack(pop)
+typedef SIG_SECURITY_CARD_RETRANSFER SecuRetransferReqView;
 
 // SIG_STATISTIC_CERASHOP_GIFT_LOG（0x18）：6 个 uint（from_mid/from_charac_no/
 // to_mid/to_charac_no/item_idx/item_cnt）。
@@ -6695,14 +6231,7 @@ struct CeraShopGiftLogView
 
 // SIG_UPDATE_NPC_RELATIONSHIP（0x260）：+0x00 characNo(int) / +0x04 npcCnt(int)
 // / +0x08 npc_data blob（blob 长 = npcCnt*12）。
-#pragma pack(push, 1)
-struct UpdateNpcRelationView
-{
-    int m_characNo;              // +0x00
-    int m_npcCnt;                // +0x04
-    char m_npcData[0x258];       // +0x08
-};
-#pragma pack(pop)
+typedef SIG_UPDATE_NPC_RELATIONSHIP UpdateNpcRelationView;
 
 }  // namespace
 
@@ -6731,37 +6260,17 @@ struct UpdateNpcRelationView
 // detail(+0x1ec4) 叠放于 inven 区同一存储（ORIG 双视图复用；union 因
 // Inven_Item/TAG_* 带 ctor 不可用，按叠放视图分别 reinterpret）----
 #pragma pack(push, 1)
-struct DB_TagCharacInvenView    // inven 区整块视图（基址 = sig）
-{
-    char m_pad0[0x7d];          // +0x00..0x7c（characNo/tagCharac 段）
-    TAG_CHARAC_INVEN_DATA m_tagInven;  // +0x7d（0x4024）
-};
-#pragma pack(pop)
+typedef SIG_REQUEST_TAG_CHARAC_INFO DB_TagCharacSigView;
+typedef SIG_REQUEST_TAG_CHARAC_INFO DB_TagCharacInvenView;
 #pragma pack(push, 1)
-struct DB_TagCharacAvatarView   // _GetUserAvatar 实参叠放视图
+struct DB_TagCharacAvatarView   // overlay on SIG m_tagInven
 {
-    char m_pad0[0x7d];          // +0x00..0x7c
-    Inven_Item m_equipItems[0x16];     // +0x007d（22×0x3d → +0x05bb）
-    Inven_Item m_avatarItems[0x69];    // +0x05bb（0x69×0x3d → +0x1ec0）
-    int m_avatarItemCnt;        // +0x1ec0
-    AvatarDetailInfo m_avatarDetail;   // +0x1ec4（0x4b）
+    Inven_Item m_equipItems[0x16];
+    Inven_Item m_avatarItems[0x69];
+    int m_avatarItemCnt;
+    AvatarDetailInfo m_avatarDetail;
 };
 #pragma pack(pop)
-#pragma pack(push, 1)
-struct DB_TagCharacSigView
-{
-    unsigned int m_characNo;                 // +0x0000（SQL/日志 characNo）
-    char m_pad04[1];                         // +0x0004
-    TAG_CHARAC_DATA m_tagCharac;             // +0x0005（0x78）
-    char m_inven[0x4024];                    // +0x007d（叠放区，见上视图）
-    CHARAC_QUEST_SHOP_DATA m_questShop;      // +0x40a1（0xaa → +0x414b）
-    char m_pad414b[1];                       // +0x414b
-};
-#pragma pack(pop)
-static_assert(sizeof(DB_TagCharacSigView) == 0x414c,
-              "DB_TagCharacSigView ABI drift");
-static_assert(offsetof(DB_TagCharacSigView, m_questShop) == 0x40a1,
-              "DB_TagCharacSigView questShop offset drift");
 
 #include "W8LT_DBTask/dispatch_230.inc"
 
@@ -7145,15 +6654,7 @@ struct DB_TowerBestRecordRowView
 // SIG_DEATH_TOWER_GET_BEST_RECORD；行区继续显式偏移视图（P82）。
 #pragma pack(pop)
 // ---- SIG_GOBLIN_UPDATE_REWARD（0x18）视图 ----
-#pragma pack(push, 1)
-struct DB_GoblinPadUpdateRewardView
-{
-    unsigned int m_mId;        // +0x00
-    unsigned char m_field4;    // +0x04
-    unsigned char m_field5;    // +0x05
-    char m_ip[0x12];           // +0x06（strncpy 0x10 源）
-};
-#pragma pack(pop)
+typedef SIG_GOBLIN_UPDATE_REWARD DB_GoblinPadUpdateRewardView;
 
 // [Lane31W8LTDBTaskView] 视图 cast 反模式批量清理：以下三类载荷视图已字段化
 // 至权威头（SigTypes_C.h SIG_LOAD_CHARAC_HOTKEY_OPTION；
@@ -7248,23 +6749,9 @@ struct DB_PassPadUpdateCancelCntView
 };
 #pragma pack(pop)
 
-// ---- SIG_AUTO_PUNISH_RULE_BLACK_IP（0x3e84）视图 ----
-#pragma pack(push, 1)
-struct DB_AutoPunishBlackIpView
-{
-    unsigned short m_count;    // +0x00
-    char m_pad02[2];           // +0x02
-    struct Entry                // 步长 8，自 +0x04 起
-    {
-        unsigned int m_ip;     // +0x04（inet_addr 结果）
-        unsigned char m_start; // +0x08
-        unsigned char m_end;   // +0x09
-        char m_pad0a[2];       // +0x0a..0x0b [b23S3C] ORIG 0x0842d027 `mov %eax,0x4(%edx,%ebx,8)`
-                               //  scaled 寻址实证步长 8（原缺尾 pad ⇒ sizeof 6，4.4 出
-                               //  `add/add/add` i*6 链，索引偏移全错 = 真 bug）
-    } m_entries[0x7d0];
-};
-#pragma pack(pop)
+// SIG_AUTO_PUNISH_RULE_BLACK_IP named in SigTypes_A.h
+typedef SIG_AUTO_PUNISH_RULE_BLACK_IP DB_AutoPunishBlackIpView;
+
 
 // ---- SIG_AUTO_PUNISH_RULE_HACK_TYPE（0x2720）----
 // [Lane31W8LTDBTaskView] 视图 cast 反模式清理：本地 DB_AutoPunishHackTypeView

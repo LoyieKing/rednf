@@ -23,7 +23,7 @@ int Dispatcher_Buy_Charac_Status_Using_QP::process(CUser* user, MSG_BASE& msg, P
         user->GetCharacExpandData(static_cast<ENUM_CHARAC_EXPAND_TYPE>(0xb)));
     if (shop == 0)
     {
-        *(int*)((char*)&param + 8) = 1;
+        static_cast<STQuestShopBuyParam&>(param).m_8 = 1;
         return 0;
     }
     short result = 0;   // local_22
@@ -33,11 +33,11 @@ int Dispatcher_Buy_Charac_Status_Using_QP::process(CUser* user, MSG_BASE& msg, P
                              result);
     if (ok)
     {
-        *(unsigned char*)((char*)&param + 4) =
-            mref.m_0d;   // param+4 ← msg+0xd
-        *(short*)((char*)&param + 6) = result;      // param+6 ← local_22
+        STQuestShopBuyParam& out = static_cast<STQuestShopBuyParam&>(param);
+        out.m_4 = mref.m_0d;
+        out.m_6 = result;
         return 0;
     }
-    *(int*)((char*)&param + 8) = ok;   // ORIG param+8 = buyStatus 返回码
+    static_cast<STQuestShopBuyParam&>(param).m_8 = ok;
     return 0;
 }

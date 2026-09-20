@@ -41,7 +41,13 @@ class CParty;
 class PacketGuard;
 class CBelong;
 class CUserModifier;
-class BuddyList;
+#pragma pack(push, 1)
+struct BuddyList
+{
+    char m_bytes[0x2a];  // ORIG send_buddy_conn_list put_binary 步长
+};
+#pragma pack(pop)
+static_assert(sizeof(BuddyList) == 0x2a, "BuddyList stride");
 class MSG_ITEM_HYPER_LINK_MESSAGE;  // 权威定义见 PacketTypes.h（引用参数仅需前向）
 
 class TownScript;
@@ -61,7 +67,6 @@ class CParty;
 class PacketGuard;
 class CBelong;
 class CUserModifier;
-class BuddyList;
 
 class TownScript;
 class CSyncScript;

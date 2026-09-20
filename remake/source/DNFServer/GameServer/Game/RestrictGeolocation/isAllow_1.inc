@@ -66,8 +66,8 @@ bool RestrictGeolocation::isAllow(std::string account, std::string ip)
     // m_pad+0x10 ⇒ 无 `char* base` 具名中转。
     SIG_SAVE_GEO_REJECT* sig =
         guard.operator->()->GetInBuffer<SIG_SAVE_GEO_REJECT>();
-    strncpy(sig->m_pad + 0x10, countryCode, 0x10);
-    strncpy(sig->m_pad, ip.c_str(), 0x10);
+    strncpy(sig->m_rejCCode, countryCode, 0x10);
+    strncpy(sig->m_rejIp, ip.c_str(), 0x10);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return false;
 }

@@ -19,16 +19,7 @@ int Dispatcher_SaveQuestNotify::check_error(CUser* user, MSG_BASE& msg)
     //   两用点各重算，P48/P157）；`reinterpret_cast<const int*>(m_0d+i*4)` 恒折
     //   add/shl/lea 且多 -0xc 具名槽 ⇒ 改具名数组成员视图（PacketTypes.h 冻结，
     //   m_0d 为 char[0x28]，同偏移同宽度，sizeof/布局零变更）。
-    struct __attribute__((packed)) QuestNotifyView
-    {
-        char m_head[0xd];
-        // [b28d-solo-Dispatchers] P211 档③/P254：ORIG 0x0825ef36 第二用点对
-        //   `mov 0xd(%eax,%edx,4),%eax; mov %eax,%ebx`（字段→eax→callee-saved）
-        //   为「字段与形参异型」的转换中转形；视图字段 unsigned + find_quest(int)
-        //   ⇒ 4.4.6 复现两段（探针 /tmp/probe_disp.cpp t3 实证）。宽度/偏移不变。
-        unsigned int m_questIdx[10];       // +0x0d..+0x34
-    };
-    const QuestNotifyView& req = reinterpret_cast<const QuestNotifyView&>(msg);
+    const MSG_SAVE_QUEST_NOTIFY& req = reinterpret_cast<const MSG_SAVE_QUEST_NOTIFY&>(msg);
     for (int i = 0; i <= 9; ++i)
     {
         if (req.m_questIdx[i] != 0)

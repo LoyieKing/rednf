@@ -898,84 +898,6 @@ namespace
 
 #pragma pack(push, 1)
 
-// PvpResultType 只读视图：权威最小定义（CUserCharacInfo.h）中 +0x5c 尚在 m_pad5c
-// 内；ORIG 分支 0/3 以 int 读该槽（全量布局见 PvpResultType.h：今日胜场【推断】）。
-struct PvpResultBasicView
-{
-    int m_totalWinCount;            // +0x00
-    int m_field04;                  // +0x04
-    int m_field08;                  // +0x08
-    int m_field0c;                  // +0x0c
-    int m_field10;                  // +0x10
-    int m_pvpGrade;                 // +0x14（与 get_pvp_grade 同源）
-    int m_pad18[(0x5c - 0x18) / 4];
-    int m_field5c;                  // +0x5c（分支 0/3 写出槽）
-};
-typedef char pvp_view_size_ok[(sizeof(PvpResultBasicView) == 0x60) ? 1 : -1];
-
-// getCurCharacR() 当前角色数据扩展字节视图（权威声明中这些偏移均在 pad 区；
-// +0x39 起 0x14 字节与 CommonTime 创建时间区对齐【推断】）。
-struct CurCharacByteView
-{
-    char m_pad00[0x39];
-    char m_field39;                 // +0x39（分支 3）
-    char m_field3a;                 // +0x3a（分支 3）
-    char m_field3b;                 // +0x3b（分支 3）
-    char m_pad3c[0x75 - 0x3c];
-    unsigned char m_field75;        // +0x75（分支 0，无符号写出）
-};
-
-// m_characList 元素扩展视图：权威 struct _Charac_info（CUser.h，pack(1)，总长
-// 0x14d1）中段为 pad；此处仅命名 ORIG 分支 2 访问的偏移（视图止于 +0x14ca）。
-struct CharacListElemView
-{
-    int m_characNo;                 // +0x000
-    char m_name[0x1d];              // +0x004
-    char m_pad21[0x26 - 0x21];
-    char m_job;                     // +0x026
-    short m_level;                  // +0x027
-    char m_field29;                 // +0x029
-    char m_pad2a[0x39 - 0x2a];
-    CommonTime m_createTime;        // +0x039（UpdateCharacView → long 写记录 +0x8c）
-    char m_pad4d[0x83 - 0x4d];
-    char m_forbidPlayFlag;          // +0x083（禁玩标记；到期清零并投递 SIG_FORBID_USER_TO_PLAY）
-    int m_forbidPlayLeftSec;        // +0x084（剩余秒）
-    char m_pad88[0xda - 0x88];
-    char m_inventory[0xe40 - 0xda]; // +0x0da 每角色 CInventory 子对象（MakeEquipList 接收者）
-    char m_fielde40;                // +0xe40（bit1 → 记录 flags bit4）
-    char m_pade41[0xe5d - 0xe41];
-    int m_fielde5d;                 // +0xe5d（UpdateCharacView 直拷记录 +0x90）
-    char m_pade61[0xe66 - 0xe61];
-    unsigned char m_reenterable;    // +0xe66（now < expireSec → 1，随 viewState 写出）
-    char m_pade67[0x1240 - 0xe67];
-    unsigned char m_field1240;      // +0x1240
-    char m_pad1241[0x1246 - 0x1241];
-    char m_field1246;               // +0x1246
-    char m_pad1247[0x12ad - 0x1247];
-    int m_expireSec;                // +0x12ad（与 CSystemTime::getCurSec() 比较）
-    char m_pad12b1[0x14c6 - 0x12b1];
-    int m_viewState;                // +0x14c6（==0xff 时写 8）
-};
-typedef char elem_view_size_ok[(sizeof(CharacListElemView) == 0x14ca) ? 1 : -1];
-
-// GetGuildDBInfo()（STGuildDBInfoOnly，CUser.h 中 +0x00..0x94 为 pad）访问视图：
-// +0x00 公会名字符串、+0x1b 随名写出的字节、+0x44 成员数、成员表自 +0x45 起
-// 5 字节/项（int 等级 + char 职位）。
-struct GuildMemberEntryView
-{
-    int m_grade;                    // 条目 +0x00（>0xc7 才写出）
-    char m_position;                // 条目 +0x04（有符号写出）
-};
-
-struct GuildDbInfoView
-{
-    char m_guildName[0x1b];         // +0x00
-    unsigned char m_field1b;        // +0x1b
-    char m_pad1c[0x44 - 0x1c];
-    unsigned char m_memberCount;    // +0x44
-    GuildMemberEntryView m_members[1]; // 实际数量由 m_memberCount 给出
-};
-typedef char guild_view_size_ok[(sizeof(GuildDbInfoView) == 0x4a) ? 1 : -1];
 
 // SIG_FORBID_USER_TO_PLAY 前 9 字节写入视图（SigTypes.h 现为 0x100 pad 占位；
 // ORIG：memset 9 字节后 +0x00=characNo、+0x04=0、+0x05..0x08=0）。
@@ -2613,31 +2535,6 @@ void STBreakAwayRewards::operator=(const STBreakAwayRewards& other)
 // ---- UpdateCharacView 链（报告 docs/class_func_reports/CUser/UpdateCharacView.md、
 // updateCharacViewVisibleData.md、checkRentedItem.md；ORIG 0x8651740/0x8651322/0x8677188）----
 
-// _Charac_info avatar 装备槽源视图（位于每角色 CInventory 子对象内部；
-// updateCharacViewVisibleData 循环 1/2 按 info + i*0x3d + 0xf6 寻址）。
-// pack(1)：ORIG 0x86513b6 `mov 0x2(%eax),%eax` / 0x86513c4 `mov 0x7(%eax),%ebx`
-// 非对齐 int 读实证。
-#pragma pack(push, 1)
-struct AvatarSlotSrcView
-{
-    char m_pad0[2];
-    int m_itemIndex;                    // +0x02（非 0 才处理）
-    char m_pad6;
-    int m_expansionKey;                 // +0x07（GetExpansionInfo 键）
-};
-#pragma pack(pop)
-
-// 当前角色不匹配时的可见缓存源槽（info + k*8 + 0x75e，12 槽直拷）。
-// pack(1)：ORIG 以 pEntry+0x2/+0x7 非对齐读 int（0x86513b6/0x86513c4）。
-#pragma pack(push, 1)
-struct VisibleCacheSlotSrcView
-{
-    int m_itemIndex;
-    short m_fieldA;
-    short m_fieldB;
-};
-#pragma pack(pop)
-
 // SIG_UPDATE_CHARAC_VIEW 单记录视图（stride 0x94）：首槽 rec[0] 头 = acc_id，
 // rec[i>0] 头 ← 前一角色 _Charac_info+0x12ad；数据体 CHARAC_LOGIN_DATA(0x90)。
 // [CUserWorker 2026-09-11 复核] `_ZNSt12_Vector_baseIN20InstanceRentalSystem10RentalInfoESaIS1_EED1Ev`
@@ -2673,22 +2570,6 @@ typedef char sig_charac_view_rec_size_ok[(sizeof(SigUpdateCharacViewRecord) == 0
 
 #include "CUser/checkRentedItem.inc"
 
-
-// updateCharacViewVisibleData 循环 1/2 源视图：info + i*0x3d + 0xe0 元素
-// （ORIG 0x865139f/0x8651495 imul $0x3d + add $0xe0 实证），字段 +0x18/+0x1d。
-#pragma pack(push, 1)
-struct CharacAvatarEntry
-{
-    char m_pre[0x18];
-    int m_itemIndex;                    // +0x18
-    char m_pad1c;
-    int m_expansionKey;                 // +0x1d（非对齐 int，ORIG 实证）
-    char m_rest[0x3d - 0x21];
-};
-#pragma pack(pop)
-typedef char avatar_entry_size_ok[(sizeof(CharacAvatarEntry) == 0x3d) ? 1 : -1];
-// expansion 数据对（ORIG 0x8651453 `movzwl (%eax),%edx` / 0x8651467
-// `movzwl 0x2(%eax),%edx` 成员 disp 形态）。
 struct ExpansionPair
 {
     unsigned short m_a;                 // +0x00
@@ -2696,65 +2577,32 @@ struct ExpansionPair
 };
 // 循环 3 可见缓存元素（ORIG 0x86515b5 `mov 0xe(%eax,%edx,8)` scale：
 // base=info+0xe，索引 k+0xea，stride 8，字段 +0/+4/+6）。
-struct VisibleCachePair8
-{
-    unsigned int m_itemIndex;           // 绝对 +0x75e
-    unsigned short m_fieldA;            // 绝对 +0x762
-    unsigned short m_fieldB;            // 绝对 +0x764
-};
-typedef char vis_pair8_size_ok[(sizeof(VisibleCachePair8) == 8) ? 1 : -1];
-// [b28d-G5] 同缓存的**成员数组视图**：ORIG 0x86515b5 为 `mov -0xc(%ebp),%edx;
-//   mov 0xc(%ebp),%eax; add $0xea,%edx; mov 0xe(%eax,%edx,8),%edx` —— 索引寄存器
-//   = (k + 0xea) 整表达式、常量 0xe 落位移，只有**数组下标 + 成员**形才这样发射。
-//   我方原形 `(cast)((char*)&info + 0xe) + k + 0xea` 是**指针 rvalue 算术**：前端把
-//   0xea*8 与 0xe 折成常量 0x75e，再 `shl $3; add $0x75e; add %edx,%eax`（+3 条/站）。
-#pragma pack(push, 1)
-struct CharacViewCacheView
-{
-    char m_pad[0xe];
-    VisibleCachePair8 m_cache[0x100];   // [k + 0xea]（k<12 ⇒ 0xea..0xf5，界内）
-};
-#pragma pack(pop)
-
 #include "CUser/updateCharacViewVisibleData.inc"
                                         struct CHARAC_LOGIN_DATA& data)
 {
     memset(data.m_avatarSlots, 0, 0x60);
     if ((getCurCharacR() != 0 &&
          getCurCharacR()->m_characNo ==
-             reinterpret_cast<const CharacListElemView&>(info).m_characNo)
+             info.m_characNo)
             ? true : false)
     {
         data.m_renameOrViewState = getRequestRenameState();
 
+        CInventory& inven = const_cast<_Charac_info&>(info).m_curCharacInven;
         // 槽 0..8：avatar 装备槽（有物品且扩展信息存在时写索引/颜色对）。
         for (int i = 0; i < 9; ++i)
         {
-            const AvatarSlotSrcView* slot =
-                reinterpret_cast<const AvatarSlotSrcView*>(
-                    i * 0x3d + 0xe0 + reinterpret_cast<const char*>(&info) +
-                    0x16);
-            if (slot->m_itemIndex != 0)
+            const Inven_Item& slot = inven.m_invenItem[i];
+            if (slot.m_addInfo != 0)
             {
                 const void* expansion =
-                    reinterpret_cast<CInventory*>(
-                        reinterpret_cast<char*>(const_cast<_Charac_info*>(&info)) +
-                        0xda)
-                        ->GetAvatarItemMgrR()
-                        ->GetExpansionInfo(slot->m_expansionKey);
+                    inven.GetAvatarItemMgrR()->GetExpansionInfo(slot.m_addInfo2);
                 if (expansion != 0)
                 {
-                    if (reinterpret_cast<CInventory*>(
-                            reinterpret_cast<char*>(
-                                const_cast<_Charac_info*>(&info)) + 0xda)
-                            ->GetClearAvatar(i) != 0)
-                        data.m_avatarSlots[i].m_itemIndex =
-                            reinterpret_cast<CInventory*>(
-                                reinterpret_cast<char*>(
-                                    const_cast<_Charac_info*>(&info)) + 0xda)
-                                ->GetClearAvatar(i);
+                    if (inven.GetClearAvatar(i) != 0)
+                        data.m_avatarSlots[i].m_itemIndex = inven.GetClearAvatar(i);
                     else
-                        data.m_avatarSlots[i].m_itemIndex = slot->m_itemIndex;
+                        data.m_avatarSlots[i].m_itemIndex = slot.m_addInfo;
                     data.m_avatarSlots[i].m_expansionA =
                         reinterpret_cast<const ExpansionPair*>(expansion)->m_a;
                     data.m_avatarSlots[i].m_expansionB =
@@ -2766,29 +2614,15 @@ struct CharacViewCacheView
         // 槽 9..11：租赁位（任一租期类型命中则整槽清零，否则仅写索引）。
         for (int i = 9; i < 12; ++i)
         {
-            if (checkRentedItem(
-                    (unsigned int)reinterpret_cast<const CharacListElemView&>(info)
-                        .m_characNo,
-                    reinterpret_cast<const CharacAvatarEntry*>(
-                        i * 0x3d + reinterpret_cast<const char*>(&info) +
-                        0xe0)->m_itemIndex,
-                    1) ||
-                checkRentedItem(
-                    (unsigned int)reinterpret_cast<const CharacListElemView&>(info)
-                        .m_characNo,
-                    reinterpret_cast<const CharacAvatarEntry*>(
-                        i * 0x3d + reinterpret_cast<const char*>(&info) +
-                        0xe0)->m_itemIndex,
-                    2))
+            const int itemIndex = (int)inven.m_invenItem[i].m_addInfo;
+            if (checkRentedItem((unsigned int)info.m_characNo, itemIndex, 1) ||
+                checkRentedItem((unsigned int)info.m_characNo, itemIndex, 2))
             {
                 memset(&data.m_avatarSlots[i], 0, 8);
             }
             else
             {
-                data.m_avatarSlots[i].m_itemIndex =
-                    reinterpret_cast<const CharacAvatarEntry*>(
-                        i * 0x3d + reinterpret_cast<const char*>(&info) +
-                        0xe0)->m_itemIndex;
+                data.m_avatarSlots[i].m_itemIndex = itemIndex;
                 data.m_avatarSlots[i].m_expansionA = 0;
                 data.m_avatarSlots[i].m_expansionB = 0;
             }
@@ -2796,21 +2630,17 @@ struct CharacViewCacheView
     }
     else
     {
-        // 非当前角色：从可见缓存表（info + k*8 + 0x75e）12 槽直拷。
+        // 非当前角色：可见缓存 = CInventory::m_avatarVisible[12]
         for (int k = 0; k < 12; ++k)
         {
-            data.m_avatarSlots[k].m_itemIndex =
-                reinterpret_cast<const CharacViewCacheView*>(&info)
-                    ->m_cache[k + 0xea].m_itemIndex;
-            data.m_avatarSlots[k].m_expansionA =
-                reinterpret_cast<const CharacViewCacheView*>(&info)
-                    ->m_cache[k + 0xea].m_fieldA;
-            data.m_avatarSlots[k].m_expansionB =
-                reinterpret_cast<const CharacViewCacheView*>(&info)
-                    ->m_cache[k + 0xea].m_fieldB;
+            const CInventory::AvatarVisibleData& vis =
+                info.m_curCharacInven.m_avatarVisible[k];
+            data.m_avatarSlots[k].m_itemIndex = vis.m_field0;
+            data.m_avatarSlots[k].m_expansionA = vis.m_field4;
+            data.m_avatarSlots[k].m_expansionB = vis.m_field6;
         }
         data.m_renameOrViewState =
-            reinterpret_cast<const CharacListElemView&>(info).m_viewState;
+            info.m_viewState;
     }
 }
 

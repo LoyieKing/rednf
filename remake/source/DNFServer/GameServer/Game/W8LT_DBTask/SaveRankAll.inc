@@ -11,28 +11,28 @@ bool DB_SaveRank::SaveRankAll(SIG_SAVE_RANK* sig)
     // 每字段按 ORIG 视图基址重算（charac_no/count 直读参数）。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     int i;
-    for (i = 0; i < ((DB_SaveRankSigView*)sig)->m_count; ++i)
+    for (i = 0; i < sig->m_rows[0].m_count; ++i)
     {
         db->set_query(
             "inSert into charac_best_record (charac_no,dungeon_no,difficulty,style,technic,attacked,rank) values(%d,%d,%d,%d,%d,%d,%d)",
-            ((DB_SaveRankSigView*)sig)->m_characNo,
-            ((DB_SaveRankRowView*)((char*)sig + i * 0x50))->m_dungeonNo,
-            ((DB_SaveRankRowView*)((char*)sig + i * 0x50))->m_difficulty,
-            ((DB_SaveRankStatsView*)((char*)sig + i * 0x50 + 0x40))->m_style,
-            ((DB_SaveRankStatsView*)((char*)sig + i * 0x50 + 0x40))->m_technic,
-            ((DB_SaveRankStatsView*)((char*)sig + i * 0x50 + 0x40))->m_attacked,
-            ((DB_SaveRankStatsView*)((char*)sig + i * 0x50 + 0x40))->m_rank);
+            sig->m_rows[0].m_characNo,
+            sig->m_rows[i].m_dungeonNo,
+            sig->m_rows[i].m_difficulty,
+            sig->m_rows[i].m_style,
+            sig->m_rows[i].m_technic,
+            sig->m_rows[i].m_attacked,
+            ((i < 99) ? sig->m_rows[i + 1].m_rankOfPrev : sig->m_rankOfPrev));
         if (!db->exec(true))
         {
             db->set_query(
                 "upDate charac_best_record set style=%d, technic=%d ,attacked=%d, rank=%d where charac_no=%d and dungeon_no=%d and difficulty=%d",
-                ((DB_SaveRankStatsView*)((char*)sig + i * 0x50 + 0x40))->m_style,
-                ((DB_SaveRankStatsView*)((char*)sig + i * 0x50 + 0x40))->m_technic,
-                ((DB_SaveRankStatsView*)((char*)sig + i * 0x50 + 0x40))->m_attacked,
-                ((DB_SaveRankStatsView*)((char*)sig + i * 0x50 + 0x40))->m_rank,
-                ((DB_SaveRankSigView*)sig)->m_characNo,
-                ((DB_SaveRankRowView*)((char*)sig + i * 0x50))->m_dungeonNo,
-                ((DB_SaveRankRowView*)((char*)sig + i * 0x50))->m_difficulty);
+                sig->m_rows[i].m_style,
+                sig->m_rows[i].m_technic,
+                sig->m_rows[i].m_attacked,
+                ((i < 99) ? sig->m_rows[i + 1].m_rankOfPrev : sig->m_rankOfPrev),
+                sig->m_rows[0].m_characNo,
+                sig->m_rows[i].m_dungeonNo,
+                sig->m_rows[i].m_difficulty);
             if (!db->exec(true))
                 return 0;
         }

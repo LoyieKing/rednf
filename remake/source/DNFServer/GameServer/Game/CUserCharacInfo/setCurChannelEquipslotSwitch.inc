@@ -3,6 +3,6 @@ void CUserCharacInfo::setCurChannelEquipslotSwitch(char flag)
     if (m_selected)
     {
     enableSaveCharacStat();
-    CUR->m_curChannelEquipslotSwitch = (unsigned char)flag;
+    m_selected->m_field1276 = (unsigned char)flag;
     }
 }

@@ -3,6 +3,6 @@ void CUserCharacInfo::SetCurCharacExpertJobExp(int exp)
     if (m_selected)
     {
     enableSaveCharacStat();
-    CUR->m_expertJobExp = exp;
+    m_selected->m_fielde81 = exp;
     }
 }

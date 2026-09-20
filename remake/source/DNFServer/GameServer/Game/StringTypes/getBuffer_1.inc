@@ -1,4 +1,4 @@
 char* CharStringData::getBuffer()
 {
-    return reinterpret_cast<char*>(this + 1);
+    return m_buf;
 }

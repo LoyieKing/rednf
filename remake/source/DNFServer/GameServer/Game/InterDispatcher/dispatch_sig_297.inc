@@ -24,20 +24,14 @@ int Inter_RequestCharacSkillInfo::dispatch_sig(CUser* user, char* data, int /*le
     // [b28d-solo-InterDispatcher] P157 逐点重读：ORIG 0x084e78fa/0x084e792c/0x084e7959
     // （+1）每个使用点重新 operator[] 取 _Charac_info（无 slot 指针缓存）⇒ 消除 p167
     // MISSING vector<_Charac_info>::operator[] ×2。SkillSlot 子对象 @ +0x892。
-    reinterpret_cast<SkillSlot*>(
-        reinterpret_cast<char*>(&user->m_characList[tagIdx]) + 0x892)->set_parent(user);
+    user->m_characList[tagIdx].m_skillSlot.set_parent(user);
 
     _PutSkillInfoToCharac(skillTreeKind,
                           reinterpret_cast<_Mastered_skill*>(recv + 4),
-                          reinterpret_cast<SkillSlot*>(
-                              reinterpret_cast<char*>(&user->m_characList[tagIdx]) + 0x892));
+                          &user->m_characList[tagIdx].m_skillSlot);
 
-    reinterpret_cast<SkillSlot*>(
-        reinterpret_cast<char*>(&user->m_characList[tagIdx]) + 0x892)
-        ->SendSkillInfo(tagIdx,
-                        (ENUM_SKILL_TREE_KIND)(int)skillTreeKind);  // movsbl 符号扩展
-    reinterpret_cast<SkillSlot*>(
-        reinterpret_cast<char*>(&user->m_characList[tagIdx]) + 0x892)
-        ->SetLoadStrikerSkill(true);
+    user->m_characList[tagIdx].m_skillSlot.SendSkillInfo(
+        tagIdx, (ENUM_SKILL_TREE_KIND)(int)skillTreeKind);
+    user->m_characList[tagIdx].m_skillSlot.SetLoadStrikerSkill(true);
     return 0;
 }

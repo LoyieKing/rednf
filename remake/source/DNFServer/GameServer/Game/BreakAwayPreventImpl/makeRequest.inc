@@ -12,6 +12,6 @@ void DB_UpdateBreakAwayUvList::makeRequest(unsigned int accId, char* uvInfo)
     guard.operator*()->operator<<(accId);
     SIG_BREAK_AWAY_UV_LIST* buf =
         guard.operator->()->GetInBuffer<SIG_BREAK_AWAY_UV_LIST>();
-    strncpy(buf->m_pad, uvInfo, 0x1f);
+    strncpy(buf->m_playInfo, uvInfo, 0x1f);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }

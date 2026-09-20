@@ -1,4 +1,4 @@
 bool CUserCharacInfo::IsCurCharacLeaveTimeout()
 {
-    return m_selected ? CUR->m_leaveTimeout : false;
+    return m_selected ? m_selected->m_fieldE67 : false;
 }

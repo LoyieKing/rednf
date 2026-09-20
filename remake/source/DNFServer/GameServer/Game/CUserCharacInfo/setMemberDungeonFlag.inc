@@ -3,6 +3,6 @@ void CUserCharacInfo::setMemberDungeonFlag(bool flag)
     if (m_selected)
     {
     enableSaveCharacStat();
-    CUR->m_memberDungeonFlag = flag;
+    m_selected->m_field1241 = flag;
     }
 }

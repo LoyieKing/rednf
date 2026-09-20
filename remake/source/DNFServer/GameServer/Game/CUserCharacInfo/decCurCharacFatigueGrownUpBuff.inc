@@ -3,9 +3,9 @@ void CUserCharacInfo::decCurCharacFatigueGrownUpBuff(unsigned int value)
     if (m_selected)
     {
     enableSaveCharacStat();
-    if ((unsigned int)CUR->m_fatigueGrownUpBuff > value)
-        CUR->m_fatigueGrownUpBuff = (unsigned short)(CUR->m_fatigueGrownUpBuff - value);
+    if ((unsigned int)m_selected->m_field37 > value)
+        m_selected->m_field37 = (unsigned short)(m_selected->m_field37 - value);
     else
-        CUR->m_fatigueGrownUpBuff = 0;
+        m_selected->m_field37 = 0;
     }
 }

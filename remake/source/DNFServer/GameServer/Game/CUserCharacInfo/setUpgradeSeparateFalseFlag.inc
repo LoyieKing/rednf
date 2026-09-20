@@ -2,6 +2,6 @@ void CUserCharacInfo::setUpgradeSeparateFalseFlag(char flag)
 {
     if (m_selected)
     {
-    CUR->m_upgradeSeparateFalse = (unsigned char)flag;
+    m_selected->m_field1274 = (unsigned char)flag;
     }
 }

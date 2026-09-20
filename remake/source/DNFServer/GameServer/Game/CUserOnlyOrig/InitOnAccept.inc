@@ -146,10 +146,10 @@ int CUser::InitOnAccept(int socketFd)
     m_mcap.m_secuUserAction = new cSecuUserAction();
     m_mcap.m_secuUserAction->Init();
 
-    m_pad8e101[0x2eb] = 0;                             // ORIG movb $0x0,0x8e3ec（pad 末字节）
+    m_multiMailFlag = 0;
     m_field8e3ed = true;                               // +0x8e3ed
-    memset(m_pad8e101, 0, 0x145);                      // memset(this+0x8e101,0,0x145)
-    memset(m_pad8e101 + 0x145, 0, 0x1a6);              // memset(this+0x8e246,0,0x1a6)
+    memset(m_mailMsgData, 0, sizeof(m_mailMsgData));
+    memset(m_multiMailMsgData, 0, sizeof(m_multiMailMsgData));
     m_mcap.reset();                                    // WongWork::CMCAPManager::reset W 0x08694fa0
     m_postChecksumData.m_field31 = false;              // +0x7962d
 

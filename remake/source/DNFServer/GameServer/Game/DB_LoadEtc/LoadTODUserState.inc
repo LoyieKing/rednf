@@ -68,12 +68,7 @@ bool DB_LoadEtc::LoadTODUserState(SIG_LOAD_ETC* sig)
     // （`mov 0xc(%ebp),%eax` 先于 `movzwl -0x78(%ebp),%edx`）；直写具名字段
     // 4.4 恒 RHS-first（探针 /tmp/dble_probe/p1.cpp f1）。具名视图 cast（同探针
     // f7）复现 ORIG 的 base-first + 单 disp `mov %dx,0xd724(%eax)`。
-    struct TODLayerSlotView
-    {
-        char m_pad[0xd724];
-        unsigned short m_layer;
-    };
-    reinterpret_cast<TODLayerSlotView*>(sig)->m_layer = layer.m_layer;  // +0xd724（movw）
+    sig->m_todLastClearLayer = layer.m_layer;
     ok = db->get_short(col++,
                        *reinterpret_cast<short*>(&sig->m_todEnterCountByWeek));
     if (!ok)

@@ -1,4 +1,4 @@
 const std::vector<ContinuousItemInfo>* CUserCharacInfo::GetCurCharacCoolTimeItemListR() const
 {
-    return &CUR->m_coolTimeItemList.m_list;
+    return &m_selected->m_continuousItemListA;
 }

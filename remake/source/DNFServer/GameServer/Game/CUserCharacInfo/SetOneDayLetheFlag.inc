@@ -2,6 +2,6 @@ void CUserCharacInfo::SetOneDayLetheFlag(unsigned char flag)
 {
     if (m_selected)
     {
-    CUR->m_oneDayLetheFlag = flag;
+    m_selected->m_padEB3 = flag;
     }
 }

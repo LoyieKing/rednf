@@ -28,10 +28,6 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
     // （0x0d + i*2）。旧文 `const unsigned short slotPos[2] = {...}` 多 1 条
     // movl 清零 + 2 条读存（数组落在 -0x48，索引变 `movzwl -0x48(%ebp,%eax,2)`）。
     #pragma pack(push, 1)
-    struct RegenROView {
-        char m_head[0xd];
-        unsigned short m_slots[2];   // +0x0d/+0x0f
-    };
     #pragma pack(pop)
     bool allSealable = true;          // ORIG local_36（任一槽 m_field0!=1 即 false）
     unsigned char reSealCount = 0;
@@ -43,7 +39,7 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
         // 无 invenR 具名槽。
         items[i] = user->getCurCharacInvenR()->GetInvenSlot(
             (INVEN_TYPE)1,
-            (int)(short)reinterpret_cast<const RegenROView*>(&req)->m_slots[i]);
+            (int)(short)(i ? req.m_equipSlot1 : req.m_equipSlot0));
         if (items[i].isEmpty() || !items[i].isEquipableItemType() ||
             items[i].m_random.m_random.empty())
         {
@@ -71,7 +67,7 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
         }
         if (user->CheckItemLock(
                 1,
-                (int)(short)reinterpret_cast<const RegenROView*>(&req)->m_slots[i]))
+                (int)(short)(i ? req.m_equipSlot1 : req.m_equipSlot0)))
         {
             out.m_errNo = 0xd5;
             return 0;
@@ -129,7 +125,7 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
     {
         if (user->getCurCharacInvenW()->delete_item(
                 (INVEN_TYPE)1,
-                (int)(short)reinterpret_cast<const RegenROView*>(&req)->m_slots[i], 1,
+                (int)(short)(i ? req.m_equipSlot1 : req.m_equipSlot0), 1,
                 (eItemDelReason)0x2e, true) != 1)
         {
             out.m_errNo = 0x13;

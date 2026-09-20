@@ -2,6 +2,6 @@ void CUserCharacInfo::resetGuildCreateFlag()
 {
     if (m_selected)
     {
-    CUR->m_guildCreateFlag = 0;
+    m_selected->m_fieldDC3 = 0;
     }
 }

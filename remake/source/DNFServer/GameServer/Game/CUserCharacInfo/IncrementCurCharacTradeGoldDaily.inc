@@ -1,5 +1,5 @@
 void CUserCharacInfo::IncrementCurCharacTradeGoldDaily(unsigned int gold)
 {
     enableSaveCharacStat();
-    CUR->m_reliablePerson.IncrementTradeGold(gold);
+    reinterpret_cast<CReliablePerson*>(m_selected->m_reliablePerson)->IncrementTradeGold(gold);
 }

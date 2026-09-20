@@ -5,6 +5,6 @@ signed char CUserCharacInfo::getCurCharacVill() const
     if (G_GameWorld()->IsPvPVillageMapChannel())
         return 10;
     if (G_GameWorld()->IsPVPChannel())
-        return CUR->m_villPvP;
-    return CUR->m_vill;
+        return m_selected->m_field23;
+    return m_selected->m_field22;
 }

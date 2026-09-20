@@ -2,6 +2,6 @@ void CUserCharacInfo::increaseBlueMarbleUserDeadCount()
 {
     if (m_selected)
     {
-    ++CUR->m_blueMarbleUserDeadCount;
+    ++m_selected->m_field14BE;
     }
 }

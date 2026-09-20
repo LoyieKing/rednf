@@ -31,16 +31,8 @@ int CUser::CreateCharac(SIG_CREATE_CHARAC* sig)
     //  末尾 4 字节 +0xd6..+0xd9 未初始化 = 语义 bug）；
     // [b28d-solo-CUserOnlyOrig P83/N78] ORIG 内联 rep movsl，结构整体赋值触发同形
     // （显式 memcpy 恒 call）。ORIG 位置在 level/stamina 段之前。
-    struct RecipeTable52 { char m_data[0x52]; };
-    *(RecipeTable52*)(reinterpret_cast<char*>(&info) + 0x88) =
-        // [CoBatchA 2026-09-11 具名成员·消 disp 链] ORIG 0x0864a209 `call G_CDataManager`
-        // → 0x0864a20e `mov 0x14(%eax),%ecx` 是**单条 disp**；手写
-        // `*(char**)((char*)G_CDataManager() + 0x14)` 在 4.4 产 `add $0x14,%eax;
-        // mov (%eax),%eax` 两条（gap 168-173 = -5 ⇒ 消指令方向）。
-        // CDataManager.h `CCharacList* m_characList;  // +0x14` 为权威成员，
-        // 本 TU 8882/9622/9709 行已有 `m_characList->m_characs[job]` 同形先例（ORIG 同形）。
-        *(RecipeTable52*)(reinterpret_cast<char*>(
-            &G_CDataManager()->m_characList->m_characs[static_cast<char>(sig->m_slot)]));
+    info.m_additioalInfo =
+        G_CDataManager()->m_characList->m_characs[static_cast<char>(sig->m_slot)].m_baseInfo0;
     info.m_level = 1;
     info.m_field2b = 0;
     info.m_field29.m_growthType = 0;
@@ -60,10 +52,8 @@ int CUser::CreateCharac(SIG_CREATE_CHARAC* sig)
     // [b28d-solo-CUserOnlyOrig P0/P235] ORIG 帧 0x14fc（仅 info 0x14e9 + 小局部）
     // ⇒ 原码无 invenBuf[0xcd0]/cargoBuf[0x4a] 缓冲，直接在 info 内嵌子对象偏移上
     // 调用（_Charac_info 的 CInventory@0xda / CCargo@0xdaa 为 reinterpret 视图区）。
-    reinterpret_cast<CInventory*>(reinterpret_cast<char*>(&info) + 0xda)
-        ->SetInventoryMemory(&m_inventoryMemory);
-    reinterpret_cast<CCargo*>(reinterpret_cast<char*>(&info) + 0xdaa)
-        ->SetInventoryMemory(&m_inventoryMemory);
+    info.m_curCharacInven.SetInventoryMemory(&m_inventoryMemory);
+    info.m_cargo.SetInventoryMemory(&m_inventoryMemory);
     m_characList.push_back(info);
     m_historyLog.CharacAdd(static_cast<int>(m_characList.size()) - 1);
     m_characterView.enableSaveCharacView();

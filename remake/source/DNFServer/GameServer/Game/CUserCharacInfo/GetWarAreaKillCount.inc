@@ -6,5 +6,5 @@ float CUserCharacInfo::GetWarAreaKillCount(int index)
         trace("WARAREA CUserCharacInfo::GetWarAreaKillCount() : m_selected is NULL");
         return 0.0f;
     }
-    return CUR->m_warAreaKill[index];
+    return m_selected->m_warAreaKill[index];
 }

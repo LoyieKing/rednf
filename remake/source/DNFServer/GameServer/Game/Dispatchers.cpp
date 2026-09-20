@@ -709,15 +709,6 @@ inline char* resBytes(CMDPacketStruct::STBaseResponse& r) { return reinterpret_c
 //   ORIG 0x081400eb `mov 0x18(%eax),%eax`（_SetSlotData.m_type 单 disp 读）与
 //   0x08140115 `lea 0x18(%eax),%ecx`（取址单 lea）；协议头 uchar[12] 数组退化
 //   +cast 会产 `add $0x18,%eax; mov (%eax),%eax`（+1/处）。
-struct AltarSetSlotReqView
-{
-    char m_pad0d[0xd];                          // +0x00（STBaseRequest 线格式头）
-    int m_field10;                              // +0x10
-    bool m_bSet;                                // +0x14（bool 成员 load→arg 双 movzbl）
-    char m_pad15[3];                            // +0x15
-    union { unsigned char m_raw[0xc];
-            CMDPacketStruct::_SetSlotData m_data; } m_slot;   // +0x18
-};
 #include "Dispatchers/process_packet_2.inc"
 
 
@@ -884,16 +875,6 @@ struct AltarSetSlotReqView
 //   `lea 0x24(%eax),%ecx` / `lea 0x18(%eax),%edx`；协议头 uchar[12] 数组退化
 //   +cast 会产 `add $imm,%eax; mov %eax,%edx`（2 条/处）。探针
 //   /tmp/k1sbx/g6/probe/p1.cpp：具名 struct 成员取址折 lea、成员读折单条 disp。
-struct AltarExchangeSlotReqView
-{
-    char m_pad0d[0xd];                          // +0x00（STBaseRequest 线格式头）
-    int m_field10;                              // +0x10
-    char m_pad14[4];                            // +0x14
-    union { unsigned char m_raw[0xc];
-            CMDPacketStruct::_SetSlotData m_data; } m_slot1;   // +0x18
-    union { unsigned char m_raw[0xc];
-            CMDPacketStruct::_SetSlotData m_data; } m_slot2;   // +0x24
-};
 #include "Dispatchers/process_packet_6.inc"
 
 
@@ -1140,9 +1121,8 @@ namespace
 // 取址经「lea 基址; add 偏移」正是 ORIG 4.1 形态（探针 /tmp/probe_view.cpp 实证
 // 4.4.7 对局部结构体成员取址同形）。
 #pragma pack(push,1)
-struct GmCmdArgs
+struct GmCmdArgs : MSG_BASE
 {
-    char m_pad0[0xd];
     unsigned char cmd;      // +0x0d
     int len;                // +0x0e
     union
@@ -1264,24 +1244,11 @@ struct GmCmdArgs
     // [b28d-solo-S206] P211 档③ + disp 折叠：ORIG `mov 0x10(%ebp),%eax;
     //   mov -0x10(%ebp),%edx; mov %edx,0xd(%eax)`（LHS msg 先载、值直存 disp）；
     //   裸 cast 解引用恒产 lea+中转 ⇒ 改具名视图成员。
-    struct __attribute__((packed)) SecurityLogView
-    {
-        char m_head[0xd];
-        int m_first;              // +0x0d
-    };
-    reinterpret_cast<SecurityLogView*>((char*)&msg)->m_first = first;
+    MSG_SECURITY_LOG_PACKET& req = *reinterpret_cast<MSG_SECURITY_LOG_PACKET*>(&msg);
+    req.m_field0d = first;
     for (int i = 0; i < 5; ++i)
     {
-        // [FL1 2026-09-10 负结论] ORIG 0x0825fafa 加法序 =
-        //   `add $0x4,%edx; shl $0x2,%edx; add %edx,%eax; add $0x1,%eax`
-        //   （+1 加在「基址+缩放」之后）。三形实测：
-        //   ① `msg + (i+4)*4 + 1`                    → 41/41 NEAR（最优，现形）
-        //   ② `(char*)&((uint*)&msg)[i+4] + 1`       → 同 ①（+1 仍折索引侧）
-        //   ③ `(uint)((uint*)&msg)[i+4] + 1`（P319 整型加法）→ 42 条且
-        //      TU ae−1/diff+1（劣化，已回滚）
-        // ⇒ 4.4 恒把尾 +1 折进索引侧，属 P205 封顶（旧注释 probe_add2 同结论）。
-        if (!packet.get_int(*reinterpret_cast<unsigned int*>(
-                (char*)&msg + (i + 4) * 4 + 1)))
+        if (!packet.get_int(req.m_logCounts[i]))
             return 0x9a2;
     }
     return 0;
@@ -1544,9 +1511,8 @@ public:
     {
         return 0;
     }
-    struct MsgView { char pad[0xd]; unsigned int applicant; } __attribute__((packed));
-    // ORIG 0x081d5257: mov 0xd(%eax),%esi 单级非对齐装载（packed 视图）
-    register const unsigned int applicant = reinterpret_cast<MsgView*>(pm)->applicant;
+    register const unsigned int applicant =
+        reinterpret_cast<MSG_DENY_JOIN_GUILD*>(pm)->m_characNo;
     register const int guildkey = user->get_charac_guildkey();
     DB_DenyJoinGuild::makeRequest(user->GetUID(), (unsigned int)guildkey, applicant);
     user->SendCmdOkPacket((ENUM_CMDPACKET)0x160);
@@ -1626,13 +1592,10 @@ public:
     **guard << (int)0x12b;
     **guard << (int)-1;
     SIG_GOBLIN_UPDATE_REWARD* sig = guard->GetInBuffer<SIG_GOBLIN_UPDATE_REWARD>();
-    *(unsigned int*)&sig->m_pad[0] = a;
-    sig->m_pad[4] = b;
-    // P1/探针实证：数组下标 RHS 提前装载；具名 pack(1) 视图的 **bool 标量成员**
-    // 赋值使 4.4 保持 ORIG 的「先装载基址指针、后读 RHS 槽」序（0x084244f8）。
-    struct __attribute__((packed)) SigView { char m_head[5]; bool m_answer; };
-    ((SigView*)sig)->m_answer = c;
-    strncpy(&sig->m_pad[6], d, 0x10);
+    sig->m_mId = a;
+    sig->m_field4 = b;
+    sig->m_field5 = (unsigned char)c;
+    strncpy(sig->m_ip, d, 0x10);
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
 }
 
@@ -1711,11 +1674,10 @@ public:
 {
     // ORIG 0x081d4b4c：int@0xd（len）→ str@0x11（max 0x17）
     // P1：int@0xd 成员视图折叠单 disp。
-    struct __attribute__((packed)) LenView { char m_head[0xd]; int m_len; };
-    char* m = reinterpret_cast<char*>(&msg);
-    if (!packet.get_int(*reinterpret_cast<int*>(m + 0xd)))
+    MSG_CHECK_GUILD_JOIN& req = *reinterpret_cast<MSG_CHECK_GUILD_JOIN*>(&msg);
+    if (!packet.get_int(req.m_0d))
         return LineFunc(0x34db, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_str(m + 0x11, 0x17, ((LenView*)m)->m_len))
+    if (!packet.get_str(req.m_11, 0x17, req.m_0d))
         return LineFunc(0x34de, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -1799,28 +1761,26 @@ public:
 
 #include "Dispatchers/read_92.inc"
 {
-    char* pMsg = (char*)&msg;
-    // P1：int@0x10 用成员视图折叠（ORIG `mov 0x10(%eax),%eax`）；short/byte 位保持算术形态。
-    struct __attribute__((packed)) LenView { char m_head[0x10]; int m_len; };
-    if (!packet.get_short(*(short*)(pMsg + 0x0e)))
+    MSG_RENAME_CREATURE& req = *reinterpret_cast<MSG_RENAME_CREATURE*>(&msg);
+    if (!packet.get_short(req.m_field0e))
     {
         return LineFunc(0x24b4,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*(char*)(pMsg + 0x0d)))
+    if (!packet.get_byte(reinterpret_cast<char&>(req.m_field0d)))
     {
         return LineFunc(0x24b7,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_int(*(int*)(pMsg + 0x10)))
+    if (!packet.get_int(req.m_nameLen))
     {
         return LineFunc(0x24ba,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_str(pMsg + 0x14, 0xd, ((LenView*)pMsg)->m_len))
+    if (!packet.get_str(req.m_name, 0xd, req.m_nameLen))
     {
         return LineFunc(0x24bd,
                         __PRETTY_FUNCTION__,
@@ -1844,10 +1804,9 @@ public:
 {
     // ORIG 0x081da6c0：单一 msg 槽 -0xc；lea 0x14(%eax) 先、movzbl 0xd(%eax) 折叠重读。
     // 具名字段视图（技巧14）：char* 下标反产 add+间接两步，字段直读才折叠单级。
-    struct MsgView { char pad0d[0xd]; unsigned char b0d; };
-    char* m = reinterpret_cast<char*>(&msg);
+    MSG_USER_HISTORY_LOG& req = *reinterpret_cast<MSG_USER_HISTORY_LOG*>(&msg);
     user->LogHistory("act,%d,%s",
-                     (int)reinterpret_cast<MsgView*>(m)->b0d, m + 0x14);
+                     (int)req.m_0d, req.m_14);
     return 0;
 }
 #include "Dispatchers/read_93.inc"
@@ -1937,18 +1896,10 @@ public:
     // +0x54：msg+0x0d / msg+0x11 两字段。ORIG 0x081e11c6 段为具名指针槽 -0x10
     //   （mov %eax,-0x10(%ebp)）+ 单级 disp 装载（mov 0xd(%eax),%esi），故用
     //   packed 具名视图 + 指针局部（裸 `char*+0xd` 恒产 add+mov 两段，§4.3）。
-    MSG_BASE* pMsg = &msg;
-    struct __attribute__((packed)) LimitMsgView
-    {
-        char m_head[0xd];
-        unsigned int m_field0d;    // +0x0d
-        unsigned int m_field11;    // +0x11
-    };
-    // +0x66：限购列表校验。两实参为内联表达式（P0：ORIG 无值槽往返 ⇒ 右值直传，
-    //   4.4 自然升格 callee-saved 跨 G_CDataManager() call 保活 = ORIG 的 esi/ebx）。
+    MSG_LIMIT_NPC_BUY_ITEM* pMsg = reinterpret_cast<MSG_LIMIT_NPC_BUY_ITEM*>(&msg);
     if (!G_CDataManager()->checkLimitNpcBuyItemList(
-            ((LimitMsgView*)pMsg)->m_field11,
-            (unsigned long)((LimitMsgView*)pMsg)->m_field0d))
+            pMsg->m_field11,
+            (unsigned long)pMsg->m_itemId))
     {
         // +0x82：疑似黑客用户 → trace（P227 全表达式临时链：ctor 前求值 varargs 保活）
         cMyTrace(__PRETTY_FUNCTION__, 0x55e1, 5)(
@@ -1965,7 +1916,7 @@ public:
         return 0x3c;
 
     // +0x163：查找物品模板（msg+0x0d 经 pMsg 槽重读，ORIG 值先入 ebx 跨 call 保活）
-    CItem* item = G_CDataManager()->find_item((int)((LimitMsgView*)pMsg)->m_field0d);
+    CItem* item = G_CDataManager()->find_item((int)pMsg->m_itemId);
     if (item == 0)
         return 0x11;
 
@@ -1989,7 +1940,7 @@ public:
 
     // +0x20b：构造购买物品（itemIdx = msg+0x0d）并尝试入包
     Inven_Item buyItem;                                           // ctor 080cb854（-0xa2）
-    buyItem.m_addInfo = (int)((LimitMsgView*)pMsg)->m_field0d;    // msg+0x0d → item+0x02
+    buyItem.m_addInfo = (int)pMsg->m_itemId;    // msg+0x0d → item+0x02
     G_CDataManager()->m_itemList->create_item((ENUM_ITEM_CREATE_TYPE)0, buyItem, 1);
     if (((const CInventory*)user->getCurCharacInvenRefR())->tryInsertItemIntoInventory(buyItem) < 0)
         return 0x4;
@@ -2000,16 +1951,10 @@ public:
 #include "Dispatchers/read_105.inc"
 {
     // ORIG 0x081e0f60：int@0xd → int@0x11
-    struct __attribute__((packed)) BuyItemView
-    {
-        char m_head[0xd];
-        int m_field0d;     // +0x0d
-        int m_field11;     // +0x11
-    };
-    BuyItemView& v = reinterpret_cast<BuyItemView&>(msg);
-    if (!packet.get_int(*reinterpret_cast<unsigned long*>(&v.m_field0d)))
+    MSG_BUY_ITEM& v = reinterpret_cast<MSG_BUY_ITEM&>(msg);
+    if (!packet.get_int(v.m_itemIdx))
         return LineFunc(0x559a, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(&v.m_field11)))
+    if (!packet.get_int(v.m_buyCount))
         return LineFunc(0x559d, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -2192,17 +2137,9 @@ public:
     // msg+0xd byte / msg+0x10 int；失败走 LineFunc(0x4e88/0x4e8a, pretty 名)。
     // ORIG 0x081dd904：arg2 直 `movl $<A>,0x4(%esp)`（rodata 地址立即数，非 static 指针二级）。
     // ORIG 0x81dd90a：顶部 char* m→-0xc 槽，两处地址均经槽 `mov -0xc`+add。
-    struct MercView          // 自然对齐即达 m_field10@+0x10（0xd+1+2=16 已 4 对齐）
-    {
-        char m_head[0xd];
-        char m_field0d;          // +0x0d byte
-        char m_pad0e[2];         // +0x0e..+0x0f
-        unsigned int m_field10;  // +0x10
-    };
-    MercView& m = reinterpret_cast<MercView&>(msg);
+    MsgMercenaryReturn& m = reinterpret_cast<MsgMercenaryReturn&>(msg);
     if (!packet.get_byte(m.m_field0d))
         return LineFunc(0x4e88, __PRETTY_FUNCTION__, 0, 0);
-    // ORIG 0x81dd9?：`add $0x10,%eax` 单步地址（同一 m 槽现址）。
     if (!packet.get_int(m.m_field10))
         return LineFunc(0x4e8a, __PRETTY_FUNCTION__, 0, 0);
     return 0;
@@ -2792,15 +2729,7 @@ public:
     }
     // MSG_CREATE_DISJOINT_STORE 冻结头未建模 payload（仅 m_pad[0x100]）；
     // §8.3 TU 局部视图具名（偏移/宽度证据=本函数 ORIG + read get_* 序列）。
-    struct DisjointStoreMsgView    // 自然对齐恰落各偏移（0xd+0x103=0x110 已 4 对齐）
-    {
-        char m_head[0xd];
-        char m_storeName[0x103];   // +0x0d（get_str max 0x100）
-        int m_field110;            // +0x110 名字长度（get_int）
-        int m_field114;            // +0x114
-        short m_field118;          // +0x118
-        short m_field11a;          // +0x11a
-    };
+    typedef MSG_CREATE_DISJOINT_STORE DisjointStoreMsgView;
     expert_job::CExpertJob* job = GlobalData::s_ExpertJobMgr->AcquireExpertJob((ENUM_EXPERT_JOB_TYPE)3);
     if (job == 0)
     {
@@ -2839,15 +2768,7 @@ public:
 #include "Dispatchers/read_189.inc"
 {
     // 同上 §8.3 TU 局部视图（冻结头未建模）。
-    struct DisjointStoreMsgView    // 同上：自然对齐即达各字段偏移
-    {
-        char m_head[0xd];
-        char m_storeName[0x103];   // +0x0d
-        int m_field110;            // +0x110
-        int m_field114;            // +0x114
-        short m_field118;          // +0x118
-        short m_field11a;          // +0x11a
-    };
+    typedef MSG_CREATE_DISJOINT_STORE DisjointStoreMsgView;
     DisjointStoreMsgView& base = reinterpret_cast<DisjointStoreMsgView&>(msg);
     if (!packet.get_int(base.m_field110))
     {
@@ -2893,9 +2814,8 @@ public:
     // 局部载荷区（-0x157 起）：+0x0d type / +0x0e target / +0x10 uint /
     // +0x14 msg2len / +0x18 msg2[0x1e] / +0x36 msg1len / +0x3a msg1[0x100]
     // §8.3 TU 局部 packed 视图具名（内联视图指针，零新增槽）。
-    struct CSMsgView               // 自然对齐；0x36 非对齐 int 用 4 字节区+显式视图
+    struct CSMsgView : MSG_BASE    // 自然对齐；0x36 非对齐 int 用 4 字节区+显式视图
     {
-        char m_head[0xd];
         char m_type;               // +0x0d get_byte(char&)/send_chat_msg char 实参
         unsigned short m_target;   // +0x0e
         unsigned int m_field10;    // +0x10
@@ -3085,21 +3005,17 @@ public:
     // get_int 实参 add $0xd、len typed 单级回读。MSG 头 +0xd 无具名字段
     //（PacketTypes.h 冻结），本 TU 局部视图承接。视图须 packed：ORIG 回读形
     // `mov 0xd(%eax),%eax`（+0x0d 起 len），默认对齐会把 m_len 推到 +0x10。
-    struct __attribute__((packed)) SaveCharacOptView {
-        char m_head[0xd];
-        unsigned int m_len;      // +0x0d
-    };
-    SaveCharacOptView* m = reinterpret_cast<SaveCharacOptView*>(&msg);
+    MSG_SAVE_CHARACTER_OPTION* m = reinterpret_cast<MSG_SAVE_CHARACTER_OPTION*>(&msg);
     // [P4-p167 符号性] ORIG callee 直证 get_int(unsigned int&)（视图 m_len 已是
     //   unsigned int @+0x0d）——只换 cast 目标类型。
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(m) + 0xd)) ||
+    if (!packet.get_int(m->m_len) ||
         m->m_len >= 0x201)
         return LineFunc(0x2829, __PRETTY_FUNCTION__, 0, 0);
     // [b28d-solo-Dispatchers] P0：ORIG 无 lv/pbuf 槽 ⇒ 删具名局部改内联实参
     //   （同 SGO_2 形，右→左求值先 len 后 buf）。
     // [b28d-solo-Dispatchers] P319：buf 实参整型加法 + 回 cast（探针 probe_gb2 d）。
     if (!packet.get_binary(
-            reinterpret_cast<char*>(reinterpret_cast<unsigned int>(m) + 0x11),
+            reinterpret_cast<char*>(&m->m_option),
             (int)m->m_len))
         return LineFunc(0x282b, __PRETTY_FUNCTION__, 0, 0);
     return 0;
@@ -3289,9 +3205,8 @@ struct ExtreamItemWordView { unsigned char m_pad08[8]; unsigned int m_words[0x22
         unsigned int m_id2;    // +0x05
         unsigned char m_tag[4];// +0x09..0x0c
     };
-    struct RecvPkPartyStatus
+    struct RecvPkPartyStatus : MSG_BASE
     {
-        char m_head[0xd];                       // 包头占位
         unsigned char m_pkgType;                // +0x0d
         int m_fieldE;                           // +0x0e
         int m_field12;                          // +0x12
@@ -3829,22 +3744,16 @@ struct LogIngameAdView
     // ORIG 0x081e3914：char@0xd；越界（<0 或 >0x23）logFormat(1,...,0x5b20,...) 后 LineFunc(0x5b22)
     // [b28c-34] ORIG 0x081e396a `mov -0xc(%ebp),%eax; movzbl 0xd(%eax),%eax`：
     // 成员视图才折 disp（指针+常量下标 4.4 恒 add $0xd 两段）。
-    struct ReqCharacSkillInfoMsgView
-    {
-        char m_pad[0xd];
-        char m_idx;      // +0x0d
-    };
-    ReqCharacSkillInfoMsgView* v =
-        reinterpret_cast<ReqCharacSkillInfoMsgView*>(&msg);
-    if (!packet.get_byte(v->m_idx))
+    MSG_REQUEST_CHARAC_SKILL_INFO* v =
+        reinterpret_cast<MSG_REQUEST_CHARAC_SKILL_INFO*>(&msg);
+    if (!packet.get_byte(reinterpret_cast<char&>(v->m_0d)))
         return LineFunc(0x5b1b, __PRETTY_FUNCTION__, 0, 0);
-    // ORIG 0x081e396a/0x081e3978 每次重发 disp 读（无 characIdx 槽，P0 表达式直读）。
-    if (v->m_idx < 0 || v->m_idx > 0x23)
+    if ((signed char)v->m_0d < 0 || (signed char)v->m_0d > 0x23)
     {
         LogManager::logFormat(1, "PacketDispatcher_Impl_1.cpp",
                               __PRETTY_FUNCTION__, 0x5b20,
                               "RequestCharacSkillInfo ReadPacket ERROR! : characIdx(%d)",
-                              (int)v->m_idx);
+                              (int)(signed char)v->m_0d);
         return LineFunc(0x5b22, __PRETTY_FUNCTION__, 0, 0);
     }
     return 0;
@@ -4327,25 +4236,20 @@ struct LogIngameAdView
     // get_int 实参 add $0xd、比较/传参一律 `mov 0xd(%eax)` 回读（技巧14/32，
     // 同 SGO_1/2 形）。unsigned len 局部会占 -0x10 并破坏重载链。
     // 视图须 packed：ORIG 回读 `mov 0xd(%eax),%eax`，默认对齐会把 m_len 推到 +0x10。
-    struct __attribute__((packed)) QuickChatView {
-        char m_head[0xd];
-        unsigned int m_len;      // +0x0d
-        unsigned char m_flag11;  // +0x11（get_byte 目标；MSG_QUICK_CHAT::m_11 同位）
-    };
-    QuickChatView* m = reinterpret_cast<QuickChatView*>(&msg);
-    if (!packet.get_byte(m->m_flag11))
+    MSG_QUICK_CHAT* m = reinterpret_cast<MSG_QUICK_CHAT*>(&msg);
+    if (!packet.get_byte(m->m_11))
         return LineFunc(0x290a, __PRETTY_FUNCTION__, 0, 0);
     // [p167 2026-09-11] ORIG 调用点为 `_ZN9PacketBuf7get_intERj`（unsigned int&）；
     //   旧 `int*` cast 选到 `get_intERi`（MISSING/EXTRA 各 1）⇒ 取址类型改 unsigned。
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(m) + 0xd)) ||
-        m->m_len >= 0x12d)
+    if (!packet.get_int(reinterpret_cast<unsigned int&>(m->m_0d)) ||
+        static_cast<unsigned int>(m->m_0d) >= 0x12d)
         return LineFunc(0x290b, __PRETTY_FUNCTION__, 0, 0);
     // [b28d-solo-Dispatchers] P0：ORIG 无 lv/pbuf 槽（值 %edx / buf 地址 %eax）
     //   ⇒ 删具名局部改内联实参。
     // [b28d-solo-Dispatchers] P319：buf 实参整型加法 + 回 cast（探针 probe_gb2 d）。
     if (!packet.get_binary(
-            reinterpret_cast<char*>(reinterpret_cast<unsigned int>(m) + 0x12),
-            (int)m->m_len))
+            reinterpret_cast<char*>(&m->m_quick),
+            m->m_0d))
         return LineFunc(0x290c, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }
@@ -4651,26 +4555,8 @@ namespace {
 //   +0x13 short 目标 avatar 装备槽位（0<=v<=0x68）、+0x15 int 目标装备 itemIdx（>=0）、
 //   +0x19 byte 目标 avatar option 值（bit7==0）。
 #pragma pack(push, 1)
-struct AocMsgView
-{
-    char m_head[0xd];            // MSG_BASE（0xd 字节）
-    short m_consumeSlot;         // +0x0d 消耗品槽位
-    int m_consumeItemIdx;        // +0x0f 消耗品 item idx
-    short m_avatarSlot;          // +0x13 目标 avatar 装备槽位
-    int m_equipItemIdx;          // +0x15 目标装备 item idx
-    char m_option;               // +0x19 目标 avatar option 值（get_byte(char&)）
-};
-#pragma pack(pop)
-
-// stChangeAvatarOption(ParamBase) 视图：process 写 / send 读。
-struct AocParamView
-{
-    char m_pad0[4];
-    int m_errorCode;             // +0x04 check_error 结果
-    short m_consumeSlot;         // +0x08
-    short m_avatarSlot;          // +0x0a
-    unsigned char m_option;      // +0x0c
-};
+typedef MSG_CHANGE_AVATAR_OPTION AocMsgView;
+typedef stChangeAvatarOption AocParamView;
 
 }  // namespace
 
@@ -4755,14 +4641,14 @@ namespace  // 本 TU 内的偏移视图（MSG_MAILBOX_SEND 字段化前的一致
 {
 
 inline int& mbLen(MSG_BASE& m) { return reinterpret_cast<MSG_MAILBOX_SEND&>(m).m_nameLenD; }                     // +0x0d 收件人名长
-inline char* mbName(MSG_BASE& m) { return reinterpret_cast<char*>(&m) + 0x11; }                                 // +0x11 收件人名[0x1d]
+inline char* mbName(MSG_BASE& m) { return reinterpret_cast<MSG_MAILBOX_SEND&>(m).m_name11; }
 inline unsigned int& mbGold(MSG_BASE& m) { return reinterpret_cast<MSG_MAILBOX_SEND&>(m).m_gold2e; }             // +0x2e 金币
 inline unsigned int& mbGuildKey(MSG_BASE& m) { return reinterpret_cast<MSG_MAILBOX_SEND&>(m).m_guildKey32; }     // +0x32 公会邮键
 inline unsigned char& mbSpace(MSG_BASE& m) { return reinterpret_cast<MSG_MAILBOX_SEND&>(m).m_space36; }          // +0x36 物品空间
 inline unsigned short& mbSlot(MSG_BASE& m) { return reinterpret_cast<MSG_MAILBOX_SEND&>(m).m_slot37; }           // +0x37 槽位
 inline unsigned long& mbItemId(MSG_BASE& m) { return reinterpret_cast<MSG_MAILBOX_SEND&>(m).m_itemId39; }        // +0x39 物品 id
 inline int& mbTitleLen(MSG_BASE& m) { return reinterpret_cast<MSG_MAILBOX_SEND&>(m).m_titleLen41; }              // +0x41 标题长
-inline char* mbText(MSG_BASE& m) { return reinterpret_cast<char*>(&m) + 0x45; }                                 // +0x45 文本[0x100]
+inline char* mbText(MSG_BASE& m) { return reinterpret_cast<MSG_MAILBOX_SEND&>(m).m_text45; }
 inline int& mbExtra(MSG_BASE& m) { return reinterpret_cast<MSG_MAILBOX_SEND&>(m).m_extra3d; }                    // +0x3d 附件附加字段
 
 }  // namespace
@@ -5181,16 +5067,7 @@ struct RefundParamView
 #pragma pack(push, 1)
 namespace {
 
-struct ScrMsgView
-{
-    char m_head[0xd];              // MSG_BASE（0xd 字节）
-    unsigned char m_secuType;      // +0x0d（0=安全卡、1=密保卡 pad）
-    unsigned char m_cryptoType;    // +0x0e（check_error：非 0、<=0xd、!=5）
-    char m_data[0x1000];           // +0x0f 密文区（get_binary 读 m_dataLen 字节）
-    int m_dataLen;                 // +0x100f（ORIG 紧凑布局：0xf+0x1000=0x100f；
-                                   //   缺 pack(1) 时 int 对齐把 m_dataLen 推至 0x1010）
-    unsigned char m_answerType;    // +0x1013
-};
+typedef MSG_SECU_RPY ScrMsgView;
 
 }  // namespace
 #pragma pack(pop)

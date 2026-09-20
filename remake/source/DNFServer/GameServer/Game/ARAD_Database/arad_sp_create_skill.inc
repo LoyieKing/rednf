@@ -10,7 +10,7 @@ int CREATE_QUERY::arad_sp_create_skill(MySQL* db, SIG_CREATE_CHARAC* sig)
     volatile int len = 0x198;
     if (db->insert("inSert into skill (charac_no, skill_slot) values(%u, '%s')",
                    sig->m_characNo,
-                   db->blob_to_str(0, (void*)((char*)sig + 0x79), len)) != 0)
+                   db->blob_to_str(0, (void*)sig->m_masteredSkillA, len)) != 0)
     {
         return -1;
     }

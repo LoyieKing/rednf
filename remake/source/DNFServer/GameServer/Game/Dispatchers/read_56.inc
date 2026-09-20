@@ -1,12 +1,11 @@
 int Dispatcher_ScanBotByDrv::read(PacketBuf& packet, MSG_BASE& msg)
 {
-    // ORIG 0x082646ae：读 int(msg+0xd) 失败记 LineFunc(0x42c)；
-    // 再读 byte(msg+0x11)（signed char）失败记 LineFunc(0x431)。
-    if (!packet.get_int(*reinterpret_cast<int*>((char*)&msg + 0xd)))
+    MSG_SCAN_DRV& req = *reinterpret_cast<MSG_SCAN_DRV*>(&msg);
+    if (!packet.get_int(req.m_field0d))
     {
         return LineFunc(0x42c, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>((char*)&msg + 0x11)))
+    if (!packet.get_byte(reinterpret_cast<char&>(req.m_field11)))
     {
         return LineFunc(0x431, __PRETTY_FUNCTION__, 0, 0);
     }

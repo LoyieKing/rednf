@@ -7,9 +7,10 @@ int Dispatcher_Write_On_The_GuildBoard::process(CUser* user, MSG_BASE& msg, Para
     // [G5·256 负结论 2026-09-11] 试具名引用 p/m + 裸偏移替换 ⇒ 实测 92→**94**（劣化 2）
     //   ⇒ 回滚保裸偏移形（ORIG 0x081d3210 槽形在 4.4 下反劣）。
     // msg+0xd：公会板标题文本区首字节（非 0 才有效）
-    if (*(unsigned char*)((char*)&msg + 0xd) == 0)
+    MSG_WRITE_GUILD_BOARD& req = *reinterpret_cast<MSG_WRITE_GUILD_BOARD*>(&msg);
+    if (static_cast<unsigned char>(req.m_text[0]) == 0)
     {
-        *(int*)((char*)&param + 4) = 1;
+        static_cast<stGuildBoardParam&>(param).m_4 = 1;
         return 0;
     }
 
@@ -17,10 +18,10 @@ int Dispatcher_Write_On_The_GuildBoard::process(CUser* user, MSG_BASE& msg, Para
     //   非真再测 hasSpecialCharacterExceptSpace `je <false>` —— 正向 `||` 短路合流，
     //   无德摩根 `xor $1`、无具名 bool 槽（我方原 `!a && !b` + `bool invalid`
     //   ⇒ 多 2 条 xor + 3 条 movb/cmpb，-0x25 槽为本方发明）。
-    if (G_CDataManager()->hasPreventString((const char*)((char*)&msg + 0xd)) ||
-        G_CDataManager()->hasSpecialCharacterExceptSpace((const char*)((char*)&msg + 0xd)))
+    if (G_CDataManager()->hasPreventString(req.m_text) ||
+        G_CDataManager()->hasSpecialCharacterExceptSpace(req.m_text))
     {
-        *(int*)((char*)&param + 4) = 1;
+        static_cast<stGuildBoardParam&>(param).m_4 = 1;
         return 0;
     }
 
@@ -32,7 +33,7 @@ int Dispatcher_Write_On_The_GuildBoard::process(CUser* user, MSG_BASE& msg, Para
     unsigned int accId = user->get_acc_id();
     ENUM_SERVER_GROUP group = (ENUM_SERVER_GROUP)user->GetServerGroup();
     CGuildServerProxy* proxy = GlobalData::s_guild_proxy_mgr->GetServerProxy(group);
-    proxy->SendGuildBoardWrite((char*)((char*)&msg + 0xd), accId, characNo, job, growType,
+    proxy->SendGuildBoardWrite(req.m_text, accId, characNo, job, growType,
                                guildkey);
     return 0;
 }

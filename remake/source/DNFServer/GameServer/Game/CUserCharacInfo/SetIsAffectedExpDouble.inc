@@ -1,4 +1,4 @@
 void CUserCharacInfo::SetIsAffectedExpDouble(bool flag)
 {
-    CUR->m_isAffectedExpDouble = flag;
+    m_selected->m_fieldEB2 = flag;
 }

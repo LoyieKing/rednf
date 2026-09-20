@@ -1,5 +1,5 @@
 void CUserCharacInfo::setCharacOption(CharacterOption& option)
 {
     if (m_selected)
-        CUR->m_characterOption = option;
+        m_selected->m_characterOption = option;
 }

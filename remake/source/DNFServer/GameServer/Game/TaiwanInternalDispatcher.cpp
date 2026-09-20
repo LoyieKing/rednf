@@ -190,10 +190,10 @@
 // ============================================================================
 // 消息体读侧视图（§4.3）：ORIG 单段 disp `movzbl 0xd(%eax)`/`mov 0xe(%eax)`/
 // `mov 0x12(%eax)`（0x081619xx）；宽=装载指令。
+#include "PacketDispatcher.h"
 #pragma pack(push, 1)
-struct P2pHoleMsgV
+struct P2pHoleMsgV : MSG_BASE
 {
-    char m_pad0[0xd];           // +0x00..未消费
     unsigned char m_connectedType;  // +0x0d
     int m_requiredTime;         // +0x0e
     int m_checkTime;            // +0x12

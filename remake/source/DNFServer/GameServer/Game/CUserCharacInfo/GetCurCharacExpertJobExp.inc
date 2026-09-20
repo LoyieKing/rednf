@@ -1,4 +1,4 @@
 int CUserCharacInfo::GetCurCharacExpertJobExp() const
 {
-    return m_selected ? CUR->m_expertJobExp : 0;
+    return m_selected ? m_selected->m_fielde81 : 0;
 }

@@ -47,6 +47,7 @@ public:
 
     int getIdx();               // ORIG 0x082aa728：return +0xaf0
     void setIdx(int idx);       // ORIG 0x082aa716：写 +0xaf0
+    std::map<int, map_item>& stageItemMap() { return m_stageData.m_itemMap; }
 
     // ---- 虚函数 override ----
     virtual bool handleDieUser(CUser* user);      // 0x08143a62

@@ -1,4 +1,4 @@
 void CUserCharacInfo::SetInvisible()
 {
-    CUR->m_visibleBits.visible = 0;
+    m_selected->m_tagVisibleFlags.m_flag = (unsigned char)(m_selected->m_tagVisibleFlags.m_flag & ~1u);
 }

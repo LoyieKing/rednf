@@ -29,9 +29,9 @@ void _Charac_info::Reset()
     m_field7b = 0;                                    // +0x7b movl
     m_field7f = 0;                                    // +0x7f movl
     m_additioalInfo.clear();                                  // +0x88 call（具名子对象；判据②消视图 cast）
-    reinterpret_cast<CInventory*>(reinterpret_cast<char*>(this) + 0xda)->reset();       // +0xda 子对象视图
-    reinterpret_cast<SkillSlot*>(reinterpret_cast<char*>(this) + 0x892)->clear_all_skills_both();  // +0x892 子对象视图
-    reinterpret_cast<CCargo*>(reinterpret_cast<char*>(this) + 0xdaa)->reset();          // +0xdaa 子对象视图
+    m_curCharacInven.reset();
+    m_skillSlot.clear_all_skills_both();
+    m_cargo.reset();
     m_guildId = 0;                                    // +0xdbe movl
     m_fielddc2 = 0;                                   // +0xdc2 movb
     m_fieldE02 = 0;  // +0xe02 movl（pad 未建模）
@@ -40,7 +40,7 @@ void _Charac_info::Reset()
     m_fieldDFE = 0;  // +0xdfe movl（pad）
     m_fieldE06 = 0;  // +0xe06 movl（pad）
     m_fieldE0A = 0;  // +0xe0a movl（pad）
-    memset(m_dataE0E, 0, 0x14);      // +0xe0e memset(0x14)（pad）
+    memset(m_warAreaKill, 0, sizeof(m_warAreaKill));      // +0xe0e memset(0x14)（pad）
     m_fielde22 = 0;                                   // +0xe22 movl
     m_fieldE26 = 0;  // +0xe26 movl（pad）
     m_fieldE2A = 0;  // +0xe2a movl（pad）
@@ -141,11 +141,11 @@ void _Charac_info::Reset()
     m_field1278 = 0;                                  // +0x1278 movb
     m_pad1279 = 0;                                    // +0x1279 movb
     m_field127a = 0;                                  // +0x127a movb
-    reinterpret_cast<tagCharacVisibleFlag*>(reinterpret_cast<char*>(this) + 0xe40)->reset();  // +0xe40 子对象视图
+    m_tagVisibleFlags.reset();
     m_field127B = 0;                                 // +0x127b movb（pad）
     m_field127C = 0;       // +0x127c movl（pad）
     m_field1280 = 0;                                  // +0x1280 movb
-    reinterpret_cast<stAuraAvatarOption*>(reinterpret_cast<char*>(this) + 0x1281)->reset();   // +0x1281 子对象视图
+    m_auraAvatarOption.reset();
     m_field1291 = 0;  // +0x1291 movl（pad）
     m_field128D = 0;  // +0x128d movl（pad）
     m_field1295 = 0;  // +0x1295 movl（pad）

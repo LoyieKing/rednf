@@ -1,4 +1,4 @@
 unsigned short CUserCharacInfo::GetCurConditionEventRewardStep() const
 {
-    return m_selected ? CUR->m_curConditionEventRewardStep : 0;
+    return m_selected ? m_selected->m_field1234 : 0;
 }

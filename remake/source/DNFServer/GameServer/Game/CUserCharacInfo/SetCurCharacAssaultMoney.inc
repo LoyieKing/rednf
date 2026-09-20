@@ -2,6 +2,6 @@ void CUserCharacInfo::SetCurCharacAssaultMoney(int money)
 {
     if (m_selected)
     {
-    CUR->m_assaultMoney = money;
+    m_selected->m_field12B1 = money;
     }
 }

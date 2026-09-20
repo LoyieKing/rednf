@@ -1,5 +1,5 @@
 void CUserCharacInfo::setCurCharacEventCharacterGrowtype(char growtype)
 {
     enableSaveCharacEtc();
-    CUR->m_eventCharacterGrowtype = (unsigned char)growtype;
+    m_selected->m_field123f = (unsigned char)growtype;
 }

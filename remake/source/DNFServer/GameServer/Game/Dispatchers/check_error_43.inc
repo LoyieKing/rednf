@@ -14,7 +14,7 @@ int Dispatcher_ChangeHostWarRoom::check_error(CUser* user, MSG_BASE& msg)
         reinterpret_cast<const MSG_CHANGE_HOST_WARROOM&>(msg);
     // ORIG 0x081d7549/0x081d7554：两条件各自重读 `mov -0xc,%eax; movzbl 0xd(%eax),%eax`
     // （P0/P48：无 warRoom 槽往返 ⇒ 表达式直读，禁具名局部）。
-    if ((signed char)req.m_pad[0] < 0 || (signed char)req.m_pad[0] > 5)
+    if ((signed char)req.m_field0d < 0 || (signed char)req.m_field0d > 5)
     {
         return LineFunc(0x41b8, __PRETTY_FUNCTION__, 0, user->get_acc_id());
     }

@@ -2,7 +2,7 @@ void CUserCharacInfo::SetCurCharacRevengeData(unsigned char count, unsigned char
 {
     if (m_selected)
     {
-    CUR->m_revengeCount = count;
-    CUR->m_revengeDungeonCount = ticket;
+    m_selected->m_field1242 = count;
+    m_selected->m_field1243 = ticket;
     }
 }

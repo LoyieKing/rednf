@@ -108,6 +108,13 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
             {
                 if (m_pEquipSlot[slot].m_addInfo == 0)
                     continue;
+#if !remake_verify
+                cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
+                    "[DNF-DIAG ITEMLIST] slot=%d id=%d found=%d cap=%d",
+                    slot, m_pEquipSlot[slot].m_addInfo,
+                    G_CDataManager()->find_item(m_pEquipSlot[slot].m_addInfo) != 0,
+                    get_inventory_capacity());
+#endif
                 buf->put_short(slot);
                 buf->put_int(m_pEquipSlot[slot].m_addInfo);
                 buf->put_int(m_pEquipSlot[slot].m_addInfo2);

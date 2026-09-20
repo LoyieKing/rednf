@@ -6,10 +6,10 @@ bool TimerBloodPhaseRegister1::dispatch_sig(int p1, int p2, memberIdentification
     if (!party->check_timer_key((TIMER_MESSAGE)0x18, p2))
         return 0;
     short nextRound =
-        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnCnt[1];
+        (party)->m_battleField.m_bloodSpawnCnt[1];
     short* spawnTime =
-        &reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.m_bloodSpawnTime[1];
-    reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.BloodPhaseSpawn(
+        &(party)->m_battleField.m_bloodSpawnTime[1];
+    (party)->m_battleField.BloodPhaseSpawn(
         nextRound, *spawnTime, 0x18, 1);
     return 1;
 }

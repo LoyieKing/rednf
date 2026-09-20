@@ -7,8 +7,8 @@ void CUserCharacInfo::ChangeFinishPoint(int point)
         return;
     }
     if (point > 0)
-        CUR->m_finishPointTotal += point;
-    CUR->m_finishPoint += point;
-    if (CUR->m_finishPoint < 0)
-        CUR->m_finishPoint = 0;
+        m_selected->m_fieldE0A += point;
+    m_selected->m_fieldE06 += point;
+    if (m_selected->m_fieldE06 < 0)
+        m_selected->m_fieldE06 = 0;
 }

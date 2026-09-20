@@ -16,19 +16,19 @@ void CUserCharacInfo::checkBonusPoint()
         CEquipItem* equip = (CEquipItem*)found;
         if (equip->getWpBonusPoint()->m_type == 0)
         {
-            CUR->m_wpBonus.m_base += equip->getWpBonusPoint()->m_value;
+            m_selected->m_wpBonusPointResult.m_base += equip->getWpBonusPoint()->m_value;
         }
         else if (equip->getWpBonusPoint()->m_type == 1)
         {
-            CUR->m_wpBonus.m_add += equip->getWpBonusPoint()->m_value;
+            m_selected->m_wpBonusPointResult.m_add += equip->getWpBonusPoint()->m_value;
         }
         if (equip->getExpBonusPoint()->m_type == 0)
         {
-            CUR->m_expBonus.m_base += equip->getExpBonusPoint()->m_value;
+            m_selected->m_expBonusPointResult.m_base += equip->getExpBonusPoint()->m_value;
         }
         else if (equip->getExpBonusPoint()->m_type == 1)
         {
-            CUR->m_expBonus.m_add += equip->getExpBonusPoint()->m_value;
+            m_selected->m_expBonusPointResult.m_add += equip->getExpBonusPoint()->m_value;
         }
     }
 }

@@ -34,9 +34,9 @@ int Dispatcher_SelectStriker::process(CUser* user, MSG_BASE& msg, ParamBase& par
         **guard << (int)user->GetUID();   // ORIG 0x081e3f89 调 lsEi（非 lsEj）
         SIG_REQUEST_TAG_CHARAC_INFO* sig = guard->GetInBuffer<SIG_REQUEST_TAG_CHARAC_INFO>();
         memset(sig, 0, 0x414c);
-        *reinterpret_cast<int*>(sig->m_pad) =
-            user->m_characList[sel].m_characNo;   // sig+0x00 = entry 首字段
-        *reinterpret_cast<char*>(sig->m_pad + 0x4) =
+        sig->m_characNo =
+            user->m_characList[sel].m_characNo;
+        sig->m_pad04 =
             m.m_0e;
         // ORIG 0x081e402d: s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard)
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);

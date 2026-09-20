@@ -2,8 +2,8 @@ void CUserCharacInfo::IncCurConditionEventStep()
 {
     if (m_selected)
     {
-        ++CUR->m_curConditionEventStep;
-        if ((short)CUR->m_curConditionEventStep > 0xff)
-            CUR->m_curConditionEventStep = 0xff;
+        ++m_selected->m_field1232;
+        if ((short)m_selected->m_field1232 > 0xff)
+            m_selected->m_field1232 = 0xff;
     }
 }

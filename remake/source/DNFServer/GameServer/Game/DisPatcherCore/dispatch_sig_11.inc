@@ -15,11 +15,13 @@ int DisPatcher_DisJointItem::dispatch_sig(CUser* user, PacketBuf& packet)
     // ORIG msg 基址 -0x17（奇数=align1，15B char 数组），实参两段
     // `lea -0x17(%ebp); add $0xd`（技巧26 blob 指针破 lea 折叠）；尾读
     // `movzwl -0xa(%ebp)` 单级（常量地址折叠）。
-    struct JointMsg { char m_pad[0xd]; short m_slot; } __attribute__((packed)) msg;
-    if (!packet.get_short(*reinterpret_cast<short*>(msg.m_pad + 0xd)))
+    struct JointMsg : MSG_BASE { short m_slot; } __attribute__((packed)) msg;
+    short slot = 0;
+    if (!packet.get_short(slot))
     {
         return LineFunc(0x88d0, __PRETTY_FUNCTION__, 0, 0);
     }
+    msg.m_slot = slot;
     char type = 0;
     if (!packet.get_byte(type))
     {

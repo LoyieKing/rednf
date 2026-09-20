@@ -2,6 +2,6 @@ void CUserCharacInfo::DecreaseRevengeDungeonTicket()
 {
     if (m_selected)
     {
-    --CUR->m_revengeDungeonCount;
+    --m_selected->m_field1243;
     }
 }

@@ -2,7 +2,7 @@ void CUserCharacInfo::IncCurCharacEventAddItemCount(unsigned short count)
 {
     if (m_selected)
     {
-    CUR->m_curCharacEventAddItemCount =
-        (unsigned short)(CUR->m_curCharacEventAddItemCount + count);
+    m_selected->m_field123C =
+        (unsigned short)(m_selected->m_field123C + count);
     }
 }

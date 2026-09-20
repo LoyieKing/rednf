@@ -63,6 +63,12 @@ public:
     int get_charac_level() const;
 };
 
+class cUserHistoryLog
+{
+public:
+    void AchievementComplete(int idx);
+};
+
 class CUser : public CUserCharacInfo
 {
 public:
@@ -80,7 +86,11 @@ public:
     UserQuest* getCurCharacQuestR() const;
     void Send(PacketGuard& packet);
     void SendUpdateItem(eSendTarget target, ENUM_ITEMSPACE space, int slot);
+    char m_layoutPad[0x79700];
+    cUserHistoryLog m_historyLog;
 };
+static_assert(__builtin_offsetof(CUser, m_historyLog) == 0x79700,
+              "CAchievement CUser m_historyLog offset");
 
 class UserQuest
 {
@@ -102,11 +112,6 @@ public:
 // cUserHistoryLog::AchievementComplete（CUser.h 权威 cUserHistoryLog 声明，
 // CAchievement.cpp 使用本地最小视图；符号 _ZN15cUserHistoryLog19AchievementCompleteEi
 // 由 cUserHistoryLog.cpp 提供，ORIG 0x08685762）
-class cUserHistoryLog
-{
-public:
-    void AchievementComplete(int idx);
-};
 
 
 // ---- CDataManager 称号表视图（+0xa788，与 CTitleBook.cpp 相同布局） ----

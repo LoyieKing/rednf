@@ -83,6 +83,13 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
         {
             continue;
         }
+#if !remake_verify
+        cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
+            "[DNF-DIAG EQUIPLIST] slot=%d id=%d found=%d flag=%d ui=%d",
+            slotNo, slots[i].m_addInfo,
+            G_CDataManager()->find_item((int)slots[i].m_addInfo) != 0,
+            (int)flag, (int)userInfo);
+#endif
         ++count;
         // [H8InvenPvPWorld 2026-09-11 · P9/P222] ORIG +0x2xx 为 `cmpb $0x0,flag;
         // je <else>`（2 条）；`!flag`（bool 取反）在 4.4 产

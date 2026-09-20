@@ -1,4 +1,4 @@
 unsigned char CUserCharacInfo::getDisguiseKind()
 {
-    return m_selected ? CUR->m_disguiseKind : 0;
+    return m_selected ? m_selected->m_fieldEEA : 0;
 }

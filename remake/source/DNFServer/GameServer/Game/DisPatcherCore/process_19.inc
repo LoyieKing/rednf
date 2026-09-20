@@ -8,21 +8,8 @@ int DisPatcher_MoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     // unsigned char 读出 ORIG `movzbl 0xd/0x18(%eax),%edx` 单步 disp 折叠 + QI 直存
     // （冻结头 char 声明混号必两段）；偏移/宽度按 PacketTypes.h:908 布局注释。
     #pragma pack(push, 1)
-    struct MoveItemSpaceView {
-        char m_head[0xd];
-        unsigned char m_fromSpace;   // +0x0d
-        short m_fromPos;             // +0x0e
-        unsigned int m_count;        // +0x10
-        int m_field14;               // +0x14
-        unsigned char m_toSpace;     // +0x18
-        short m_toPos;               // +0x19
-        unsigned int m_itemIdx;      // +0x1b
-        char m_gap1f[4];             // +0x1f..0x22
-        char m_expanda;              // +0x23
-        char m_expandb;              // +0x24
-    };
     #pragma pack(pop)
-    const MoveItemSpaceView* req = reinterpret_cast<const MoveItemSpaceView*>(&msg);
+    const MSG_MOVE_ITEMSPACE* req = reinterpret_cast<const MSG_MOVE_ITEMSPACE*>(&msg);
     stMoveItemParam& out = static_cast<stMoveItemParam&>(param);
     // [b28d-solo-DisPatcherCore] P211：ORIG value→%edx 先、槽地址→%eax 后
     // （RHS-first+edx 中转）=「unsigned 返回 + 无具名 err/dst 局部」形。

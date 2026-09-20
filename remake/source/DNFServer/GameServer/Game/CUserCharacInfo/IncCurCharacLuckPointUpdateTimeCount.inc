@@ -1,5 +1,5 @@
 void CUserCharacInfo::IncCurCharacLuckPointUpdateTimeCount()
 {
     if (m_selected)
-        CUR->m_luckPointUpdateTimeCount += 1;
+        m_selected->m_fieldE75 += 1;
 }

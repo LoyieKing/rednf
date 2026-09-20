@@ -21,14 +21,8 @@ int Dispatcher_Client_Spec_Statistic::process(CUser* user, MSG_BASE& msg, ParamB
     stClientSpecStatisticParam& res = static_cast<stClientSpecStatisticParam&>(param);
     // [G3 试] disp 折叠（P311/P290）：ORIG 0x081ce71d `movzbl 0xd(%eax),%edx` 单条常量
     //   disp 直读；旧形 `*(uchar*)((char*)&req + 0xd)` 产 `add $0xd,%eax; movzbl (%eax)`（+1 条）。
-    struct SpecStatView
-    {
-        char m_pad0d[0xd];        // +0x00..+0x0c
-        unsigned char m_spec;     // +0x0d
-    };
-    res.m_spec = reinterpret_cast<SpecStatView*>(&req)->m_spec;
-    // ORIG +0x53：getClientHWSpec 结果具名槽 -0xc（P0），memcpy 首参经槽直传
+    res.m_spec = req.m_specByte;
     void* dest = user->getClientHWSpec();
-    memcpy(dest, reinterpret_cast<char*>(&req) + 0xe, 0xbf8);
+    memcpy(dest, &req.m_spec, 0xbf8);
     return 0;
 }

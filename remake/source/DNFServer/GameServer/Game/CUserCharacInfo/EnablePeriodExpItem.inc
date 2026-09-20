@@ -6,7 +6,7 @@
 // `mov (%eax),%eax; mov %eax,%ebx` 两段中转。
 bool CUserCharacInfo::EnablePeriodExpItem()
 {
-    std::vector<ContinuousItemInfo>* v = &CUR->m_effectItemList.m_list;
+    std::vector<ContinuousItemInfo>* v = &m_selected->m_continuousItemListB;
     std::vector<ContinuousItemInfo>::iterator it = v->begin();
     unsigned int now = GlobalData::s_systemTime_.getCurSec();
     for (; it != v->end();)

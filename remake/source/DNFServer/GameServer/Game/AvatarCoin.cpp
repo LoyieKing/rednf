@@ -22,19 +22,7 @@
 
 #include "CDataManager.h"           // DataManagerInitDepends.h 前置依赖
 #include "DataManagerInitDepends.h"   // AvatarRoulette 权威布局
-
-class AvatarCoin
-{
-public:
-    AvatarCoin();
-    void Set(unsigned int value);
-    int Add(unsigned int value);
-    unsigned int Use();
-    unsigned int Get() const;
-    bool IsUsable() const;
-
-    unsigned int m_coin;  // +0x00
-};
+#include "AvatarCoin.h"
 
 #include "AvatarCoin/AvatarCoin.inc"
 

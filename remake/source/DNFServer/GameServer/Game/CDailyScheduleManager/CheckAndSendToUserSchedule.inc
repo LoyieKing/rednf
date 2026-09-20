@@ -22,6 +22,16 @@ void CDailyScheduleManager::CheckAndSendToUserSchedule(CUser* user, bool flag)
     int state;                     // -0xc
 
     count = m_schedules.size();
+#if !remake_verify
+    {
+        int n1 = 0;
+        for (unsigned int k = 0; k < count; ++k)
+            if (m_schedules[k].m_state == 1) ++n1;
+        cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
+            "[DNF-DIAG SCHED] n=%u state1=%d user=%d",
+            count, n1, user != 0);
+    }
+#endif
     cur = GlobalData::s_systemTime_.getCurSec();
     localtime_r(&cur, &tm);
     wday = tm.tm_wday;

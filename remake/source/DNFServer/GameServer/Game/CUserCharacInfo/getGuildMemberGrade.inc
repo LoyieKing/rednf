@@ -1,4 +1,4 @@
 unsigned char CUserCharacInfo::getGuildMemberGrade()
 {
-    return m_selected ? CUR->m_guildMemberGrade : 0;
+    return m_selected ? m_selected->m_fieldDF3 : 0;
 }

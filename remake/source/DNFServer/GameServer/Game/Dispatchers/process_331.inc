@@ -8,9 +8,9 @@ int Dispatcher_Skill_Command_Customizing::process(CUser* user, MSG_BASE& msg, Pa
     //   （param 引用先声明、占更深槽）→ `mov 0x10(%ebp),%eax; mov %eax,-0x1c`（msg 指针）
     //   ⇒ 交换声明序（我方原 msg 先声明占 -0x20，与 ORIG 相反）。
     stSkillCommandParam& res = static_cast<stSkillCommandParam&>(param);
-    char* m = reinterpret_cast<char*>(&msg);
+    MSG_SKILL_COMMAND& req = *reinterpret_cast<MSG_SKILL_COMMAND*>(&msg);
 
-    const int commandCount = (int)(char)m[0xd];
+    const int commandCount = (int)(char)req.m_commandCount;
     if (commandCount > 0x31)
     {
         // ORIG:count>49 → err=0xfc 后直接返回(不经错误日志/default 分支)
@@ -22,8 +22,8 @@ int Dispatcher_Skill_Command_Customizing::process(CUser* user, MSG_BASE& msg, Pa
     {
         // STSkillCommandData ctor ORIG W 0x0822db66(CUser.h 内嵌定义已一致)
         STSkillCommandData data;
-        data.m_command = *reinterpret_cast<unsigned short*>(m + i * 8 + 0xe);
-        data.m_count   = (unsigned char)m[i * 8 + 0x10];
+        data.m_command = req.m_entries[i].m_command;
+        data.m_count   = req.m_entries[i].m_count;
 
         // [DispA6 P0] ORIG 0x081d2bb8 `call get_charac_job; mov %eax,%ebx`、
         //   0x081d2bc5 `call G_CDataManager; mov %eax,(%esp)` —— job/dm 结果均
@@ -55,7 +55,7 @@ int Dispatcher_Skill_Command_Customizing::process(CUser* user, MSG_BASE& msg, Pa
         //   0x081d2c71 置 0xfa 后直接 `jmp 0x081d2c92`（末位键检查段）。
         for (int j = 0; j < (int)(char)data.m_count; ++j)
         {
-            keys[j] = (unsigned char)m[i * 8 + j + 0x11];
+            keys[j] = req.m_entries[i].m_keys[j];
             if ((char)keys[j] < 0 || (char)keys[j] > 8)
             {
                 res.m_4 = 0xfa;

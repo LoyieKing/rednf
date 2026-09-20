@@ -58,8 +58,11 @@ static_assert(sizeof(SIG_COMBO_SKILL) == 0xb2, "SIG_COMBO_SKILL ABI drift");
 
 struct SIG_CREATE_ACCOUNT_CARGO_RESULT
 {
-    char m_pad[0x8];
+    unsigned char m_result;
+    unsigned char m_pad01[3];
+    unsigned int m_capacity;
 };
+static_assert(sizeof(SIG_CREATE_ACCOUNT_CARGO_RESULT) == 0x8, "SIG_CREATE_ACCOUNT_CARGO_RESULT ABI drift");
 
 #pragma pack(push, 1)
 // 真实布局（DisPatcher_CreateCharac::process 0x081c041e 反汇编实证，memset 0x5354）：
@@ -236,19 +239,29 @@ struct SIG_DEATH_TOWER_GET_BEST_RECORD
 // [Lane31W8LTDBTaskView] 头部字段化：ORIG DB_DeathTowerLoadTopRanker::dispatch
 // 0x0842a6?? 写 +0x00 count=0 / +0x04 flag=reload；行区（+0xfa0/+0x1000，
 // 步长 0x6c）按显式偏移视图访问。
+#pragma pack(push, 1)
+struct SIG_DEATH_TOWER_RANKER_ROW
+{
+    char m_pad0[0xc];
+    unsigned short m_towerIndex;
+    unsigned short m_type;
+    char m_memberInfo[0x17];
+    char m_pad27[0x39];
+    unsigned int m_stage;
+    unsigned int m_playTime;
+    char m_pad68[4];
+};
 struct SIG_DEATH_TOWER_LOAD_TOP_RANKER
 {
-    union
-    {
-        char m_pad[0x35b68];
-        struct
-        {
-            unsigned int m_count;      // +0x00
-            unsigned char m_flag;      // +0x04
-            char m_pad05[0x35b68 - 0x05];
-        };
-    };
+    unsigned int m_count;
+    unsigned char m_flag;
+    char m_pad05;
+    unsigned short m_ranks[0x7cd];
+    SIG_DEATH_TOWER_RANKER_ROW m_rows[2000];
+    char m_tail[8];
 };
+#pragma pack(pop)
+
 static_assert(sizeof(SIG_DEATH_TOWER_GET_BEST_RECORD) == 0x878,
               "SIG_DEATH_TOWER_GET_BEST_RECORD ABI drift");
 static_assert(sizeof(SIG_DEATH_TOWER_LOAD_TOP_RANKER) == 0x35b68,
@@ -283,13 +296,16 @@ static_assert(sizeof(SIG_DELETE_CHARAC) == 0x14, "SIG_DELETE_CHARAC ABI drift");
 
 struct SIG_DOUBLE_CHECK_GUILD_ADDRESS
 {
-    char m_pad[0xd];
+    char m_guildUrl[0xd];
 };
 
+#pragma pack(push, 1)
 struct SIG_DOUBLE_CHECK_GUILD_NAME
 {
-    char m_pad[0x17];
+    char m_guildName[0x17];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_DOUBLE_CHECK_GUILD_NAME) == 0x17, "SIG_DOUBLE_CHECK_GUILD_NAME ABI drift");
 
 // 部分具名化（证据：CDungeonDataManager::{UpdateCharacter,UpdateMonster,UpdateSkill} 报告
 // 0x08485956/0x08485a5a/0x084859d8 —— UpdateMonster/Skill 键 DungeonKey=+0x04（汇编
@@ -397,10 +413,16 @@ struct SIG_EXPERT_JOB
 };
 static_assert(sizeof(SIG_EXPERT_JOB) == 0x30, "SIG_EXPERT_JOB size");
 
+#pragma pack(push, 1)
 struct SIG_EXTEND_CHARAC_SLOT
 {
-    char m_pad[0x8];
+    unsigned int m_mId;
+    unsigned char m_slotEffect;
+    unsigned char m_slotLimit;
+    char m_pad06[2];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_EXTEND_CHARAC_SLOT) == 0x8, "SIG_EXTEND_CHARAC_SLOT ABI drift");
 
 // SIG_FAIR_PVP_SCORE（总 0x688）。+0x00 characNo、+0x2c job_score 压缩 blob
 // 源（0x650）、+0x67c dailyPlayCount；尾部字段按 W8LT_DBTask.cpp
@@ -520,10 +542,15 @@ static_assert(sizeof(SIG_FIND_FACTORY_HUB_USER_NO_CONN) == 0xc,
 static_assert(0x004 + sizeof(((SIG_FIND_FACTORY_HUB_USER_NO_CONN*)0)->m_characNo) == 0x008,
               "SIG_FIND_FACTORY_HUB_USER_NO_CONN m_flag at +0x008");
 
+#pragma pack(push, 1)
 struct SIG_FORBID_USER_TO_PLAY
 {
-    char m_pad[0x9];
+    int m_characNo;
+    bool m_flag;
+    int m_days;
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_FORBID_USER_TO_PLAY) == 0x9, "SIG_FORBID_USER_TO_PLAY ABI drift");
 
 struct SIG_GET_PREMIUM_SELECTED_CUBE_INFO
 {
@@ -570,10 +597,16 @@ struct SIG_GOBLIN_PAD_ADVICE_CHANGE_PWD
     unsigned int m_adviceChangePwd;   // +0x00
 };
 
+#pragma pack(push, 1)
 struct SIG_GOBLIN_UPDATE_REWARD
 {
-    char m_pad[0x18];
+    unsigned int m_mId;
+    unsigned char m_field4;
+    unsigned char m_field5;
+    char m_ip[0x12];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_GOBLIN_UPDATE_REWARD) == 0x18, "SIG_GOBLIN_UPDATE_REWARD ABI drift");
 
 // 字段化（W8DB，ORIG makeRequest 0x0842f2ae：+0 uint accId、+4 uint flag；
 // dispatch 0x0842f22a：member_mousepass.m_id=%s(+0)、+%d(+4)）：
@@ -585,10 +618,14 @@ struct SIG_GOBLIN_UPDATE_VALIDITYTIME
 static_assert(sizeof(SIG_GOBLIN_UPDATE_VALIDITYTIME) == 0x8,
               "SIG_GOBLIN_UPDATE_VALIDITYTIME ABI drift");
 
+#pragma pack(push, 1)
 struct SIG_GOLD_CONTROL_EXCEPTION_MID
 {
-    char m_pad[0x2];
+    unsigned char m_flag;
+    unsigned char m_char;
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_GOLD_CONTROL_EXCEPTION_MID) == 0x2, "SIG_GOLD_CONTROL_EXCEPTION_MID ABI drift");
 
 // 字段化（SecuLink 批次 2026-09-05，裸偏移清理；union 叠加保留 m_pad 基名）。
 // 布局证据：DB_GuildJoinList::dispatch ORIG 0x0843d87c（本类型唯一 producer；
@@ -626,15 +663,29 @@ static_assert(offsetof(SIG_GUILD_JOIN_LIST, m_list.m_entry[1]) == 0x48,
 static_assert(offsetof(SIG_GUILD_JOIN_LIST, m_list.m_entry[0].m_remainTime) == 0x44,
               "SIG_GUILD_JOIN_LIST remainTime offset drift");
 
+#pragma pack(push, 1)
 struct SIG_HACK_IP_SAVE
 {
-    char m_pad[0x28];
+    char m_classIp[0xd];
+    char m_fullIp[0x13];
+    int m_hackType;
+    int m_hackSubType;
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_HACK_IP_SAVE) == 0x28, "SIG_HACK_IP_SAVE ABI drift");
 
+#pragma pack(push, 1)
 struct SIG_HADES_PUNISH
 {
-    char m_pad[0x24];
+    unsigned int m_mId;
+    unsigned int m_punishType;
+    unsigned int m_days;
+    unsigned int m_applyFlag;
+    unsigned int m_field10;
+    char m_msg[0x10];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_HADES_PUNISH) == 0x24, "SIG_HADES_PUNISH ABI drift");
 
 #pragma pack(push, 1)
 struct SIG_INSERT_0712_WINTER_EVENT_COUPON
@@ -662,28 +713,71 @@ struct SIG_INSERT_ACHIEVE_EVENT
 
 struct SIG_INSERT_AUTO_PUNISH_FIRST_USER
 {
-    char m_pad[0x2c];
+    unsigned int m_memberId;
+    char m_ip[0x10];
+    unsigned int m_hackType;
+    unsigned int m_cnt;
+    unsigned int m_hackSubType;
+    unsigned int m_hackSubCnt;
+    unsigned short m_punishFlag;
+    char m_pad26[2];
+    unsigned int m_etcValue;
 };
+static_assert(sizeof(SIG_INSERT_AUTO_PUNISH_FIRST_USER) == 0x2c, "SIG_INSERT_AUTO_PUNISH_FIRST_USER ABI drift");
 
 struct SIG_INSERT_AUTO_PUNISH_SECOND_USER
 {
-    char m_pad[0x14];
+    unsigned int m_memberId;
+    unsigned int m_hackMemberId;
+    unsigned int m_totalTradeGold;
+    unsigned int m_tradeGold;
+    bool m_punishFlag;
+    char m_pad11[3];
 };
+static_assert(sizeof(SIG_INSERT_AUTO_PUNISH_SECOND_USER) == 0x14, "SIG_INSERT_AUTO_PUNISH_SECOND_USER ABI drift");
 
+#pragma pack(push, 1)
+struct SIG_INSERT_RESPONSE_TIME_ENTRY
+{
+    unsigned int m_id;
+    unsigned int m_count;
+    unsigned int m_bytesLow;
+    unsigned int m_bytesHigh;
+    unsigned int m_avg;
+};
 struct SIG_INSERT_RESPONSE_TIME
 {
-    char m_pad[0x7d8];
+    int m_baseSec;
+    int m_count;
+    SIG_INSERT_RESPONSE_TIME_ENTRY m_entries[100];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_INSERT_RESPONSE_TIME) == 0x7d8, "SIG_INSERT_RESPONSE_TIME ABI drift");
 
+#pragma pack(push, 1)
 struct SIG_INSERT_SERVER_LOAD_STATISTIC
 {
-    char m_pad[0xa];
+    signed char m_serverGroup;
+    signed char m_channelNo;
+    short m_dbqCnt;
+    short m_logdbqCnt;
+    short m_netqCnt;
+    short m_packetqCnt;
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_INSERT_SERVER_LOAD_STATISTIC) == 0xa, "SIG_INSERT_SERVER_LOAD_STATISTIC ABI drift");
 
+#pragma pack(push, 1)
 struct SIG_INSERT_UNLIMIT_SUPPORT_LOG
 {
-    char m_pad[0x2c];
+    unsigned int m_accId;
+    int m_serverId;
+    int m_characNo;
+    char m_name[0x1d];
+    char m_pad29[3];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_INSERT_UNLIMIT_SUPPORT_LOG) == 0x2c, "SIG_INSERT_UNLIMIT_SUPPORT_LOG ABI drift");
 
 // EventBattleLink 批次按 CInGameAdvertisementManager/WriteLog.md 汇编
 // （0x080fda56 GetInBuffer 写入序列 +0x0..+0x1f）字段化，总大小保持 0x20。
@@ -765,10 +859,14 @@ struct SIG_ITEM_DICTIONARY_FLAG
 #pragma pack(pop)
 static_assert(sizeof(SIG_ITEM_DICTIONARY_FLAG) == 0x138c, "SIG_ITEM_DICTIONARY_FLAG ABI drift");
 
+#pragma pack(push, 1)
 struct SIG_ITEM_LOCK_UPDATE
 {
-    char m_pad[0x324];
+    int m_characNo;
+    char m_lockData[0x320];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_ITEM_LOCK_UPDATE) == 0x324, "SIG_ITEM_LOCK_UPDATE ABI drift");
 
 // ORIG ctor 0x0848fa82：movl 0→+0 + memset(+0x4,0,0x16)。
 #pragma pack(push, 1)
@@ -789,8 +887,16 @@ static_assert(sizeof(SIG_ITEM_MAKING_SKILL) == 0x1c, "SIG_ITEM_MAKING_SKILL ABI 
 
 struct SIG_JOIN_GUILD_INFO
 {
-    char m_pad[0x64];
+    unsigned char m_flag;
+    unsigned char m_pad1[3];
+    unsigned int m_guildId;
+    char m_masterName[0x1e];
+    char m_guildName[0x17];
+    int m_lev;
+    int m_memberCount;
+    char m_memo[0x1a];
 };
+static_assert(sizeof(SIG_JOIN_GUILD_INFO) == 0x64, "SIG_JOIN_GUILD_INFO ABI drift");
 
 // 具名化（证据：docs/class_func_reports/DB_ChangeLetterStat/{makeRequest,dispatch}.md 与
 // WongWork__CMailBoxHelper/ReqChangeLetterStat.md：makeRequest 写 +0 characNo(int) /

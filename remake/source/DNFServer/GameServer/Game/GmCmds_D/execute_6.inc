@@ -62,7 +62,7 @@ void CIndependentDrop::execute()
         // ORIG 0x084b0c84：`mov party; add $0xb24; mov (%esp)` 直传（无 field 具名槽，
         // P0 右值内联）⇒ 成员访问内联进调用。
         MapInfo* curMap =
-            reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField
+            (party)->m_battleField
                 .GetCurrentMapInfo();                        // ORIG 0x822cbcc
         for (std::map<int, map_monster>::iterator it = curMap->m_monsterMap.begin();
              it != curMap->m_monsterMap.end(); it++)

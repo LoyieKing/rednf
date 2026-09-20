@@ -33,20 +33,14 @@ int Dispatcher_RequestCharacSkillInfo::process(CUser* user, MSG_BASE& msg, Param
     // ORIG 0x081e3a78/0x081e3aa8/0x081e3ade/0x081e3ba9：四次独立 vector::operator[]
     // （P183 去引用缓存；characIdx 每次从 msg+0xd 重读，P0 表达式直读）。
     // 正极性 if/else（P59/P214①）：ORIG 0x081e3a8a `test %al,%al; je <else>`。
-    if (reinterpret_cast<SkillSlot*>(
-            reinterpret_cast<CharacInfoFields*>(
-                &user->m_characList[(int)(char)mref.m_0d])->m_skill)
-            ->IsLoadStrikerSkill())
+    if (user->m_characList[(int)(char)mref.m_0d].m_skillSlot.IsLoadStrikerSkill())
     {
         // ORIG 0x081e3a8e..0x081e3af7：实参序 kind(call#2)→characIdx→receiver(call#3)；
         // ORIG -0xc 为 kind 具名局部槽（P0 槽往返）。
         int skillTreeKind = (int)(char)
             user->m_characList[(int)(char)mref.m_0d].m_field1239;
-        reinterpret_cast<SkillSlot*>(
-            reinterpret_cast<CharacInfoFields*>(
-                &user->m_characList[(int)(char)mref.m_0d])->m_skill)
-            ->SendSkillInfo((int)(char)mref.m_0d,
-                            (ENUM_SKILL_TREE_KIND)skillTreeKind);
+        user->m_characList[(int)(char)mref.m_0d].m_skillSlot.SendSkillInfo(
+            (int)(char)mref.m_0d, (ENUM_SKILL_TREE_KIND)skillTreeKind);
     }
     else
     {

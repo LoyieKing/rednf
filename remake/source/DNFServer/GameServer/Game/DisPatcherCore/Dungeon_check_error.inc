@@ -32,7 +32,7 @@ int DisPatcher_UseCoin::Dungeon_check_error(CUser* user, MSG_BASE& msg, ParamBas
             // `m_bloodDungeonType >= 1` 4.4 产 `je`（==0 语义，对 ≥0x80 值分叉），故
             // 按 ORIG 有符号语义 `(int)(signed char)field > 0`（P196 同宽字节符号序）。
             if ((int)(signed char)dungeon->m_bloodDungeonType > 0 &&
-                reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.getBloodState() >= 3)
+                (party)->m_battleField.getBloodState() >= 3)
             {
                 return 0x13;
             }

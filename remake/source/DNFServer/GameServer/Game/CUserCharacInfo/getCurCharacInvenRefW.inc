@@ -1,5 +1,5 @@
 CInventory* CUserCharacInfo::getCurCharacInvenRefW()
 {
     enableSaveInven();
-    return (CInventory*)CUR->m_inven;
+    return &m_selected->m_curCharacInven;
 }

@@ -30,15 +30,7 @@ int DisPatcher_DieCharacInDungeon::process(CUser* user, MSG_BASE& msg, ParamBase
     // `mov -0x18(%ebp),%eax; movzwl 0xf(%eax),%eax`（+0xf 先入 esi）、
     // `movzwl 0xd(%eax),%eax`（+0xd 后入 ebx，实参右→左）——**直偏移单步寻址**，
     // 旧文 `->m_pad + 2` 使 4.4 产 `add $0xd,%eax; add $0x2,%eax; movzwl (%eax)` 三步。
-    #pragma pack(push, 1)
-    struct DieCharacReqView
-    {
-        char m_head[0xd];
-        unsigned short m_0d;   // +0x0d（CharacDie 第 2 参，零扩展 movzwl）
-        unsigned short m_0f;   // +0x0f（CharacDie 第 3 参）
-    };
-    #pragma pack(pop)
-    const DieCharacReqView& req = *reinterpret_cast<const DieCharacReqView*>(&msg);
+    const MSG_DIE_CHARACTER& req = *reinterpret_cast<const MSG_DIE_CHARACTER*>(&msg);
     user->m_historyLog.CharacDie(
         user->getCurCharacName(),
         req.m_0d,

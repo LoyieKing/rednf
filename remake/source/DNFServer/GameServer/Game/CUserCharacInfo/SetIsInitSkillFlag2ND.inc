@@ -2,6 +2,6 @@ void CUserCharacInfo::SetIsInitSkillFlag2ND(bool flag)
 {
     if (m_selected)
     {
-        CUR->m_isInitSkillFlag2ND = flag;
+        m_selected->m_padEB6 = flag;
     }
 }

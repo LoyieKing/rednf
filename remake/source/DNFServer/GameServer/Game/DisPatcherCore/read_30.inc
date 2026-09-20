@@ -2,7 +2,7 @@ int DisPatcher_ChangeSkill::read(PacketBuf& packet, MSG_BASE& msg)
 
 {
     // ORIG 0x081...：无指针局部，三处均 `mov 0x10(%ebp),%eax; add $0xd/e/f`（帧 0x18）。
-    if (!packet.get_byte(reinterpret_cast<MSG_CHANGE_SKILLSLOT*>(&msg)->m_head[0xd]))   // +0x0d
+    if (!packet.get_byte(reinterpret_cast<MSG_CHANGE_SKILLSLOT*>(&msg)->m_head0d))
     {
         return LineFunc(0x6f4,
                         __PRETTY_FUNCTION__,

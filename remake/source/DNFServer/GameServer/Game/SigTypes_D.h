@@ -11,7 +11,8 @@
 #include "TODLayer.h"    // TOD_Layer（SIG_REQUEST_TOD_USER_STATE m_todayLayer 成员构造）
 #include "Redeem_Item__CRedeemItem.h"  // Redeem_Item::Inven_Item_Expand_RedeemInfo（0x44）
 #include "Inven_Item.h"   // RandomOption（SIG_MAILBOX_SEND_NEW_MAIL +0x47 真类型）
-#include "CEnvironment.h" // ENUM_SERVER_GROUP（SIG_MAILBOX_SEND_NEW_MAIL +0x15f 真型）
+#include "CEnvironment.h"
+#include "MasteredSkill.h"  // _Mastered_skill (SIG_REQUEST_CHARAC_SKILL_INFO) // ENUM_SERVER_GROUP（SIG_MAILBOX_SEND_NEW_MAIL +0x15f 真型）
 
 #pragma pack(push, 1)
 // ============================================================================
@@ -697,8 +698,10 @@ static_assert(offsetof(SIG_MAILBOX_SEND_SYSTEM_MULTI_MAIL, m_stat) == 0x3a5,
 
 struct SIG_MERCENARY_DB_DATA
 {
-    char m_pad[0xbd4];
+    unsigned int m_count;
+    CHARAC_LOAD_MERCENARY m_characs[0x24];
 };
+static_assert(sizeof(SIG_MERCENARY_DB_DATA) == 0xbd4, "SIG_MERCENARY_DB_DATA ABI drift");
 
 struct SIG_MILEAGE_STRUCT
 {
@@ -986,25 +989,63 @@ struct SIG_RELOAD_IN_GAME_ADVERTISEMENT
     char m_pad[0x67b60];
 };
 
+#pragma pack(push, 1)
 struct SIG_REQUEST_CHARAC_SKILL_INFO
 {
-    char m_pad[0x1a0];
+    unsigned int m_characNo;
+    _Mastered_skill m_skills[0xcc];
+    char m_skillTreeIndex;
+    char m_pad19d[3];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_REQUEST_CHARAC_SKILL_INFO) == 0x1a0, "SIG_REQUEST_CHARAC_SKILL_INFO ABI drift");
+static_assert(__builtin_offsetof(SIG_REQUEST_CHARAC_SKILL_INFO, m_skillTreeIndex) == 0x19c,
+              "SIG_REQUEST_CHARAC_SKILL_INFO skillTreeIndex offset");
 
+#pragma pack(push, 1)
 struct SIG_REQUEST_JOIN_GUILD
 {
-    char m_pad[0x44];
+    char m_guildName[0x16];
+    char m_pad16[2];
+    unsigned int m_characNo;
+    unsigned int m_mId;
+    unsigned int m_serverGroup;
+    char m_bornYear[3];
+    char m_memo[0x1d];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_REQUEST_JOIN_GUILD) == 0x44, "SIG_REQUEST_JOIN_GUILD ABI drift");
 
 struct SIG_REQUEST_JOIN_GUILD_DB_REPLY
 {
-    char m_pad[0x48];
+    unsigned int m_flag;
+    unsigned int m_guildId;
+    char m_masterName[0x1e];
+    char m_guildName[0x17];
+    int m_lev;
+    int m_memberCount;
 };
+static_assert(sizeof(SIG_REQUEST_JOIN_GUILD_DB_REPLY) == 0x48, "SIG_REQUEST_JOIN_GUILD_DB_REPLY ABI drift");
 
+#pragma pack(push, 1)
 struct SIG_REQUEST_TAG_CHARAC_INFO
 {
-    char m_pad[0x414c];
+    unsigned int m_characNo;              // +0x000
+    char m_pad04;                         // +0x004
+    TAG_CHARAC_DATA m_tagCharac;          // +0x005 (0x78)
+    TAG_CHARAC_INVEN_DATA m_tagInven;     // +0x07d (0x4024)
+    CHARAC_QUEST_SHOP_DATA m_questShop;   // +0x40a1 (0xaa)
+    char m_pad414b;                       // +0x414b
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_REQUEST_TAG_CHARAC_INFO) == 0x414c,
+              "SIG_REQUEST_TAG_CHARAC_INFO ABI drift");
+static_assert(__builtin_offsetof(SIG_REQUEST_TAG_CHARAC_INFO, m_tagCharac) == 0x5,
+              "SIG_REQUEST_TAG_CHARAC_INFO tagCharac offset");
+static_assert(__builtin_offsetof(SIG_REQUEST_TAG_CHARAC_INFO, m_tagInven) == 0x7d,
+              "SIG_REQUEST_TAG_CHARAC_INFO tagInven offset");
+static_assert(__builtin_offsetof(SIG_REQUEST_TAG_CHARAC_INFO, m_questShop) == 0x40a1,
+              "SIG_REQUEST_TAG_CHARAC_INFO questShop offset");
 
 // 具名化（W9_StructMisc 批次；ORIG TOD_UserState::loadData 0x086434fc /
 // _saveData 0x08643642 写读序实证，sizeof 保持 0x18）。
@@ -1169,10 +1210,14 @@ struct SIG_SAVE_CHARAC_INFORM_NOTICE
 };
 static_assert(sizeof(SIG_SAVE_CHARAC_INFORM_NOTICE) == 0x14, "SIG_SAVE_CHARAC_INFORM_NOTICE");
 
+#pragma pack(push, 1)
 struct SIG_SAVE_CHATTING_EMOTICON
 {
-    char m_pad[0x214];
+    unsigned int m_mId;
+    char m_data[0x210];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_CHATTING_EMOTICON) == 0x214, "SIG_SAVE_CHATTING_EMOTICON ABI drift");
 
 // pack(1)：m_a@+0x0a/m_b@+0x0e 非对齐（dispatch 读序实证）。
 #pragma pack(push, 1)
@@ -1196,15 +1241,27 @@ struct SIG_SAVE_CONDITION_EVENT
     short m_a3;                  // +0x06
 };
 
+#pragma pack(push, 1)
 struct SIG_SAVE_CRAZY_LEVELUP_EVENT
 {
-    char m_pad[0xd];
+    union { char m_eventId[5]; char m_tag[5]; };     // +0x00
+    union { unsigned int m_memberId; unsigned int m_accId; }; // +0x05
+    int m_characNo;                                  // +0x09
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_CRAZY_LEVELUP_EVENT) == 0xd,
+              "SIG_SAVE_CRAZY_LEVELUP_EVENT ABI drift");
 
+#pragma pack(push, 1)
 struct SIG_SAVE_DUNGEON_CLEAR
 {
-    char m_pad[0x180c];
+    int m_unused0;
+    int m_mId;
+    int m_unused8;
+    char m_dungeon[0x1800];
 };
+#pragma pack(pop)
+static_assert(sizeof(SIG_SAVE_DUNGEON_CLEAR) == 0x180c, "SIG_SAVE_DUNGEON_CLEAR ABI drift");
 
 #pragma pack(push, 1)   // 尺寸 0x19（非对齐尾字段 +0x18）；具名化批次缺 pack 致断言漂移
 struct SIG_SAVE_EVENTITEM

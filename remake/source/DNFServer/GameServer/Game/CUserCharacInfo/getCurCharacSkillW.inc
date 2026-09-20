@@ -1,5 +1,5 @@
 char* CUserCharacInfo::getCurCharacSkillW()
 {
     enableSaveSkill();
-    return (char*)CUR->m_skill;
+    return reinterpret_cast<char*>(&m_selected->m_skillSlot);
 }

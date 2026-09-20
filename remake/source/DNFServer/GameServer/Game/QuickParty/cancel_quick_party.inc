@@ -38,9 +38,9 @@ bool CQuickPartySystemManager::cancel_quick_party(CParty* party, bool flag, CUse
         // CParty+0xb24 内嵌 CBattle_Field（局部视图 CPartyBattleFieldView）；
         // P48/P183：ORIG 两次独立 `mov party,%edx; add $0xb24,%edx`（无 bf 缓存），
         // getRandomBuffDungeonType 结果直传 setEplpWaitingTimer（无 buffType 槽）。
-        reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.setEplpWaitingTimer(
+        (party)->m_battleField.setEplpWaitingTimer(
             (RandomBuffDungeon)
-                reinterpret_cast<CPartyBattleFieldView*>(party)->m_battleField.getRandomBuffDungeonType(
+                (party)->m_battleField.getRandomBuffDungeonType(
                     qp->get_dungeon_index()));
     }
 

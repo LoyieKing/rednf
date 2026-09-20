@@ -1,4 +1,4 @@
 unsigned int CUserCharacInfo::getCurCharacHelpAbuseComputedRatio() const
 {
-    return m_selected ? CUR->m_helpAbuseComputedRatio : 0;
+    return m_selected ? m_selected->m_fieldDFE : 0;
 }

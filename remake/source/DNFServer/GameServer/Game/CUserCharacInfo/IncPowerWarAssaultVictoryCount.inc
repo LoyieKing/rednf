@@ -3,6 +3,6 @@ void CUserCharacInfo::IncPowerWarAssaultVictoryCount()
     if (m_selected)
     {
     enableSaveCharacStat();
-    ++CUR->m_powerWarAssaultVictoryCount;
+    ++m_selected->m_field1225;
     }
 }

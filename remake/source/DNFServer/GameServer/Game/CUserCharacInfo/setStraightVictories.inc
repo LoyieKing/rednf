@@ -2,6 +2,6 @@ void CUserCharacInfo::setStraightVictories(unsigned short count)
 {
     if (m_selected)
     {
-    CUR->m_straightVictories = count;
+    m_selected->m_field1229 = count;
     }
 }
