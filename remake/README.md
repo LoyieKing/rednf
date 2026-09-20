@@ -31,6 +31,14 @@ cmake --build build -j$(nproc)
 现代路线的完整说明（兼容层清单、GeoIP、验证记录、已知限制）见
 **[docs/df_modern_route.md](docs/df_modern_route.md)**。
 
+## 运行（本机 WSL chroot）
+
+当前可跑环境不是 Docker。冷启动、部署 df_game_r、重启 siroco11/52、端口与 IP 约束见仓库根：
+
+**[SOP-WSL-chroot-1031-服务端启动.md](../SOP-WSL-chroot-1031-服务端启动.md)**
+
+---
+
 ## 工作区布局
 
 ```
