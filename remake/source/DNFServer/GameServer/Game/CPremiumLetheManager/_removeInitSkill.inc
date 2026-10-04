@@ -1,15 +1,15 @@
 void CPremiumLetheManager::_removeInitSkill(CUser* user,
                                             _Mastered_skill* skills)
 {
-    _Mastered_skill* pSkill;
+    const _Mastered_skill* pSkill;  // getCurCharacSkillR ?? const?????? pSkill
     if (user->GetCurCharacSkillTreeIndex() == -1 ||
         user->GetCurCharacSkillTreeIndex() == 0)
     {
-        pSkill = (_Mastered_skill*)((char*)user->getCurCharacSkillR() + 0x46);
+        pSkill = ((const SkillSlot*)user->getCurCharacSkillR())->m_skillSlot;
     }
     else
     {
-        pSkill = (_Mastered_skill*)((char*)user->getCurCharacSkillR() + 0x1de);
+        pSkill = ((const SkillSlot*)user->getCurCharacSkillR())->m_skillSlot2;
     }
     for (int i = 0; i <= 0xcb; ++i)
     {

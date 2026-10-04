@@ -6,7 +6,7 @@ int Inter_MonitorNoticeGuildNames::dispatch_sig(CUser* user, char* data, int /*l
     // ORIG：包基址在 get_state 检查后物化入 -0x14(%ebp)
     Inter_MonitorNoticeGuildNamesPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildNamesPktView*>(data);
     if (user->get_charac_no(-1) !=
-        pPkt->m_e)         // msg+0x0e 角色号校验
+        pPkt->m_characNo)         // msg+0x0e 角色号校验
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -14,12 +14,12 @@ int Inter_MonitorNoticeGuildNames::dispatch_sig(CUser* user, char* data, int /*l
             0x255f,
             "Packet_Monitor_Notice_Guild_Char_Names::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            pPkt->m_e);
+            pPkt->m_characNo);
         return 0;
     }
 
     if (user->get_charac_guildkey() !=
-        pPkt->m_12)        // msg+0x12 公会 key 校验（ORIG 0x084cb083 mov 0x12(%edx)）
+        pPkt->m_guildKey)        // msg+0x12 公会 key 校验（ORIG 0x084cb083 mov 0x12(%edx)）
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",

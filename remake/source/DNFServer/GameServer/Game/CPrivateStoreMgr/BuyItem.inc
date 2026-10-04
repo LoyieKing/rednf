@@ -113,7 +113,7 @@ int CPrivateStore::BuyItem(int /*slot*/, Inven_Item& item, int gold,
 
     m_pBuyer->getCurCharacInvenW()->use_money(gold, (eMoneySubReason)0xe, true);
 
-    HistoryLog::WriteBuyItem((FILE*)m_pBuyer->m_field796f8,   // +0x796f8 句柄（int→FILE* 直转，先例 CGameManager.cpp:2727）
+    HistoryLog::WriteBuyItem((FILE*)m_pBuyer->m_historyLogFp,   // +0x796f8 句柄（int→FILE* 直转，先例 CGameManager.cpp:2727）
                              (int)item.m_addInfo, (int)item.m_addInfo2);
     return slot;
 }

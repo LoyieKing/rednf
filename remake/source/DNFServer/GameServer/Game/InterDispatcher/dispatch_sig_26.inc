@@ -3,7 +3,7 @@
 int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_TcpServerConnectPktView* pPkt = reinterpret_cast<Inter_TcpServerConnectPktView*>(data);
-    if (pPkt->m_a == '\xcb')
+    if (pPkt->m_cmd == '\xcb')
     {
         // [b28c-30] ORIG 0x084c8dd0 段：index 槽 -0x18 预清、循环变量 i 独立槽
         // -0x10（`movl $0x0,-0x18; call GetStartIndex; mov %eax,-0x10`）；单变量形
@@ -24,7 +24,7 @@ int Inter_TcpServerConnect::dispatch_sig(CUser* /*user*/, char* data, int /*len*
             i = GlobalData::s_guild_proxy_mgr->GetNextIndex(index);
         }
     }
-    else if (pPkt->m_a == '\xc9')
+    else if (pPkt->m_cmd == '\xc9')
     {
         int index = 0;
         // [b28d-solo-InterDispatcher] CServerProxyMgr<CMonitorServerProxy>::GetStartIndex

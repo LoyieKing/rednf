@@ -81,8 +81,7 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
     {
         // N78：ORIG 0x086ac1b5..0x086ac1c9 为 4.1 内联 memset（rep stos 11 dwords，
         // `mov $0xb,%edx`）；4.4 恒发 call memset（结构性差异，语义等价）。
-        memset(reinterpret_cast<SelectQuestParamDataView*>(&selectParam)->m_data,
-               0, 0x2c);
+        memset(&selectParam.m_level, 0, 0x2c);
         // P183 禁指针缓存：ORIG 0x086ac1d3/0x086ac1f9/0x086ac21d 每使用点各取一次
         // getCurCharacInvenR()（p167 差集实证 MISSING ×2）。
         m_user->getCurCharacInvenR()->CalNeedSlot(&selectParam.m_level, erasedItems);
@@ -91,10 +90,10 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
         {
             int cnt = m_user->getCurCharacInvenR()->InvenEmptycount(
                 (Inven_Item::ITEM_TYPE)i);
-            if (reinterpret_cast<SelectQuestParamDataView*>(&selectParam)->m_data[i] > cnt)
+            if ((&selectParam.m_level)[i] > cnt)
             {
                 quick += cnt -
-                    reinterpret_cast<SelectQuestParamDataView*>(&selectParam)->m_data[i];
+                    (&selectParam.m_level)[i];
                 if (quick < 0)
                 {
                     return 0x11;

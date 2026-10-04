@@ -49,8 +49,8 @@ bool DB_AvatarChangeStat::dispatch(int userIdx, int slot, Stream* stream)
             guard.operator*()->operator<<((int)0x36);
             guard.operator*()->operator<<((int)slot);
             // [b28d-solo] P103/P167：ORIG 调 operator->（ptEv），非 operator*。
-            DB_AvatarChangeStatView* out =
-                reinterpret_cast<DB_AvatarChangeStatView*>(
+            SIG_AVATAR_CHANGE_STAT* out =
+                (
                     guard.operator->()->GetInBuffer<SIG_AVATAR_CHANGE_STAT>());
             int slotV = 0;            // col0 slot（回包 +0x08 byte）
             int uiIdV = 0;            // col1 ui_id（回包 +0x00）

@@ -91,11 +91,11 @@ void HeroMissionEvent::saveEventData(CUser* user, bool removeData)
         sig->init();
         // [b28d-solo-HeroMissionEvent] ORIG 0x0816701e/0x08167037 各再调一次
         // user->get_charac_no(-1)（写 sig 与 erase 键），非复用局部 characNo。
-        *reinterpret_cast<unsigned int*>(sig) = user->get_charac_no(-1);
+        sig->m_characNo = user->get_charac_no(-1);
         // [L3EHeroItemUpgrade 2026-09-11] ORIG 0x08166fda..0x08166fe8 在 strncpy
         // 实参处才 `mov -0xc(%ebp),%edx; add $0x4,%edx`（-0xc 即 sig 本身）⇒
         // 源码无具名 dst 局部（P183）。
-        strncpy(reinterpret_cast<char*>(sig) + 4, data.c_str(), data.length());
+        strncpy(reinterpret_cast<char*>(sig->m_data), data.c_str(), data.length());
         GlobalData::s_msgq_mgr->put(
             static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
         if (removeData)

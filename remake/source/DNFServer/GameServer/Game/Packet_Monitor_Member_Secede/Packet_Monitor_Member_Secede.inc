@@ -5,5 +5,5 @@ Packet_Monitor_Member_Secede::Packet_Monitor_Member_Secede()
     : PacketHeader(0x4bb, 0x31)
 {
     // [g02] m_data 起点随具名成员（m_uid/m_characNo）后移到 +0x12 ⇒ 名区偏移改为 +1。
-    memset(m_data + 1, 0, 0x1e);     // ORIG memset(this+0x13, 0, 0x1e)
+    memset(m_name, 0, 0x1e);         // ORIG memset(this+0x13, 0, 0x1e)
 }

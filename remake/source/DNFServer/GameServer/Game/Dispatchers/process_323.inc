@@ -23,12 +23,7 @@ int Dispatcher_Teleport::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     // [L7g5] ORIG 0x081d084d/0x081d0853 `mov -0x10(%ebp),%eax; mov %edx,0xc(%eax)`
     //   —— +0xc 是**单级 disp 写**；裸 `&out.m_gapA[2]` 恒产 `add $0xc,%eax` +
     //   `mov %edx,(%eax)` 两步（负 gap 的 1 条来源）⇒ 改 packed 具名视图。
-    struct __attribute__((packed)) TeleportOutView
-    {
-        char m_pad[0xc];
-        unsigned int m_c;    // +0x0c（落 m_gapA[2..5] 覆盖区）
-    };
-    reinterpret_cast<TeleportOutView&>(out).m_c = req.m_field10;
+    out.m_fieldC = req.m_field10;
     out.m_8 = req.m_field0e;
     out.m_11 = req.m_field15;
 

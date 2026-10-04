@@ -35,19 +35,17 @@ int Inter_OwnerisVIP::dispatch_sig(CUser* user, char* data, int /*len*/)
     // 保留死调用以对齐 ORIG 指令序列（pck 除 characName 外保持 ctor 清零）。
     (void)target->GetUID();
     (void)target->getCurCharacNo();
-    strncpy(reinterpret_cast<char*>(&pck) + 0x1a,
-            reinterpret_cast<const char*>(target->getCurCharacR()) + 4, 0xd);
+    strncpy(pck.m_name, target->getCurCharacR()->m_name, 0xd);
 
     PrePayInfo prePay;                                     // -0x74（0x28 按值）
-    *reinterpret_cast<unsigned int*>(prePay.m_data + 0x00) =
+    *reinterpret_cast<unsigned int*>(&prePay.m_data[0]) =
         reinterpret_cast<Inter_OwnerisVIPPktView*>(msg)->m_4;
-    *reinterpret_cast<unsigned int*>(prePay.m_data + 0x04) =
+    *reinterpret_cast<unsigned int*>(&prePay.m_data[4]) =
         reinterpret_cast<Inter_OwnerisVIPPktView*>(msg)->m_8;
-    *reinterpret_cast<unsigned int*>(prePay.m_data + 0x08) =
+    *reinterpret_cast<unsigned int*>(&prePay.m_data[8]) =
         static_cast<unsigned int>(price);
-    *reinterpret_cast<Inter_OwnerisVIPTailView*>(prePay.m_data + 0x0c) =
-        *reinterpret_cast<const Inter_OwnerisVIPTailView*>(
-            reinterpret_cast<const char*>(&needInfo) + 0x0c);      // needInfo+0xc..+0x27
+    *reinterpret_cast<Inter_OwnerisVIPTailView*>(&prePay.m_data[0x0c]) =
+        *reinterpret_cast<const Inter_OwnerisVIPTailView*>(&needInfo.m_fee);
 
     const unsigned int characNo = target->getCurCharacNo();
     G_CPrePayInfoMgr()->InsertPrePayInfo(static_cast<int>(characNo), prePay);

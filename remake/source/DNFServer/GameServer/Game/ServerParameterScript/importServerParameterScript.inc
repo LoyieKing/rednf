@@ -309,7 +309,7 @@ bool importServerParameterScript(ServerParameterScript* script_arg,
                                       __FUNCTION__, 0x1a7,
                                       "importUpgradeTable - invalid notice legacy with upgrade tag");
             }
-            script->m_578 = v;
+            script->m_noticeLegacyWithUpgrade = v;
         }
         else if (line == "[collect dungeon statistic server]")
         {

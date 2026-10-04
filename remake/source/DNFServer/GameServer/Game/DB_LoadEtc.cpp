@@ -201,7 +201,7 @@ struct SigLoadEtcBestClearTimeView
         CHARAC_QUEST_SHOP_DATA m_tag;       // +0xd651（0xd5a7+0xaa）
     };
     bool ok = _LoadQuestShop(sig->m_characNo,
-                             &((QuestShopView*)sig)->m_main);
+                             reinterpret_cast<CHARAC_QUEST_SHOP_DATA*>(sig->m_questShopMain));
     if (!ok)
     {
         // ORIG 0x08404a90：ctor 前 m_characNo 装 %ebx 跨 ctor 保活（P227 临时链）。
@@ -214,7 +214,7 @@ struct SigLoadEtcBestClearTimeView
     if (sig->m_fieldC != 0)
     {
         ok = _LoadQuestShop(sig->m_fieldC,
-                            &((QuestShopView*)sig)->m_tag);
+                            reinterpret_cast<CHARAC_QUEST_SHOP_DATA*>(sig->m_questShopTag));
         if (!ok)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x16d5, 5)(
@@ -241,7 +241,7 @@ struct SigLoadEtcBestClearTimeView
     };
     // ORIG 0x0844a3c1：cmp $9/jne 直达 leave;ret（无尾岛）——试 P257 正向包裹消
     // 4.4 的 [jmp+nop] epilogue-threading 中继（旧三形均留 1 岛）。
-    if (((ComboJobView*)sig)->m_job == 9)
+    if (reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)->m_job == 9)
     {
     if (!LoadComboSkill(sig, (ENUM_SKILL_TREE_KIND)0))
     {

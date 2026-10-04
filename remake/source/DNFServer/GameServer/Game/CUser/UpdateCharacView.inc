@@ -29,9 +29,8 @@ void CUser::UpdateCharacView()
 
     sig->m_serverGroup = (unsigned char)GetServerGroup();
 
-    SigUpdateCharacViewRecord* recs =
-        reinterpret_cast<SigUpdateCharacViewRecord*>(sig);
-    recs[0].m_headField = get_acc_id();   // ORIG `mov %eax,(sig)` 4B @+0x00
+    sig->m_mId = get_acc_id();
+    SigUpdateCharacViewRecord* recs = sig->m_recs;
 
     // ORIG 无任何缓存：目标记录每次都按 sig + recIdx*0x94 + 偏移重算，源字段每次
     // 都重新 it.operator->()（Ghidra C 每个字段前都有一次 __normal_iterator::
@@ -43,8 +42,8 @@ void CUser::UpdateCharacView()
     {
         recs[recIdx].m_data.m_characNo = it->m_characNo;
         strncpy(recs[recIdx].m_data.m_name, it->m_name, 0x1e);
-        recs[recIdx].m_data.m_job = (unsigned char)it->m_field26;
-        recs[recIdx].m_data.m_field19 = (unsigned char)it->m_field29.m_growthType;
+        recs[recIdx].m_data.m_job = (unsigned char)it->m_job;
+        recs[recIdx].m_data.m_field19 = (unsigned char)it->m_growthType.m_growthType;
         recs[recIdx].m_data.m_level = it->m_level;
 
         // b28d-solo-CUser p167：ORIG 0x08651740 全字段走 `it.operator->()`
@@ -54,15 +53,15 @@ void CUser::UpdateCharacView()
         recs[recIdx].m_data.m_lastPlayTime =
             (long)(*reinterpret_cast<const CommonTime*>(
                 it.operator->()->m_delReqTime));
-        recs[recIdx].m_data.m_field8c = it.operator->()->m_fielde5d;
+        recs[recIdx].m_data.m_field8c = it.operator->()->m_chaosDieTime;
 
         // bit0 ← 禁玩标记（m_pad1240 非零）。
         recs[recIdx].m_data.m_flags = (unsigned char)(
             ((unsigned int)recs[recIdx].m_data.m_flags & 0xfeu) |
             ((it.operator->()->m_pad1240 != 0) ? 1u : 0u));
 
-        recs[recIdx].m_data.m_field1d = it->m_field14b7;
-        recs[recIdx].m_data.m_field1e = it->m_field14b8;
+        recs[recIdx].m_data.m_field1d = it->m_strikerSkillIndex;
+        recs[recIdx].m_data.m_field1e = it->m_tagCharacNo;
 
         // bit4 ← m_tagVisibleFlags bit1（ORIG shl $6 / sar $7 取位）。
         recs[recIdx].m_data.m_flags = (unsigned char)(
@@ -71,7 +70,7 @@ void CUser::UpdateCharacView()
                     it.operator->()->m_tagVisibleFlags.m_flag
                 << 6) >> 7) & 1u) << 4));
 
-        recs[recIdx + 1].m_headField = it.operator->()->m_field12ad;
+        recs[recIdx + 1].m_headField = it.operator->()->m_chaosResponTime;
 
         ++recIdx;
     }

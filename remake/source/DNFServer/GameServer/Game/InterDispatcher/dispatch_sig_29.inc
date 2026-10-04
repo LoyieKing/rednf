@@ -5,21 +5,21 @@ int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     Inter_IPGResultPktView* pPkt = reinterpret_cast<Inter_IPGResultPktView*>(data);
     // P324：ORIG 前段调用序是 PacketGuard ctor → SendCashData → cMyTrace，而 IPG 数据流段
     //   （ProcessIPGUserData / StreamPool::Free）落在函数**后段** ⇒ 原码是
-    //   `if (pPkt->m_0 == 0) { 主逻辑 } else { IPG 数据流 }`，不是我方旧稿的提前 return 结构。
-    if (pPkt->m_0 == 0)
+    //   `if (pPkt->m_ok == 0) { 主逻辑 } else { IPG 数据流 }`，不是我方旧稿的提前 return 结构。
+    if (pPkt->m_ok == 0)
     {
         char* msg = data + 1;
         CUser* user =
-            G_CGameManager()->getUser(pPkt->m_21, 10);
+            G_CGameManager()->getUser(pPkt->m_slotId, 10);
         if (user == 0)
             return 0;
 
         PacketGuard packet;
-        if (pPkt->m_1d == 4)
+        if (pPkt->m_ipgType == 4)
         {   // 余额变更 → 重发现金数据
             user->SendCashData(true);
         }
-        else if (pPkt->m_1d == 6)
+        else if (pPkt->m_ipgType == 6)
         {   // 点数查询结果：经 CIPGHelper 虚槽 +0x2c = IIPGHelperInterface slot11 IPGQuery(CUser*)
             // [K3 2026-09-11] P0：ORIG 084ceb87 段把 s_pIPGHelper 全局地址读两次、query 只在
             //   %ecx 中转，无 helper 槽（旧稿 `void* helper` 多 2 条槽往返）。
@@ -42,7 +42,7 @@ int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
                 msg + 0x3c, msg + 0x64, (int)(char)pPkt->m_b2, msg + 0xb3);
             return 0;
         }
-        else if (pPkt->m_1d == 0)
+        else if (pPkt->m_ipgType == 0)
         {   // CERA 查询结果日志
             // ORIG 0x84cec29..0x84cec6f 先求 msg+0x28→%ebx、msg+0x50→%esi、msg+0x26e→槽、
             // m_26e→%edi 再 ctor ⇒ 全表达式临时链。
@@ -80,7 +80,7 @@ int Inter_IPGResult::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     char* reqData = data + 1;
     char* resData = data + 0x2dd;
     CUser* target =
-        G_CGameManager()->getUser(pPkt->m_21, 11);
+        G_CGameManager()->getUser(pPkt->m_slotId, 11);
     Stream* stream = *reinterpret_cast<Stream**>(reqData + 0x2d8);
     if (target != 0)
     {

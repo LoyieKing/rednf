@@ -17,9 +17,9 @@ bool DB_InsertEventStageLog::dispatch(int /*userIdx*/, int /*slot*/,
     unsigned int gapA;
     unsigned int gapB;
     MySQL* db;                 // -0x20
-    DB_EventStageLogView* sig; // -0x1c
+    SIG_EVENT_STAGE_LOG* sig; // -0x1c
     db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
-    sig = reinterpret_cast<DB_EventStageLogView*>(
+    sig = (
         stream->GetOutBuffer<SIG_EVENT_STAGE_LOG>());
     stageResult = sig->m_stageResult;
     (void)gapA;

@@ -271,9 +271,7 @@ void CStackableItem::set_item(STStackableScript& script)
     {
         for (unsigned int i = 0; i < m_vec3a0.size(); ++i)
         {
-            void* emo = ((CChattingEmoticonList*)
-                ((CDataManagerView*)G_CDataManager())->m_field28)
-                ->find_emoticon(m_vec3a0[i]);
+            void* emo = G_CDataManager()->m_emoticonList->find_emoticon(m_vec3a0[i]);
             // [b28d-solo-CStackableItem] ORIG 0x0850e7xx 段：函数指针读入 %edx 后
             // 直接 `call *%edx`，**没有**具名 fn 局部（无槽往返，P0）；写成
             // `EmoticonFn fn = ...; fn(...)` 会多出 fn 槽 +2 条往返。

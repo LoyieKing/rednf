@@ -19,7 +19,7 @@ void CParty::die_user(CUser* user)
                 ++m_member[i].m_pUser->m_character.m_f04;   // +0x8e038 死亡计数
                 slot = i;
                 HistoryLog::WriteDie(
-                    reinterpret_cast<FILE*>(user->m_field796f8));
+                    reinterpret_cast<FILE*>(user->m_historyLogFp));
                 break;
             }
         }

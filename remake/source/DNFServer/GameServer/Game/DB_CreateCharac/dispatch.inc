@@ -46,7 +46,7 @@ bool DB_CreateCharac::dispatch(int userIdx, int slot, Stream* stream)
     if (sig->m_giftFindOk != 0)                             // byte +0x533f
     {
         ok = CreateInventory(sig->m_characNo,
-                             &reinterpret_cast<SigGiftInvenView*>(sig)->m_inven);
+                             &sig->m_giftInven);
     }
     else
     {

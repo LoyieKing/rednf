@@ -27,17 +27,17 @@ int Inter_MonitorPayTaxToUpper::dispatch_sig(CUser* user, char* data, int /*len*
         return 0;
     }
 
-    if (pPkt->m_12 != 0)     // 税额金币直接入账
+    if (pPkt->m_gold != 0)     // 税额金币直接入账
     {
         user->getCurCharacInvenW()->gain_money(
-            pPkt->m_12, (eMoneyAddReason)0xa, true, 0);
+            pPkt->m_gold, (eMoneyAddReason)0xa, true, 0);
     }
 
     // ORIG 084ce38d `cmpl $0x0,-0x24(%ebp); jle`（有符号直比内存）⇒ fatigue 是 int，
     //   条件写作 `fatigue > 0`（带 (int) cast 会多一次载入，N22 形）。
     int fatigue = 0;
     bool capped = false;                               // 是否触达疲劳上限（回执 0x128 包）
-    if (pPkt->m_16 != 0)
+    if (pPkt->m_fatigue != 0)
     {
         short memberBonus = user->getCurCharacMemberBonusFatigue();
         short accountBonus = user->getAccountMemberBonusFatigue();
@@ -58,9 +58,9 @@ int Inter_MonitorPayTaxToUpper::dispatch_sig(CUser* user, char* data, int /*len*
         {
             fatigue = 0;
         }
-        else if ((unsigned int)n > pPkt->m_16)
+        else if ((unsigned int)n > pPkt->m_fatigue)
         {
-            fatigue = pPkt->m_16;
+            fatigue = pPkt->m_fatigue;
         }
         else
         {
@@ -79,15 +79,15 @@ int Inter_MonitorPayTaxToUpper::dispatch_sig(CUser* user, char* data, int /*len*
         }
     }
 
-    if (pPkt->m_12 != 0 || fatigue != 0)
+    if (pPkt->m_gold != 0 || fatigue != 0)
     {
         PacketGuard packet;
         packet.put_header(0, 0x4c);
-        packet.put_int(pPkt->m_12);
+        packet.put_int(pPkt->m_gold);
         packet.put_short((int)fatigue);
-        const int strLen = strlen(pPkt->m_1a);
+        const int strLen = strlen(pPkt->m_name);
         packet.put_int(strLen);
-        packet.put_str(pPkt->m_1a, strLen);
+        packet.put_str(pPkt->m_name, strLen);
         packet.finalize(true);
         user->Send(packet);
 

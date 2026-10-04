@@ -147,8 +147,8 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         mob.m_roleType = (char)type;
         mob.m_mobIndex = monster->get_index();
         mob.m_level = a;
-        *(char*)&mob.m_field11 = 1;         // 字节 +0x11（ORIG 逐字节写，非 movw）
-        *((char*)&mob.m_field11 + 1) = 1;   // 字节 +0x12
+        mob.m_field11b.m_field11b0 = 1;
+        mob.m_field11b.m_field11b1 = 1;
         mob.m_field18 =
             dungeon->m_warRoomData.m_bc * (float)(6 - playerCount) + 1.0f;   // +0x7b0
         mob.m_field28 =

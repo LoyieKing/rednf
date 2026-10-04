@@ -605,7 +605,7 @@ public:
     int m_508[20];                                               // +0x508
     int m_558;                                                   // +0x558
     char m_55c[0x1a];                                            // +0x55c
-    int m_578;                                                   // +0x578
+    int m_noticeLegacyWithUpgrade;  // +0x578  ORIG tag [notice legacy with upgrade]（importServerParameterScript ScanInt）；CDataManager 绝对偏移 = m_serverParameter(+0x68)+0x578 = +0x5e0；_ProcCompoundCore / lottery_item 与 GetUpgrade 比较
     std::vector<int> m_vec57c;                                  // +0x57c
     std::vector<int> m_vec588;                                  // +0x588
     std::string m_str594;                                       // +0x594

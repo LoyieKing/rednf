@@ -8,9 +8,7 @@ bool AvatarCoin::GetPackage(CUser* user, int avatarUid, bool bReset)
     {
         // ORIG 0x081802a4：avatarUid 先入 ebx，再 call getCurCharacInvenW
         // + add $0x658 直落 Add receiver（无 coinOf call）。
-        reinterpret_cast<AvatarCoin*>(
-            reinterpret_cast<char*>(user->getCurCharacInvenW()) + 0x658)
-            ->Add(static_cast<unsigned int>(avatarUid));
+        user->getCurCharacInvenW()->m_avatarCoin.Add(static_cast<unsigned int>(avatarUid));
         if (!SaveToDB(user))
         {
             LogManager::logFormat(

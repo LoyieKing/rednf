@@ -67,8 +67,8 @@ bool CUser::SelectCharac(int idx, int tagIdx)
         int job = get_charac_job();
         const char* name = getCurCharacName();
         // [SubC a-4 2026-09-11] ORIG 0x0864d05f `mov 0x8(%ebp),%edx; mov 0x796f8(%edx),%edx`
-        // = 直读字段；`*reinterpret_cast<FILE* const*>(&m_field796f8)` 产 `add $0x796f8,%eax` 间接形。
-        HistoryLog::WriteSelectCh(reinterpret_cast<FILE*>(m_field796f8),
+        // = 直读字段；`*reinterpret_cast<FILE* const*>(&m_historyLogFp)` 产 `add $0x796f8,%eax` 间接形。
+        HistoryLog::WriteSelectCh(reinterpret_cast<FILE*>(m_historyLogFp),
                                   name, job, level, static_cast<int>(growType));
         // [SubC a-1 2026-09-11] ORIG 0x0864d080-0x0864d0e3 同样无中转槽（4×2 条）。
         const_cast<CInventory*>(getCurCharacInvenR())->set_parent(this);

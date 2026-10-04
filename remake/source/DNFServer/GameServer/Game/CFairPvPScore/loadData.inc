@@ -2,7 +2,7 @@
 // b28d-solo-CFairPvPScore 判词：DIFF·N 封顶（§6.2 三件套：①p167 CLEAR 91=91；
 // ②gap（ORIG 848 vs 872）；③帧 0x22c vs 0x27c、全帧槽号平移 = N82/N95 族）。
 // [L6S4 round5b] gap 改善：872 → **867**（ORIG 849；gap −24 → −18），修法 =
-//   区块 1 条目访问宏改权威成员数组下标（`sig->m_jobScore[i]`）：旧 cast 指针算术
+//   区块 1 条目访问宏改权威成员数组下标（`sig->m_jobScoreEntries[i]`）：旧 cast 指针算术
 //   把 sig 折进基址 ⇒ 6 个访问点各多 1 条 `lea (%ecx,%eax,1)`；改后复现 ORIG
 //   「索引寄存器 ecx + 基址寄存器 eax + disp 0x10」形（常量拆分差仍在：4.4
 //   `lea 0x3/disp 0` vs ORIG `lea 0x2/disp 0x10`）。⇒ 本 TU 双条目视图
@@ -56,7 +56,7 @@ bool CFairPvPScore::loadData(CUser* pUser, char* pData)
 //    movzbl 0x10(%ecx,%eax,1),%eax`（eax=sig 独立于索引 ecx）；旧 cast 指针
 //   算术形把 sig 折进基址 ⇒ 每个访问点多 1 条 `lea (%ecx,%eax,1)`（6 处）。
 // 改用权威成员数组下标：m_jobScore@+0x30 与 (idx+2)*0x10+0x10 同址。
-#define FAIR_PVP_ENTRY(i) (sig->m_jobScore[i])
+#define FAIR_PVP_ENTRY(i) (sig->m_jobScoreEntries[i])
     for (idx = 0;
          (idx < (int)(unsigned char)sig->m_jobScoreCount) && (idx <= 99);
          ++idx)

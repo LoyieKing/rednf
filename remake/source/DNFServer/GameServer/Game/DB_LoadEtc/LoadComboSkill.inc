@@ -66,29 +66,20 @@ bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC* sig, ENUM_SKILL_TREE_KIND kind)
     // `reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)->m_tree1Count = nRows;`
     // ⇒ 4.4 产 `add $0x14aaa,%eax; mov -0xc,%edx; mov %dl,0x4(%eax)`（disp 被拆成两段），
     // ndiff 6→18 反劣，已回退（本件真差异是 store 装载序 LHS/RHS，非 disp/N107）。
-    struct ComboSkillView
-    {
-        char m_pad[0x14aae];
-        unsigned char m_tree1Count;      // +0x14aae（N76：P211 档③不适用——字段与
-        unsigned char m_tree2Count;      // +0x14aaf  RHS 本已异型，signed/unsigned 同形）
-        char m_pad2[4];                  // +0x14ab0
-        comoboSkillData m_tree1Data[6];  // +0x14ab4（0x54）
-        comoboSkillData m_tree2Data[6];  // +0x14b08（0x54）
-    };
     if (kind == 0)
     {
         // ORIG 0x0844a5c7：`mov -0xc(%ebp),%eax; mov %eax,%edx; mov 0xc(%ebp),%eax;
         //   mov %dl,0x14aae(%eax)`（RHS-first + eax→edx 中转，N76 封顶）。
-        ((ComboSkillView*)sig)->m_tree1Count = nRows;
+        reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)->m_tree1Count = nRows;
     }
     else if (kind == 1)
     {
-        ((ComboSkillView*)sig)->m_tree2Count = nRows;      // 同上（ORIG 0x0844a5e0）
+        reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)->m_tree2Count = nRows;      // 同上（ORIG 0x0844a5e0）
     }
     if (kind == 0)
     {
         if (!getComboSkill(db, sig->m_characNo, nRows,
-                ((ComboSkillView*)sig)->m_tree1Data))
+                reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)->m_tree1Data))
         {
             cMyTrace(__PRETTY_FUNCTION__, 0xbae7, 5)(
                 "DB_LoadEtc::LoadComboSkill, getComboSkill ERROR charac_no=%u",
@@ -98,7 +89,7 @@ bool DB_LoadEtc::LoadComboSkill(SIG_LOAD_ETC* sig, ENUM_SKILL_TREE_KIND kind)
     else if (kind == 1)
     {
         if (!getComboSkill(db, sig->m_characNo, nRows,
-                ((ComboSkillView*)sig)->m_tree2Data))
+                reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)->m_tree2Data))
         {
             cMyTrace(__PRETTY_FUNCTION__, 0xbaef, 5)(
                 "DB_LoadEtc::LoadComboSkill, getComboSkill ERROR charac_no=%u",

@@ -1,14 +1,14 @@
 int DisPatcher_MoveMap::read(PacketBuf& packet, MSG_BASE& msg)
 
 {
-    MoveMapMsgView& mv = *reinterpret_cast<MoveMapMsgView*>(&msg);
-    if (packet.get_byte(*reinterpret_cast<char*>(&mv.m_x)) != true)
+    MSG_MOVE_MAP& mv = *reinterpret_cast<MSG_MOVE_MAP*>(&msg);
+    if (packet.get_byte(mv.m_x) != true)
     {
         return LineFunc(0x1152,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (packet.get_byte(*reinterpret_cast<char*>(&mv.m_y)) != true)
+    if (packet.get_byte(mv.m_y) != true)
     {
         return LineFunc(0x1155,
                         __PRETTY_FUNCTION__,
@@ -32,8 +32,7 @@ int DisPatcher_MoveMap::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    mv.m_1a = packet.get_short(
-        *reinterpret_cast<unsigned short*>(mv.m_pad18));   // ORIG `mov %al,0x1a(%edx)`
+    mv.m_1a = packet.get_short(mv.m_trapBits);
     for (int local_14 = 0; local_14 < 4; local_14 = local_14 + 1)
     {
         if (packet.get_short(mv.m_1b[local_14]) != true)
@@ -52,13 +51,13 @@ int DisPatcher_MoveMap::read(PacketBuf& packet, MSG_BASE& msg)
                             0, 0);
         }
     }
-    if (packet.get_short(mv.m_33) != true)
+    if (packet.get_short(*reinterpret_cast<unsigned short*>(mv.m_pad33)) != true)
     {
         return LineFunc(0x116e,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (packet.get_int(mv.m_35) != true)                  // ORIG add $0x35 单步
+    if (packet.get_int(mv.m_field35) != true)
     {
         return LineFunc(0x1181,
                         __PRETTY_FUNCTION__,

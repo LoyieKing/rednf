@@ -57,6 +57,11 @@ class CDataManager
 public:
     void* get_event_script_mng();
     int GetPvPMode();    // ORIG W 0x844d4ae（LinkClosureA_Data.cpp 实现）
+    char m_padA8dc[0xa8dc];
+    struct {
+        int m_field0;
+        unsigned short m_field4;  // +0xa8e0
+    } m_mercenarySystem;
 };
 CDataManager* G_CDataManager();
 
@@ -385,12 +390,12 @@ struct CharacDataView { char m_pad[0x00e0]; CharacSlotView m_slots[0x24]; };
     unsigned int validity = 0;
     db->fetch();
     db->get_str(0, sig->m_secCardSerial, 0x27);                    // card → serial(+0x39ed)
-    db->get_int(1, SGFC(int, sig, OFF_SEC_FAILCNT));               // fail_cnt
-    db->get_uint(2, validity);                                    // validity_time>now()
-    db->get_uint(3, SGFC(unsigned int, sig, OFF_SEC_CERTFLAG));    // cert_flag
-    db->get_byte(4, SGFC(char, sig, OFF_SEC_CERTCNT));             // cert_cnt（ORIG 先读列 4）
-    db->get_short(5, SGFC(int, sig, OFF_SEC_QPOS));                // q_pos（int 引用重载）
-    db->get_str(5, SGBC(sig, OFF_SEC_QPOS_STR), 5);                // ORIG：列 5 再读 str 到 +0x3a18（长 5）
+    db->get_int(1, sig->m_secCardCertCnt);
+    db->get_uint(2, validity);
+    db->get_uint(3, sig->m_secCardCertFlagU);
+    db->get_byte(4, sig->m_secCardCertFlag);
+    db->get_short(5, sig->m_secCardCancelCnt);
+    db->get_str(5, sig->m_secCardAnswers, 5);
     if (validity == 1)
     {
         sig->m_secCardCertified = true;             // +0x39e1
@@ -450,7 +455,7 @@ struct CharacDataView { char m_pad[0x00e0]; CharacSlotView m_slots[0x24]; };
     db->set_query(
         "seLect event_id,unix_timestamp(occ_date),server_id,charac_no,unix_timestamp(obtain_date) from dnf_event_entry where m_id=%s and server_id in(0,%d)",
         NumberToString(mid, 0),
-        reinterpret_cast<EnvView*>(G_CEnvironment())->m_serverGroup);
+        G_CEnvironment()->m_serverEnvir.m_serverGroup);
     if (!db->exec(true))
     {
         return;
@@ -593,12 +598,12 @@ struct CharacDataView { char m_pad[0x00e0]; CharacSlotView m_slots[0x24]; };
         unsigned int m_serverGroup;  // +0x08（目标 unsigned vs RHS int）
         char         m_ip[0x14];     // +0x0c
     };
-    PktView* pkt = reinterpret_cast<PktView*>(
-        guard.operator->()->GetInBuffer<SIG_UPDATE_LOGIN>());
+    SIG_UPDATE_LOGIN* pkt =
+        guard.operator->()->GetInBuffer<SIG_UPDATE_LOGIN>();
     pkt->m_accId = sig->m_accId;
-    pkt->m_serverGroup = (int)sig->m_channelRestrictField;   // +0x3a38 serverGroup(short→int)
-    pkt->m_gcNo = sig->m_gcNo;                              // +0x9c
-    strncpy(pkt->m_ip, SGBC(sig, OFF_LOGIN_IP), 0x14);
+    pkt->m_serverGroup = (int)sig->m_channelRestrictField;
+    pkt->m_channelNo = sig->m_gcNo;
+    strncpy(pkt->m_loginIp, sig->m_blackIpCheckBuf, 0x14);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return 1;
 }
@@ -700,22 +705,29 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
         {
             return 0;
         }
-        ((GWView*)sig)->m_has = 1;
-        if (!db->get_short(0, SGFC(short, sig, OFF_GROWTH_WEAPON + 0x12))) return 0;   // server_id
-        if (!db->get_int(1, SGFC(int, sig, OFF_GROWTH_WEAPON + 4))) return 0;          // charac_no
-        if (!db->get_int(2, SGFC(int, sig, OFF_GROWTH_WEAPON + 8))) return 0;          // growthweapon_id
-        if (!db->get_short(3, SGFC(short, sig, OFF_GROWTH_WEAPON + 0x10))) return 0;   // timepiece
-        if (!db->get_int(4, SGFC(int, sig, OFF_GROWTH_WEAPON + 0xc))) return 0;        // infinityweapon_id
+        sig->m_growthWeaponEvent.m_eventFlag = 1;
+        {
+            SIG_GROWTH_WEAPON_EVENT* gw = &sig->m_growthWeaponEvent;
+            short serverId = 0;
+            short timepiece = 0;
+            if (!db->get_short(0, serverId)) return 0;
+            gw->m_field12 = serverId;
+            if (!db->get_int(1, *reinterpret_cast<int*>(&gw->m_field4))) return 0;
+            if (!db->get_int(2, *reinterpret_cast<int*>(&gw->m_field8))) return 0;
+            if (!db->get_short(3, timepiece)) return 0;
+            gw->m_field10 = static_cast<short>(timepiece);
+            if (!db->get_int(4, *reinterpret_cast<int*>(&gw->m_fieldc))) return 0;
+        }
     }
     else
     {
         // ORIG 清块写入序：每 store 重读 sig（无跨 store 缓存）
-        ((GWView*)sig)->m_has = 0;                           // +0x20f movb
-        ((GWView*)sig)->m_serverId = 0;                      // +0x219 movw
-        ((GWView*)sig)->m_characNo = 0;                      // +0x225 movl
-        ((GWView*)sig)->m_weaponId = 0;                      // +0x232 movl
-        ((GWView*)sig)->m_timepiece = 0;                     // +0x23f movw
-        ((GWView*)sig)->m_infWeaponId = 0;                   // +0x24b movl
+        sig->m_growthWeaponEvent.m_eventFlag = 0;
+        sig->m_growthWeaponEvent.m_field12 = 0;
+        sig->m_growthWeaponEvent.m_field4 = 0;
+        sig->m_growthWeaponEvent.m_field8 = 0;
+        sig->m_growthWeaponEvent.m_field10 = 0;
+        sig->m_growthWeaponEvent.m_fieldc = 0;
     }
     return 1;
 }
@@ -735,7 +747,7 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
 {
     // [b28d-solo-DB_Login] P0/P140：ORIG 无 bingo 引用局部（地址直传 clear）、
     // 无 evt 局部/判空（GetRepeatEvent 返回值直传虚调用）。
-    reinterpret_cast<SIG_BINGO_EVENT*>(SGBC(sig, OFF_BINGO_EVT))->clear();
+    reinterpret_cast<SIG_BINGO_EVENT*>(&sig->m_bingoWinFlag)->clear();
     if (!GlobalData::s_event_manager->GetRepeatEvent(0x6a)->IsEventing(0))
     {
         return 1;                            // 事件未开启：视为无数据成功
@@ -748,7 +760,7 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
     // 重载（`mov -0x18(%ebp),%edx`），无 cast 中转 ⇒ 具名局部即 unsigned int。
     unsigned int resetBase = (unsigned int)GetCurrentResetBaseTime(
         GlobalData::s_systemTime_.getCurSec(),
-        reinterpret_cast<EnvView*>(G_CEnvironment())->m_dailyResetHour);
+        G_CEnvironment()->m_serverEnvir.m_fatigueTime);
     db->set_query(
         "seLect board,reward from event_1208_bingo where m_id = %s and occ_date > from_unixtime(%u)",
         NumberToString(sig->m_accId, 0),
@@ -787,7 +799,7 @@ inline char* dbLoginStrrchrLibcpp(char* s, int c)
         unsigned char m_pad[0x413c];
         int           m_eventId;
     };
-    ok = db->get_int(col++, reinterpret_cast<BingoEventIdView*>(sig)->m_eventId);  // +0x413c
+    ok = db->get_int(col++, reinterpret_cast<int&>(sig->m_bingoEventId));  // +0x413c
     if (!ok)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0xb723, 5)(

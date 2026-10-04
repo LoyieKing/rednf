@@ -38,8 +38,7 @@ int SkillSlot::get_give_skill(
                 out);
         return 1;
     }
-    out = *(std::vector<std::pair<int, int> >*)(
-        (char*)G_CDataManager()->m_characList + job * 0x7dc + 0x240);
+    out = ((CCharacter*)G_CDataManager()->m_characList)[job].m_giveSkillList[0];
     std::vector<std::pair<int, int> > learnList;
     // 同上（D06 消费侧配对 bool 化）。
     bool result = true;

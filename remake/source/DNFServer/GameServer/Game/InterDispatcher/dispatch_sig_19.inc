@@ -13,10 +13,10 @@ int Inter_MonitorBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.put_header(0, 0x37);
     packet.put_byte(
         (unsigned int)pPkt->m_12);
-    packet.put_int(pPkt->m_a);
-    const int local_20 = (int)strlen(pPkt->m_15);
+    packet.put_int(pPkt->m_accId);
+    const int local_20 = (int)strlen(pPkt->m_name);
     packet.put_int(local_20);
-    packet.put_str(pPkt->m_15, local_20);
+    packet.put_str(pPkt->m_name, local_20);
     packet.put_byte(
         (unsigned int)pPkt->m_13);
     packet.finalize(true);
@@ -36,7 +36,7 @@ int Inter_MonitorBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/)
         OS_API::snprintf(local_16d, 0xff,
                          g_scriptStringManager_.findString(4, "return_user_msg_3", 0),
                          user->getCurCharacName(),
-                         reinterpret_cast<char*>(pPkt) + 0x15);
+                         pPkt->m_name);
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
             g_scriptStringManager_.findString(4, "return_user_msg_title", 0),
             item, 0, user->getCurCharacNo(), local_16d, strlen(local_16d), 0,

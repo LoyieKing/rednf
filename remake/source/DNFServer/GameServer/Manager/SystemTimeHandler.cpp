@@ -43,9 +43,9 @@ void CommonTime::SetCurTime()
     time(&t);
     struct tm* tm = localtime(&t);
     m_year = tm->tm_year - 0x64;
-    m_mon = tm->tm_mon + 1;
-    m_mday = tm->tm_mday;
+    m_month = tm->tm_mon + 1;
+    m_day = tm->tm_mday;
     m_hour = tm->tm_hour;
     m_min = tm->tm_min;
-    m_sec = tm->tm_wday;  // ORIG 读 tm 偏移 0x18（tm_wday）
+    m_wday = tm->tm_wday;
 }

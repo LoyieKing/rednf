@@ -83,7 +83,7 @@ int Inter_CreateCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     user->CreateCharac(sig);
     HistoryLog::WriteCreateCh(
-        *reinterpret_cast<FILE**>(&user->m_field796f8),   // +0x796f8 文件句柄槽
+        *reinterpret_cast<FILE**>(&user->m_historyLogFp),   // +0x796f8 文件句柄槽
         sig->m_name, static_cast<int>((char)sig->m_slot));
     packet.put_byte(1);
     packet.finalize(true);

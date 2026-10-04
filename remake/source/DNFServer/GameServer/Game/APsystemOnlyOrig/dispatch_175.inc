@@ -17,8 +17,8 @@ bool DB_CreateAccountCargo::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8bc7), true);
     guard.operator*()->operator<<(userIdx);
     guard.operator*()->operator<<(slot);
-    DB_AccountCargoResultView* sig =
-        reinterpret_cast<DB_AccountCargoResultView*>(
+    SIG_CREATE_ACCOUNT_CARGO_RESULT* sig =
+        /*SIG_CREATE_ACCOUNT_CARGO_RESULT*/(
             guard.operator->()->GetInBuffer<SIG_CREATE_ACCOUNT_CARGO_RESULT>());
     MySQL* db;
     // ORIG 0x0843ac…：mId(-0x1c)/capacity(-0x20) 比 guard(this=-0x18) 远

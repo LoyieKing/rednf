@@ -10,13 +10,13 @@ int Inter_MonitorPunishUserReq::dispatch_sig(CUser* /*user*/, char* data, int /*
     // P227：ORIG 084db2a5/084db2af 在 ctor 前求出 m_b→%esi / m_a→%ebx 并跨 ctor 保活
     //   ⇒ 全表达式临时链（禁具名 trace 局部 + 二次语句；值不进栈槽）。
     cMyTrace(__PRETTY_FUNCTION__, 0x43bc, 0)(
-        "Monitor Punish User / m_flag = %d / user_count", (int)pPkt->m_a,
-        (unsigned int)pPkt->m_b);
+        "Monitor Punish User / m_flag = %d / user_count", (int)pPkt->m_flag,
+        (unsigned int)pPkt->m_count);
 
-    if (pPkt->m_a == 0)
+    if (pPkt->m_flag == 0)
     {
         int i = 0;
-        for (i = 0; i < (int)pPkt->m_b; i = i + 1)     // P191 双初始化：ORIG 084db303/084db30a 两条清零
+        for (i = 0; i < (int)pPkt->m_count; i = i + 1)     // P191 双初始化：ORIG 084db303/084db30a 两条清零
         {
             // P223：ORIG 084db323 `jbe <nop 岛>` ⇒ 空 then 占位岛用负条件 goto 复现。
             if (pPkt->m_accIds[i] <= 0x63)

@@ -114,12 +114,6 @@ struct DB_TryNatView
 // charac_no(+0x00) + Inven_Item m_items[0x24](+0x04..+0x897) +
 // 两 switch(+0x898/+0x899)。_SaveExpandEquipslot 压缩前 0x898 字节
 // （=SIG_SAVE_EXPAND_EQUIPSLOT 段），_SaveCharacStat 读尾部两 switch 字节。
-struct SIG_SAVE_EXPAND_CHARAC_STAT
-{
-    unsigned char m_channelEquipslotSwitch;  // +0x00（SQL channel_equipslot_switch）
-    unsigned char m_expandEquipslotSwitch;   // +0x01（SQL expand_equipslot_switch）
-};
-
 // ---- DB_SavePvp::SavePvp 的 SQL 字段视图（SIG_SAVE_PVP m_result 前 0x68）----
 // ORIG 0x84172c8 逐偏移读：win/lose/pvp_point/pvp_grade/15×avg/pvp_count/
 // win_point/play_time/play_count（+0x0c 跳过），SQL 25 占位见下。
@@ -443,7 +437,7 @@ struct DB_AvatarInsertView
     signed char m_stat;        // +0x2c（movsbl）
     char m_jewel[0x1e];        // +0x2d（blob_to_str 0x1e）
     int m_identity;            // +0x4b（_SendResult 写）
-    short m_field4f;           // +0x4f（set_query 多余实参，符号扩展）
+    short m_fatigueBattery;           // +0x4f（set_query 多余实参，符号扩展）
     short m_field51;           // +0x51
 };                             // 0x53
 #pragma pack(pop)
@@ -1167,9 +1161,9 @@ class DB_MouseRegister : public DBDispatcher { public: DB_MouseRegister() {}
             ret = _registNewPassword(out->m_accId, buf7c, buf2c, slot);
             if (ret == 0)
             {
-                reinterpret_cast<DB_MouseRegisterWriteView*>(out)->m_field1a = 1;
-                reinterpret_cast<DB_MouseRegisterWriteView*>(out)->m_field1f = 0;
-                reinterpret_cast<DB_MouseRegisterWriteView*>(out)->m_field1b = 0;
+                out->m_regOk = 1;
+                out->m_field1f = 0;
+                out->m_field1b = 0;
                 memcpy(out->m_padPassword, buf7c, 0x24);
             }
             break;
@@ -1179,8 +1173,8 @@ class DB_MouseRegister : public DBDispatcher { public: DB_MouseRegister() {}
             if (ret == 0)
             {
                 memcpy(out->m_padPassword, buf7c, 0x24);
-                reinterpret_cast<DB_MouseRegisterWriteView*>(out)->m_field1f = 0;
-                reinterpret_cast<DB_MouseRegisterWriteView*>(out)->m_field1b = 0;
+                out->m_field1f = 0;
+                out->m_field1b = 0;
             }
             break;
         case 3:
@@ -1392,15 +1386,10 @@ class DB_ReqChangeCharacName : public DBDispatcher { public: DB_ReqChangeCharacN
             return true;
         }
         MySQL* guildDb = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_8, E_SERVER_GROUP_NONE);
-        struct ChangeCharacNameByteView
-        {
-            char m_pad[0x2c];
-            unsigned char m_serverId;
-        };
         guildDb->set_query("seLect guild_id from guild_member where charac_no=%d and member_flag=1 "
                            "and server_id=%d",
                            sig->m_characNo,
-                           reinterpret_cast<ChangeCharacNameByteView*>(sig)->m_serverId);
+                           sig->m_group);
         sig->m_arg28 = 0;
         if (!(guildDb->exec(true) && guildDb->fetch()))
             sig->m_arg28 = 0;
@@ -3558,59 +3547,59 @@ struct EventCommon
     db->set_query(
         " insert into prod_sale_entry_%s  ( agency_no, seal_flag, sale_time, price, slot_part_type, slot_part_code, ipg_no, bonus_ipg_no, m_id, user_id  , server_id, charac_no, job, grow_type, level, prize_flag, new_flag, result_code, result_message, gift_server_info, gift_get_charac_no  , charge_price, free_price, count_no, each_price, price_type, user_ip, buy_type, tran_id )  values( '%s', %d, now(), %d, %d, %d, %d, %d, %d, '%s', %d, %d, %d, %d, %d, %d, %d, %d, '%s', %d, %d, %d, %d, %d, %d, %d, '%s', %u, %u ) ",
         quarter,
-        (char*)sig, ((DB_BillingRecordSigView*)sig)->m_sealFlag,
-        ((DB_BillingRecordSigView*)sig)->m_saleTime, ((DB_BillingRecordSigView*)sig)->m_price,
-        ((DB_BillingRecordSigView*)sig)->m_slotPartType,
-        ((DB_BillingRecordSigView*)sig)->m_slotPartCode,
-        ((DB_BillingRecordSigView*)sig)->m_ipgNo, ((DB_BillingRecordSigView*)sig)->m_mId,
-        ((DB_BillingRecordSigView*)sig)->m_userId, ((DB_BillingRecordSigView*)sig)->m_serverId,
-        ((DB_BillingRecordSigView*)sig)->m_characNo, ((DB_BillingRecordSigView*)sig)->m_job,
-        ((DB_BillingRecordSigView*)sig)->m_growType, ((DB_BillingRecordSigView*)sig)->m_level,
-        ((DB_BillingRecordSigView*)sig)->m_prizeFlag, buyType,
-        ((DB_BillingRecordSigView*)sig)->m_resultCode,
-        ((DB_BillingRecordSigView*)sig)->m_resultMessage,
-        ((DB_BillingRecordSigView*)sig)->m_giftServerInfo,
-        ((DB_BillingRecordSigView*)sig)->m_giftGetCharacNo,
-        ((DB_BillingRecordSigView*)sig)->m_chargePrice,
-        ((DB_BillingRecordSigView*)sig)->m_freePrice, ((DB_BillingRecordSigView*)sig)->m_countNo,
-        ((DB_BillingRecordSigView*)sig)->m_eachPrice,
-        ((DB_BillingRecordSigView*)sig)->m_priceType, ((DB_BillingRecordSigView*)sig)->m_userIp,
-        ((DB_BillingRecordSigView*)sig)->m_buyType,
-        ((DB_BillingRecordSigView*)sig)->m_tranNoLow,
-        ((DB_BillingRecordSigView*)sig)->m_tranNoHigh);
+        (char*)sig, sig->m_sealFlag,
+        sig->m_saleTime, sig->m_price,
+        sig->m_slotPartType,
+        sig->m_slotPartCode,
+        sig->m_ipgNo, sig->m_mId,
+        sig->m_userId, sig->m_serverId,
+        sig->m_characNo, sig->m_job,
+        sig->m_growType, sig->m_level,
+        sig->m_prizeFlag, buyType,
+        sig->m_resultCode,
+        sig->m_resultMessage,
+        sig->m_giftServerInfo,
+        sig->m_giftGetCharacNo,
+        sig->m_chargePrice,
+        sig->m_freePrice, sig->m_countNo,
+        sig->m_eachPrice,
+        sig->m_priceType, sig->m_userIp,
+        sig->m_buyType,
+        sig->m_tranNoLow,
+        sig->m_tranNoHigh);
     if (!db->exec(true))
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__,
                               0x6191,
                               "db insert error prod_sale_entry_%s m_id: %d", quarter,
-                              ((DB_BillingRecordSigView*)sig)->m_mId);
+                              sig->m_mId);
         // [J4S4-⑤ P0] ORIG 0x08424b92 段该实参**无槽**（`cmpb $0,-0x5c; je;
         // mov $0x1,%ebx; jmp; mov $0x2,%ebx`）⇒ 第 2 次 buy_type 用右值三元，
         // 不再写 buyType 具名局部（第 1 次 ORIG 仍有 -0xb4 槽，保留）。
         db->set_query(
             " insert into prod_sale_entry_073 ( agency_no, seal_flag, sale_time, price, slot_part_type, slot_part_code, ipg_no, bonus_ipg_no, m_id, user_id, server_id, charac_no, job, prize_flag, new_flag, result_code, result_message )  values( '%s', %d, now(), %d, %d, %d, %d, %d, %d, '%s', %d, %d, %d, %d, %d, %d, '%s' ) ",
-            (char*)sig, ((DB_BillingRecordSigView*)sig)->m_sealFlag,
-            ((DB_BillingRecordSigView*)sig)->m_saleTime,
-            ((DB_BillingRecordSigView*)sig)->m_price,
-            ((DB_BillingRecordSigView*)sig)->m_slotPartType,
-            ((DB_BillingRecordSigView*)sig)->m_slotPartCode,
-            ((DB_BillingRecordSigView*)sig)->m_ipgNo,
-            ((DB_BillingRecordSigView*)sig)->m_mId,
-            ((DB_BillingRecordSigView*)sig)->m_userId,
-            ((DB_BillingRecordSigView*)sig)->m_serverId,
-            ((DB_BillingRecordSigView*)sig)->m_characNo,
-            ((DB_BillingRecordSigView*)sig)->m_job,
-            ((DB_BillingRecordSigView*)sig)->m_prizeFlag, (isNew ? 1 : 2),
-            ((DB_BillingRecordSigView*)sig)->m_resultCode,
-            ((DB_BillingRecordSigView*)sig)->m_resultMessage);
+            (char*)sig, sig->m_sealFlag,
+            sig->m_saleTime,
+            sig->m_price,
+            sig->m_slotPartType,
+            sig->m_slotPartCode,
+            sig->m_ipgNo,
+            sig->m_mId,
+            sig->m_userId,
+            sig->m_serverId,
+            sig->m_characNo,
+            sig->m_job,
+            sig->m_prizeFlag, (isNew ? 1 : 2),
+            sig->m_resultCode,
+            sig->m_resultMessage);
         if (!db->exec(true))
         {
             LogManager::logFormat(1, "DBThread.cpp",
                                   __PRETTY_FUNCTION__,
                                   0x61ab,
                                   "db insert error prod_sale_entry_073 m_id: %d",
-                                  ((DB_BillingRecordSigView*)sig)->m_mId);
+                                  sig->m_mId);
         }
     }
 }
@@ -3786,25 +3775,25 @@ struct EventCommon
     };
     char* q = 0;
     char date[0x40] = "9999-12-31 23:59:59";
-    if (((DB_AvatarInsertView*)sig)->m_period == 0) {
+    if (sig->m_period == 0) {
         q = sql.m_expireDate;
     } else {
         q = sql.m_fromUnixtime;
         memset(date, 0, 0x40);
         cMyTrace(__PRETTY_FUNCTION__,
                  0xae1, 0)("[InsertAvatarItem] pContext->nExpireTime : %d",
-                           ((DB_AvatarInsertView*)sig)->m_period);
+                           sig->m_period);
         // [R16a21] ORIG 0x83ff... 判定序为先 `cmp $0x1e; jg` 再 `cmp $0x6; jle`
         // ⇒ 源码短路链两项顺序照 ORIG 写（语义等价，仅指令序对齐）。
-        if (((DB_AvatarInsertView*)sig)->m_period <= 0x1e &&
-            ((DB_AvatarInsertView*)sig)->m_period > 6) {
+        if (sig->m_period <= 0x1e &&
+            sig->m_period > 6) {
             sprintf(date, "%d",
                     GlobalData::s_systemTime_.getCurSec() +
-                        ((DB_AvatarInsertView*)sig)->m_period * 0x15180);
+                        sig->m_period * 0x15180);
             cMyTrace(__PRETTY_FUNCTION__,
                      0xae5, 0)("[InsertAvatarItem] period value : %s", date);
         } else {
-            sprintf(date, "%d", ((DB_AvatarInsertView*)sig)->m_period);
+            sprintf(date, "%d", sig->m_period);
             cMyTrace(__PRETTY_FUNCTION__,
                      0xaea, 0)("[InsertAvatarItem] period value : %s", date);
         }
@@ -3812,18 +3801,18 @@ struct EventCommon
     // [R9form4 2026-09-12 形态对齐] 删具名 `char* jewel` 局部，blob_to_str 内联进 set_query
     //   实参位（ORIG 0x083ffe0e 段：实参求值槽组 -0xc0ac/-0xc0a8/-0xc0a4/-0xc0a0/-0xc09c，
     //   我方旧形多一个 -0x20 具名槽致全帧槽平移 4）。
-    db->set_query(q, ((DB_AvatarInsertView*)sig)->m_characNo,
-                  ((DB_AvatarInsertView*)sig)->m_slot,
-                  ((DB_AvatarInsertView*)sig)->m_itId, date,
-                  ((DB_AvatarInsertView*)sig)->m_obtainFrom,
-                  ((DB_AvatarInsertView*)sig)->m_abilityNo,
-                  ((DB_AvatarInsertView*)sig)->m_agency,
-                  ((DB_AvatarInsertView*)sig)->m_stat,
-                  db->blob_to_str(0, ((DB_AvatarInsertView*)sig)->m_jewel, 0x1e),
-                  ((DB_AvatarInsertView*)sig)->m_hiddenOption,
-                  ((DB_AvatarInsertView*)sig)->m_emblemEndurance,
-                  ((DB_AvatarInsertView*)sig)->m_field4f,
-                  ((DB_AvatarInsertView*)sig)->m_field51);
+    db->set_query(q, sig->m_characNo,
+                  sig->m_slot,
+                  sig->m_itId, date,
+                  sig->m_obtainFrom,
+                  sig->m_abilityNo,
+                  sig->m_agency,
+                  sig->m_a8,
+                  db->blob_to_str(0, reinterpret_cast<char*>(&sig->m_jewelSocket), 0x1e),
+                  reinterpret_cast<unsigned short*>(&sig->m_a7)[0],
+                  reinterpret_cast<unsigned short*>(&sig->m_a7)[1],
+                  reinterpret_cast<short*>(&sig->m_expansion)[0],
+                  reinterpret_cast<short*>(&sig->m_expansion)[1]);
     bool r = db->exec(true);
     if (!r)
         return 0;
@@ -4295,8 +4284,8 @@ typedef SIG_HACK_IP_SAVE DB_HackIPSaveView;
     char endTime[0x64];
     struct tm tmVal;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1, E_SERVER_GROUP_NONE);
-    DB_HadesPunishView* sig =
-        (DB_HadesPunishView*)stream->GetOutBuffer<SIG_HADES_PUNISH>();
+    SIG_HADES_PUNISH* sig =
+        stream->GetOutBuffer<SIG_HADES_PUNISH>();
     if (sig->m_days == 0)
     {
         memcpy(endTime, "'9999-12-31 23:59:59'", 0x16);
@@ -4535,7 +4524,7 @@ struct DB_LoadNoCacheDataView
 
     db->set_query(
         "seLect week_point,week_enter_count,week_use_gold,unix_timestamp(last_play_date),enter_count,rank,reward,reward_item_id,reward_gold from charac_blood_dungeon_reward where charac_no=%d and week_occ_date = cast(from_unixtime(%d) as date)",
-        ((DB_LoadNoCacheDataView*)sig)->m_characNo, today - weeklyOffset);
+        sig->m_characNo, today - weeklyOffset);
     if (db->exec(true) != 1)
         return 0;
     nRows = db->get_n_rows();
@@ -4544,29 +4533,29 @@ struct DB_LoadNoCacheDataView
         if (db->fetch() != 1)
             return 0;
         colIdx = 0;
-        if (db->get_uint(colIdx++, ((DB_LoadNoCacheDataView*)sig)->m_weekPoint) != 1)
+        if (db->get_uint(colIdx++, sig->m_weekPoint) != 1)
             return 0;
-        if (db->get_uint(colIdx++, ((DB_LoadNoCacheDataView*)sig)->m_weekEnterCount) != 1)
+        if (db->get_uint(colIdx++, sig->m_weekEnterCount) != 1)
             return 0;
-        if (db->get_uint(colIdx++, ((DB_LoadNoCacheDataView*)sig)->m_weekUseGold) != 1)
+        if (db->get_uint(colIdx++, sig->m_weekUseGold) != 1)
             return 0;
-        if (db->get_int(colIdx++, ((DB_LoadNoCacheDataView*)sig)->m_lastPlayDate) != 1)
+        if (db->get_int(colIdx++, sig->m_lastPlayDate) != 1)
             return 0;
-        if (db->get_uint(colIdx++, ((DB_LoadNoCacheDataView*)sig)->m_enterCount) != 1)
+        if (db->get_uint(colIdx++, sig->m_enterCount) != 1)
             return 0;
         localTime->tm_hour = 0;
         localTime->tm_min = 0;
         localTime->tm_sec = 0;
         mktimeVal = mktime(localTime);
-        if (((DB_LoadNoCacheDataView*)sig)->m_lastPlayDate != (int)mktimeVal)
+        if (sig->m_lastPlayDate != (int)mktimeVal)
         {
-            ((DB_LoadNoCacheDataView*)sig)->m_enterCount = 0;
-            ((DB_LoadNoCacheDataView*)sig)->m_lastPlayDate = (int)mktimeVal;
+            sig->m_enterCount = 0;
+            sig->m_lastPlayDate = (int)mktimeVal;
         }
     }
     db->set_query(
         "seLect rank,reward,reward_item_id,reward_gold from charac_blood_dungeon_reward where charac_no=%d and week_occ_date = cast(from_unixtime(%d) as date)",
-        ((DB_LoadNoCacheDataView*)sig)->m_characNo,
+        sig->m_characNo,
         (today - weeklyOffset) - 0x93a80);
     if (db->exec(true) != 1)
         return 0;
@@ -4576,7 +4565,7 @@ struct DB_LoadNoCacheDataView
         if (db->fetch() != 1)
             return 0;
         colIdx2 = 0;
-        if (db->get_uint(colIdx2++, ((DB_LoadNoCacheDataView*)sig)->m_rank) != 1)
+        if (db->get_uint(colIdx2++, sig->m_rank) != 1)
             return 0;
         rewardByte = 0;
         if (db->get_byte(colIdx2++, rewardByte) != 1)
@@ -4584,10 +4573,10 @@ struct DB_LoadNoCacheDataView
         // 字段区见 DB_LoadNoCacheDataView::m_reward（+0x20）。gcc 对
         // reinterpret_cast 视图 lvalue 的求值点与 ORIG（rhs 先行、sig 基址
         // 后取）不符，保留头 m_pad 下标形态以逐指令一致（§4.3 例外注记）。
-        sig->m_pad[0x20] = (char)(rewardByte == 0);
-        if (db->get_ulong(colIdx2++, ((DB_LoadNoCacheDataView*)sig)->m_rewardItemId) != 1)
+        sig->m_reward = (unsigned char)(rewardByte == 0);
+        if (db->get_ulong(colIdx2++, sig->m_rewardItemId) != 1)
             return 0;
-        if (db->get_uint(colIdx2++, ((DB_LoadNoCacheDataView*)sig)->m_rewardGold) != 1)
+        if (db->get_uint(colIdx2++, sig->m_rewardGold) != 1)
             return 0;
     }
     return 1;

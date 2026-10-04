@@ -7,7 +7,7 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
 
     // ORIG 0x084d2bbc：state 岛后 pPkt 才物化 -0x14（技巧13）。
     Inter_CallGuildInviteToInvitedPktView* pPkt = reinterpret_cast<Inter_CallGuildInviteToInvitedPktView*>(data);
-    if (user->get_charac_no(-1) != pPkt->m_a)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -15,7 +15,7 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
             0x337b,
             "MEMBER : Inter_CallGuildInviteToInvited::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            pPkt->m_a);
+            pPkt->m_characNo);
         return 0;
     }
 
@@ -44,12 +44,12 @@ int Inter_CallGuildInviteToInvited::dispatch_sig(CUser* user, char* data, int /*
 
     PacketGuard packet;
     packet.put_header(0, 0x93);
-    const int local_14 = (int)strlen(pPkt->m_30);
+    const int local_14 = (int)strlen(pPkt->m_guildName);
     packet.put_int(local_14);
-    packet.put_str(pPkt->m_30, local_14);
-    const int local_10 = (int)strlen(pPkt->m_12);
+    packet.put_str(pPkt->m_guildName, local_14);
+    const int local_10 = (int)strlen(pPkt->m_name);
     packet.put_int(local_10);
-    packet.put_str(pPkt->m_12, local_10);
+    packet.put_str(pPkt->m_name, local_10);
     packet.finalize(true);
     user->Send(packet);
     return 0;

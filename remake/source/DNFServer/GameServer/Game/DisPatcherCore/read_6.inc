@@ -5,7 +5,7 @@ int DisPatcher_CreateCharac::read(PacketBuf& packet, MSG_BASE& msg)
     // msg 指针唯一槽 -0xc（所有读走该槽 reload，技13 声明位置=落栈时机）。
     MSG_CREATE_CHARAC_VIEW& v = *reinterpret_cast<MSG_CREATE_CHARAC_VIEW*>(&msg);
     memset(&v, 0, 0x30);
-    if (!packet.get_byte(*reinterpret_cast<char*>(&v.m_slot)))  // +0x0d（uchar→char& 适配）
+    if (!packet.get_byte(v.m_slot))
     {
         return LineFunc(0x749,
                         __PRETTY_FUNCTION__,

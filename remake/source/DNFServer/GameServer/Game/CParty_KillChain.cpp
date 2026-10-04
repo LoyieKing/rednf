@@ -50,35 +50,13 @@ struct KcDeadCountView
 // _makeRewardItemInfo 的尾随 Inven_Item 视图：ORIG 0x085ad0cc 每次字段访问都
 // 重发 `mov 0x10(%ebp),%eax; add $0x3d,%eax`（无指针槽，P0）⇒ 用宏内联展开，
 // 不落具名指针局部。+0x2 复用 Inven_Item::m_addInfo 作调用方扩展标志。
-#define kcTailItem(p) \
-    (reinterpret_cast<Inven_Item*>(reinterpret_cast<char*>(p) + 0x3d))
+#define kcTailItem(p) ((p) + 1)
 
 // addDungeonClear 的每日入场次数记录视图（ORIG 0x085bde31 寻址实证：
 // `mov -0xc(%ebp),%ecx; add $0x300,%ecx; movzwl 0x8(%edx,%ecx,8),%edx` ——
 // 记录基址 this+(i+0x300)*8+8，步长 8：short uniqueId @+0x0 / int 计数 @+0x4）。
-struct KcClearRec
-{
-    short m_uniqueId;
-    short m_pad02;
-    int m_count;
-};
-
-struct KcClearRecView
-{
-    char m_pad[0x1808];
-    KcClearRec m_recs[1];
-};
-
 // CDataManager 每日入场门槛（ORIG 0x085bde7e/0x085bdf11 实证 +0x512c/0x512e
 // 两个 ushort；CDataManager.h 未建模该段，按 §4.3 具名视图访问）。
-struct KcDataMgrDailyLimitView
-{
-    char m_pad[0x512c];
-    unsigned short m_limitKind0;    // +0x512c
-    unsigned short m_limitKind12;   // +0x512e
-    unsigned short m_limitDiff1;    // +0x5130（DungeonPermission diff==1 门槛）
-};
-
 }  // namespace
 
 #include "CParty_KillChain/hasPCRoomPlayer.inc"

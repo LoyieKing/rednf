@@ -1,4 +1,4 @@
 bool CUser::CheckInParty()
 {
-    return (~(unsigned short)m_field8d004 & 0x8000) != 0;
+    return (~(unsigned short)m_partyIndex & 0x8000) != 0;
 }

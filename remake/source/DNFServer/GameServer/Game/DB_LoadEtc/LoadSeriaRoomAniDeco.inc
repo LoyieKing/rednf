@@ -34,12 +34,12 @@ bool DB_LoadEtc::LoadSeriaRoomAniDeco(SIG_LOAD_ETC* sig)
             return false;
         }
         if (!db->get_short(0,
-                           *reinterpret_cast<short*>(&sig->m_comboSkill[0xb2])))  // +0x14b5c
+                           *reinterpret_cast<short*>(sig->m_seriaRoomAniDeco)))  // +0x14b5c
         {
             return false;
         }
         if (!db->get_short(1,
-                           *reinterpret_cast<short*>(&sig->m_comboSkill[0xb4])))  // +0x14b5e
+                           *reinterpret_cast<short*>(sig->m_seriaRoomAniDeco + 2)))  // +0x14b5e
         {
             return false;
         }

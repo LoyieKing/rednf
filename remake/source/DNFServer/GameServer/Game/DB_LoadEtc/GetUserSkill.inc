@@ -84,18 +84,8 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
     // [Lane44-新判据①] ORIG 0xc9c8/0xcb64/0xcd00/0xcd04 为单条 `lea K(%eax),%edx`
     //   （视图成员取址形），4.4 对 `(unsigned int*)&arr[i]` 恒产 `add $K,%eax; mov`⇒ 改用
     //   局部 trivial 镜像视图成员取址（探针实测 4.4 产单条 lea），四字段偏移见下。
-    struct SkillMixedView
-    {
-        char           m_pad[0xc9c8];
-        unsigned int   m_remainSp;         // +0xc9c8（ORIG lea 形）
-        char           m_pad2[0x198];      // +0xc9cc..0xcb64
-        unsigned int   m_remainSp2nd;      // +0xcb64（ORIG lea 形）
-        char           m_pad3[0x198];      // +0xcb68..0xcd00
-        unsigned int   m_field340;         // +0xcd00（ORIG lea 形）
-        unsigned int   m_field344;         // +0xcd04（ORIG lea 形）
-    };
     ok = db->get_uint(col++,
-                      ((SkillMixedView*)sig)->m_remainSp);
+                      reinterpret_cast<unsigned int&>(reinterpret_cast<SIG_LOAD_SKILL*>(sig->m_mixedRegion)->m_remainSpTree1));
     if (!ok)
     {                                                        // col0 remain_sp
         cMyTrace(__PRETTY_FUNCTION__, 0x1d71, 5)(
@@ -104,13 +94,13 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!get_compressed_blob_data(db, col++,
-                                  (char*)((unsigned int)sig + 0xc9cc),
+                                  reinterpret_cast<char*>(reinterpret_cast<SIG_LOAD_SKILL*>(sig->m_mixedRegion)->m_skillSlotTree1),
                                   0x198, 2))
     {                                                        // skill_slot
         return false;
     }
     ok = db->get_uint(col++,
-                      ((SkillMixedView*)sig)->m_remainSp2nd);
+                      reinterpret_cast<unsigned int&>(reinterpret_cast<SIG_LOAD_SKILL*>(sig->m_mixedRegion)->m_remainSpTree2));
     if (!ok)
     {                                                        // remain_sp_2nd→0xcb64
         cMyTrace(__PRETTY_FUNCTION__, 0x1d98, 5)(
@@ -119,13 +109,13 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!get_compressed_blob_data(db, col++,
-                                  (char*)((unsigned int)sig + 0xcb68),
+                                  reinterpret_cast<char*>(reinterpret_cast<SIG_LOAD_SKILL*>(sig->m_mixedRegion)->m_skillSlotTree2),
                                   0x198, 2))
     {                                                        // skill_slot_2nd
         return false;
     }
     ok = db->get_uint(col++,
-                      ((SkillMixedView*)sig)->m_field340);
+                      reinterpret_cast<unsigned int&>(reinterpret_cast<SIG_LOAD_SKILL*>(sig->m_mixedRegion)->m_remainSfpTree1));
     if (!ok)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x1dac, 5)(
@@ -134,7 +124,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
         return false;
     }
     ok = db->get_uint(col++,
-                      ((SkillMixedView*)sig)->m_field344);
+                      reinterpret_cast<unsigned int&>(reinterpret_cast<SIG_LOAD_SKILL*>(sig->m_mixedRegion)->m_remainSfpTree2));
     if (!ok)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x1db2, 5)(
@@ -143,13 +133,13 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!get_compressed_blob_data(db, col++,
-                                  (char*)((unsigned int)sig + 0xcd08),
+                                  reinterpret_cast<char*>(reinterpret_cast<SIG_LOAD_SKILL*>(sig->m_mixedRegion)->m_commands),
                                   200, 4))
     {                                                        // skill_command
         return false;
     }
     if (!get_compressed_blob_data(db, col++,
-                                  (char*)((unsigned int)sig + 0x29fd), 0x198, 2))
+                                  reinterpret_cast<char*>(&sig->m_backupSkill), 0x198, 2))
     {                                                        // skill_slot_lethe
         return false;
     }
@@ -159,7 +149,7 @@ bool DB_LoadEtc::GetUserSkill(SIG_LOAD_ETC* sig)
         return false;
     }
     if (!get_compressed_blob_data(db, col++,
-                                  (char*)((unsigned int)sig + 0x2b97), 0x198, 2))
+                                  reinterpret_cast<char*>(&sig->m_backupSkill2ND), 0x198, 2))
     {                                                        // skill_slot_lethe_2nd
         return false;
     }

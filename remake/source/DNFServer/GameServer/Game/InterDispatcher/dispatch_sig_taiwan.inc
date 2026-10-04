@@ -3,10 +3,10 @@
 int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int len)
 {
     // [c3] ORIG 只保留一个 data 槽（-0x2c）且逐处 disp 直读 ⇒ 用引用视图（引用别名不占新槽）。
-    const Inter_AuctionResultBiddingPktView& pkt =
-        *reinterpret_cast<const Inter_AuctionResultBiddingPktView*>(data);
+    const SIG_AUCTION_RESULT_BIDDING& pkt =
+        *reinterpret_cast<const SIG_AUCTION_RESULT_BIDDING*>(data);
     (void)len;                                         // ORIG 未用 param_3 长度
-    if (pkt.m_4 != static_cast<int>(user->getCurCharacNo()))   // msg+0x04 角色号
+    if (pkt.m_characNo != static_cast<int>(user->getCurCharacNo()))   // msg+0x04 角色号
         return 0;
 
     {   // GM 延迟追踪（cmpl $0x4 setle；gmList = ORIG _ZL6gmList）
@@ -25,11 +25,11 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
     PacketGuard packet;
     packet.put_header(1, 0xbc);
     packet.put_byte(static_cast<int>(
-        pkt.m_c));        // msg byte @0xc
-    if (static_cast<char>(pkt.m_c) == '\0')                   // 低字节为 0 补错误码
+        pkt.m_flagA));        // msg byte @0xc
+    if (static_cast<char>(pkt.m_flagA) == '\0')                   // 低字节为 0 补错误码
         packet.put_byte(static_cast<int>(
-            pkt.m_d));    // byte @0xd
-    packet.put_byte(pkt.m_0);                                 // msg+0x00 pay 类型
+            pkt.m_flagB));    // byte @0xd
+    packet.put_byte(pkt.m_result);                                 // msg+0x00 pay 类型
 
     const PrePayInfoView* prePay = 0;                  // local_2c（FindPrePayInfo 返回 &PrePayInfo，
                                                        // 本 TU 以 PrePayInfoView 消费，ORIG disp 直读形）
@@ -39,7 +39,7 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
     unsigned int amount2 = 0;                          // local_20（PrePayInfo+0x0c）
     WongWork::IPG::CIPGMgr* mgr = 0;                   // local_28
 
-    if (pkt.m_0 == 1)
+    if (pkt.m_result == 1)
     {
         user->SetBuyingGold(false);
         prePay = reinterpret_cast<const PrePayInfoView*>(
@@ -70,9 +70,9 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
             static_cast<int>(user->getCurCharacNo()));
     }
 
-    if (static_cast<char>(pkt.m_c) == '\0')
+    if (static_cast<char>(pkt.m_flagA) == '\0')
     {
-        if (pkt.m_0 == 1)
+        if (pkt.m_result == 1)
         {   // 失败：双段回滚（cancel）
             Taiwan::TaiwanCash* cash = mgr->getBillingCash();
             int rc = cash->cancel(trans1);
@@ -113,7 +113,7 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
         }
         else
         {   // 成功退款：金币返还（msg+0x08 金额，reason 0x14）
-            const int money = pkt.m_8;
+            const int money = pkt.m_money;
             const int gained = user->getCurCharacInvenW()->gain_money(
                 money, static_cast<eMoneyAddReason>(0x14), true, 0);
             if (gained < money)
@@ -123,7 +123,7 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
                     static_cast<unsigned long>(gained));
         }
     }
-    else if (pkt.m_0 == 1)
+    else if (pkt.m_result == 1)
     {   // 成功：双段确认（confirm）
         Taiwan::TaiwanCash* cash = mgr->getBillingCash();
         int rc = cash->confirm(trans1);
@@ -165,7 +165,7 @@ int Inter_AuctionResultBidding::dispatch_sig_taiwan(CUser* user, char* data, int
 
     packet.finalize(true);
     user->Send(packet);
-    if (pkt.m_0 == 1)
+    if (pkt.m_result == 1)
     {   // vtable+0x2c（slot12 IPGQuery(CUser*)）：类未建模——asm 桥残留保留，按 §8 协议待建模清理
         typedef void (*QueryFn)(void*, CUser*);
         // [Round7·2026-09-11 Main 点名] ORIG 0x84d73c8/0x84d73d4 对该虚调用发**两次**

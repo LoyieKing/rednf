@@ -8,19 +8,19 @@ int Inter_FindFactoryHub::dispatch_sig(CUser* user, char* data, int /*len*/)
     {
         user->getHackAnalyzer()->addServerHackCnt(
             user, (WongWork::ENUM_HACKTYPE)0x2c0, 1,
-            (unsigned int)user->SetETC(0x2c0, pPkt->m_0), 0);
-        if (pPkt->m_4 != 0)
+            (unsigned int)user->SetETC(0x2c0, pPkt->m_etc), 0);
+        if (pPkt->m_flag != 0)
         {
             user->getHackAnalyzer()->addServerHackCnt(
                 user, (WongWork::ENUM_HACKTYPE)0x2bd, 1,
-                (unsigned int)user->SetETC(0x2bd, pPkt->m_0), 0);
+                (unsigned int)user->SetETC(0x2bd, pPkt->m_etc), 0);
         }
 
         Packet_Monitor_Find_Factory_Hub_User packet;
         packet.m_charNo = user->getCurCharacNo();      // +0x0a
         packet.m_nameLen =
-            (unsigned char)strlen(pPkt->m_5);           // +0x0e 截断到字节
-        strncpy(packet.m_name, pPkt->m_5, 0x1e);        // +0x0f
+            (unsigned char)strlen(pPkt->m_name);           // +0x0e 截断到字节
+        strncpy(packet.m_name, pPkt->m_name, 0x1e);        // +0x0f
         packet.m_field2e = 0x2c1;                      // +0x2d（ORIG 恒写 0x2c1）
         packet.m_accId = user->get_acc_id();           // +0x2f
         packet.packetSize = 0x33;                      // ORIG 发送长度恒 0x33

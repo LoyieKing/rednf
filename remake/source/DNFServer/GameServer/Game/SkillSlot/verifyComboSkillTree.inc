@@ -10,8 +10,7 @@ void SkillSlot::verifyComboSkillTree(ENUM_SKILL_TREE_KIND kind)
     else
     {
         std::vector<std::pair<int, int> >* slotList =
-            (std::vector<std::pair<int, int> >*)(
-                (char*)G_CDataManager()->m_characList + 0x48fc);
+            &((CCharacter*)G_CDataManager()->m_characList)[9].m_giveSkillList[0];
         for (int i = 0; i < 6; ++i)
         {
             if ((*slotList)[i].first == 0)

@@ -130,7 +130,7 @@ public:
     RidableScript m_ridable;                  // +0x38
     int m_questType;                          // +0x4c（maze quest type；clear 置 -1；
                                               //      set_dungeon 按 0/1/-1 分流）
-    int m_50;                                 // +0x50（clear 置 -1）
+    int m_questIdx;                           // +0x50（clear 置 -1）
     int m_54;                                 // +0x54（clear 置 -1）
     std::vector<DungeonClearCondition> m_clearCondition; // +0x58
     int m_64;                                 // +0x64（clear 置 0）

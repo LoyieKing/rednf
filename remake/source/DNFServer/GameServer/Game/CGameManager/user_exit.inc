@@ -25,7 +25,7 @@ bool CGameManager::user_exit(CUser* user)
             __PRETTY_FUNCTION__, 0x127a, user->get_acc_id());
         return false;
     }
-    HistoryLog::LogClose((FILE*)user->m_field796f8);   // ORIG *(user+0x796f8)
+    HistoryLog::LogClose((FILE*)user->m_historyLogFp);   // ORIG *(user+0x796f8)
     user->prepareDisconnect();
     G_GameWorld()->EraseLoginUser(user);
     // ORIG 0x082986b6：`cmp $0x2,%eax; setg %al; test %al; je <尾部else块>` —— 真条件

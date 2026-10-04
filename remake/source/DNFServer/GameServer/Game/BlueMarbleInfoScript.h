@@ -80,6 +80,7 @@ public:
     // ORIG 对上述槽位均无 getter/setter 符号 ⇒ friend 授权具名访问，
     // sizeof/成员偏移零变动（0x8c）。
     friend class BlueMarble;
+    friend class CBattle_Field;
 
 public:  // m_playerMax：CGameManager::allocBlueMarble / findJoinableBlueMarble 按
          // ORIG *(managerScript+0x30) 直读（ORIG 无 getter 符号；公开字段避免

@@ -34,7 +34,7 @@ bool DB_LoadCleanPadPoint::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x73be), true);
     guard.operator*()->operator<<((int)0x127);
     guard.operator*()->operator<<((int)-1);
-    DB_CleanpadRatioView* out = reinterpret_cast<DB_CleanpadRatioView*>(
+    SIG_LOAD_CLEANPAD_POINT* out = /*SIG_LOAD_CLEANPAD_POINT*/(
         guard.operator->()->GetInBuffer<SIG_LOAD_CLEANPAD_POINT>());
     // ORIG 0x0842e…：`mov %eax,-0x10; mov -0x10,%eax(design 先评估);
     // movl $0x3cf0; movl $0; mov -0x10,%eax; mov (%esp)` ⇒ 首参先评估

@@ -12,10 +12,10 @@ bool DB_GatheringParyStatus::save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, 
     // 4.4 对语句内联合表达式恒折叠单 add（两步拆分则指针落槽多 2 对），
     // 装载序（idx 先/sig 后）不可控 → N18a 残差 2 对，行为等价。
     sprintf(buf, "%d.%d.%d.%d",
-            (unsigned char)sig->m_tryEntries[idx][2],
-            (unsigned char)sig->m_tryEntries[idx][3],
-            (unsigned char)sig->m_tryEntries[idx][4],
-            (unsigned char)sig->m_tryEntries[idx][5]);
+            sig->m_tryEntries[idx].m_peerIp[0],
+            sig->m_tryEntries[idx].m_peerIp[1],
+            sig->m_tryEntries[idx].m_peerIp[2],
+            sig->m_tryEntries[idx].m_peerIp[3]);
     db->set_query(
         "inSert into dnf_party_result_history_pvp (str_ip,nat_type,m_id,party_result,"
         "occ_time,map_id,dungeon_id,peer_nat_type,peer_ip, established_time, "
@@ -25,10 +25,10 @@ bool DB_GatheringParyStatus::save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, 
         sig->m_ip,
         sig->m_natType,
         NumberToString(sig->m_accId, 0),
-        (unsigned char)sig->m_tryEntries[idx][0],
+        sig->m_tryEntries[idx].m_result,
         sig->m_field18,
         sig->m_field1c,
-        (unsigned char)sig->m_tryEntries[idx][1],
+        sig->m_tryEntries[idx].m_peerNat,
         buf,
         // [r3-W8LT_DBTask] 已改：`(char*)sig + idx*10 + 0x20` 显式算术 +
         // DB_TryNatSection 单级成员 ⇒ 复现 ORIG 0x08420e1a `add $0x20,%eax;
@@ -38,9 +38,7 @@ bool DB_GatheringParyStatus::save_dnf_pvp_result_history(SIG_PARTY_STATUS* sig, 
         // [M8DBB 2026-09-11 负结论] 常量前置形 `sig + 0x20 + idx*10` 实测
         // **零变化**（174/175、diff blocks 17 全同，仅 `mov 0xc(%ebp),%ecx`
         // 与 `add $0x20` 的发射序不变）⇒ 回滚。残余归 N18a 结合序封顶。
-        reinterpret_cast<const DB_TryNatSection*>(
-            reinterpret_cast<const char*>(
-                sig) + idx * 10 + 0x20)->m_f,
+        sig->m_tryEntries[idx].m_estTime,
         (unsigned char)sig->m_field21,
         sig->m_field22,
         G_CEnvironment()->m_serverEnvir.m_relayIP,

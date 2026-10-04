@@ -3,8 +3,8 @@ void CUser::reset()
     ResetCurCharac();
     m_gmBossDifficulty = 0;
     m_gmBossMapIndex = 0;
-    m_field8cf00 = 0;
-    m_field8ead8 = 0;
+    m_abnormalUserLogType = 0;
+    m_buyingGold = 0;
     m_premium.InitPremium();
     m_characList.clear();
     m_characList.reserve(8);
@@ -30,26 +30,26 @@ void CUser::reset()
     SetOverTradeGoldCount(0);
     setUserEventCharacterFlag(0);
     m_vec8cef4.clear();
-    m_field8d0f0 = 0;
-    m_field8d0f1 = 0;
-    m_field8d0f2 = 0;
-    m_field8e074 = 0;
+    m_locked4DataLoad = 0;
+    m_lockedDeleteCharac = 0;
+    m_lockedCreateCharac = 0;
+    m_hasCharacterStatistic = 0;
         m_character.PlayInfo::Reset();
-    m_field8d0f8 = 0;
-    m_field8d0f4 = 0;
+    m_lastLoginChannelNo = 0;
+    m_lastLoginCharacNo = 0;
     m_379.reset();
     setAntibotKey(-1);
     setClientVersion(0);
     m_dungeonGainedGold.reset();
     m_postChecksumData.m_field44 = 0;
     m_rating = 0;
-    m_field8cfc0 = 0xffffffff;
+    m_trickArea = 0xffffffff;
     m_postChecksumData.m_totalFatigueUsed = 0;
     m_levelupEvents.clear();
     m_characExpand.reset();
     m_premium.m_field98c = 0;
     m_limitItemUsage.clear();
-    m_quest.m_field761c = 0;
+    m_quest.m_villageAttackedReward = 0;
     m_accId = 0;
     // ORIG reset 0x864a5c0+164..195 语句序：59 → accountCargo.Clear → 5c(0x7965c)
     // → 5e → 60 → dup(0x7966c) → str0 → str1 → 58(0x7965c int) → 56。
@@ -79,17 +79,17 @@ void CUser::reset()
     // 登录路径必经 reset()，此处整块清零，后续各字段再按原逻辑单独赋值。
     std::memset(&m_gameOption, 0, sizeof(m_gameOption));
 #endif
-    m_field6ef68 = 0;
+    m_forceItemDrop = 0;
     m_field6ef69 = 0xff;
     resetMoneyLog();
     m_field4 = 0;
     m_field5 = 0;
     m_receivedRequestType = 0xff;
-    m_field796d8 = 0;
+    m_puUser = 0;
     m_quest.reset();
-    m_field8ebd8 = 0;
-    m_field8ebd4 = m_field8ebd8;
-    m_field8ebd0 = m_field8ebd4;
+    m_userMaxLevel = 0;
+    m_managePoint = m_userMaxLevel;
+    m_manageLevel = m_managePoint;
     m_rentalFlag1 = 1;
     m_rentalFlag2 = 0;
     m_bingo.clear();
@@ -97,6 +97,6 @@ void CUser::reset()
     m_growthCreature.m_vec.clear();
     GetGameOptionRef()->reset_load_hotkey_flag();
     m_rentalFlag3 = 0;
-    m_field8ec31 = 0;
-    m_field8ec32 = 0;
+    m_rewarded = 0;
+    m_pcroomDailyRemain = 0;
 }

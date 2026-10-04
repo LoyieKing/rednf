@@ -1,17 +1,17 @@
 int Inter_GetPremiumSelectedCubeInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_GetPremiumSelectedCubeInfoPktView* pPkt = reinterpret_cast<Inter_GetPremiumSelectedCubeInfoPktView*>(data);
+    SIG_GET_PREMIUM_SELECTED_CUBE_INFO_RES* res = reinterpret_cast<SIG_GET_PREMIUM_SELECTED_CUBE_INFO_RES*>(data);
     if (user->getCurCharacR() == 0)
         return 0;
 
     user->initContractOfCubePremiumInfo(
-        pPkt->m_4 != '\0',
-        pPkt->m_5);
+        res->m_selected != '\0',
+        res->m_cubeType);
 
     PacketGuard packet;
     packet.put_header(0, 0x217);
-    packet.put_byte((unsigned int)(unsigned char)pPkt->m_4);
-    packet.put_byte((unsigned int)pPkt->m_5);
+    packet.put_byte((unsigned int)res->m_selected);
+    packet.put_byte((unsigned int)res->m_cubeType);
     packet.finalize(true);
     user->Send(packet);
     return 0;

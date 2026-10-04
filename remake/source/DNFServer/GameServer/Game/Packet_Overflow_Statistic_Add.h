@@ -15,7 +15,8 @@ class Packet_Overflow_Statistic_Add : public PacketHeader
 public:
     Packet_Overflow_Statistic_Add();   // ORIG W @0x0822bdf0
 
-    char m_data[0xd - 0xa];   // +0x0a 起
+    unsigned char m_kind;    // +0x0a
+    unsigned short m_val;    // +0x0b
 };
 
 #pragma pack(pop)

@@ -1,4 +1,4 @@
 int CUserCharacInfo::GetAssaultPlace()
 {
-    return m_selected ? m_selected->m_fieldE41 : 0;
+    return m_selected ? m_selected->m_assaultPlace : 0;
 }

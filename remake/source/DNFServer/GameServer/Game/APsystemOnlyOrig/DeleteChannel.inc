@@ -14,20 +14,20 @@ bool DB_DeleteChannel::DeleteChannel(SIG_DELETE_CHANNEL* sig)
     // （register asm("edx") 探针反产 4 步链，已回退）。语义等价：
     // 只是把同一个 uint 读经 %eax 再挪 %edx，无副作用差异。
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
-        DB_HANDLE_2, ((DB_DeleteChannelView*)sig)->m_field4);
+        DB_HANDLE_2, sig->m_field4);
     db->set_query("deLete from game_channel where gc_no=%d",
-                  ((DB_DeleteChannelView*)sig)->m_gcNo);
+                  sig->m_gcNo);
     r = db->exec(true);
     if (!r)
         return 0;
     cMyTrace(__PRETTY_FUNCTION__, 0x1262, 0)(
-        "deLete from game_channel where gc_no=%d", ((DB_DeleteChannelView*)sig)->m_gcNo);
+        "deLete from game_channel where gc_no=%d", sig->m_gcNo);
     db->set_query("deLete from channel_occ_info where gc_no=%d",
-                  ((DB_DeleteChannelView*)sig)->m_gcNo);
+                  sig->m_gcNo);
     r = db->exec(true);
     if (!r)
         return 0;
     cMyTrace(__PRETTY_FUNCTION__, 0x126a, 0)(
-        "deLete from channel_occ_info where gc_no=%d", ((DB_DeleteChannelView*)sig)->m_gcNo);
+        "deLete from channel_occ_info where gc_no=%d", sig->m_gcNo);
     return 1;
 }

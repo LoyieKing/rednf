@@ -14,12 +14,12 @@ int Inter_LoadDungeonClear::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0;
     }
     // ORIG：包基址槽在 PROG_LOGOUT 门之后才物化。
-    Inter_LoadDungeonClearPktView* pPkt = reinterpret_cast<Inter_LoadDungeonClearPktView*>(data);
-    if (pPkt->m_c == 1)
+    SIG_LOAD_DUNGEON_CLEAR* load = reinterpret_cast<SIG_LOAD_DUNGEON_CLEAR*>(data);
+    if (load->m_selected == 1)
         return 0x2020;
-    user->getDungeonClearRefW()->fromString(user, reinterpret_cast<char*>(pPkt) + 0x10);
+    user->getDungeonClearRefW()->fromString(user, load->m_clearData);
     // ORIG +0x5a：`movzbl 0x8(%eax),%eax`+`xor $0x1,%eax`+`test %al,%al` ⇒ bool 字段取反。
-    if (!pPkt->m_8)
+    if (!load->m_pad8[0])
         user->disableSaveDungeonClear();
     user->EnableCharacInfo((CACHE_SECTION)5);
     return 0;

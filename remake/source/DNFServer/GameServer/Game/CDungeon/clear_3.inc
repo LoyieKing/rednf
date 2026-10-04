@@ -17,7 +17,7 @@ void MazeScript::clear()
     m_30 = -1;
     m_34 = -1;
     m_questType = -1;
-    m_50 = -1;
+    m_questIdx = -1;
     m_54 = -1;
     m_clearCondition.clear();
     m_64 = 0;

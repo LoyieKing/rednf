@@ -37,19 +37,19 @@ int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& pa
         *reinterpret_cast<unsigned int*>(&pck.m_pad12[0]) = user->GetUID();
         *reinterpret_cast<int*>(&pck.m_pad12[4]) = user->getCurCharacNo();
 
-        if (packet.get_int(*reinterpret_cast<unsigned int*>(&pck.m_cat.m_pad0[0])) != 1)
+        if (packet.get_int(*reinterpret_cast<int*>(&pck.m_cat.m_pad0[0])) != 1)
             return LineFunc(0xc748, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_short(*reinterpret_cast<unsigned short*>(&pck.m_cat.m_pad0[4])) != 1)
             return LineFunc(0xc749, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[6])) != 1)
+        if (packet.get_byte(pck.m_cat.m_pad0[6]) != 1)
             return LineFunc(0xc74a, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[7])) != 1)
+        if (packet.get_byte(pck.m_cat.m_pad0[7]) != 1)
             return LineFunc(0xc74b, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[8])) != 1)
+        if (packet.get_byte(pck.m_cat.m_pad0[8]) != 1)
             return LineFunc(0xc74c, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[9])) != 1)
+        if (packet.get_byte(pck.m_cat.m_pad0[9]) != 1)
             return LineFunc(0xc74d, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_cat.m_pad0[0xa])) != 1)
+        if (packet.get_byte(pck.m_cat.m_pad0[0xa]) != 1)
             return LineFunc(0xc74e, __PRETTY_FUNCTION__, 0, 0);
 
         GlobalData::s_cera_auction_proxy->SendPacket(reinterpret_cast<nsl::PACKET_HEADER*>(&pck));
@@ -65,33 +65,33 @@ int Dispatcher_AuctionSearchByNoItmeKey::dispatch_sig(CUser* user, PacketBuf& pa
         *reinterpret_cast<unsigned int*>(&pck.m_data[0]) = user->GetUID();
         *reinterpret_cast<int*>(&pck.m_data[4]) = user->getCurCharacNo();
 
-        if (packet.get_int(*reinterpret_cast<unsigned int*>(&pck.m_search.m_pad0[0])) != 1)
+        if (packet.get_int(*reinterpret_cast<int*>(&pck.m_search.m_pad0[0])) != 1)
             return LineFunc(0xc760, __PRETTY_FUNCTION__, 0, 0);
         if (packet.get_short(*reinterpret_cast<unsigned short*>(&pck.m_search.m_pad0[4])) != 1)
             return LineFunc(0xc761, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[6])) != 1)
+        if (packet.get_byte(pck.m_search.m_pad0[6]) != 1)
             return LineFunc(0xc762, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[7])) != 1)
+        if (packet.get_byte(pck.m_search.m_pad0[7]) != 1)
             return LineFunc(0xc763, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[8])) != 1)
+        if (packet.get_byte(pck.m_search.m_pad0[8]) != 1)
             return LineFunc(0xc764, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[9])) != 1)
+        if (packet.get_byte(pck.m_search.m_pad0[9]) != 1)
             return LineFunc(0xc765, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_search.m_pad0[0xa])) != 1)
+        if (packet.get_byte(pck.m_search.m_pad0[0xa]) != 1)
             return LineFunc(0xc766, __PRETTY_FUNCTION__, 0, 0);
 
         // ROI 键：m_search.m_roi.m_keys[0..2] @ +0x25/+0x27/+0x29（ORIG get_short(short&)，
         // 以引用转型选中与 ORIG 相同重载，地址计算不变）。
-        if (packet.get_short(*reinterpret_cast<short*>(&pck.m_search.m_roi.m_keys[0])) != 1)
+        if (packet.get_short(pck.m_search.m_roi.m_keys[0]) != 1)
             return LineFunc(0xc76a, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_short(*reinterpret_cast<short*>(&pck.m_search.m_roi.m_keys[1])) != 1)
+        if (packet.get_short(pck.m_search.m_roi.m_keys[1]) != 1)
             return LineFunc(0xc76c, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_short(*reinterpret_cast<short*>(&pck.m_search.m_roi.m_keys[2])) != 1)
+        if (packet.get_short(pck.m_search.m_roi.m_keys[2]) != 1)
             return LineFunc(0xc76e, __PRETTY_FUNCTION__, 0, 0);
 
-        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_tail[0])) != 1)
+        if (packet.get_byte(pck.m_tail[0]) != 1)
             return LineFunc(0xc772, __PRETTY_FUNCTION__, 0, 0);
-        if (packet.get_byte(*reinterpret_cast<unsigned char*>(&pck.m_tail[1])) != 1)
+        if (packet.get_byte(pck.m_tail[1]) != 1)
             return LineFunc(0xc773, __PRETTY_FUNCTION__, 0, 0);
 
         GlobalData::s_auction_proxy->SendPacket(reinterpret_cast<nsl::PACKET_HEADER*>(&pck));

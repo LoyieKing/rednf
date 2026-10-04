@@ -1,4 +1,4 @@
 void CUser::setBeforeAreaTime(long t)
 {
-    m_field79670 = t;
+    m_beforeAreaTime = t;
 }

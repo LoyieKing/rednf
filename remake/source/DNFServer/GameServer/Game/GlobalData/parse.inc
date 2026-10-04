@@ -61,7 +61,7 @@ bool CDBEnviroment::parse(char* buf)
         // {…-0x30,-0x34,-0x48,-0x4c,-0x64(map)…} 仍不匹配且 diff 未降 ⇒ 已回滚。
         // 结论：4.1 跨块槽分配与 4.4 的「声明序」旋钮方向不一致（P112 明文），判 N。
         ENUM_SERVER_GROUP dbType = m_dbType;
-        ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map[dbType] = tmp;
+        G_CEnvironment()->m_serverGroupMap[dbType] = tmp;
     }
     else
     {
@@ -78,8 +78,8 @@ bool CDBEnviroment::parse(char* buf)
         //   回滚（见上条判词）。
         ENUM_SERVER_GROUP dbType = m_dbType;
         std::map<ENUM_SERVER_GROUP, std::map<std::string, std::string> >::iterator it =
-            ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map.find(dbType);
-        if (it != ((CDBEnvServerGroupMapView*)G_CEnvironment())->m_map.end())
+            G_CEnvironment()->m_serverGroupMap.find(dbType);
+        if (it != G_CEnvironment()->m_serverGroupMap.end())
         {
             // ORIG 0x0829dcf5..0x0829dcfd：先 `it.operator->()` + `add $0x4,%eax`
             // 把 &it->second 缓存进具名局部（-0xc），之后才求 make_pair 实参并

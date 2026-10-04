@@ -3,12 +3,12 @@ int Inter_ReplyPowerWarScore::dispatch_sig(CUser* /*user*/, char* data, int /*le
     Inter_ReplyPowerWarScorePktView* pPkt = reinterpret_cast<Inter_ReplyPowerWarScorePktView*>(data);
     PacketGuard packet;
     packet.put_header(0, 0x9b);
-    packet.put_int(pPkt->m_a);
-    packet.put_int(pPkt->m_e);
+    packet.put_int(pPkt->m_point);
+    packet.put_int(pPkt->m_channelPoint);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     GlobalData::s_power_manager->SetPowerWarPoint(
-        pPkt->m_a,
-        pPkt->m_e);
+        pPkt->m_point,
+        pPkt->m_channelPoint);
     return 0;
 }

@@ -12,7 +12,7 @@ bool DB_JoinGuildInfo::dispatch(int userIdx, int slot, Stream* stream)
                                                   E_SERVER_GROUP_NONE);
     int serverGroup = 0;
     unsigned int characNo = 0;
-    DB_JoinGuildInfoView* sig;
+    SIG_JOIN_GUILD_INFO* sig;
 
     *stream >> serverGroup;
     *stream >> characNo;
@@ -20,7 +20,7 @@ bool DB_JoinGuildInfo::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x91bd), true);
     guard.operator*()->operator<<((int)0x219);
     guard.operator*()->operator<<(slot);
-    sig = reinterpret_cast<DB_JoinGuildInfoView*>(
+    sig = /*SIG_JOIN_GUILD_INFO*/(
         guard.operator->()->GetInBuffer<SIG_JOIN_GUILD_INFO>());
     db->set_query("seLect guild_id,memo from guild_join_list where charac_no=%d and server_group=%d",
                   characNo, serverGroup);

@@ -97,7 +97,8 @@ public:
             unsigned int m_recvGapTick;         // +0x08（recvGap；ORIG CUser+0xe8）
         };
     };
-    int m_field0c;            // +0x0c
+    char m_flag0c;            // +0x0c（CSession ctor ORIG movb $1）
+    char m_pad0d[3];
     int m_field10;            // +0x10（ctor 清零）
     char m_field14;           // +0x14（ctor 清零）
     unsigned int m_recvOffset;// +0x18（接收缓冲当前偏移）

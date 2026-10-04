@@ -65,27 +65,27 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
         //   `mov i,%edx; shl $2; add; add; add; add $0x30; lea (%ecx,%eax,1); add $K`
         //   全链（0822651e/0822657c/082265da/08226638/0822667d/082266db），无 e 指针槽。
         // ORIG 0x08226538：get_byte 目标即 e+0 本体（无临时槽，P0 槽-局部律）。
-        if (!packet.get_byte(*(unsigned char*)(msg.m_body34 + i * 0xb)))
+        if (!packet.get_byte(msg.m_attach[i].m_space))
             return LineFunc(0xe1ff,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_short(*(unsigned short*)(msg.m_body34 + i * 0xb + 1)))
+        if (!packet.get_short(msg.m_attach[i].m_slot))
             return LineFunc(0xe202,
                             __PRETTY_FUNCTION__,
                             0, 0);
         // ORIG 0x082265da：get_int 直接落 e+3（u64 槽，无临时变量/memcpy）。
-        if (!packet.get_int(*(unsigned long*)(msg.m_body34 + i * 0xb + 3)))
+        if (!packet.get_int(*reinterpret_cast<unsigned long*>(&msg.m_attach[i].m_itemIdx)))
             return LineFunc(0xe205,
                             __PRETTY_FUNCTION__,
                             0, 0);
         // ORIG 0x08226638..0x08226678：seq 低 32 位为 0 → 错误包 0x11 并返回
         //（非 break）。
-        if (*(const int*)(msg.m_body34 + i * 0xb + 3) == 0)
+        if (msg.m_attach[i].m_itemIdx == 0)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0x11);
             return 0;
         }
-        if (!packet.get_int(*(int*)(msg.m_body34 + i * 0xb + 7)))
+        if (!packet.get_int(msg.m_attach[i].m_flag7))
             return LineFunc(0xe20e,
                             __PRETTY_FUNCTION__,
                             0, 0);
@@ -93,8 +93,8 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
         // ORIG 0x0822671d/0x082267a4：invenType 与 slot 两处各自重取（P183）。
         if (user->CheckItemLock(
                 GetInvenTypeFromItemSpace(
-                    (ENUM_ITEMSPACE)(unsigned char)msg.m_body34[i * 0xb]),
-                (int)*(const unsigned short*)(msg.m_body34 + i * 0xb + 1)) != 0)
+                    (ENUM_ITEMSPACE)msg.m_attach[i].m_space),
+                (int)msg.m_attach[i].m_slot) != 0)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0xd5);
             return 0;
@@ -103,8 +103,8 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
         CheckItemTradeLimitCountToMoveByUser(
             *user,
             GetInvenTypeFromItemSpace(
-                (ENUM_ITEMSPACE)(unsigned char)msg.m_body34[i * 0xb]),
-            (int)*(const unsigned short*)(msg.m_body34 + i * 0xb + 1), movable);
+                (ENUM_ITEMSPACE)msg.m_attach[i].m_space),
+            (int)msg.m_attach[i].m_slot, movable);
         if (!movable)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x13c, 0x72);
@@ -168,7 +168,7 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
         // ORIG 0x08226acf..0x08226af9：seq 低 32 位从 e+3 读出后直接入 %ebx 作
         //   find_item 实参（无 protoIdx 具名槽，P0）⇒ 表达式内联。
         CItem* proto = G_CDataManager()->find_item(
-            *(const int*)(msg.m_body34 + i * 0xb + 3));
+            msg.m_attach[i].m_itemIdx);
         // ORIG 0x08226b07..0x08226b40：`call *vptr+0x10; xor $1; test; je`（bool 直判，
         //   P32/P292）⇒ 写 `!IsAvatarItem()`，勿写 `== 1`。
         if (proto != 0 && !proto->IsAvatarItem() &&
@@ -177,7 +177,7 @@ int Dispatcher_MultiMailBoxSend::dispatch_sig(CUser* user, PacketBuf& packet)
             hackFlag = 1;
         }
         // ORIG 0x08226b44：重新完整计算 e+3 地址再读（P183）。
-        if (*(const int*)(msg.m_body34 + i * 0xb + 3) == 0)
+        if (msg.m_attach[i].m_itemIdx == 0)
             hackFlag = 1;
         user->IncrementTradeGold(msg.m_gold2f, (int)hackFlag);
     }

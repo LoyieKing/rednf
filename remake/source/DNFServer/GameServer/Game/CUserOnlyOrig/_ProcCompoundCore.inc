@@ -228,10 +228,12 @@ bool CUser::_ProcCompoundCore(
 
                         if (recipe->GetItemType() == 3)   // recipe vtable+0xc
                         {
-                            // ORIG 读 *(int*)(G_CDataManager()+0x5e0)（0x08671ab6/0x08671abb）
-                            // —— CDataManager 该偏移未具名建模，保留视图
+                            // ORIG 0x08671ab6/0x08671abb：mov 0x5e0(%eax),%ebx
+                            // 其中 eax=G_CDataManager()；绝对 +0x5e0 =
+                            // m_serverParameter(+0x68) + m_noticeLegacyWithUpgrade(+0x578)
+                            // 写入：importServerParameterScript 标签 [notice legacy with upgrade]
                             const int capUpgrade =
-                                *(const int*)((const char*)G_CDataManager() + 0x5e0); // [INFERENCE] 具名成员待落
+                                G_CDataManager()->m_serverParameter.m_noticeLegacyWithUpgrade;
                             if (capUpgrade <= (int)got.GetUpgrade())
                             {
                                 PacketGuard pg;

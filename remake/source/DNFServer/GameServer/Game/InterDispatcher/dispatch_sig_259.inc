@@ -6,11 +6,11 @@ int Inter_CheckJoinGuild::dispatch_sig(CUser* user, char* data, int /*len*/)
     Inter_CheckJoinGuildPktView* pPkt = reinterpret_cast<Inter_CheckJoinGuildPktView*>(data);
 
 
-    if (pPkt->m_0 != 0)
+    if (pPkt->m_errCode != 0)
     {   // 结果码非零 → 错误包
         user->SendCmdErrorPacket(
             (ENUM_CMDPACKET)0x15c,
-            (unsigned char)pPkt->m_0);
+            (unsigned char)pPkt->m_errCode);
     }
     // ORIG：PacketGuard 只在 else 支（两支汇合后 `mov $0x0,%eax`）。
     else

@@ -48,22 +48,36 @@ static const int UPDATE_PERIOD = 600;
 // disp 折叠 `movl $0x0,0x4(%eax)` / `mov 0x4(%eax),%eax`（0x0856fc94/0x0856fdb0），
 // `(s)+4` 形在 4.4 恒多发 `add $0x4,%eax`（4 处调用 ⇒ +4 条）。
 #define sig_init_head(s, base) do { \
-    reinterpret_cast<int*>((s))[0] = (base); \
-    reinterpret_cast<int*>((s))[1] = 0; } while (0)
-#define sig_entry_count(s) (reinterpret_cast<const int*>((s))[1])
-#define sig_bump_count(s) (++reinterpret_cast<int*>((s))[1])
+    reinterpret_cast<MessageCounterSig*>((s))->m_base = (base); \
+    reinterpret_cast<MessageCounterSig*>((s))->m_count = 0; } while (0)
+#define sig_entry_count(s) (reinterpret_cast<const MessageCounterSig*>((s))->m_count)
+#define sig_bump_count(s) (++reinterpret_cast<MessageCounterSig*>((s))->m_count)
 // [R29-3] ORIG WriteLog 0x0856fcb5 起：entry 4 个字段是 **4 条独立语句**
 // （每条各自 `mov -0x14(%ebp),%eax; mov 0x4(%eax),%ebx` 重读 sig->count ⇒ 4 次），
 // bytes 低/高为**一次 64 位写**（`mov 0x10(%eax),%edx; mov 0xc(%eax),%eax;
 // mov %eax,0x10(..); mov %edx,0x14(..)`）⇒ 拆 4 条 + 64 位视角。
-#define sig_write_entry_id(s, slot, v) \
-    (*reinterpret_cast<unsigned int*>((s) + 8 + (slot) * 0x14 + 0x00) = (v))
-#define sig_write_entry_count(s, slot, v) \
-    (*reinterpret_cast<int*>((s) + 8 + (slot) * 0x14 + 0x04) = (v))
-#define sig_write_entry_bytes(s, slot, v) \
-    (*reinterpret_cast<unsigned long long*>((s) + 8 + (slot) * 0x14 + 0x08) = (v))
-#define sig_write_entry_avg(s, slot, v) \
-    (*reinterpret_cast<int*>((s) + 8 + (slot) * 0x14 + 0x10) = (v))
+#pragma pack(push, 1)
+struct MessageCounterSigEntry
+{
+    unsigned int m_id;            // +0x00
+    int m_count;                  // +0x04
+    unsigned long long m_bytes;   // +0x08
+    int m_avg;                    // +0x10
+};
+#pragma pack(pop)
+#pragma pack(push, 1)
+struct MessageCounterSig
+{
+    int m_base;                          // +0x00
+    int m_count;                         // +0x04
+    MessageCounterSigEntry m_entries[1]; // +0x08 FAM
+};
+#pragma pack(pop)
+#define sig_entry_at(s, slot) (reinterpret_cast<MessageCounterSig*>((s))->m_entries[(slot)])
+#define sig_write_entry_id(s, slot, v) (sig_entry_at((s), (slot)).m_id = (v))
+#define sig_write_entry_count(s, slot, v) (sig_entry_at((s), (slot)).m_count = (v))
+#define sig_write_entry_bytes(s, slot, v) (sig_entry_at((s), (slot)).m_bytes = (v))
+#define sig_write_entry_avg(s, slot, v) (sig_entry_at((s), (slot)).m_avg = (v))
 
 #include "MessageCounter/Create.inc"
 

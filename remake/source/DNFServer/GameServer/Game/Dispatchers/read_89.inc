@@ -1,13 +1,13 @@
 int Dispatcher_P2P_Statistics::read(PacketBuf& packet, MSG_BASE& msg)
 {
     MSG_P2P_STATISTICS& data = reinterpret_cast<MSG_P2P_STATISTICS&>(msg);
-    if (!packet.get_byte(*reinterpret_cast<char*>(&data.m_0d)))
+    if (!packet.get_byte(data.m_0d))
     {
         return LineFunc(0x591a,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&data.m_0e)))
+    if (!packet.get_byte(data.m_0e))
     {
         return LineFunc(0x591b,
                         __PRETTY_FUNCTION__,

@@ -10,7 +10,7 @@
 // [b28d-solo-CUserOnlyOrig DIFF] ORIG 0x08689f12：N82 封顶——帧/槽差 + setcc（p167 CLEAR，gap 7）。
 void CUser::SendMail(bool certified)
 {
-    m_field8e3ed = true;                                   // ORIG movb $1,0x8e3ed
+    m_sendMailCertified = true;                                   // ORIG movb $1,0x8e3ed
     if (m_multiMailFlag != 0) {
         SendMultiMail(certified);
         return;

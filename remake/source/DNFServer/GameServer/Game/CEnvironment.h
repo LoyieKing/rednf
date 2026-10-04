@@ -283,6 +283,7 @@ private:
     friend class SmallStreamPool;
     friend class BigStreamPool;
     friend bool Init(int, char**);              // GameMain.cpp（ORIG 直访 +0x50）
+    friend class CDBEnviroment;                 // parse() 直写 m_serverGroupMap
     CTEA m_cipher;                              // +0x04（0x48 字节）
     eStartArgumentType_t m_operationType;       // +0x4c
     // 偏移清理（2026-09-04 GlobalData 批次）：ORIG GlobalData::initTournamentDB

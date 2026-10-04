@@ -29,7 +29,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
 
     // [K3 2026-09-11] P0 死变量：ORIG 084d5950 `mov -0x68(%ebp),%eax; mov 0x4(%eax),%eax;
     //   mov %eax,%ebx` 直跨 getCurCharacNo 调用，无槽 ⇒ 原码无 reqCharacNo 局部（旧稿多 2 条）。
-    if (pPkt->m_4 != user->getCurCharacNo()) // 差值即 ORIG setne 判定
+    if (pPkt->m_characNo != user->getCurCharacNo()) // 差值即 ORIG setne 判定
         return 0;
 
     // GM 延迟追踪（asm 循环界 cmpl $0x4, setle）
@@ -45,7 +45,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
 
     const unsigned int payType =
-        pPkt->m_0;                      // msg+0x00
+        pPkt->m_payType;                      // msg+0x00
     const short nowRegisted =
         pPkt->m_8;                         // msg+0x08
     if (nowRegisted == -1)
@@ -68,7 +68,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     //   布块。改为正极性直测。
     if (user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x1d))
     {
-        const int maxCount = (pPkt->m_0 == 1) ? 10 : 30;
+        const int maxCount = (pPkt->m_payType == 1) ? 10 : 30;
         if (maxCount <= nowRegisted)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x97, (PAY_TYPE)payType);
@@ -77,7 +77,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
     else
     {
-        const int maxCount = (pPkt->m_0 == 1) ? 3 : 10;
+        const int maxCount = (pPkt->m_payType == 1) ? 3 : 10;
         if (maxCount <= nowRegisted)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x97, (PAY_TYPE)payType);
@@ -86,7 +86,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
 
     // 手续费门槛（gold 登记 10000 / cera 0），不足 err=0x90
-    int registMoney = (pPkt->m_0 == 1) ? 0 : 10000;
+    int registMoney = (pPkt->m_payType == 1) ? 0 : 10000;
     if (user->getCurCharacMoney() < registMoney)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x90, (PAY_TYPE)payType);
@@ -98,7 +98,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     // cera 礼包手续费基数（ORIG 仅当 pay==1 且 itemId∈礼包区间时换算登记费）
     long bonusSec = 0;
     if ((0x28d287 < itemId && itemId < 0x28d29a) &&
-        pPkt->m_0 == 1)
+        pPkt->m_payType == 1)
     {
         if (itemId < 0x28d292)
             bonusSec = static_cast<long>(itemId) * 1000000 + 0x199b9040;
@@ -106,32 +106,30 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
             bonusSec = static_cast<long>(itemId) * 10000000 - 0x549a800;
     }
 
-    const char invenKind = *(data + 0xa);                             // msg+0x0a
+    const char invenKind = pPkt->m_invenKind;                         // msg+0x0a
     const unsigned short slotNo =                                     // msg+0x0b
-        pPkt->m_b;
-    const int price = pPkt->m_15;     // msg+0x15
-    const int instantPrice = pPkt->m_19;  // msg+0x19
-    const int restrictAmount = pPkt->m_11;  // msg+0x11
+        pPkt->m_slotNo;
+    const int price = pPkt->m_price;     // msg+0x15
+    const int instantPrice = pPkt->m_instantPrice;  // msg+0x19
+    const int restrictAmount = pPkt->m_restrictAmount;  // msg+0x11
 
     PCK_AUCTION_REGIST_ITEM_GA pck;
 
     // ---- 公共头域填写（asm +0x2f6..+0x42b 区）----
     pck.char_idx = static_cast<int>(user->GetUID());                  // GetUID
     pck.owner_id = user->getCurCharacNo();                            // getCurCharacNo
-    strncpy(pck.owner_name,
-            const_cast<char*>(reinterpret_cast<const char*>(user->getCurCharacR())) + 4, 0xd);
+    strncpy(pck.owner_name, user->getCurCharacR()->m_name, 0xd);
     pck.price = price;
     pck.instant_price = instantPrice;
     pck.black_point = user->getCurrCharacBlackCount();
-    pck.unit_price = pPkt->m_1d;      // msg+0x1d
+    pck.unit_price = pPkt->m_unitPrice;      // msg+0x1d
     pck.user_type = static_cast<unsigned char>(
         user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x1d));             // ORIG 第二次 isAffectedPremium → local_158
     {   // ORIG 三次 movl 装载 msg+0x21/0x25/0x29（12B ROI_Category），非 memcpy（_sort 延至块尾，ORIG +0x1577）
         unsigned int* roiw = reinterpret_cast<unsigned int*>(&pck._reg_roi_category_key);
-        const unsigned int* roir = reinterpret_cast<const unsigned int*>(data + 0x21);
-        roiw[0] = roir[0];
-        roiw[1] = roir[1];
-        roiw[2] = roir[2];
+        roiw[0] = pPkt->m_roi0;
+        roiw[1] = pPkt->m_roi1;
+        roiw[2] = pPkt->m_roi2;
     }
 
     CInventory* inven = user->getCurCharacInvenW();
@@ -161,7 +159,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         (void)deadCeraFee;
         if ((0x28d287 < itemId && itemId < 0x28d29a))
         {
-            if (pPkt->m_0 != 1)
+            if (pPkt->m_payType != 1)
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x93, (PAY_TYPE)payType);
                 return 0;
@@ -190,14 +188,14 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
             pck.item_info.m_endurance = 0;                             // ORIG 0x084d5eaa（pck+0x3a）
             pck.item_info.m_extendInfo = 0;                            // ORIG 0x084d5eb3（pck+0x3c）
             // [R8a20 2026-09-12 ④ · §13 #32 守卫体配对] ORIG 0x084d5ebd..0x084d5ec5 在 strncpy
-            //   前**另有一道 `pPkt->m_0 == 1` 守卫**：`mov -0x68(%ebp),%eax; mov (%eax),%eax;
+            //   前**另有一道 `pPkt->m_payType == 1` 守卫**：`mov -0x68(%ebp),%eax; mov (%eax),%eax;
             //   cmp $0x1,%eax; jne 0x084d5f02`（+0x5d2 = 0x084d5f02 = SendPacket 序列首条
             //   `mov 0x940be4c,%eax`）⇒ **守卫只包 strncpy**（0x084d5ec7..0x084d5efd：
             //   get_acc_name/strlen/get_acc_name/strncpy），`SendPacket`（0x084d5f02..0x084d5f14）
-            //   在守卫外、恒执行。该守卫与段首 `if (pPkt->m_0 != 1) → err 0x93/return` 重复
+            //   在守卫外、恒执行。该守卫与段首 `if (pPkt->m_payType != 1) → err 0x93/return` 重复
             //   （彼时已保证 m_0==1），即 ORIG 的**冗余防御守卫**；按用户「完全复刻 ORIG 逻辑
             //   （即使是错误的逻辑）」补回（我方此前 strncpy 无守卫 ⇒ taken/fall 调用集配对不一致）。
-            if (pPkt->m_0 == 1)
+            if (pPkt->m_payType == 1)
             {
                 strncpy(pck.owner_nexon_id, user->get_acc_name(),
                         strlen(user->get_acc_name()));                 // ORIG 形：strncpy(dst,acc,strlen)（不补 \0）
@@ -425,7 +423,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
 
     // ---- END 收尾段（LA_084d67be 起）----
-    const int fee = (pPkt->m_0 == 1) ? 0 : 10000;
+    const int fee = (pPkt->m_payType == 1) ? 0 : 10000;
     if (!inven->use_money(fee, (eMoneySubReason)0x19, true))
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x93, (PAY_TYPE)payType);

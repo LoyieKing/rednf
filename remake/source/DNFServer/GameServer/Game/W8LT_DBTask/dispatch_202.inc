@@ -8,9 +8,9 @@ bool DB_RemoveFeaturedGoodsIdx::dispatch(int /*userIdx*/, int /*slot*/,
     // ORIG 无 view 缓存槽：逐字段重读 sig(-0x10)+具名 disp（P86/P89）。
     db->set_query(
         "deLete from dnf_event_entry where m_id=%s and event_id=%d and server_id=%d",
-        NumberToString(((DB_RemoveFeaturedGoodsIdxView*)sig)->m_mId, 0),
-        ((DB_RemoveFeaturedGoodsIdxView*)sig)->m_eventId,
-        ((DB_RemoveFeaturedGoodsIdxView*)sig)->m_serverId);
+        NumberToString(sig->m_mId, 0),
+        sig->m_eventId,
+        sig->m_serverId);
     if (!db->exec(true))
         return 0;
     return 1;

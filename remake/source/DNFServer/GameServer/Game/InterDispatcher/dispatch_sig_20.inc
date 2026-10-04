@@ -136,8 +136,8 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0x2114;                                 // socket 取 IP 失败
 
     {
-        unsigned int clientIp = 0;
-        clientIp = sa.ip;                        // ORIG mov -0xbc→-0xc4 单条 4B 整装
+        // [R-ipBuf 2026-09-21] ORIG 0x084c8544 mov -0xbc -> -0xc4 = ipBuf+0x48
+        *reinterpret_cast<unsigned int*>(ipBuf + 0x48) = sa.ip;
         void* checker = GlobalData::s_antibotChecker_;          // antibiotic 类未建模——asm 桥残留（vtable+0x04 AddClient，按 §8 协议保留）
         typedef int (*AddClientFn)(void*, int, int, unsigned int,
                                    unsigned int, void*);
@@ -150,7 +150,6 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
             addClient(checker, G_CEnvironment()->getProcessSequence(), 0,   // P48 独立求值
                       (unsigned int)user->get_acc_id(),
                       user->getClientVersion(), ipBuf);
-        (void)clientIp;
         if (antibotRet < 0)
         {
             cMyTrace(__PRETTY_FUNCTION__,
@@ -159,7 +158,7 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
               NumberToString((unsigned int)user->get_acc_id(), 0),
               user->getClientVersion(), antibotRet);
         }
-        user->m_field8cf00 = 0;
+        user->m_abnormalUserLogType = 0;
         user->m_field4 = 0;
         user->m_field5 = 0;
         typedef int (*P2PAddClientFn)(void*, unsigned int, int, unsigned int);  // 同上残留：vtable+0x20 P2PAddClient
@@ -179,11 +178,13 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
               user->getClientVersion(), p2pRet);
         }
         cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
-            "[DNF-DIAG ANTIBOT] fn=%p checker=%p ret=%d seq=%d acc=%u ver=%u",
+            "[DNF-DIAG ANTIBOT] fn=%p checker=%p ret=%d seq=%d acc=%u ver=%u ip=0x%08x ipBuf48=0x%08x",
             (void*)addClient, checker, antibotRet,
             G_CEnvironment()->getProcessSequence(),
             (unsigned)user->get_acc_id(),
-            user->getClientVersion());
+            user->getClientVersion(),
+            (unsigned)sa.ip,
+            *(unsigned int*)(ipBuf + 0x48));
         user->setAntibotKey(antibotRet);
     }
 
@@ -206,7 +207,7 @@ int Inter_MonitorLoginOK::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.put_short(0);
     packet.finalize(true);
     user->Send(packet);
-    user->m_field796f8 = 0;                    // ORIG 0x84c8854 Send 后清零
+    user->m_historyLogFp = 0;                    // ORIG 0x84c8854 Send 后清零
     {   // ORIG vtable+0x2c 两参槽（IPGHelper IPGQuery）：类未建模——asm 桥残留保留，按 §8 协议待建模清理
         typedef void (*QueryFn)(void*, CUser*);
         void* helper = GlobalData::s_pIPGHelper;

@@ -42,6 +42,6 @@ void CUserCharacInfo::WarAreaKill(int index, int point, float kill)
     // 59/60 ndiff2（lea 提前、%ecx↔%edx 互换，逐值不变），已回滚 ⇒ 维持 N。
     m_selected->m_warAreaKill[index] += kill;
     ((CUser*)this)->m_historyLog.FPAdd(
-        point, m_selected->m_fieldE06, m_selected->m_fieldE0A,
+        point, m_selected->m_finishPoint, m_selected->m_finishPointTotal,
         index == 4 ? (eFPAddReason)1 : eFPAddReason_0);
 }

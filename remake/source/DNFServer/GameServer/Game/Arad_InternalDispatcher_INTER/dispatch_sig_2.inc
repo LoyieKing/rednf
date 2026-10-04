@@ -11,6 +11,6 @@ int Arad_INTER_kDeleteServerState::dispatch_sig(CUser* /*user*/, char* body, int
         return 0x541;
     }
     GlobalData::s_serverStateManager_->deleteState(
-        (ENUM_GLOBAL_EFFECT_ARAD)((const PktSaveServerStateView*)packet)->m_effect);
+        (ENUM_GLOBAL_EFFECT_ARAD)((const Packet_Arad_SaveServerState*)packet)->m_effect);
     return 0;
 }

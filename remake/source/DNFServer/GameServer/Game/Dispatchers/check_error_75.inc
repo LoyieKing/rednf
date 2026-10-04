@@ -19,7 +19,7 @@ int Dispatcher_ImageCommunicationEquipmentUse::check_error(CUser* user, MSG_BASE
     // [b28c-34] P0 清绑：原 `register int price asm("ebx")` 删除（N96）；
     // 纯 register 具名局部 38 条（装载经 eax 中转 + 比较前双搬运）；裸内联实参
     // 令值跨 call 自然升格 %ebx 单条直落（P0 表达式直读 / P226 方向）。
-    if (*(int*)G_CDataManager()->GetImageCommnicationData()
+    if (static_cast<ImageCommunicationData*>(G_CDataManager()->GetImageCommnicationData())->m_charge
         > user->getCurCharacMoney())
     {
         return 10;

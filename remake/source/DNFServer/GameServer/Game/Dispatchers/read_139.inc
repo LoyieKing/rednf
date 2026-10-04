@@ -9,7 +9,7 @@ int Dispatcher_SaveGameOption_2::read(PacketBuf& packet, MSG_BASE& msg)
     MSG_SAVE_GAME_OPTION_2* m =
         reinterpret_cast<MSG_SAVE_GAME_OPTION_2*>(&msg);
     // [P4-p167 符号性] 同 SaveGameOption_1：ORIG callee = get_int(unsigned int&)。
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(m) + 0xd)) ||
+    if (!packet.get_int(m->m_optionSize) ||
         m->m_optionSize >= 0xbd)
         return LineFunc(0x28bc, __PRETTY_FUNCTION__, 0, 0);
     // [b28d-solo-Dispatchers] P0：ORIG 无 lv/pbuf 槽（`mov 0xd(%eax),%eax;
@@ -17,7 +17,7 @@ int Dispatcher_SaveGameOption_2::read(PacketBuf& packet, MSG_BASE& msg)
     //   mov %eax,0x4(%esp)`）⇒ 删具名局部改内联实参（右→左求值先 len 后 buf）。
     // [b28d-solo-Dispatchers] P319：buf 实参整型加法 + 回 cast（探针 probe_gb2 d）。
     if (!packet.get_binary(
-            reinterpret_cast<char*>(reinterpret_cast<unsigned int>(m) + 0x11),
+            reinterpret_cast<char*>(&m->m_option),
             (int)m->m_optionSize))
         return LineFunc(0x28bd, __PRETTY_FUNCTION__, 0, 0);
     return 0;

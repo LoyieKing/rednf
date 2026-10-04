@@ -9,17 +9,17 @@ int Inter_NoticePowerWarStartTime::dispatch_sig(CUser* /*user*/, char* data, int
         return 0;
 
     GlobalData::s_power_manager->SetPowerWarStartTime(
-        (unsigned char)pPkt->m_a,
-        (unsigned char)pPkt->m_b,
-        (unsigned char)pPkt->m_c,
-        (unsigned char)pPkt->m_d);
+        (unsigned char)pPkt->m_year,
+        (unsigned char)pPkt->m_month,
+        (unsigned char)pPkt->m_day,
+        (unsigned char)pPkt->m_hour);
 
     PacketGuard packet;
     packet.put_header(0, 0xa1);
-    packet.put_byte((unsigned int)pPkt->m_a);
-    packet.put_byte((unsigned int)pPkt->m_b);
-    packet.put_byte((unsigned int)pPkt->m_c);
-    packet.put_byte((unsigned int)pPkt->m_d);
+    packet.put_byte((unsigned int)pPkt->m_year);
+    packet.put_byte((unsigned int)pPkt->m_month);
+    packet.put_byte((unsigned int)pPkt->m_day);
+    packet.put_byte((unsigned int)pPkt->m_hour);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;

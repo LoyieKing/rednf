@@ -19,7 +19,7 @@
 //   +0x0004 WongWork::CQuestClear m_cleared（0x7530）
 //   +0x7538 int m_quest[20]、+0x7588 int m_trigger[20]
 //   +0x75d8 _Quest_Authen_Data（0x44：characNo/characClass/…/urgentQuest/authen[]）
-//   +0x761c bool m_field761c（0x761d = CUser.h 的 m_pcRoomAuth 起点）
+//   +0x761c bool m_villageAttackedReward（0x761d = CUser.h 的 m_pcRoomAuth 起点）
 // 本 TU 定义 UserQuest 全部方法（构造/析构/23 个报告函数 + set_parent），
 // 跨类调用均为真实类型 C++ 调用（无 asm 桥）。
 // ============================================================================
@@ -64,11 +64,7 @@ static const int kEndLvl = 70;     // 0x08ae5d68 (0x46)
 //   齐备：erase_repeated_item/CalNeedSlot/QuickEmptyCount/InvenEmptycount/
 //   insert_event_items）。
 #include "CInventory.h"
-class CBattle_Field
-{
-public:
-    void* getMaze();  // _ZN13CBattle_Field7getMazeEv（权威见 CBattle_Field.h，因含 CUser.h 未引入）
-};
+#include "CParty.h"            // CParty::m_battleField / CBattle_Field::getMaze
 
 // getMaze() 返回迷宫对象 +0x50 处的 quest idx 字段视图（giveup_quest ORIG
 // 单指令 mov 0x50(%eax) 折叠需要组件视图）

@@ -17,12 +17,11 @@ int Dispatcher_police_queryCharacName_useMid::dispatch_sig(CUser* user, PacketBu
     // [L7DispG1 2026-09-11 负结论] 试删具名 `unsigned int* const pNo`（ORIG 0x082273ae 段无
     //   指针槽：预清 `movl $0,-0x3e`、get_int 实参 `lea -0x4c+0xe`、回读 `mov -0x3e(%ebp)`）
     //   ⇒ 改为表达式直算后**劣化** 145→147（每用点重算 lea/add 比槽回读更贵）⇒ 回滚保具名形。
-    unsigned int* const pNo =
-        reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(&request) + 0x0e);
-    *pNo = 0;                                    // ORIG 预清 -0x3e
-    packet.get_int(*pNo);                        // ORIG 未检查返回值
+    unsigned int characNo = 0;
+    packet.get_int(characNo);
+    request.m_characNo = characNo;
     CUser* target = G_GameWorld()->find_from_world(
-        (unsigned short)*pNo);
+        (unsigned short)characNo);
     if (target == 0)
     {
         GlobalData::s_monitor_proxy_mgr->GetServerProxy(
@@ -37,13 +36,13 @@ int Dispatcher_police_queryCharacName_useMid::dispatch_sig(CUser* user, PacketBu
     }
     if (nameLen != 0)
     {
-        strncpy(reinterpret_cast<char*>(&request) + 0x16,
+        strncpy(request.m_name,
                 target->getCurCharacName(), nameLen);
         PacketGuard response;
         response.put_header(1, 0x14b);
-        response.put_int(*pNo);
+        response.put_int(characNo);
         response.put_int((int)nameLen);
-        response.put_str(reinterpret_cast<char*>(&request) + 0x16, (int)nameLen);
+        response.put_str(request.m_name, (int)nameLen);
         response.finalize(true);
         user->Send(response);
     }

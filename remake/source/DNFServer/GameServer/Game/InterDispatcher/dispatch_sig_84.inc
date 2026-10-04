@@ -13,7 +13,7 @@ int Inter_MonitorGuildWarInfo::dispatch_sig(CUser* user, char* data, int /*len*/
         return 0;
 
     Inter_MonitorGuildWarInfoPktView* pPkt = reinterpret_cast<Inter_MonitorGuildWarInfoPktView*>(data);
-    if (user->get_charac_no(-1) != pPkt->m_e)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -21,7 +21,7 @@ int Inter_MonitorGuildWarInfo::dispatch_sig(CUser* user, char* data, int /*len*/
             0x2ad4,
             "GuildWarInfo : Inter_MonitorGuildWarInfo::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            pPkt->m_e);
+            pPkt->m_characNo);
         return 0;
     }
 

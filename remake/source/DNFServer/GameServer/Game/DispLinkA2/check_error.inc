@@ -31,15 +31,15 @@ unsigned int Dispatcher_EnchantByBead::check_error(CUser* user, MSG_BASE& msg, P
     // 同判；铁证 = ORIG process 0x081d2534 亦从 msg 读 +0xd/0xe/0x10/0x12）。
     // msg 指针落 -0x18 具名槽，两处槽位以 (short) 截断后作普通实参直传 ⇒ 4.4 复现
     // ORIG 的 movzwl 0xe/0x12(%eax),%eax; movswl %ax,%ebx（P200 拓宽直传 + P52 保活）。
-    ParamSlotView_A2* view = reinterpret_cast<ParamSlotView_A2*>(&msg);
+    MSG_ENCHANT_BY_BEAD& req = reinterpret_cast<MSG_ENCHANT_BY_BEAD&>(msg);
 
-    Inven_Item* item1 = user->getCurCharacInvenW()->GetInvenRef(   // 0x080da28e / 0x084fc2ae
-        1, static_cast<short>(view->m_slot1));
+    Inven_Item* item1 = user->getCurCharacInvenW()->GetInvenRef(
+        1, static_cast<short>(req.m_field0e));
     if (item1 == 0)
         return 0x11;
 
     Inven_Item* item2 = user->getCurCharacInvenW()->GetInvenRef(
-        1, static_cast<short>(view->m_slot2));
+        1, static_cast<short>(req.m_field12));
     if (item2 == 0)
         return 0x11;
 

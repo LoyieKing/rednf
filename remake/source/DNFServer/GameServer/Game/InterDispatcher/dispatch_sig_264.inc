@@ -5,7 +5,7 @@ int Inter_GuildAttendanceInfo::dispatch_sig(CUser* user, char* data, int /*len*/
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
 
-    register int characNoMsg = pPkt->m_a;
+    register int characNoMsg = pPkt->m_characNo;
     if (characNoMsg != user->getCurCharacNo())
         return 0;
 

@@ -13,40 +13,38 @@ bool DB_UpdateItemMakingSkill::dispatch(int userIdx, int slot, Stream* stream)
     // je <insert 分支>`（0x0844109f 段）⇒ 写 `if (!db->exec(true))`；两处失败
     // trace 改单语句临时链（ORIG ctor 前 `mov -0x1c(%ebp),%eax; mov (%eax),%ebx`
     // 重读 charac_no 并跨 ctor 保活）。
-#define MSIG ((const DB_ItemMakingSkillView*)sig)
     db->set_query(
         "upDate item_making_skill_info set weapon=%d, cloth=%d, leather=%d, light_armor=%d, heavy_armor=%d, plate=%d, amulet=%d, wrist=%d, ring=%d, support=%d, magic_stone=%d where charac_no =%u",
-        (int)MSIG->m_skillLevels[0], (int)MSIG->m_skillLevels[1],
-        (int)MSIG->m_skillLevels[2], (int)MSIG->m_skillLevels[3],
-        (int)MSIG->m_skillLevels[4], (int)MSIG->m_skillLevels[5],
-        (int)MSIG->m_skillLevels[6], (int)MSIG->m_skillLevels[7],
-        (int)MSIG->m_skillLevels[8], (int)MSIG->m_skillLevels[9],
-        (int)MSIG->m_skillLevels[10], MSIG->m_characNo);
+        (int)sig->m_skillLevels[0], (int)sig->m_skillLevels[1],
+        (int)sig->m_skillLevels[2], (int)sig->m_skillLevels[3],
+        (int)sig->m_skillLevels[4], (int)sig->m_skillLevels[5],
+        (int)sig->m_skillLevels[6], (int)sig->m_skillLevels[7],
+        (int)sig->m_skillLevels[8], (int)sig->m_skillLevels[9],
+        (int)sig->m_skillLevels[10], sig->m_characNo);
     if (!db->exec(true))
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x9fde, 5)(
             "DB_UpdateItemMakingSkill::UpdateItemMakingSkill update, exec() ERROR charac_no=%u",
-            MSIG->m_characNo);
+            sig->m_characNo);
         return 0;
     }
     if (db->getAffectedRowCount() == 0)
     {
         db->set_query(
             "inSert into item_making_skill_info (charac_no, weapon, cloth, leather, light_armor, heavy_armor, plate, amulet, wrist, ring, support, magic_stone) values(%u, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d, %d )",
-            MSIG->m_characNo, (int)MSIG->m_skillLevels[0],
-            (int)MSIG->m_skillLevels[1], (int)MSIG->m_skillLevels[2],
-            (int)MSIG->m_skillLevels[3], (int)MSIG->m_skillLevels[4],
-            (int)MSIG->m_skillLevels[5], (int)MSIG->m_skillLevels[6],
-            (int)MSIG->m_skillLevels[7], (int)MSIG->m_skillLevels[8],
-            (int)MSIG->m_skillLevels[9], (int)MSIG->m_skillLevels[10]);
+            sig->m_characNo, (int)sig->m_skillLevels[0],
+            (int)sig->m_skillLevels[1], (int)sig->m_skillLevels[2],
+            (int)sig->m_skillLevels[3], (int)sig->m_skillLevels[4],
+            (int)sig->m_skillLevels[5], (int)sig->m_skillLevels[6],
+            (int)sig->m_skillLevels[7], (int)sig->m_skillLevels[8],
+            (int)sig->m_skillLevels[9], (int)sig->m_skillLevels[10]);
         if (!db->exec(true))
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x9ff5, 5)(
                 "DB_UpdateItemMakingSkill::InsertItemMakingSkill insert, exec() ERROR charac_no=%u",
-                MSIG->m_characNo);
+                sig->m_characNo);
             return 0;
         }
     }
-#undef MSIG
     return 1;
 }

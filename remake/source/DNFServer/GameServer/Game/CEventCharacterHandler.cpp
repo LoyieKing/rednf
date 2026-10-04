@@ -148,6 +148,13 @@ public:
 };
 }
 
+class UserQuest
+{
+public:
+    void* m_user;                     // +0x00
+    WongWork::CQuestClear m_cleared;  // +0x04
+};
+
 struct stBuySkillInfo
 {
     char m_field0;      // +0x00

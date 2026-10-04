@@ -21,7 +21,7 @@ int Inter_DBCheckDoubleGuildName::dispatch_sig(CUser* user, char* data, int /*le
     //   三处出口都是 `mov $0x0,%eax`（0x084d349b 直接 jmp 0x084d3586 跳过尾块；后两处
     //   jmp 0x084d3581 共享单条 `mov $0x0,%eax`），全程无 %ebx ⇒ 原码是**单一尾部 return**。
     //   dtor 块物理位置（else 支内联 vs 汇合尾块）属 4.4 块布局，源码不可控 ⇒ 判 N。
-    if (pPkt->m_0 == '\x02')
+    if (pPkt->m_result == '\x02')
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x9f, 0x6b);
     }

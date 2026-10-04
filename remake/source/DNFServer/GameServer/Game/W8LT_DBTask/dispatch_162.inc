@@ -12,7 +12,7 @@ bool DB_UpdateBoosterGageData::dispatch(int /*userIdx*/, int /*slot*/,
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
-    DB_BoosterGageView* sig = reinterpret_cast<DB_BoosterGageView*>(
+    SIG_BOOSTER_GAGE_DATA* sig = (
         stream->GetOutBuffer<SIG_BOOSTER_GAGE_DATA>());
     db->set_query("upDate member_booster_gage set gage=%u where m_id=%u",
                   sig->m_dwBoosterGage, sig->m_dwAccountNo);

@@ -100,35 +100,7 @@ struct SIG_LOAD_ETC;
 
 // GameResultType 权威定义见 GameResultType.h（上方已 include）；不再用空占位。
 
-class CommonTime
-{
-public:
-    void SetCreateTime(long t);
-    void SetCreateTime(char* src);   // ORIG T 0x082a40dc（定义 CommonTime.cpp；setCharacInfoDetail 消费）
-    void SetCurTime();   // ORIG _ZN10CommonTime10SetCurTimeEv（0x082a4224，ShowLogo 使用）
-    operator long() const;
-    void clear();   // ORIG W 0x086947d8 _ZN10CommonTime5clearEv（_Charac_info::Reset 消费；定义 owner 待分派）
-    void GetCreateTime(char* buf) const;   // ORIG T 0x082a41e0（定义 CommonTime.cpp；getCharacInfoDetail 消费）
-
-    // [b28d-solo-GameMain R2] 匿名 union 双视角（P235/P311）：ORIG ShowLogo
-    // 0x0829f9e1..0x0829fa01 以 `movzbl -0x14..-0x18(%ebp),%eax; movsbl` 单条
-    // disp 读 5 个字节（min/hour/day/month/year），我方经 m_pad[i] 数组索引恒
-    // lea+add。加具名标量视角后逐条同形；sizeof(CommonTime)=0x14、全部偏移、
-    // mangled、vtable 零变化（union 两视角等宽 0x14）。
-    union
-    {
-        char m_pad[0x14];   // 与 _Charac_info +0x39 对齐（0x14 字节）
-        struct
-        {
-            signed char m_year;   // +0x00
-            signed char m_month;  // +0x01
-            signed char m_day;    // +0x02
-            signed char m_hour;   // +0x03
-            signed char m_min;    // +0x04
-            char m_rest[0xf];     // +0x05
-        };
-    };
-};
+#include "../CommonTime.h"
 
 class CReliablePerson
 {
@@ -407,7 +379,8 @@ struct CharacInfoFields
     unsigned short m_fatigue;          // +0x33
     unsigned short m_maxFatigue;       // +0x35
     unsigned short m_fatigueGrownUpBuff;   // +0x37
-    CommonTime m_createTime;           // +0x39（0x14；set_charac_createtime）
+    CommonTime m_createTime;           // +0x39（0x10）
+    int m_pad49;                       // +0x49，不属于 CommonTime
     unsigned short m_usedFatigue;      // +0x4d
     union {
         unsigned short m_fatigueBattery;          // +0x4f（全仓消费点保持 ushort）
@@ -515,7 +488,7 @@ struct CharacInfoFields
     unsigned char m_isInitSkillFlag;       // +0xeb4
     unsigned char m_oneDayLetheFlag2ND;    // +0xeb5
     unsigned char m_isInitSkillFlag2ND;    // +0xeb6
-    bool m_firstTimeLogin;                 // +0xeb7（[b28d-Main 代落·S336 P235/P292] uchar→bool：ORIG IsFirstTimeLogin 0x08162338 体为 `movzbl; ret` 无 setne ⇒ 字段与返回同型 bool；1 字节/偏移不变）
+    char m_firstTimeLogin;                 // +0xeb7（[b28d-Main 代落·S336 P235/P292] uchar→bool：ORIG IsFirstTimeLogin 0x08162338 体为 `movzbl; ret` 无 setne ⇒ 字段与返回同型 bool；1 字节/偏移不变）
     unsigned char m_saveDemensionInout;    // +0xeb8
     unsigned char m_demensionInout[6];     // +0xeb9（ORIG 宽度实证：CParty
                                            //   CheckEnterDimensionDungeon 0859f510
@@ -987,7 +960,7 @@ public:
     // 保持 `if (user->GetCurCharacSuperState())` 写法时四数 IDENT/AE/NEAR/DIFF 零变化。
     unsigned char GetCurCharacSuperState();
     void SetCurCharacSuperState(bool flag);
-    bool IsCurCharacGhost();           // EXP: bool member+bool return
+    char IsCurCharacGhost();  // ORIG movzbl;ret           // EXP: bool member+bool return
                                //   （bool 反产规范化岛、int 反产二段 promote）；
                                //   调用点 test %al 直判同形（mangled 无返回类型）。
     void SetCurCharacGhost(bool flag);
@@ -1090,7 +1063,7 @@ public:
     //   jne <T>` 需 gcc 已知值域 {0,1}。二者同时自洽的唯一解 = 字段与返回类型同为 bool
     //   （字段 m_overEquipFlag 已同步改 bool）。返回类型不入 mangled、ABI 同为 al 宽。
     //   ⚠ 同头 `GetCurCharacSuperState` 保持 unsigned char（独立全局 A/B 定论，勿动）。
-    bool needCurCharacCheckOverEquip();
+    char needCurCharacCheckOverEquip();  // ORIG movzbl;ret
     void resetCurCharacOverEquipFlag();
     int getCurrCharacBlackCount() const;
     void setCurrCharacBlackCount(unsigned int count);
@@ -1133,9 +1106,9 @@ public:
     bool IsCurCharacVisible();  // ORIG 0x0868bee4 mov $1/$0,%eax 直返（bool ABI）
     void SetVisible();
     void SetInvisible();
-    bool IsFirstTimeLogin();   // [b28d-Main 代落·S336 P292] uchar→bool（ORIG 调用点 0x08161d0b `call; test %al,%al; je` 无 setne）
+    char IsFirstTimeLogin();  // ORIG 0x08162338 movzbl;ret?? bool/setne?   // [b28d-Main 代落·S336 P292] uchar→bool（ORIG 调用点 0x08161d0b `call; test %al,%al; je` 无 setne）
     void SetFirstTimeLogin(bool flag);
-    bool isDisguiseCharac();    // ORIG 0x0822f8f6；调用点 0x0821b4d8 xor $1 判据（bool-only）
+    char isDisguiseCharac();  // ORIG movzbl;ret    // ORIG 0x0822f8f6；调用点 0x0821b4d8 xor $1 判据（bool-only）
     unsigned char getDisguiseKind();
     void setDisguiseKind(unsigned char kind);
     unsigned short getDisguiseIndex();
@@ -1154,7 +1127,7 @@ public:
     void SetOneDayLetheFlag(unsigned char flag);
     unsigned char GetOneDayLetheFlag2ND() const;
     void SetOneDayLetheFlag2ND(unsigned char flag);
-    bool isSavedPremiumCubeInfo() const;   // R7a04: ORIG 0x08696d18 定义侧 movzbl 直返；消费点 0x08650d11 直存（无归一化）
+    char isSavedPremiumCubeInfo() const;  // ORIG movzbl;ret   // R7a04: ORIG 0x08696d18 定义侧 movzbl 直返；消费点 0x08650d11 直存（无归一化）
     void disableSavedPremiumCubeInfo();
     bool getContractOfCubePremiumInfo(unsigned char& active, unsigned char& count);
     bool initContractOfCubePremiumInfo(bool active, unsigned char count);

@@ -47,7 +47,7 @@
 //      findString×2/strncpy×2/9-loop/MakeSystemMultiMailPostal/ReqDBSendNewSystemMultiMail
 //      /GetRepeatEvent/SendReward + vector EH cleanup）为**无入口死块**，4.4 恒 DCE ⇒
 //      合法 C++ 不可造（N111）。可达路径（tail 0x0816158d `movzbl 0x4(%eax),%edx;
-//      mov %dl,0x8ec31(%eax)`）已逐条对齐（CUser.h m_field8ec31 bool 化由 Main 代落）。
+//      mov %dl,0x8ec31(%eax)`）已逐条对齐（CUser.h m_rewarded bool 化由 Main 代落）。
 //      p167 3 个 MISSING 全在该死块内）
 //   TaiwanInternalDispatcher::init 0x08160294 —— AE
 //     （10 个子类 ctor 链式块 + `p=0` 预清；关键=InterSelectCreateDnfEventInfo.h:40

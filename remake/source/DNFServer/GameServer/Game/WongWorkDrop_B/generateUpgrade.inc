@@ -11,11 +11,9 @@ int GenerateRandomUpgrade::generateUpgrade(ENUM_RARITY rarity, int levelDelta)
     // P183/P96：ORIG find(+0x00d) 与 end(+0x031) 各自重取 G_CDataManager()+0x528
     // （无 dm/farming 具名缓存）；迭代器走非 const 版 `_Rb_tree_iterator`（非 const_iterator）。
     FarmingMap::iterator it =
-        reinterpret_cast<FarmingMap*>(
-            reinterpret_cast<char*>(G_CDataManager()) + 0x528)
-            ->find(static_cast<int>(rarity));
-    if (it == reinterpret_cast<FarmingMap*>(
-                  reinterpret_cast<char*>(G_CDataManager()) + 0x528)->end())
+        G_CDataManager()->m_serverParameter.m_farming4c0.find(
+            static_cast<int>(rarity));
+    if (it == G_CDataManager()->m_serverParameter.m_farming4c0.end())
         return 0;
     if (it->second.m_active == 0)              // pair.second + ItemFarmingData+0xc
         return 0;
@@ -24,8 +22,7 @@ int GenerateRandomUpgrade::generateUpgrade(ENUM_RARITY rarity, int levelDelta)
     // ORIG 081b48ac = vector::size()（+0x0af setne 正检、+0x0c2 `sub $1`），
     // operator[] 走非 const 版 ⇒ rates 去 const、`empty()`→`size()!=0`（P197④）。
     std::vector<std::pair<int, float> >* rates =
-        reinterpret_cast<std::vector<std::pair<int, float> >*>(
-            reinterpret_cast<char*>(G_CDataManager()) + 0x540);
+        &G_CDataManager()->m_serverParameter.m_vec4d8;
     float factor = 1.0f;
     if (rates->size() != 0)
     {

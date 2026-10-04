@@ -8,7 +8,7 @@ bool DB_CheckSecuReward::dispatch(int userIdx, int slot, Stream* stream)
     unsigned int lastCheck = 0;
     db->set_query(
         "seLect unix_timestamp(last_check_time) from member_security_grade where m_id=%s",
-        NumberToString(*reinterpret_cast<unsigned int*>(sig), 0));
+        NumberToString(sig->m_mId, 0));
     // P168a 五步自检定论（goto 落点岛/正判双分支/短路合判三形实跑均劣化
     // ——首段 sete 岛+3 jmp；4.1 `xor$1;test` 物化段与尾 v 双常数岛为
     // 跨版本 bool 物化顶③b 族）⇒ 保留 && 直判原形，标 N。S 类
@@ -43,11 +43,10 @@ bool DB_CheckSecuReward::dispatch(int userIdx, int slot, Stream* stream)
             // 解引用）+ LHS reload；4.4 中 LHS 带 cast 翻为地址先载 + RHS
             // `add $4` 三级（探针 /tmp/w8lt_ord3.o::f5）⇒ LHS 取 view 型
             // 变量直存、RHS 取 view 字段。
-            DB_SecuRewardOutView* out =
-                reinterpret_cast<DB_SecuRewardOutView*>(
-                    guard.operator->()->GetInBuffer<SIG_SEND_USER_REWARD>());
+            SIG_SEND_USER_REWARD* out =
+                guard.operator->()->GetInBuffer<SIG_SEND_USER_REWARD>();
             out->m_reward =
-                reinterpret_cast<DB_SecuRewardSigView*>(sig)->m_param4;
+                sig->m_param3;
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         }
     }

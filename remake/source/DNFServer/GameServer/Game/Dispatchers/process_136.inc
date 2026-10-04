@@ -19,19 +19,15 @@ int Dispatcher_SaveGameOption_2::process(CUser* user, MSG_BASE& msg, ParamBase& 
     CGameOption* gameOption = user->GetGameOptionRef();
     unsigned char hotKeyType =
         (unsigned char)user->GetCharacHotKeyType(user->get_charac_job());
-    struct __attribute__((packed)) HotkeyMsgView
-    {
-        char m_head[0x11];
-        CHotkeyOption m_option;    // +0x11（ORIG read 落点，process 传引用）
-    };
+
     // ORIG 0x081ceedx：`call IsHotKeyOptionChanged; xor $0x1,%eax; test %al,%al; je`
     // —— 结果无栈槽往返（P0）⇒ 原码是内联条件；消费端 3 条形按 P292/T3 证
     // callee 返回 bool（头声明改动已报 Main，本波先落裸形）。
     if (!gameOption->IsHotKeyOptionChanged(
-            hotKeyType, reinterpret_cast<HotkeyMsgView*>(pm)->m_option))
+            hotKeyType, reinterpret_cast<MSG_SAVE_GAME_OPTION_2*>(pm)->m_option))
         return 0;
     gameOption->SetHotKeyOption(
-        hotKeyType, reinterpret_cast<HotkeyMsgView*>(pm)->m_option);
+        hotKeyType, reinterpret_cast<MSG_SAVE_GAME_OPTION_2*>(pm)->m_option);
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x28e1),
         true);
@@ -41,7 +37,7 @@ int Dispatcher_SaveGameOption_2::process(CUser* user, MSG_BASE& msg, ParamBase& 
         guard.operator->()->GetInBuffer<SIG_LOAD_CHARAC_HOTKEY_OPTION>();
     sig->m_uid = user->get_acc_id();
     sig->m_pad[4] = (char)user->GetCharacHotKeyType(user->get_charac_job());
-    memcpy(&sig->m_pad[5], &reinterpret_cast<HotkeyMsgView*>(pm)->m_option, 0xbc);
+    memcpy(&sig->m_pad[5], &reinterpret_cast<MSG_SAVE_GAME_OPTION_2*>(pm)->m_option, 0xbc);
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     return 0;
 }

@@ -350,7 +350,7 @@ int CUser::lottery_item(int slot)
          (resItem->IsAvatarItem() &&
           G_CDataManager()->m_serverParameter
               .m_55c[resItem->GetItemType()] != 0) ||          // 表命中 avatar 特例
-         G_CDataManager()->m_serverParameter.m_578 <=
+         G_CDataManager()->m_serverParameter.m_noticeLegacyWithUpgrade <=
              static_cast<int>(lotto.GetUpgrade())))            // 强化等级门槛
     {
         // [R9a20 2026-09-12 ④] 原 `(resItem != NULL && resItem->IsRandomOption())` 判空

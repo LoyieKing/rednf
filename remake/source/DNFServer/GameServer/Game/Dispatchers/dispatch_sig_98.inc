@@ -35,7 +35,7 @@ int Dispatcher_CharacterStatistic::dispatch_sig(CUser* user, PacketBuf& packet)
     user->m_character.m_f0c = values[1];
     user->m_character.m_f18 = values[4];
     user->m_character.m_f1c = values[5];
-    user->m_field8e074 = 1;
+    user->m_hasCharacterStatistic = 1;
 
     return 0;
 }

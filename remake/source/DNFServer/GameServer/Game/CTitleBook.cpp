@@ -142,6 +142,8 @@ class CDataManager
 {
 public:
     CItem* find_item(int idx) const;
+    char m_padB658[0xb658];
+    DeleteInvalidItemScript m_deleteInvalidItem;  // +0xb658
 };
 
 CDataManager* G_CDataManager();

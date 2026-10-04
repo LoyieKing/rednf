@@ -18,19 +18,18 @@ int Inter_MultiMailBoxReqSend::dispatch_sig(CUser* user, char* data, int /*len*/
     {
         MSG_MAILBOX_SEND mailBuf;
         memset(&mailBuf, 0, 0x145);
-        mailBuf.m_nameLenD = pPkt->m_42;
-        strncpy(mailBuf.m_name11, reinterpret_cast<char*>(pPkt) + 0x46,
+        mailBuf.m_nameLenD = pPkt->m_nameLen;
+        strncpy(mailBuf.m_name11, pPkt->m_name,
                 mailBuf.m_nameLenD);
-        mailBuf.m_gold2e = pPkt->m_64;
-        pPkt->m_64 = 0;
-        mailBuf.m_space36 = *reinterpret_cast<unsigned char*>(
-            reinterpret_cast<char*>(pPkt) + local_10 * 0xb + 0x69);
-        mailBuf.m_slot37 = reinterpret_cast<Inter_MultiMailBoxReqSendItemView*>(
-            reinterpret_cast<char*>(pPkt) + local_10 * 0xb + 0x60)->m_slot;
-        mailBuf.m_itemId39 = reinterpret_cast<Inter_MultiMailBoxReqSendItemView*>(
-            reinterpret_cast<char*>(pPkt) + local_10 * 0xb + 0x60)->m_itemId;
-        mailBuf.m_extra3d = reinterpret_cast<Inter_MultiMailBoxReqSendItemView*>(
-            reinterpret_cast<char*>(pPkt) + local_10 * 0xb + 0x60)->m_extra;
+        mailBuf.m_gold2e = pPkt->m_gold;
+        pPkt->m_gold = 0;
+        Inter_MultiMailBoxReqSendItemView* item =
+            reinterpret_cast<Inter_MultiMailBoxReqSendItemView*>(
+                &pPkt->m_items[local_10]);
+        mailBuf.m_space36 = pPkt->m_items[local_10].m_space;
+        mailBuf.m_slot37 = item->m_slot;
+        mailBuf.m_itemId39 = item->m_itemId;
+        mailBuf.m_extra3d = item->m_extra;
 
         local_14 =
             WongWork::CMailBoxHelper::ReqDBSendNewMail(

@@ -13,9 +13,16 @@
 // ⇒ 本件已无残余（n1_v AE 51/51）。
 void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user)
 {
+    struct PISendHdr {
+        char m_first;
+        char m_pad[0xa];
+        unsigned int m_cksum;
+        unsigned char m_body[1];
+    } __attribute__((packed));
+    PISendHdr* hdr = reinterpret_cast<PISendHdr*>(data);
     unsigned int bodyLen = len - 0xf;
-    unsigned char* body = reinterpret_cast<unsigned char*>(data + 0xf);
-    char first = data[0];
+    unsigned char* body = hdr->m_body;
+    char first = hdr->m_first;
     short index = _NS_PI_2ND_GetPacketIndex(data);
     // [P1T5 probe s1] 试单表达式形（ORIG 24-26 = mov $1,%eax / jmp / mov $0,%eax
     // + 单一 store 点 ⇒ 疑为 4.1 对 `bool b = cond;` 的 store_flag 形）。
@@ -24,6 +31,7 @@ void _NS_PI_2ND_SendHash_SC(char* data, unsigned short len, CUser* user)
     unsigned int hash =
         reinterpret_cast<PISenderManager*>(user->GetPISenderManager())
             ->MakeHashForSending(body, bodyLen, bNonClient);
-    unsigned int* pCksum = reinterpret_cast<unsigned int*>(data + 0xb);
-    _NS_PI_2ND_ReconstructCheckSumRandomkey(*pCksum, hash);
+    unsigned int cksum = hdr->m_cksum;
+    _NS_PI_2ND_ReconstructCheckSumRandomkey(cksum, hash);
+    hdr->m_cksum = cksum;
 }

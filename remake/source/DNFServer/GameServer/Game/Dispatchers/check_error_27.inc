@@ -57,13 +57,13 @@ int Dispatcher_SelectStriker::check_error(CUser* user, MSG_BASE& msg)
     // [DispA2 P0] ORIG 0x081e4239/0x081e426f/0x081e429b 均为 `movsbl` 后
     //   `mov %eax,-0x24/-0x20/-0x1c(%ebp)`（**4 字节槽**）⇒ 原码是 int 具名局部；
     //   旧码 char/short/unsigned char 令三槽各缩 3/2/3 字节（帧 0x34 vs ORIG 0x3c）。
-    int firstGrow = user->m_characList[(char)m.m_0d].m_field26;   // +0x26（movsbl）
+    int firstGrow = user->m_characList[(char)m.m_0d].m_job;   // +0x26（movsbl）
     // ORIG 0x081e4262 `movzbl 0x29; shl $4; sar $4,%al; movsbl` = 4 位有符号位域提取
     // （低 4 位符号扩展）；旧写法 (char)raw 直接往返会丢符号（真语义 bug）。
     int secondGrow = (int)((signed char)(
-        (unsigned char)user->m_characList[(char)m.m_0d].m_field29.m_growthType << 4) >> 4);
+        (unsigned char)user->m_characList[(char)m.m_0d].m_growthType.m_growthType << 4) >> 4);
     int deadField1239 =
-        user->m_characList[(char)m.m_0d].m_field1239;           // +0x1239（ORIG 读取后未使用）
+        user->m_characList[(char)m.m_0d].m_skillTreeIndex;           // +0x1239（ORIG 读取后未使用）
     (void)deadField1239;
     // ORIG 0x081e42a1..0x081e42ae：skillIdx 无槽（`movzbl 0xe; movzbl %al,%edi` 直入实参），
     //   firstGrow/secondGrow 到实参处才 `movswl` 截断 ⇒ 第三参直接内联。

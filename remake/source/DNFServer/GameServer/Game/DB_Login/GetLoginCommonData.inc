@@ -16,8 +16,8 @@ int DB_Login::GetLoginCommonData(SIG_LOGIN_DATA* sig)
         sig->m_memberBonusFatigueInc = 0;       // +0x3f5e
         // [b28d-38] SGB() 函数形 off 为运行期参数 ⇒ -O0 物化 `movl $imm,槽; add 槽`
         // 3 条/处；ORIG 为单条 `add $imm,%eax` ⇒ 改宏形 SGBC（off 字面量折叠，P0 右值直传）。
-        memset(SGBC(sig, 0x4114), 0, 0x10);     // login_ip（SigTypes_D 隐式区）
-        memset(SGBC(sig, 0x4125), 0, 0x10);     // inform_notice
+        memset(reinterpret_cast<char*>(&sig->m_ingameEventHistory.m_data[0x168]), 0, 0x10);     // login_ip（SigTypes_D 隐式区）
+        memset(sig->m_informNoticeBuf, 0, 0x10);     // inform_notice
         return 1;
     }
     if (!db->fetch())
@@ -37,7 +37,7 @@ int DB_Login::GetLoginCommonData(SIG_LOGIN_DATA* sig)
     }
     sig->m_memberBonusSaveTime = (unsigned int)updateTime;  // +0x3f60 ORIG local_20[0]
     sig->m_memberBonusFatigueInc = (short)bonusFatigue;     // +0x3f5e
-    if (!db->get_str(col++, SGBC(sig, 0x4114), 0x10))   // 第 3 列续接索引读取 login_ip
+    if (!db->get_str(col++, reinterpret_cast<char*>(&sig->m_ingameEventHistory.m_data[0x168]), 0x10))   // 第 3 列续接索引读取 login_ip
     {
         return 0;
     }

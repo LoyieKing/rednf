@@ -14,17 +14,17 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
         return 0;
 
     if (user->get_charac_no(-1) !=
-        pPkt->m_e)          // msg+0x0e characNo
+        pPkt->m_characNo)          // msg+0x0e characNo
         return 0;
 
-    const int rewardType = pPkt->m_16;
+    const int rewardType = pPkt->m_rewardType;
     // ORIG 0x084dfea6：cmp 链 5→6→3（jne 尾），reward3 代码在比较链后 fallthrough，
     // reward5/6 代码跳转在后。保持 if 顺序 5→6→3 以匹配。
     if (rewardType == 5)
     {   // 胜利点数奖励
         Arad_VillageAttackRewardItem::Data rewardData(   // -0x64
-            pPkt->m_12, 0, 0);
-        const int winPoint = pPkt->m_12;
+            pPkt->m_winPoint, 0, 0);
+        const int winPoint = pPkt->m_winPoint;
         ARAD::Arad_DataManager* adm = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
         Arad_VillageAttackRewardItem* reward =
             adm->getAradVillageAttackReward();
@@ -44,7 +44,7 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
     {   // 排名奖励
         Arad_VillageAttackRewardItem::RankData rankData;   // -0x74（memset 0x10）
         const short rank =
-            (short)pPkt->m_12;   // movswl
+            (short)pPkt->m_winPoint;   // movswl
         ARAD::Arad_DataManager* adm = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
         Arad_VillageAttackRewardItem* reward =
             adm->getAradVillageAttackReward();
@@ -59,12 +59,12 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
                 {
                     _send_reward_item(user, (unsigned long)fields[i],
                                       fields[2 + i],
-                                      pPkt->m_12);
+                                      pPkt->m_winPoint);
                     cMyTrace(__PRETTY_FUNCTION__,
                         0x4d8c, 0)("VillageAttacked Reward Ranker Item Index. "
                           "[charac:%u][rank:%d][item:%u][count:%d]",
                           user->get_charac_no(-1),
-                          pPkt->m_12,
+                          pPkt->m_winPoint,
                           fields[i], fields[2 + i]);
                 }
             }
@@ -75,7 +75,7 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
                 1, "InterDispatcher.cpp",
                 __PRETTY_FUNCTION__,
                 0x4d92, "VillageAttackedReward Invalid Rank. [rank:%d]",
-                pPkt->m_12);
+                pPkt->m_winPoint);
             return 0;
         }
     }

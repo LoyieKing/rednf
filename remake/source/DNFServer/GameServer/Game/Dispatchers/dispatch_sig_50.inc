@@ -37,30 +37,30 @@ int Dispatcher_BuyAutomatItem::dispatch_sig(CUser* user, PacketBuf& packet)
     MSG_BUY_CERASHOP_ITEM buy;
     // ORIG 段直证：各访问直接 `movzbl -0x3f86(%ebp),%eax` / `add $0x36` 前的裸基址
     // （常量偏移折叠），无 `char* msg` 具名槽（原具名令帧 +4 并整段槽位下移 4）。
-    packet.get_byte(*(unsigned char*)(buy.m_pad + 0x36));
-    unsigned char count = *(unsigned char*)(buy.m_pad + 0x36);
+    packet.get_byte(buy.m_scalars.m_itemCount);
+    unsigned char count = buy.m_scalars.m_itemCount;
     if (count == 0 || count == 0 || 0x23 < count)
     {
         GlobalData::s_pCeraShop->ProcessError(user, 1, 0,
-                                              *(unsigned int*)(buy.m_pad + 0x39), 1, 1, '\0');
+                                              (unsigned int)buy.m_scalars.m_goodsIdx, 1, 1, '\0');
         return 0;
     }
     PurchaseLimitItem::Info info;   // ORIG 0x081a405e 清零构造（-0x30 区）
     for (int i = 0; i < (int)(unsigned int)count; ++i)
     {
-        if (!packet.get_byte(*(unsigned char*)(buy.m_pad + 0x37 + i * 0x1cf)))
+        if (!packet.get_byte(buy.m_entrySection.m_arr[i].m_avatarType0))
         {
             return LineFunc(0x9172,
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (!packet.get_byte(*(char*)(buy.m_pad + 0x38 + i * 0x1cf)))
+        if (!packet.get_byte(buy.m_entrySection.m_arr[i].m_avatarType1))
         {
             return LineFunc(0x9175,
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (!packet.get_int(*(unsigned int*)(buy.m_pad + 0x39 + i * 0x1cf)))
+        if (!packet.get_int(buy.m_entrySection.m_arr[i].m_productNo))
         {
             return LineFunc(0x9178,
                             __PRETTY_FUNCTION__,
@@ -68,7 +68,7 @@ int Dispatcher_BuyAutomatItem::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         if (info.reserved == 0)
         {
-            ARAD::CheckAccountItem(user, *(unsigned int*)(buy.m_pad + 0x39 + i * 0x1cf), info);
+            ARAD::CheckAccountItem(user, (unsigned int)buy.m_entrySection.m_arr[i].m_productNo, info);
         }
     }
     if (info.reserved == 0)

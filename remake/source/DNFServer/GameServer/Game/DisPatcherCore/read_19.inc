@@ -10,7 +10,7 @@ int DisPatcher_DeleteItem::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_count)))  // +0x0e（signed char→char& 适配）
+    if (!packet.get_byte(m.m_count))  // +0x0e（signed char→char& 适配）
     {
         return LineFunc(0xae7,
                         __PRETTY_FUNCTION__,
@@ -56,7 +56,7 @@ int DisPatcher_DeleteItem::read(PacketBuf& packet, MSG_BASE& msg)
         }
     }
     // 线格式尾部校验和（超对象 sizeof，无具名字段）
-    if (!packet.get_int(*reinterpret_cast<int*>(reinterpret_cast<char*>(&m) + 0x4bf)))
+    if (!packet.get_int(m.m_checkSum))
     {
         return LineFunc(0xaf8,
                         __PRETTY_FUNCTION__,

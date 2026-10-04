@@ -7,7 +7,7 @@
 int DB_Login::GetUserInGameEventHistory(SIG_LOGIN_DATA* sig)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
-    memset(SGBC(sig, OFF_HISTORY_TBL), 0, 0x168);    // 30 行 × {type,h1,h2}
+    memset(reinterpret_cast<char*>(&sig->m_ingameEventHistory), 0, 0x168);    // 30 行 × {type,h1,h2}
     db->set_query(
         "seLect type , history_1 ,history_2 from event_ingame_history where m_id=%s order by type desc",
         NumberToString(sig->m_accId, 0));

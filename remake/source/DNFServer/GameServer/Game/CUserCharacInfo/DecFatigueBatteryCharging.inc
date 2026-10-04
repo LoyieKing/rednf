@@ -10,11 +10,11 @@ void CUserCharacInfo::DecFatigueBatteryCharging(short value)
         // P209 翻案：old 必须声明为 **signed short**——unsigned short 局部使 4.4
         // 恒物化 `movzwl 槽,%eax; cmp %ax,%dx` 三段；signed 局部出 ORIG 直
         // `cmp -0xa(%ebp),%ax` 内存比较（探针 /tmp/bl10/p5.cpp h1/h2 对照）。
-        short old = (short)m_selected->m_field4f;
+        short old = (short)m_selected->m_fatigueBattery;
         // P254 packed enum 视角（同 IncFatigueBatteryCharging）。
-        m_selected->m_field4f =
-            (EFatigueBatteryValue)((int)m_selected->m_field4f - value);
-        if ((short)m_selected->m_field4f < 0 || (short)m_selected->m_field4f > old)
-            m_selected->m_field4f = 0;
+        m_selected->m_fatigueBattery =
+            (EFatigueBatteryValue)((int)m_selected->m_fatigueBattery - value);
+        if ((short)m_selected->m_fatigueBattery < 0 || (short)m_selected->m_fatigueBattery > old)
+            m_selected->m_fatigueBattery = 0;
     }
 }

@@ -58,8 +58,7 @@ int Dispatcher_AuctionSearchByItemKey::dispatch_sig(CUser* user, PacketBuf& pack
             return LineFunc(0xc6c3,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_short(*reinterpret_cast<unsigned short*>(
-                &pck.m_search.m_s21)))                              // +0x21（ORIG GP 段 get_short(Rt&)）
+        if (!packet.get_short(pck.m_search.m_s21))                              // +0x21（ORIG GP 段 get_short(Rt&)）
             return LineFunc(0xc6c4,
                             __PRETTY_FUNCTION__,
                             0, 0);
@@ -103,8 +102,7 @@ int Dispatcher_AuctionSearchByItemKey::dispatch_sig(CUser* user, PacketBuf& pack
             return LineFunc(0xc6e4,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_short(*reinterpret_cast<unsigned short*>(
-                &pck.m_search.m_s21)))                              // +0x21（GA 段 ORIG Rt&）
+        if (!packet.get_short(pck.m_search.m_s21))                              // +0x21（GA 段 ORIG Rt&）
             return LineFunc(0xc6e5,
                             __PRETTY_FUNCTION__,
                             0, 0);
@@ -123,18 +121,15 @@ int Dispatcher_AuctionSearchByItemKey::dispatch_sig(CUser* user, PacketBuf& pack
                 pck.m_itemKeys[i] = key;
             }
         }
-        if (!packet.get_short(*reinterpret_cast<short*>(
-                &pck.m_search.m_roi.m_keys[0])))                    // +0x23（ORIG 0x08215fd0 get_short(Rs&)）
+        if (!packet.get_short(pck.m_search.m_roi.m_keys[0]))                    // +0x23（ORIG 0x08215fd0 get_short(Rs&)）
             return LineFunc(0xc6f3,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_short(*reinterpret_cast<short*>(
-                &pck.m_search.m_roi.m_keys[1])))                    // +0x25（ORIG 0x08216018 Rs&）
+        if (!packet.get_short(pck.m_search.m_roi.m_keys[1]))                    // +0x25（ORIG 0x08216018 Rs&）
             return LineFunc(0xc6f5,
                             __PRETTY_FUNCTION__,
                             0, 0);
-        if (!packet.get_short(*reinterpret_cast<short*>(
-                &pck.m_search.m_roi.m_keys[2])))                    // +0x27（ORIG 0x08216060 Rs&）
+        if (!packet.get_short(pck.m_search.m_roi.m_keys[2]))                    // +0x27（ORIG 0x08216060 Rs&）
             return LineFunc(0xc6f7,
                             __PRETTY_FUNCTION__,
                             0, 0);

@@ -40,10 +40,8 @@ void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
 
     // 低难度：ORIG 具名指针局部 ctx（-0x20）——find_monster/循环上界/
     // 末次 difficulty 判定均经 ctx 偏移读（+0x38/+0x3d/+0x3c）。
-    StRefCtx2 const* ctx =
-        reinterpret_cast<StRefCtx2 const*>(&ref.m_field34);
     CMonster* monster = static_cast<CMonster*>(
-        G_CDataManager()->find_monster(ctx->m_rankBonusIndex));
+        G_CDataManager()->find_monster(ref.m_rankBonusIndex));
     if (monster == 0)
         return;
 
@@ -66,11 +64,11 @@ void CMonsterDrop::generateSpecificItem(stGenerateRefData_t const& ref,
     // ORIG 0x08537254 movzbl 0x43; xor $0x1; je → 两 bool 字段取反（P248 档②）
     if (!ref.m_field43 && !ref.m_field44_byte)
     {
-        for (int c = 0; c < static_cast<signed char>(ctx->m_count); ++c)
+        for (int c = 0; c < static_cast<signed char>(ref.m_field3d); ++c)
             _generateMonseterSpecificItem(monster, 0, result);
     }
-    if (ctx->m_difficulty != 0)
+    if (ref.m_field3c_byte != 0)
         _generateMonseterSpecificItem(monster,
-                                      static_cast<char>(ctx->m_difficulty),
+                                      static_cast<char>(ref.m_field3c_byte),
                                       result);
 }

@@ -28,7 +28,7 @@ void CCeraShop::_ProcessIPGError(CUser* user, IPG::SIPGData* reqData,
     // 单条 disp（ReadIntAt 宏的指针算术 4.4 恒发 add+mov）。
     if (resData->m_type == 2)
     {
-        if (atoi(BufAt(resData, 0x173)) == 1)
+        if (atoi(resData->m_cmd.m_output.m_resultCode) == 1)
         {
             // [b28c-P59/P222] ORIG 0x08323837 `je <user==0 块>`：then 为 user!=0
             // 的 9 参重载（vptr+0x1c slot7），else 为 user==0 的 2 参重载
@@ -38,12 +38,12 @@ void CCeraShop::_ProcessIPGError(CUser* user, IPG::SIPGData* reqData,
             {
                 GlobalData::s_pIPGHelper->IPGOutputCancel(
                     user,
-                    BufAt(resData, 0x159),
-                    BufAt(reqData, 0x69),
-                    BufAt(reqData, 0x71),
-                    BufAt(reqData, 0x7d),
-                    BufAt(reqData, 0x91),
-                    BufAt(reqData, 0xf5),
+                    resData->m_cmd.m_output.m_pad159,
+                    reqData->m_cmd.m_output.m_price,
+                    reqData->m_cmd.m_output.m_pay,
+                    reqData->m_cmd.m_output.m_arg7D,
+                    reqData->m_cmd.m_output.m_desc91,
+                    reqData->m_cmd.m_output.m_descF5,
                     static_cast<void*>(0),
                     static_cast<Taiwan::BillTransaction*>(0));
             }
@@ -64,7 +64,7 @@ void CCeraShop::_ProcessIPGError(CUser* user, IPG::SIPGData* reqData,
             LogManager::logFormat(
                 1, "CeraShop.cpp", __PRETTY_FUNCTION__,
                 0xb47, "IPG ERROR (Goods No: %d)(%s)",
-                productNo, BufAt(resData, 0x177));
+                productNo, resData->m_cmd.m_output.m_message);
         }
     }
 

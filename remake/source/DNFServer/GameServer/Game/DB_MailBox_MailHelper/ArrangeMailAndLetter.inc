@@ -22,7 +22,7 @@ int ArrangeMailAndLetter(SIG_MAILBOX_LIST* list,
     {
         int mailIdx = -1;
         mailIdx = FindLastOccTimeMail(list,
-                                      ((LetterOccView*)&vecNew[(size_t)start])->m_occ);
+                                      vecNew[(size_t)start].m_period);
         if (mailIdx != -1)
         {
             int letterIdx =

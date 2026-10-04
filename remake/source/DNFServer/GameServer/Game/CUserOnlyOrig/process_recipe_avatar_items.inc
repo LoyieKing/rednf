@@ -281,8 +281,8 @@ int CUser::process_recipe_avatar_items(int mainSlot, bool param2,
 
     // +0xb4f: HistoryLog::WriteComposition(*(FILE**)(this+0x796f8),
     //                                      recipe->get_index()) 0x084ba174
-    //   （m_field796f8 为 int 存文件句柄，与 ORIG *(int*)(this+0x796f8) 一致）
-    HistoryLog::WriteComposition((FILE*)(unsigned)m_field796f8,
+    //   （m_historyLogFp 为 int 存文件句柄，与 ORIG *(int*)(this+0x796f8) 一致）
+    HistoryLog::WriteComposition((FILE*)(unsigned)m_historyLogFp,
                                  recipe->get_index());
 
     // +0xb6f: return 0

@@ -2,5 +2,5 @@ void CUserCharacInfo::disableSavedPremiumCubeInfo()
 {
     if (!m_selected)
         return;
-    m_selected->m_field14D0 = 0;
+    m_selected->m_savedPremiumCubeInfo = 0;
 }

@@ -6,11 +6,11 @@ int Inter_SetIPCount::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     //   `lea (%ecx,%eax,1),%eax`，我方为 `add -0x20(%ebp),%eax`）；同一表达式在 O0 下的
     //   寄存器选择差异，无源码可判定的等价改写，未改（不留 hack）。
     Inter_SetIPCountPktView* pPkt = reinterpret_cast<Inter_SetIPCountPktView*>(data);
-    if (pPkt->m_a == 0)
+    if (pPkt->m_ok == 0)
         GlobalData::g_autoPunishRuleHackTypeMgr->ResetIpCounterData();
     // §P0：ORIG 084dcbc5 循环尾 `movzbl 0xb(%eax),%eax; movzbl %al,%eax; cmp -0x1c(%ebp),%eax`
     //   = 每轮重读 m_b（count 无栈槽）⇒ 不设具名 count，条件内联表达式。
-    for (int i = 0; i < (int)(unsigned char)pPkt->m_b; ++i)
+    for (int i = 0; i < (int)(unsigned char)pPkt->m_count; ++i)
     {
         GlobalData::g_autoPunishRuleHackTypeMgr->setIPCounterData(
             (unsigned int)pPkt->m_entries[i].m_c,

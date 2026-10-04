@@ -60,7 +60,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
         // [BigUserLogic] ORIG 0x084c03xx：先物化 getCurCharacR()->+0x7b 与 sig+4
         // 两实参，**再**构造 cMyTrace，后调 operator()。原写法把实参求值放到
         // ctor 之后，指令序整体错位。
-        long playTick = user->getCurCharacR()->m_field7b;
+        long playTick = user->getCurCharacR()->m_lastPlayTick;
         unsigned charNo = (unsigned)sig->m_characNo;
         cMyTrace trace(__PRETTY_FUNCTION__, 0xac5, 0);
         trace("CharLastPlayTick char(%d) t(%d)", charNo, (unsigned)playTick);
@@ -145,7 +145,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             // sig 基址+常量（m_attendanceEvent(+0x14a99)+1 的写法产两条 add）。
             static_cast<CDataAlias*>(user->GetCharacExpandData(
                 ENUM_CHARAC_EXPAND_TYPE(0x13)))->loadData(
-                user, reinterpret_cast<char*>(sig) + 0x14a9a);
+                user, reinterpret_cast<char*>(sig->m_attendanceEvent.m_pad));
         }
 
         // §4.3 具名化：m_expandDataF(+0xb1a4)+0x1804 = +0xc9a8 =
@@ -181,7 +181,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 // serverGroup/logState 走具名槽，channelNo/port/peerIp 均为内联
                 // 实参（GetPeerIP2 返回值即第二实参；channelNo/port 无具名槽）。
                 user->m_historyLog.Login(user->getWebAddress(),
-                    net->GetPeerIP2(reinterpret_cast<char*>(peerIp) + 0x10, 0x10),
+                    net->GetPeerIP2(reinterpret_cast<char*>(peerIp + 4), 0x10),
                                          (int)(net->get_port() & 0xffff),
                                          G_CEnvironment()->m_serverEnvir.m_channelNo,
                                          logState,
@@ -360,7 +360,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 // [BigInterLoadEtc] ORIG 0x084c0f50 段：nowTick 在 %ebx、lastPlay 由
                 // getCurCharacR()->+0x7b 直读（均无具名槽）⇒ 内联实参（右→左求值）。
                 if (CheckDailyScheduleTime(fatigueBase,
-                        user->getCurCharacR()->m_field7b,
+                        user->getCurCharacR()->m_lastPlayTick,
                         GlobalData::s_systemTime_.getCurSec()))
                 {
                     user->SetFirstTimeLogin(true);
@@ -421,10 +421,10 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
                 user->sendBlueMarbleEnterCount();
                 user->SendOpenflag();
                 // ORIG:RewardItem 实参与后续判定各自调用 getCurCharacR()。
-                RewardItem(user, user->getCurCharacR()->m_field7b,
+                RewardItem(user, user->getCurCharacR()->m_lastPlayTick,
                            0x4b4515f0, 0x4b578af0, 0x27addd,
                            "game_server_msg_53", "game_server_msg_131", 0);
-                if (user->getCurCharacR()->m_field7b != 0)
+                if (user->getCurCharacR()->m_lastPlayTick != 0)
                     user->initAllSkill();
             }
 
@@ -432,7 +432,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             user->SendConditionEventInfo();
             user->SendProperDungeonClearCount();
             processSeriaRoomAniDecoEvent(
-                *reinterpret_cast<seriaRoom_AniDeco*>(sig->m_comboSkill + 0xb2), *user);
+                *reinterpret_cast<seriaRoom_AniDeco*>(sig->m_seriaRoomAniDeco), *user);
             processCheckInvalidExpPerLevel(*user);
             WongWork::CHandlePremium::handlePremiumEffect(user, ENUM_PREMIUM_TYPE(9999));
 
@@ -792,7 +792,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             if (sig->m_fieldC != 0)
                 user->SendTagCharacInfo();
 
-            const_cast<_Charac_info*>(user->getCurCharacR())->m_field14BC = 0;   // _Charac_info pad 拆分后 +0x14bc 具名字段
+            const_cast<_Charac_info*>(user->getCurCharacR())->m_tagCharacInfoSent = 0;   // _Charac_info pad 拆分后 +0x14bc 具名字段
 
             {
                 // [BigUserLogic] ORIG 无判空；ORIG 0x084c2169-0x084c2173 无具名槽。
@@ -830,7 +830,7 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
             if (reinterpret_cast<Taiwan::GarenaAuthData*>(
                     user->getGarenaAuthData())->getMobileAuth() != 0)
             {
-                // ORIG 0x815c586:makeRequest 不消费 this(m_field8ec31 经栈参 user 读,
+                // ORIG 0x815c586:makeRequest 不消费 this(m_rewarded 经栈参 user 读,
                 // 无 C1 构造站点)——静态语义调用。
                 DBSelectMobileAuthRewardTw::makeRequest(user);
             }

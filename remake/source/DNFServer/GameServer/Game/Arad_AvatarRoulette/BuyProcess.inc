@@ -13,9 +13,7 @@ bool AvatarCoin::BuyProcess(CUser* user, Inven_Item& item)
     {
         // ORIG 0x081801f6：item.m_addInfo2 先入 ebx 跨 getCurCharacInvenW 保活，
         // +0x658 直落 Add receiver（P226 内联实参形）。
-        reinterpret_cast<AvatarCoin*>(
-            reinterpret_cast<char*>(user->getCurCharacInvenW()) + 0x658)
-            ->Add(static_cast<unsigned int>(item.m_addInfo2));
+        user->getCurCharacInvenW()->m_avatarCoin.Add(static_cast<unsigned int>(item.m_addInfo2));
         if (!SaveToDB(user))
         {
             LogManager::logFormat(

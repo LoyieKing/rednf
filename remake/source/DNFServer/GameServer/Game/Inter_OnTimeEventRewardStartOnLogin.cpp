@@ -11,6 +11,7 @@
 //   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
 //     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
+#include "../../../shared/packet/include/Packet_GTM_OntimeEvent_RequestReward.h"
 #include "Inter_OnTimeEventRewardStartOnLogin.h"
 #include "CUser.h"
 #include "PacketGuard.h"

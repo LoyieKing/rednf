@@ -1,4 +1,4 @@
 int CUser::GetChecksumAnswerCount()
 {
-    return m_field8cfd8;
+    return m_checksumAnswerCount;
 }

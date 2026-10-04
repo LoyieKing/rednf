@@ -8,8 +8,8 @@ unsigned int Dispatcher_EnterDisjointStore::check_error(CUser* user, MSG_BASE& m
     if ((user->get_state() <= 2) ? true : (user->getCurCharacR() == 0))
         return -1;
 
-    ParamUidView_A2* pUid = reinterpret_cast<ParamUidView_A2*>(&msg);  // ORIG mov 0x10(%ebp) 即 msg
-    CUser* target = G_GameWorld()->find_from_world(pUid->m_uid);   // 0x086c4b9c
+    MSG_ENTER_DISJOINT_STORE& req = reinterpret_cast<MSG_ENTER_DISJOINT_STORE&>(msg);
+    CUser* target = G_GameWorld()->find_from_world(req.m_field0e);
     if (target == 0)
         return 0x15;
 

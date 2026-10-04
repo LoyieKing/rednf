@@ -67,7 +67,7 @@ void CParty::dungeon_clear()
             g2[0].reset();
             g2[1].reset();
             bd.ResetEventDungeonClearPoint();
-            HistoryLog::WriteDunClear((FILE*)user->m_field796f8);
+            HistoryLog::WriteDunClear((FILE*)user->m_historyLogFp);
             OnSuccessedDungeonClear(user);
         }
     }

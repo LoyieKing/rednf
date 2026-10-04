@@ -15,9 +15,9 @@ int Inter_RequestCharacSkillInfo::dispatch_sig(CUser* user, char* data, int /*le
     if (tagIdx == -1)                                  // cmpl $0xffffffff
         return 0;
 
-    // ORIG 0x084e78fa：写 m_field1239 与随后的读共用**同一次** operator[]
+    // ORIG 0x084e78fa：写 m_skillTreeIndex 与随后的读共用**同一次** operator[]
     // （`mov %dl,0x1239(%eax); movzbl 0x1239(%eax),%eax`）⇒ 原码是成员引用绑定。
-    unsigned char& field1239 = user->m_characList[tagIdx].m_field1239;
+    unsigned char& field1239 = user->m_characList[tagIdx].m_skillTreeIndex;
     field1239 = reinterpret_cast<Inter_RequestCharacSkillInfoPktView*>(recv)->m_19c;                           // ORIG movzbl 0x19c; mov %dl
     const char skillTreeKind = (char)field1239;        // ORIG movzbl 0x1239(%eax)
 

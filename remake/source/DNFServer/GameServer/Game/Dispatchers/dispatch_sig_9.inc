@@ -22,16 +22,16 @@ int Dispatcher_Antibot::dispatch_sig(CUser* user, PacketBuf& packet)
         return LineFunc(0xa7c1, __PRETTY_FUNCTION__, 0, 0);
     }
     local_30 = packet.get_buf_ptr(packet.get_index());
-    if (user->m_field8cf00 == 0)
+    if (user->m_abnormalUserLogType == 0)
     {
         user->m_historyLog.AntibotPacketLog((AntibotPacketLogType::T)0);
-        user->m_field8cf00 = 1;
+        user->m_abnormalUserLogType = 1;
     }
-    else if (user->m_field8cf00 != 4)
+    else if (user->m_abnormalUserLogType != 4)
     {
         user->m_historyLog.AbnormalUser(
             (ENUM_ABNORMAL_USER_LOG_TYPE)4, 0x25b, local_54,
-            (ENUM_ABNORMAL_USER_LOG_TYPE)user->m_field8cf00);
+            (ENUM_ABNORMAL_USER_LOG_TYPE)user->m_abnormalUserLogType);
     }
     if (local_30 != 0)
     {
@@ -71,16 +71,16 @@ int Dispatcher_Antibot::dispatch_sig(CUser* user, PacketBuf& packet)
         GlobalData::s_antibotChecker_,
         (unsigned int)G_CEnvironment()->getProcessSequence(), 0,
         (unsigned int)user->get_acc_id(), local_30, local_54 & 0xffff);
-    if (user->m_field8cf00 == 1)
+    if (user->m_abnormalUserLogType == 1)
     {
         user->m_historyLog.AntibotPacketLog((AntibotPacketLogType::T)1);
-        user->m_field8cf00 = 2;
+        user->m_abnormalUserLogType = 2;
     }
-    else if (user->m_field8cf00 != 4)
+    else if (user->m_abnormalUserLogType != 4)
     {
         user->m_historyLog.AbnormalUser(
             (ENUM_ABNORMAL_USER_LOG_TYPE)4, 0x25b, local_54,
-            (ENUM_ABNORMAL_USER_LOG_TYPE)user->m_field8cf00);
+            (ENUM_ABNORMAL_USER_LOG_TYPE)user->m_abnormalUserLogType);
     }
     if (local_2c == -1)
     {

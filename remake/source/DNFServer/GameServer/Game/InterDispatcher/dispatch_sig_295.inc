@@ -17,7 +17,7 @@ int Inter_CollectItemsReward::dispatch_sig(CUser* user, char* data, int /*len*/)
     char msgBuf[0x100] = { '\0' };                     // P4 内联清零
     char titleBuf[0x1e] = { '\0' };
 
-    switch (pPkt->m_12)
+    switch (pPkt->m_type)
     {
     case 1:                                            // 收集完成
         item.m_addInfo = 0x21d7;

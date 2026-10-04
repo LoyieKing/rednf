@@ -36,7 +36,7 @@ void CommonTime::SetCurTime()
     m_month = p->tm_mon + 1;
     m_day = p->tm_mday;
     m_hour = p->tm_hour;
-    m_minute = p->tm_min;
+    m_min = p->tm_min;
     m_wday = p->tm_wday;
 }
 

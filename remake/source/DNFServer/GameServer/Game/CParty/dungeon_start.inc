@@ -333,7 +333,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
         m_member[i].m_pUser->setPlayingDungeonIndex(dungeonIdx);
         m_member[i].m_pUser->m_character.PlayInfo::Reset();    // ORIG PlayInfo::Reset @ user+0x8e034（不清 m_f3c）
         m_member[i].m_pUser->m_character.m_f20 = startCount;   // user+0x8e054
-        m_member[i].m_pUser->m_field8e074 = 0;                 // user+0x8e074（CUser 直属字段；Layout_D 布局修正）
+        m_member[i].m_pUser->m_hasCharacterStatistic = 0;                 // user+0x8e074（CUser 直属字段；Layout_D 布局修正）
 
         // b28d-49 @0x85a1c34：ORIG 无 stdLvl/muLvl 缓存 —— 条件里逐点重调
         // get_standard_level（85a1c34/85a1c6b）+ get_charac_level（85a1c56/85a1c8d），
@@ -374,7 +374,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
             bd.m_flag28[1] = 1;
         }
 
-        HistoryLog::WriteDunStart((_IO_FILE*)m_member[i].m_pUser->m_field796f8,
+        HistoryLog::WriteDunStart((_IO_FILE*)m_member[i].m_pUser->m_historyLogFp,
                                   m_member[i].m_pUser->get_charac_job(),
                                   m_member[i].m_pUser->get_charac_level(),
                                   (int)m_member[i].m_pUser->getCurCharacGrowType());

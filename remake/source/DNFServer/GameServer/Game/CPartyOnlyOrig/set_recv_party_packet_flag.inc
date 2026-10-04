@@ -11,5 +11,5 @@ void CParty::set_recv_party_packet_flag(CUser* user)
     {
         return;
     }
-    reinterpret_cast<CPartyRecvFlagView*>(this)->m_recvFlag.SetRecvFlag(slot);
+    m_recvFlag.SetRecvFlag(slot);
 }

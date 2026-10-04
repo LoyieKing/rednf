@@ -6,5 +6,5 @@ int CUserCharacInfo::GetFinishPointTotal()
         trace("WARAREA CUserCharacInfo::GetFinishPointTotal() : m_selected is NULL");
         return 0;
     }
-    return m_selected->m_fieldE0A;
+    return m_selected->m_finishPointTotal;
 }

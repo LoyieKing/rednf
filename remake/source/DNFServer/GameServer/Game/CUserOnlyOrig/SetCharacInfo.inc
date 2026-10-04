@@ -24,14 +24,15 @@ void CUser::SetCharacInfo(int count, char* data)
         // lea 22/shl 9/add 18 新增 —— 4.4 对 `char* + i*0x94 + K` 折 lea/shl 链而非
         // ORIG 的 imul+独立 add）⇒ 已回滚。ORIG 0x08649cxx 的 19 处
         // `imul $0x94,%eax,%eax; add -0x1c(%ebp),%eax` 属 P30/N107 地址物化族封顶。
-        char* rec = data + i * 0x94;
-        info.Reset();                                  // _Charac_info::Reset
-        info.m_characNo = *reinterpret_cast<int*>(rec);                  // characNo
-        strncpy(info.m_name, rec + 4, 0x1e);                             // m_name
+        SIG_CHARAC_SLOT_VIEW* rec =
+            reinterpret_cast<SIG_CHARAC_SLOT_VIEW*>(data) + i;
+        info.Reset();
+        info.m_characNo = rec->m_characNo;
+        strncpy(info.m_name, rec->m_name, 0x1e);
         // [R11a06 2026-09-12 ④ 修复] 旧译文 `p[0x18]=rec[0x18]; p[0x19]=rec[0x19];
         //   *(short*)(p+0x1a)=*(short*)(rec+0x1a)` 的目标偏移**错**：+0x18..+0x1b 落在
-        //   m_name[0x14..0x17]（角色名被覆写），而 m_field26(+0x26 job)/m_level(+0x27)/
-        //   m_field29(+0x29 STGrowthType) 从未被写（恒 Reset 值）。ORIG 反汇编实证
+        //   m_name[0x14..0x17]（角色名被覆写），而 m_job(+0x26 job)/m_level(+0x27)/
+        //   m_growthType(+0x29 STGrowthType) 从未被写（恒 Reset 值）。ORIG 反汇编实证
         //   （raw 字节，VA 0x08649d10..0x08649d4e）：
         //     0x08649d20 `88 85 11 e4 ff ff` = mov %al,-0x1bef(%ebp)  → base(-0x1c15)+0x26 ← rec[0x18]
         //     0x08649d36 `88 85 14 e4 ff ff` = mov %al,-0x1bec(%ebp)  → base+0x29 ← rec[0x19]
@@ -41,22 +42,21 @@ void CUser::SetCharacInfo(int count, char* data)
         // movzbl/movzwl disp(%eax); mov 槽）。已实测三形：缓存 rec（4 条/处，len 310）/
         // 本形（6 条/处，len 317，ndiff 389 ratio 0.3855）/ 数组视图形（len 318，ndiff 402）
         // ⇒ 取本形（长度与 ORIG 316 最近、ndiff 最优）。
-        info.m_field26 = *(data + i * 0x94 + 0x18);                      // +0x26 job
-        info.m_field29.m_growthType =
-            static_cast<unsigned char>(*(data + i * 0x94 + 0x19));       // +0x29
-        info.m_level = *reinterpret_cast<short*>(data + i * 0x94 + 0x1a);  // +0x27 short
+        info.m_job = rec->m_name[0x14];
+        info.m_growthType.m_growthType =
+            static_cast<unsigned char>(rec->m_name[0x15]);
+        info.m_level = static_cast<short>(rec->m_level);
 
         for (int k = 0; k < 0xc; ++k)
         {
-            info.m_curCharacInven.m_invenItem[k].m_addInfo =
-                *reinterpret_cast<int*>(rec + (k + 4) * 8 + 8);
+            info.m_curCharacInven.m_invenItem[k].m_addInfo = rec->m_vis[k].m_itemId;
         }
         for (int k = 0; k < 0xc; ++k)
         {
             CInventory::AvatarVisibleData& vis = info.m_curCharacInven.m_avatarVisible[k];
-            vis.m_field0 = *reinterpret_cast<int*>(rec + (k + 4) * 8 + 8);
-            vis.m_field4 = *reinterpret_cast<short*>(rec + (k + 4) * 8 + 0xc);
-            vis.m_field6 = *reinterpret_cast<short*>(rec + (k + 4) * 8 + 0xe);
+            vis.m_field0 = rec->m_vis[k].m_itemId;
+            vis.m_field4 = rec->m_vis[k].m_vis4;
+            vis.m_field6 = rec->m_vis[k].m_vis6;
         }
 
         // growType：==1 或 ==0xff 原样，否则 0（→ info+0x14c6）
@@ -64,37 +64,37 @@ void CUser::SetCharacInfo(int count, char* data)
         //   占栈槽（我方 .o `movzbl %al,%eax; mov %al,-0x1e(%ebp)`），ORIG 0x08649cf7/
         //   0x08649d0d/0x08649d1f 为**三次逐点重读** `imul $0x94; add 基址;
         //   movzbl 0x22(%eax)`（无 grow 槽）⇒ 按 P0 律去槽：条件与取值处各自内联
-        //   `static_cast<unsigned char>(rec[0x22])`。语义等价（同址同宽只读）。
+        //   `static_cast<unsigned char>(rec->m_restHead[6])`。语义等价（同址同宽只读）。
         info.m_viewState =
-            (static_cast<unsigned char>(rec[0x22]) == 1 ||
-             static_cast<unsigned char>(rec[0x22]) ==
+            (static_cast<unsigned char>(rec->m_restHead[6]) == 1 ||
+             static_cast<unsigned char>(rec->m_restHead[6]) ==
                  static_cast<unsigned char>(-1))
-                ? static_cast<int>(static_cast<unsigned char>(rec[0x22]))
+                ? static_cast<int>(static_cast<unsigned char>(rec->m_restHead[6]))
                 : 0;
 
         reinterpret_cast<CommonTime*>(info.m_delReqTime)
-            ->SetCreateTime(*reinterpret_cast<long*>(rec + 0x88));
+            ->SetCreateTime(static_cast<long>(rec->m_createTime));
 
         // [CoBatchA 2026-09-11 负结论·已回滚] 分支物化形（`if/else` 双赋）实测
         // **316→318 反劣**（4.4 仍发 setcc 且多 2 条）；ORIG 0x08649eb3/0x08649eb9 的
         // `jg; movb $0; jmp; movb $1` 属 4.1 条件物化族，4.4 不可复现 ⇒ 维持表达式形。
         const char expireFlag = (char)(curSec <
-            *reinterpret_cast<int*>(rec + 0x90));
-        info.m_fieldE66 = static_cast<unsigned char>(expireFlag);       // local_db3
-        info.m_field12ad =
-            *reinterpret_cast<int*>(rec + 0x90);                      // 删除截止
-        info.m_fielde5d =
-            *reinterpret_cast<int*>(rec + 0x8c);                      // local_dbc
+            rec->m_expireTime);
+        info.m_ghost = static_cast<unsigned char>(expireFlag);       // local_db3
+        info.m_chaosResponTime =
+            rec->m_expireTime;                      // 删除截止
+        info.m_chaosDieTime =
+            rec->m_field8c;                      // local_dbc
         // [A06 2026-09-10 P0 具名 bool 试行记录·已回退] ORIG 0x08649f9x 段为
         // `movzbl 0x1c(%eax),%eax; and $0x1,%eax; test %al,%al; setne %al; mov %al,-0x9d5(%ebp)`
         // （bool 物化落槽）；补具名 `const bool` 局部实测**反劣**（316→318、delta 279→281）
         // ⇒ 该段属 4.1 转换路径产物（AND→bool 转换的 setne 在 4.4 被折），维持内联形并封 N。
-        info.m_pad1240 = static_cast<char>((rec[0x1c] & 1) != 0);      // 禁玩标记
-        info.m_field14b7 = static_cast<unsigned char>(rec[0x1d]);      // powerSide
-        info.m_field14b8 =
-            *reinterpret_cast<int*>(rec + 0x1e);                      // wpBonus
+        info.m_pad1240 = static_cast<char>((rec->m_restHead[0] & 1) != 0);      // 禁玩标记
+        info.m_strikerSkillIndex = static_cast<unsigned char>(rec->m_restHead[1]);      // powerSide
+        info.m_tagCharacNo =
+            *reinterpret_cast<int*>(&rec->m_restHead[2]);                      // wpBonus
 
-        {   // local_dd9：先 `|=1`、再 `&0xfd | bit*2`（rec[0x1c] bit4）
+        {   // local_dd9：先 `|=1`、再 `&0xfd | bit*2`（rec->m_restHead[0] bit4）
             // [Lane6 2026-09-10 真语义 bug 修复] ORIG 0x0864c4xx `movzbl 0x1c(%eax),%eax;
             // shr $0x4,%al; and $0x1,%eax; shl $0x7,%eax; sar $0x7,%al; and $0x1,%eax`
             // = **bit4 单 bit**（末尾 and $1 归一）。旧译文 `((x >> 4) << 7) >> 7` 在 4.4
@@ -118,11 +118,19 @@ void CUser::SetCharacInfo(int count, char* data)
                 info.m_tagVisibleFlags.m_flag | 0x1);
             info.m_tagVisibleFlags.m_flag = static_cast<unsigned char>(
                 (info.m_tagVisibleFlags.m_flag & 0xfd) |
-                (((static_cast<unsigned char>(rec[0x1c]) >> 4) & 1) * 2));
+                (((static_cast<unsigned char>(rec->m_restHead[0]) >> 4) & 1) * 2));
+#if !remake_verify
+            cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+                "[DNF-DIAG CHARINFO] no=%d flag=%d pad1240=%d rest0=%02x",
+                info.m_characNo,
+                (int)info.m_tagVisibleFlags.m_flag,
+                (int)(unsigned char)info.m_pad1240,
+                (unsigned)(unsigned char)rec->m_restHead[0]);
+#endif
         }
         // [R20a13 2026-09-13 ④ 修复] 删 `p[0x1c04] = expireFlag;`：ORIG
         //  0x08649c6a..0x0864a185 全函数**无**该写（ci+0xe66 的同值写唯一落在
-        //  0x08649ec1 `mov %al,-0xdaf(%ebp)`，即上方 m_fieldE66 一行）；sizeof
+        //  0x08649ec1 `mov %al,-0xdaf(%ebp)`，即上方 m_ghost 一行）；sizeof
         //  (_Charac_info)==0x14d1 ⇒ +0x1c04 越界。生成码 `lea 0x1c04(%eax),%edx;
         //  mov %al,(%edx)`（我方 .o 0x824fa02）落 ebp-0x21 = 本函数 `char* p`
         //  局部（-0x24）的**最高字节** ⇒ 破坏自身 ci 指针，随后两处

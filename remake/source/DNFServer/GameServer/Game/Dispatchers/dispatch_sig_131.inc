@@ -73,7 +73,7 @@ int Dispatcher_ReportMannerlessUser::dispatch_sig(CUser* user, PacketBuf& packet
     Inven_Item item = inven->GetInvenSlot(0, 0xb);
     if (item.m_addInfo == 0x677e)
     {
-        *((char*)&pkt + 0x15e) = 0x70;              // 包末字节
+        pkt.m_result = 0x70;
     }
     if (reporterGroup == group &&
         targetLen == nameLen &&

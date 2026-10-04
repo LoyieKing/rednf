@@ -9,7 +9,7 @@ void CUserCharacInfo::setDisguiseCharac(bool flag, unsigned char kind,
 {
     if (m_selected)
     {
-    m_selected->m_fieldEE9 = flag;
+    m_selected->m_disguiseCharac = flag;
     setDisguiseKind(kind);
     setDisguiseIndex(index);
     }

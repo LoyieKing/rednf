@@ -17,24 +17,20 @@ bool CUser::setTagCharacInven(TAG_CHARAC_INVEN_DATA* data)
     // 且 data 值跨接收者调用保活（P52 R2L 形）。旧形 `Inven_Item* invenRaw =
     // getTagCharacInvenW();` 多出 `mov %eax,-0x1c` + 回读 + `lea 0x1c(%eax)` 三处
     // 槽往返（我方独有槽写入，父泳道帧差根因），改内联接收者表达式消除。
-    memcpy(reinterpret_cast<char*>(getTagCharacInvenW()) + 0x1c, data, 0x53e);
+    memcpy(reinterpret_cast<CInventory*>(getTagCharacInvenW())->m_invenItem, data, 0x53e);
     // ORIG：getTagCharacInvenW 在 memcpy/SetClearAvatar(ulong*)/循环内
     // SetClearAvatar(i,idaf) 三处各自重调——访问器结果禁缓存（战术 P183/P48）。
     reinterpret_cast<CInventory*>(getTagCharacInvenW())
         ->SetClearAvatar(reinterpret_cast<unsigned long*>(data->m_clearAvatar));  // +0x3ff8
-    for (int i = 0; i < *reinterpret_cast<int*>(data->m_pad1e43); ++i) {  // +0x1e43 count（未建模）
+    for (int i = 0; i < data->m_avatarCount; ++i) {
         int invenSlot = 0;
-        // [CoBatchB 2026-09-11 常量拆分折叠] ORIG 0x086902e5 `add $0x1e60,%eax` +
-        // 0x086902ea `mov 0xc(%eax),%eax` ⇒ 原码常量分「0x1e60 基址 + +0xc 成员」两段；
-        // 我方 `m_pad1e43 + 0x29` 产两条 add（gap 123-127 = -4 ⇒ 消指令方向）。
-        if (*reinterpret_cast<int*>(reinterpret_cast<char*>(data) + 0x1e60 + i * 0x4b + 0xc) != 0) {
+        if (data->m_avatarDetail[i].m_clearAvatarId != 0) {
             invenSlot = GetItemIdByAddInfo(
                 &data->m_items2[0], 0x69,
-                *reinterpret_cast<int*>(reinterpret_cast<char*>(data) + 0x1e60 + i * 0x4b + 0xc));
+                data->m_avatarDetail[i].m_clearAvatarId);
             for (int j = 0; j < 10; ++j) {
                 if (data->m_items[j].m_addInfo2 ==
-                    // ORIG 0x0869034b `add $0x1e40,%eax` + 0x08690350 `mov 0x7(%eax)`（=+0x1e47）
-                    *reinterpret_cast<int*>(reinterpret_cast<char*>(data) + 0x1e40 + i * 0x4b + 0x7)) {
+                    data->m_avatarDetail[i].m_key) {
                     reinterpret_cast<CInventory*>(getTagCharacInvenW())
                         ->SetClearAvatar(j, invenSlot);
                 }

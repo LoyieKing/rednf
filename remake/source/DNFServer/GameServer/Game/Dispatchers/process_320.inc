@@ -15,7 +15,7 @@ int Dispatcher_SecurityCardAuthRpy::process(CUser* user, MSG_BASE& msg, ParamBas
         return -1;
 
     SecuCardRpyParam& param = static_cast<SecuCardRpyParam&>(paramBase);
-    ScrMsgView& m = *reinterpret_cast<ScrMsgView*>(&msg);
+    MSG_SECU_RPY& m = *reinterpret_cast<MSG_SECU_RPY*>(&msg);
 
     param.m_4 = 0;
     param.m_5 = 0;

@@ -13,17 +13,9 @@ int DisPatcher_Compound::dispatch_sig(CUser* user, PacketBuf& packet)
     // ORIG 0x081eaa5c：三 wire 字段是单 blob（base -0x20：get 传址 `lea -0x20,%eax;
     // add $0xd/11/12`，读 `mov -0x13`/`movzbl -0xf`/`movzwl -0xe` disp 直读）——
     // 单 pack(1) 视图复现（SetIP 同法）。
-    #pragma pack(push, 1)
-    struct CompoundMsgView {
-        char m_head[13];          // +0x00..0x0c
-        unsigned long m_itemId;   // +0x0d（ORIG +0x84 `get_intERm` ulong& 重载实证）
-        unsigned char m_type;     // +0x11
-        unsigned short m_count;   // +0x12
-    };
-    #pragma pack(pop)
     // ORIG blob 基 -0x20；4.4 pack(1) 基 -0x21（1B 对齐缝）、变量级 aligned(4) 反
     // 推远至 -0x24（4 对齐向远离 ebp 取整）——两向均留文本差，取奇基形（帧紧凑）。
-    CompoundMsgView msg;
+    MSG_COMPOUND_ITEM msg;
     if (packet.get_int(msg.m_itemId) != true)
     {
         return LineFunc(0x6c3a,

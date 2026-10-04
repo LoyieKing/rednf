@@ -46,8 +46,7 @@ int CPacketVerifier::UpdatePacket(const _header& hdr)
         m_lastClass = hdr.m_class;
         m_lastId = hdr.m_id;
         // P211：int 具名视图令 RHS 与 int 字段同型 ⇒ 复现 ORIG `mov 0x7(%eax),%edx`。
-        m_lastChecksum =
-            reinterpret_cast<const HeaderChecksumIntView*>(&hdr)->m_checksum;
+        m_lastChecksum = static_cast<int>(hdr.m_checksum);
         m_sameCount = 0;
         m_sameTime = time(0);
     }

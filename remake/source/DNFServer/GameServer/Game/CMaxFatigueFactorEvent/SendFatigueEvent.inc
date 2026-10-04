@@ -3,7 +3,7 @@
 // CLocalChina_User/SendFatigueEvent.md）：
 // GetRepeatEvent(2) → do-while 遍历 m_UserInWorld（循环头 G_GameWorld()+
 // end()+!= 判定，不符即 return）→ state>2 才处理：ev 存在时经 getCurCharacW
-// 写 ch->m_field35（IsEventing(0) ? factor*DEFAULT_MAX_FATIGUE/100 :
+// 写 ch->m_maxFatigue（IsEventing(0) ? factor*DEFAULT_MAX_FATIGUE/100 :
 // DEFAULT_MAX_FATIGUE；ch==0 跳过 premium/SendFatigue 直入 ++it）；
 // IsHavePremiumAdvantage 时按事件是否生效分两路 setCurCharacMaxPremiumFatigue
 // （生效：事件缩放差 + 优惠倍率两段 /100；未生效：当前上限 × 优惠倍率 /100）；
@@ -41,12 +41,12 @@ void CLocalChina_User::SendFatigueEvent()
                     // 试过 P 类旋钮无法翻转，本函数封顶 NEAR。
                     if (ev->IsEventing(0))
                     {
-                        ch->m_field35 = static_cast<unsigned short>(
+                        ch->m_maxFatigue = static_cast<unsigned short>(
                                                         ev->GetMaxFatigueFactor() * DEFAULT_MAX_FATIGUE / 100);
                     }
                     else
                     {
-                        ch->m_field35 =
+                        ch->m_maxFatigue =
                             static_cast<unsigned short>(DEFAULT_MAX_FATIGUE);
                     }
                 }

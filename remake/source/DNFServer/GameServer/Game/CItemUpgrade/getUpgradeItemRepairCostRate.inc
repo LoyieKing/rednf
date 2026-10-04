@@ -19,10 +19,8 @@ float CItemUpgrade::getUpgradeItemRepairCostRate(int idx, bool flag) const
     // dword 下标视图 UPG_TBL_F32（k=idx+0x9a ≡ 字节偏移 (idx+0x9c)*4+4-0xc）。
     if (flag)
     {
-        return reinterpret_cast<const UpgradeRateTableView*>(
-                   GlobalData::s_itemAmplifier_->getUpgradeInfoTable())
-            ->m_rate[idx + 0x9c];
+        return UPG_TBL_F32(GlobalData::s_itemAmplifier_->getUpgradeInfoTable(),
+                           idx + 0x9a);
     }
-    return reinterpret_cast<const UpgradeRateTableView*>(getUpgradeInfoTable())
-        ->m_rate[idx + 0x9c];
+    return UPG_TBL_F32(getUpgradeInfoTable(), idx + 0x9a);
 }

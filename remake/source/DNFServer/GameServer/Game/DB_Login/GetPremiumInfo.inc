@@ -11,7 +11,7 @@ void DB_Login::GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
 
     sig->m_premiumCount = 0;
     sig->m_restrictedGoodsCount = 0;
-    SGFC(unsigned int, sig, 0x394c) = 0;   // ORIG 清零 +0x394c（pad 槽，无具名字段）
+    sig->m_field394c = 0;
 
     // [R16fixCF P13] ORIG 0x08411f71 begin → 0x08411f86 `call vector<tagDNFEventEntry>::end`
     // → 0x08411f8e `jmp 0x08412828`（条件头）⇒ 两迭代器同列 for-init（begin 先、end 后，
@@ -62,7 +62,7 @@ void DB_Login::GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
             if (G_GameWorld()->GetChannelType() == 7)
             {
                 if (it->m_eventId != 0xa029 ||
-                    !dbAccount->get_str(4, SGBC(sig, 0x39b0), 0x1e))
+                    !dbAccount->get_str(4, sig->m_broadcastCharacName, 0x1e))
                 {
                     continue;
                 }
@@ -191,11 +191,10 @@ void DB_Login::GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
                         {
                             break;
                         }
-                        const unsigned int slotOff = (rowIdx + 0x229) * 0x10 + 0x14;
-                        SGFC(unsigned int, sig, slotOff) = it->m_eventId;
-                        SGFC(int, sig, (rowIdx + 0x229) * 0x10 + 8) = preType;
-                        SGFC(int, sig, (rowIdx + 0x229) * 0x10 + 0xc) = svcStart;
-                        SGFC(int, sig, (rowIdx + 0x229) * 0x10 + 0x10) = svcEnd;
+                        sig->m_premiums[rowIdx].m_flag = static_cast<int>(it->m_eventId);
+                        sig->m_premiums[rowIdx].m_type = static_cast<unsigned int>(preType);
+                        sig->m_premiums[rowIdx].m_startTime = static_cast<unsigned int>(svcStart);
+                        sig->m_premiums[rowIdx].m_endTime = static_cast<unsigned int>(svcEnd);
                         rowIdx += 1;
                         unsigned short cnt = sig->m_restrictedGoodsCount;
                         sig->m_restrictedGoods[cnt] = it->m_eventId;

@@ -28,35 +28,15 @@ void Inter_LoadInven::_UpdateDimensionRentalItems(CUser* user,
             InstanceRentalSystem::RentInElem elem;
         for (int i = 0; i <= 0xa; ++i)
         {
-            // [L9-C PATCH#4] ORIG 084c48fe/084c4908/084c4916 为单条 disp 折叠
-            //   （`movzbl 0x4/0x5/0x7(%eax)`）；字节索引在 4.4 恒展开为 `add $0xN,%eax;
-            //   movzbl (%eax)` 两步 ⇒ 改具型视图成员。ORIG 084c4929 的
-            //   `movzbl 0x6(%eax,%edx,8)`（scaled disp）在 4.4 不发 scaled 形
-            //   （/tmp/L9/C/p_scaled.cpp g_member 反证）⇒ 该处保留原索引形（封 N）。
-            struct ExchangeElemViewDim
-            {
-                int m_0;                    // +0x0
-                unsigned char m_4;          // +0x4
-                unsigned char m_5;          // +0x5
-                // [Q5-InterDisp 2026-09-11 真修] 无此 pad 时 `unsigned char m_7` 落在 +0x6
-                //   （自然对齐下 uchar 不需填充）⇒ 本方发 `movzbl 0x6(%eax),%eax`，而
-                //   ORIG 084c4916 是 `movzbl 0x7(%eax),%eax`（m_type 读错一字节）。
-                //   补 pad 后逐条对齐 ORIG：nd 27→25（ORIG 0x084c4858）。
-                unsigned char m_pad6;       // +0x6 未消费
-                unsigned char m_7;          // +0x7
-            };
-            const ExchangeElemViewDim* p = reinterpret_cast<const ExchangeElemViewDim*>(
-                reinterpret_cast<const char*>(sig) + (i + 0x2a7e) * 8);
-            if (p->m_0 == 0)
+            const SIG_SAVE_DIMENSION_RENT_INFO* p = &sig->m_rentDimension.m_entry[i];
+            if (p->m_itemIndex == 0)
                 continue;
-            elem.m_sectionIdx = p->m_4;                 // 084c48fe movzbl 0x4(%eax)
-            elem.m_itemIdx = p->m_5;                    // 084c4908 movzbl 0x5(%eax)
-            elem.m_bEquip = 0;                          // 084c490f movb $0x0,-0x3a(%ebp)
-            elem.m_type = p->m_7;                       // 084c4916 movzbl 0x7(%eax)
-            // 084c4929 movzbl 0x6(%eax,%edx,8); test; je：sig 与 i 重算地址（不复用 p），
-            // 且形态是「置 0 + 条件置 1」而非三元 setne。
-            if (reinterpret_cast<const char*>(sig)[(i + 0x2a7e) * 8 + 6] != 0)
-                elem.m_bEquip = 1;                      // 084c4932 movb $0x1,-0x3a(%ebp)
+            elem.m_sectionIdx = p->m_field4;
+            elem.m_itemIdx = p->m_field5;
+            elem.m_bEquip = 0;
+            elem.m_type = p->m_field7;
+            if (p->m_inEquip != 0)
+                elem.m_bEquip = 1;
             input.m_elems.push_back(elem);
         }
     }

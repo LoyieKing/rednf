@@ -286,6 +286,6 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
                 GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)10));
         skill->GainItemMakingSkillPoint(recipe, this);
     }
-    HistoryLog::WriteComposition((FILE*)m_field796f8, recipe->get_index());
+    HistoryLog::WriteComposition((FILE*)m_historyLogFp, recipe->get_index());
     return 0;
 }

@@ -33,9 +33,7 @@ void _postCheckForceChangeGrowType4AheadQuest(CUser* user, Quest* quest)
                 continue;
             _postCheckForceChangeGrowType4AheadQuest(user, q);
             // ORIG 0x086878f：`mov -0x14,%ebx` 先物化 questIdx，再算 receiver（单语句内联）。
-            reinterpret_cast<WongWork::CQuestClear*>(
-                reinterpret_cast<char*>(user->getCurCharacQuestW()) + 4)
-                ->setClearedQuest((unsigned int)questIdx);
+            user->getCurCharacQuestW()->m_cleared.setClearedQuest((unsigned int)questIdx);
         }
     }
 }

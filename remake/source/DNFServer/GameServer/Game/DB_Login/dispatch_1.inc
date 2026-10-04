@@ -34,7 +34,7 @@ bool DB_Login::dispatch(int userDbIdx, int slot, Stream* stream)
 
     SaveLoginTime(sig->m_accId,
                   sig->m_timeStamp,
-                  SGBC(sig, OFF_LOGIN_IP));
+                  sig->m_blackIpCheckBuf);
     sig->m_punishTradeAlertType = 0;
 
     // ---- 封禁/惩罚检查失败 => 错误码 0xf ----

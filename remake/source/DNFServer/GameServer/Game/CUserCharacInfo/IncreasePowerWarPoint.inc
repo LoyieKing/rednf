@@ -8,9 +8,9 @@ void CUserCharacInfo::IncreasePowerWarPoint(short point)
     {
     enableSaveCharacStat();
     // P254 packed enum 视角：复现 ORIG `movzwl 0x121f(%edx),%edx; mov %edx,%ecx` 两段。
-    m_selected->m_field121f =
-        (EPowerWarPointValue)((int)m_selected->m_field121f + point);
-    if ((short)m_selected->m_field121f > 9999)
-        m_selected->m_field121f = 9999;
+    m_selected->m_powerWarPoint =
+        (EPowerWarPointValue)((int)m_selected->m_powerWarPoint + point);
+    if ((short)m_selected->m_powerWarPoint > 9999)
+        m_selected->m_powerWarPoint = 9999;
     }
 }

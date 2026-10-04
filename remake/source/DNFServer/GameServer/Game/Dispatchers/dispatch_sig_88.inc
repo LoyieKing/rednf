@@ -14,7 +14,7 @@ int Dispatcher_PeerConnectResult::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<short*>(&uniqueId)))
+    if (!packet.get_short(uniqueId))
     {
         return LineFunc(0x9a1f,
                         __PRETTY_FUNCTION__,

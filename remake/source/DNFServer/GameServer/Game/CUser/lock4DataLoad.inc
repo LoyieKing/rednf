@@ -4,6 +4,6 @@ bool CUser::lock4DataLoad()
     //（bool 返回 if() 直判；isLocked4DataLoad 定义置于调用点之后以松帧，CDMSB 技巧）
     if (isLocked4DataLoad())
         return 0;
-    m_field8d0f0 = 1;
+    m_locked4DataLoad = 1;
     return 1;
 }

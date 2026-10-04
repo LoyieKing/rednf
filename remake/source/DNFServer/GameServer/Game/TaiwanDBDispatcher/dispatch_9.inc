@@ -36,7 +36,7 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
         db->set_query(
             "seLect mission from event_hero_mission_data where server_group=%d and charac_no=%u",
             G_CEnvironment()->get_server_group(),
-            reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0);
+            sig->m_field0);
         if (!db->exec(1))
             throw "exec_select";
         Taiwan::SigLoadHeroMissionData data;
@@ -47,7 +47,7 @@ bool DBLoadHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
             db->set_query(
                 "inSert into event_hero_mission_data values(%d,%u,'',now())",
                 G_CEnvironment()->get_server_group(),
-                reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0);
+                sig->m_field0);
             if (!db->exec(1))
                 throw "exec_insert";
             memset(data.m_data, 0, 0x100);

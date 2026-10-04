@@ -14,21 +14,21 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
         return 0;
 
     if (user->get_charac_no(-1) !=
-        pPkt->m_e)          // msg+0x0e characNo
+        pPkt->m_characNo)          // msg+0x0e characNo
         return 0;
 
-    if (pPkt->m_12 != 0xc1)   // 失败结果上报分支
+    if (pPkt->m_result != 0xc1)   // 失败结果上报分支
     {
         user->m_historyLog.GuildCargoCheckPushItemResult(
             (ENUM_GUILD_CARGO_HISTORY_REASON)6,
-            pPkt->m_12,
+            pPkt->m_result,
             pPkt->m_13,
-            pPkt->m_17,
-            pPkt->m_1b,
-            pPkt->m_24,
-            pPkt->m_25);
+            pPkt->m_addInfo,
+            pPkt->m_addInfo2,
+            pPkt->m_itemSpace,
+            pPkt->m_slot);
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfb,
-                                 pPkt->m_12);
+                                 pPkt->m_result);
         return 0;
     }
 
@@ -36,12 +36,12 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
     // （GetInvenTypeFromItemSpace 结果 -0x2c 槽）⇒ 具名 receiver + 具名 invenType。
     const CInventory* invenR = user->getCurCharacInvenR();        // -0x30 槽（ORIG）
     const int invenType = (int)GetInvenTypeFromItemSpace(
-        (ENUM_ITEMSPACE)pPkt->m_24);  // msg+0x24 itemSpace
+        (ENUM_ITEMSPACE)pPkt->m_itemSpace);  // msg+0x24 itemSpace
     Inven_Item item = invenR->GetInvenSlot(invenType,             // -0x71 栈槽
-        (int)pPkt->m_25);    // msg+0x25 slot
+        (int)pPkt->m_slot);    // msg+0x25 slot
 
-    if (pPkt->m_17 == 0 ||
-        item.m_addInfo != pPkt->m_17)   // 客户端槽位核对
+    if (pPkt->m_addInfo == 0 ||
+        item.m_addInfo != pPkt->m_addInfo)   // 客户端槽位核对
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfb, 0xc5);
         return 0;
@@ -77,7 +77,7 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
     }
 
     if (ci->is_stackable() != 0 &&
-        pPkt->m_1b > item.m_addInfo2)   // 堆叠数不足
+        pPkt->m_addInfo2 > item.m_addInfo2)   // 堆叠数不足
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfb, 0xc6);
         return 0;
@@ -94,8 +94,8 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
 
     if (user->getCurCharacInvenW()->delete_item(
             (INVEN_TYPE)item.GetInventoryType(),
-            pPkt->m_25,
-            pPkt->m_1b,
+            pPkt->m_slot,
+            pPkt->m_addInfo2,
             (eItemDelReason)0x22, true) != 1)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfb, 0xc5);
@@ -109,13 +109,13 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
     pck.m_charNo   = (unsigned int)user->getCurCharacNo();        // +0x0e
     // [c3] ORIG 0x084ddcbf..0x084ddcc6：`movzbl 0x23(%eax),%eax; mov %al,-0xaa(%ebp)`
     // （-0xaa = pck+0x1a）⇒ m_itemType 来自 pPkt+0x23（旧形完全缺失）。
-    pck.m_itemType = pPkt->m_23;   // +0x1a
+    pck.m_itemType = pPkt->m_itemType;   // +0x1a
     pck.m_b        = (int)pPkt->m_13;   // +0x12
     pck.m_d        = pPkt->m_1f;   // +0x16
     // [c3] ORIG 0x084ddce4..0x084ddcf6：m_f（+0x51，word）先于 m_e（+0x50，byte），
     // 且紧接 m_d 之后 ⇒ 与下方 item 字段段分开写。
-    pck.m_f = pPkt->m_25;    // +0x51
-    pck.m_e = pPkt->m_24;     // +0x50
+    pck.m_f = pPkt->m_slot;    // +0x51
+    pck.m_e = pPkt->m_itemSpace;     // +0x50
     // [c3] pck.m_item 为真实 DnfItemInfo 成员（头内已字段化）⇒ 逐字段栈常量写
     // （ORIG 0x084ddcf9..0x084ddd53 段为 pck+0x1c/+0x21/+0x25/+0x27/+0x20 直写）。
     pck.m_item.m_itemId     = (unsigned int)item.m_addInfo;       // +0x1c
@@ -131,7 +131,7 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
     // [c3] ORIG 0x084dddb0..0x084dddc1 覆写目标是 pck+0x21（= pckItem.m_addInfo，
     // `mov [ebp-0xa3],eax`；-0xa3 = pck+0x21），非 pck+0x16（m_d 只写一次）。
     if (ci->is_stackable() != 0)                                  // 堆叠件记录申请数
-        pck.m_item.m_addInfo = (unsigned int)pPkt->m_1b;  // +0x21 覆写
+        pck.m_item.m_addInfo = (unsigned int)pPkt->m_addInfo2;  // +0x21 覆写
     else
         pck.m_item.m_addInfo = (unsigned int)item.m_addInfo2;
 

@@ -28,14 +28,10 @@ int Dispatcher_QuickJoinRoom::dispatch_sig(CUser* user, PacketBuf& packet)
             //   +0x0d（movb $1,-0x6c）；两处均常量折叠为 ebp 直接偏移（无 lea）⇒
             //   P183/P30：裸常量下标，不用 packed 视图（视图指针形多发 1 条 lea）。
             // [DispG1/46 负结论 2026-09-11] 实测裸下标形 182→**183**（劣化 1）⇒ 回滚视图形。
-            msgBuf[0x0d] = 1;
-            struct __attribute__((packed)) MsgMakePvPRoomView
-            {
-                char m_pad0[0x2c];
-                unsigned short m_field2c;   // +0x2c
-            };
-            reinterpret_cast<MsgMakePvPRoomView*>(msgBuf)->m_field2c = 1;
-            if (!MakePVPRoom(user, *reinterpret_cast<MSG_MAKE_PVP_ROOM*>(msgBuf),
+            MSG_MAKE_PVP_ROOM& roomMsg = *reinterpret_cast<MSG_MAKE_PVP_ROOM*>(msgBuf);
+            roomMsg.m_field0d = 1;
+            roomMsg.m_field2c = 1;
+            if (!MakePVPRoom(user, roomMsg,
                              (ENUM_CMDPACKET)0x65, (PVP_BATTLE_MODE)2))
             {
                 return 0;

@@ -28,22 +28,8 @@ void CMessageCounter::WriteLog()
     // f2 成员访问 2 条、g1 两条 vs g2 两条直存）⇒ 本函数体改走**函数局部视图
     // 结构体**成员访问（TU 级宏/sig 视图保持不动）：+0 baseSec、+4 count、
     // entries[100] @+8 每 0x14（8+100*0x14 = 0x7d8 与 SIG 视图吻合）。
-    struct SigEntryView
-    {
-        unsigned int m_id;            // +0x00
-        int m_count;                  // +0x04
-        unsigned long long m_bytes;   // +0x08（ORIG 一次 64 位写 0x10/0x14）
-        int m_avgRounded;             // +0x10（fistpl RC=11 截断）
-    };
-    struct SigView
-    {
-        int m_baseSec;                // +0x00
-        int m_count;                  // +0x04
-        SigEntryView m_entries[100];  // +0x08
-    };
-
-    SigView* sig = reinterpret_cast<SigView*>(
-        guard->GetInBuffer<SIG_INSERT_RESPONSE_TIME>());
+    SIG_INSERT_RESPONSE_TIME* sig =
+        guard->GetInBuffer<SIG_INSERT_RESPONSE_TIME>();
 
     int nowSec = GlobalData::s_systemTime_.getCurSec();
     int mod = nowSec % UPDATE_PERIOD;
@@ -64,7 +50,7 @@ void CMessageCounter::WriteLog()
             (unsigned int)it->first.m_size;
         sig->m_entries[sig->m_count].m_count = it->second.m_count;
         sig->m_entries[sig->m_count].m_bytes = it->second.m_bytes;
-        sig->m_entries[sig->m_count].m_avgRounded = (int)it->second.m_avg;
+        sig->m_entries[sig->m_count].m_avg = (int)it->second.m_avg;
         ++sig->m_count;
 
         if (sig->m_count == 100)
@@ -74,8 +60,7 @@ void CMessageCounter::WriteLog()
             guard.Set(GlobalData::s_stream_pool->Acquire("MessageCounter.cpp", 0x7b));
             (*guard)->operator<<(0x26c);
             (*guard)->operator<<(-1);
-            sig = reinterpret_cast<SigView*>(
-                guard->GetInBuffer<SIG_INSERT_RESPONSE_TIME>());
+            sig = guard->GetInBuffer<SIG_INSERT_RESPONSE_TIME>();
             sig->m_baseSec = nowSec;
             sig->m_count = 0;
         }

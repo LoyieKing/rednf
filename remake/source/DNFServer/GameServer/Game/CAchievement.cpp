@@ -127,12 +127,9 @@ struct CTitleBookInfoRaw
 // CDataManager 称号表视图（+0xa788 起，与 CTitleBook.cpp 相同布局）。
 // 宏展开为直接偏移访问：ORIG 汇编为 lea 0xa794/0xa7a0/0xa7c4(%eax)，
 // 若用 static 函数在 O0 下会生成额外 call，导致助记符序列不一致。
-#define GetTitleSections(mgr) \
-    (*(std::vector<stTitleSection>*)((char*)(mgr) + 0xa794))
-#define GetTitleElements(mgr) \
-    (*(std::map<int, std::vector<stTitleElement> >*)((char*)(mgr) + 0xa7a0))
-#define GetAdjustList(mgr) \
-    (*(std::vector<stAdjust>*)((char*)(mgr) + 0xa7c4))
+#define GetTitleSections(mgr) ((mgr)->m_titleBook.m_vecC)
+#define GetTitleElements(mgr) ((mgr)->m_titleBook.m_map18)
+#define GetAdjustList(mgr) ((mgr)->m_titleBook.m_vec3c)
 
 // Quest::m_postalReward（+0x9c）的逐字段视图：ORIG 成就邮件按
 // {标题, 内容, 道具 idx, addInfo} 读取（Quest.h 的 PostalReward 未具名 +0x08）。

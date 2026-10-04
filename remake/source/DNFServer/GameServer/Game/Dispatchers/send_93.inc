@@ -9,9 +9,7 @@
 //      ⇒ put 调用与 ++it 交错、实参取 `de` 结果直传（P0/P183）；
 //   ③ ORIG put_byte(out.m_4) 直传 int（`mov 0x4(%eax),%eax; mov %eax,0x4(%esp)`），
 //      无 `and $0xff` ⇒ 删掩码（P162）。
-#define R9F4_OBU_REWARDS(p)                                                       \
-    (*reinterpret_cast<std::vector<int>*>(                                        \
-        const_cast<char*>(reinterpret_cast<const char*>(&(p))) + 0xc))
+#define R9F4_OBU_REWARDS(p) (const_cast<stObjectBringUp&>(p).m_items)
 void Dispatcher_ObjectBringUp::send(CUser* user, ParamBase& param)
 {
     // [G1-Dispatchers 负结论] 试删具名 `out` 引用改内联 cast 表达式：our 164→162（gap −11→−9）

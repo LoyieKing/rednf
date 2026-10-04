@@ -31,7 +31,7 @@ int _verifyItem(int slot, const Inven_Item* item, INVENTORY_TYPE type,
         if (item->m_field0 != 0 || item->m_field1 != 0 ||
             item->GetItemAttr() != 0 || item->m_addInfo2 != 0 ||
             item->m_fieldb != 0 || item->m_fieldd != 0 ||
-            *(int*)(reinterpret_cast<const char*>(item) + 0x11) != 0)
+            item->m_amp.m_amp0Int != 0)
             return 0x1562;
         return 0;
     }
@@ -47,8 +47,7 @@ int _verifyItem(int slot, const Inven_Item* item, INVENTORY_TYPE type,
             0x156a, 5)("[HaveAccountLog] Invalid item. (mid:%u, charac:%u, item:%u, guid:%s)",
               user->get_acc_id(), user->get_charac_no(-1),
               (unsigned int)item->m_addInfo,
-              print(*(const itemGloballyUniqueIdentifier_t*)(
-                  const void*)(reinterpret_cast<const char*>(item) + 0x15)));
+              print(*reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(&item->m_amp.m_guid)));
     }
 
     const CItem* def = G_CDataManager()->find_item(item->m_addInfo);

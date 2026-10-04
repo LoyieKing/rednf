@@ -382,8 +382,8 @@ bool CDataManager::Verify() const
                 // private：本 TU 无法具名访问（编译实证 2026-09-11 02:45）。
                 // 建议属主把二者提为 public 或加 const getter（零布局影响），
                 // 本件在此之前保持按 ORIG 偏移直读（ORIG 无 mp 具名局部，P0）。
-                const int lvA = *(const int*)((const char*)mon + 0x58);  // 【ORIG asm +0x10de】
-                const int lvB = *(const int*)((const char*)mon + 0x5c);  // 【ORIG asm +0x10db】
+                const int lvA = mon->getIndependentDropCount();
+                const int lvB = mon->getCatchItemCount();
                 if (lvA < 1 || 200 < lvA || lvB < 1 || 200 < lvB)
                 {
                     cMyTrace trace(__PRETTY_FUNCTION__, 0x2808, 9, true, true);

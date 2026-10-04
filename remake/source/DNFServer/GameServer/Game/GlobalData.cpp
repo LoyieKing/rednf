@@ -568,6 +568,12 @@ public:
     char m_pad6[5];    // +0x06..+0x0a（头总长 0xb）
 } __attribute__((packed));
 
+struct tagChannelVerResp : tagPacketHeader
+{
+    int m_first;     // +0x0b
+    char m_text[1];  // +0x0f
+} __attribute__((packed));
+
 #include "GlobalData/SendBuffertoClient.inc"
 
 
@@ -762,7 +768,7 @@ struct tagCS_UPDATE_CHANNEL_INFO
         trace("\t- [ERROR] : cannt open channel_script_version file\n");
         return false;
     }
-    std::fputs(reinterpret_cast<char*>(pVerResp) + 0xf, fp); // ORIG lea 0xf(%eax) on 同一局部槽：头 0xb + first 4
+    std::fputs(reinterpret_cast<tagChannelVerResp*>(pVerResp)->m_text, fp);
     std::fclose(fp);
 
     m_field1c = 0;
@@ -795,7 +801,7 @@ struct tagCS_UPDATE_CHANNEL_INFO
         return false;
     }
     int total = pScriptResp->getSize();
-    std::fwrite(reinterpret_cast<char*>(pScriptResp) + 0xb, 1, total - 0xb, fp);
+    std::fwrite(&reinterpret_cast<tagChannelVerResp*>(pScriptResp)->m_first, 1, total - 0xb, fp);
     std::fclose(fp);
     close(m_sock);
     return true;

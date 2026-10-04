@@ -64,17 +64,17 @@ namespace {
         for (unsigned int i = 0; i < m_tableType; ++i)
         {
             strncpy(W6_RANKER_SLOT(slotIdx).m_memberData[i],
-                    reinterpret_cast<const char*>(members) + i * 0x17, 0x1e);
+                    members[i].m_name, 0x1e);
             // [b28d-solo-W6_RankMailDeps] 数组引用形（`uchar(*)[0x17]` 二维
             //   下标）复现 ORIG `movzbl 0x14(%eax)` disp 读形：探针
             //   /tmp/b28d_w6_probe4.cpp l2 实测 5 条 vs 指针下标 l1 的 7 条
             //   （P30/N4 族，残余 1 条 members 载入差）。
             W6_RANKER_SLOT(slotIdx).m_pad7c[0][i] =
-                reinterpret_cast<const unsigned char(*)[0x17]>(members)[i][0x14];
+                members[i].m_b14;
             W6_RANKER_SLOT(slotIdx).m_pad7c[1][i] =
-                reinterpret_cast<const unsigned char(*)[0x17]>(members)[i][0x15];
+                members[i].m_b15;
             W6_RANKER_SLOT(slotIdx).m_pad7c[2][i] =
-                reinterpret_cast<const unsigned char(*)[0x17]>(members)[i][0x16];
+                members[i].m_b16;
         }
         // asm +0x1af..+0x21b: 写新 stageVal/playTime 并置“有纪录”位=1。
         W6_RANKER_SLOT(slotIdx).m_stage = stageVal;
@@ -130,13 +130,13 @@ namespace {
     for (unsigned int i = 0; i < m_tableType; ++i)
     {
         strncpy(rec.m_memberData[i],
-                reinterpret_cast<const char*>(members) + i * 0x17, 0x1e);
+                members[i].m_name, 0x1e);
         rec.m_pad7c[0][i] =
-            reinterpret_cast<const unsigned char(*)[0x17]>(members)[i][0x14];
+            members[i].m_b14;
         rec.m_pad7c[1][i] =
-            reinterpret_cast<const unsigned char(*)[0x17]>(members)[i][0x15];
+            members[i].m_b15;
         rec.m_pad7c[2][i] =
-            reinterpret_cast<const unsigned char(*)[0x17]>(members)[i][0x16];
+            members[i].m_b16;
     }
     rec.m_stage = stageVal;      // asm -0x198 = record+0x88
     rec.m_playTime = playTime;   // asm -0x194 = record+0x8c

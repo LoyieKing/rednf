@@ -90,7 +90,6 @@ int CUser::getInDungeonItemSellCount(int space, int idx)
     // （K=0x8eb28/4）；成员数组视图 + 常量索引复现。
     // [b28d-solo-CUserOnlyOrig P211档③ 负例] 视图元素 int 化实测反劣（读点 +1 条 `mov %eax,%edx`
     // 异型中转，装载序未翻）⇒ 维持 unsigned（与 m_addInfo 同型）。
-    struct SellCountView { int m_head[2]; unsigned int m_counts[0x23acf]; };
     // [b28d-22 修法 P25] ORIG 0x0868b1a3-0x0868b1c2 条件序列由
     // `while (!(found || 6 < i))` 逐条复现（探针 /tmp/p22g2_f.cpp a/c）；
     // 删 slots 局部（ORIG 每点重算 m_sellCountData，P183）。
@@ -101,7 +100,7 @@ int CUser::getInDungeonItemSellCount(int space, int idx)
         // = scaled 索引；`((int*)char数组)[i]` 在 4.4 恒折 shl+add
         // （旧形 OUR: add $0x8eb28; shl $2; add; mov (%edx)）⇒ 用数组引用视图
         // `reinterpret_cast<int(&)[7]>` 出 ORIG 单条 scaled store/load。
-        if (((SellCountView*)this)->m_counts[i + 0x23ac8] == it->m_addInfo) found = true;
+        if (m_sellCountData[i] == it->m_addInfo) found = true;
         i++;
     }
     if (!found)
@@ -110,7 +109,7 @@ int CUser::getInDungeonItemSellCount(int space, int idx)
         // （`m_counts[0x23ac8 + m_itemSellCount]`，欲令 4.4 走 ORIG 的 `add $0x23ac8,%ecx`）：
         // 实测 **76→76、ndiff 12→12 中性**（差集仍 ORIG-only add:1 / OURS-only lea:1）⇒ 回滚；
         // N107「写点 add↔lea」不可源码择形。
-        ((SellCountView*)this)->m_counts[m_itemSellCount + 0x23ac8] = it->m_addInfo;
+        m_sellCountData[m_itemSellCount] = it->m_addInfo;
         m_itemSellCount = m_itemSellCount + 1;
     }
     // [G6Sub3 2026-09-10 复核判 N 封顶] 76/76、帧 0x28 全等；残差仅 3 处装载序/寻址形：

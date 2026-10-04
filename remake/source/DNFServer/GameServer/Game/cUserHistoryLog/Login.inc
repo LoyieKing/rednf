@@ -2,7 +2,7 @@
 //   扫描背包 invenType=0 槽 10..0x13 统计强化/稀有件、invenType=2 全槽计数、
 //   回归判定 local_60、专家职业等级，输出 "IP+,..." 18 字段行。
 // [b28d-solo-cUserHistoryLog] 裸偏移 *(int*)(charac+0x7b) → 具名
-// _Charac_info::m_field7b（CUser.h:546）复现 ORIG 单条 disp。
+// _Charac_info::m_lastPlayTick（CUser.h:546）复现 ORIG 单条 disp。
 // [SweepHistoryLog2 2026-09-09 翻案 N108/P223] 两循环守卫统一改「单 continue + 正向 if 包裹
 // body」形后 ndiff=0（orig=239/our=239，p167 CLEAR）：
 //   ① `if (it == 0) continue;` 保留 ORIG 的 `je <nop 岛>`（4.4 对该单 continue 恰发 1 条）；
@@ -66,10 +66,10 @@ void cUserHistoryLog::Login(const char* ip, const char* param2, int param3, int 
             ++petCount;
     }
 
-    // +0x7b 处回归用户标记 = _Charac_info::m_field7b（CUser.h:546，int）。
+    // +0x7b 处回归用户标记 = _Charac_info::m_lastPlayTick（CUser.h:546，int）。
     // ORIG 0x08683dxx 单条 `mov 0x7b(%eax),%eax`（具名成员 disp 折叠）；
     // 裸偏移 `*(int*)(char*+0x7b)` 使 4.4 发 `add $0x7b; mov (%eax),%eax` 两步（§4.3 禁裸偏移）。
-    int returnUserFlag = m_user->getCurCharacR()->m_field7b;
+    int returnUserFlag = m_user->getCurCharacR()->m_lastPlayTick;
     // ORIG 先取 GetFirstLogin 落字节槽(-0x39)再判（勿内联 bool 物化）
     unsigned char isFirstLogin = m_user->GetFirstLogin();
     if (returnUserFlag == 0 && isFirstLogin != 0)

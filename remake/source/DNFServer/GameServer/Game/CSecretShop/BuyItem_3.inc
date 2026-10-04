@@ -20,7 +20,7 @@ void CSecretShop::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx, int 
     bool bBuy = rule->BuyItem(user, info, itemIdx, count);
     if (bBuy) {
         if (!info.m_bClear) {
-            m_statistic.RecordBuy(*(int*)user->GetSecretShopData(),
+            m_statistic.RecordBuy(static_cast<secretshop::SECRET_SHOP_DATA*>(user->GetSecretShopData())->m_openCode,
                                   user->getDungeonIdxAfterClear());
             info.m_bClear = 1;
         }

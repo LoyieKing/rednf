@@ -2,14 +2,14 @@ int Inter_SendAllUserInfoMiniumForGuildSystem::dispatch_sig(CUser* user, char* d
 {
     Inter_SendAllUserInfoMiniumForGuildSystemPktView* pPkt = reinterpret_cast<Inter_SendAllUserInfoMiniumForGuildSystemPktView*>(data);
     // ORIG：同 ReplyGuildLetter。
-    if (user->get_charac_no(-1) != pPkt->m_e)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x36e3,
             "Inter_SendAllUserInfoMiniumForGuildSystem::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharId(%d)",
-            user->get_charac_no(-1), pPkt->m_e);   // ORIG 一步装载，同上
+            user->get_charac_no(-1), pPkt->m_characNo);   // ORIG 一步装载，同上
         return 0;
     }
 

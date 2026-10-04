@@ -8,9 +8,9 @@ bool DB_SecurityCardUpdateValidityTime::dispatch(int userIdx, int slot,
 
     db->set_query(
         "upDate member_security_card set validity_time=unix_timestamp(now())+%d where m_id=%s and apply_flag=1",
-        reinterpret_cast<SecurityCardValidityTimeView*>(sig)->m_flag,
+        sig->m_flag,
         NumberToString(
-            reinterpret_cast<SecurityCardValidityTimeView*>(sig)->m_mId, 0));
+            sig->m_mId, 0));
     db->exec(true);
     return 1;
 }

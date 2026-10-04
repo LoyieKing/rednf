@@ -4,9 +4,9 @@
 // ============================================================================
 bool CompareLetter(const SIG_LETTER_INFO& a, const SIG_LETTER_INFO& b)
 {
-    if (((LetterOccView*)&a)->m_occ < ((LetterOccView*)&b)->m_occ)
+    if (a.m_period < b.m_period)
         return 1;
-    if (((LetterOccView*)&a)->m_occ == ((LetterOccView*)&b)->m_occ)
-        return *(const unsigned int*)&a < *(const unsigned int*)&b;
+    if (a.m_period == b.m_period)
+        return a.m_letterId < b.m_letterId;
     return 0;
 }

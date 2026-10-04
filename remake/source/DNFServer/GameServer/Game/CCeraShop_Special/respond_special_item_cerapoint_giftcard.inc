@@ -15,7 +15,7 @@ void SpecialItemHandler::respond_special_item_cerapoint_giftcard(
     (*reinterpret_cast<void (***)(void*, void*, int, int, int, int)>(
         GlobalData::s_pIPGHelper))[3](
         GlobalData::s_pIPGHelper,
-        CERA_PARAM_VALUE_ENUM(param)->m_user,
-        CERA_PARAM_VALUE_ENUM(param)->m_value,
+        static_cast<CUser*>(param.m_user),
+        static_cast<ENUM_CERA_SPECIALITEM>(param.m_value),
         2, 0, 0);
 }

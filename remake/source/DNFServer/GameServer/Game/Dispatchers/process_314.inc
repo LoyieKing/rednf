@@ -21,7 +21,7 @@ int Dispatcher_MailBox_Send::process(CUser* user, MSG_BASE& msg, ParamBase& para
                         out.m_4, user->get_acc_id());
 
     if (req->m_guildKey32 != 0) {                               // ---- 公会邮件分支 ----
-        const int fee = *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CDataManager()) + 0xa624);  // +0xa624 公会邮件费（推断）
+        const int fee = G_CDataManager()->m_guildParameter.m_mail;
         CInventory* invW = user->getCurCharacInvenW();
         invW->use_money(fee, static_cast<eMoneySubReason>(0x16), true);
 
@@ -97,13 +97,13 @@ int Dispatcher_MailBox_Send::process(CUser* user, MSG_BASE& msg, ParamBase& para
             **guard << static_cast<int>(user->GetUID());
             SIG_FIND_FACTORY_HUB* sig = guard->GetInBuffer<SIG_FIND_FACTORY_HUB>();
             memset(sig, 0, 0x24);                               // SIG 总长 0x24（当前头为 pad 视图）
-            *reinterpret_cast<unsigned int*>(sig) = user->get_acc_id();          // +0x00 accId
-            strncpy(reinterpret_cast<char*>(sig) + 4, req->m_name11,
-                    static_cast<size_t>(req->m_nameLenD));                       // +0x04 收件人名
-            *(reinterpret_cast<char*>(sig) + 0x21) = 0;                          // +0x21 疲劳标记清零
+            sig->m_mId = user->get_acc_id();
+            strncpy(sig->m_characName, req->m_name11,
+                    static_cast<size_t>(req->m_nameLenD));
+            sig->m_field21 = 0;
             const int fatigueRoll = get_rand_int(0x14);
             if (fatigueRoll + 0x78 <= static_cast<int>(static_cast<unsigned int>(usedFatigue)))
-                *(reinterpret_cast<char*>(sig) + 0x21) = 1;              // +0x21 疲劳标记
+                sig->m_field21 = 1;
             GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
         }
     }

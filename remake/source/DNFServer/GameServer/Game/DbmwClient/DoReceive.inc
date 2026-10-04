@@ -116,7 +116,17 @@ int DbmwClient::DoReceive()
     // → 存 m_affectedRow(+0x30)，共 14 条）；我方 4.4 把 memcpy 发成 libcall（9 条）。
     // 改为显式指针形后本件 clean 233 = ORIG 233，**gap 归 0**。
     // （残余差仅为 4.1 内联骨架的 4 个指针槽 mov 与槽号，属跨版本 codegen。）
-    unsigned int* pSrc = reinterpret_cast<unsigned int*>(m_recvBuf + 0x12);
-    m_affectedRow = *++pSrc;
+    struct __attribute__((packed)) DbmwRecvView {
+        unsigned char m_b0;
+        unsigned char m_b1;
+        int m_total;
+        int m_z2;
+        int m_z3;
+        int m_z4;
+        unsigned int m_skip;
+        unsigned int m_affected;
+    };
+    DbmwRecvView* recv = reinterpret_cast<DbmwRecvView*>(m_recvBuf);
+    m_affectedRow = static_cast<int>(recv->m_affected);
     return 2;
 }

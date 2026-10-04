@@ -29,8 +29,7 @@ void CHades::GetIP(char* out)
     // jump-thread 合并出口）。
     if (out[0] != '\0')
         goto L1;
-    if (*(char*)((char*)m_user +
-                 ((char*)m_user->m_mcap.m_pcRoomIp - (char*)m_user)) == 0)
+    if (m_user->m_mcap.m_pcRoomIp[0] == 0)
         goto L2;
     memset(out, 0, 0x10);
     strncpy(out, m_user->m_mcap.m_pcRoomIp, 0x10);

@@ -16,8 +16,8 @@ bool DB_GoblinPadUpdateReward::dispatch(int userIdx, int slot, Stream* stream)
                                                   E_SERVER_GROUP_NONE);
     // ORIG 用 GetOutBuffer<SIG_GOBLIN_UPDATE_REWARD>（模板实例符号一致）；
     // View 仅作字段访问视图（reinterpret_cast 保留，布局 +0x18 相同）。
-    DB_GoblinPadUpdateRewardView* sig =
-        reinterpret_cast<DB_GoblinPadUpdateRewardView*>(
+    SIG_GOBLIN_UPDATE_REWARD* sig =
+        /*SIG_GOBLIN_UPDATE_REWARD*/(
             stream->GetOutBuffer<SIG_GOBLIN_UPDATE_REWARD>());
     db->set_query(
         "seLect mousepass from member_mousepass where m_id=%s",

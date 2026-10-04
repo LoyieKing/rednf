@@ -4,8 +4,8 @@
 // 全部成功返 1。
 bool DB_HackIPSave::dispatch(int userIdx, int slot, Stream* stream)
 {
-    DB_HackIPSaveView* sig =
-        (DB_HackIPSaveView*)stream->GetOutBuffer<SIG_HACK_IP_SAVE>();
+    SIG_HACK_IP_SAVE* sig =
+        stream->GetOutBuffer<SIG_HACK_IP_SAVE>();
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
     db->set_query(
         "upDate auto_punish_hack_ip set cnt = cnt+1 where occ_date = CAST(DATE_FORMAT(now(), '%%Y-%%m-%%d') AS CHAR) and hack_type = %d and hack_sub_type = %d and c_class_ip = '%s'",

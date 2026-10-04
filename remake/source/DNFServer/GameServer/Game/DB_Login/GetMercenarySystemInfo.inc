@@ -46,8 +46,6 @@ bool DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
     // m_slots=0xe0（0xe0%4==0）。
     // ORIG `movzwl 0xa8e0(%eax),%eax`（G_CDataManager 等级字段直 disp）——裸偏移形产
     // `add $0xa8e0,%eax; movzwl (%eax)`（+1 条）。
-    struct CDataMgrLevelView { char m_pad[0xa8e0]; short m_level; };
-
     // [P0/P212 去槽·ORIG 直证] ORIG 0x08415670/0x08415677 `movl $0x0,-0x54(%ebp);
     // movl $0x0,-0x58(%ebp)` 在函数入口（for 之前）清零 ⇒ gotSlot/itemId 原码是
     // **函数头声明**（非循环体内声明），槽 -0x54/-0x58；旧循环内声明令两槽下沉到
@@ -79,7 +77,7 @@ bool DB_Login::GetMercenarySystemInfo(SIG_LOGIN_DATA* sig)
         // P0 合规）使 4.4 直落 %ebx。实测无效即回退。
         register unsigned short slotLevel = sig->m_characView.m_slots[i].m_level;
         if ((short)slotLevel >=
-            (short)reinterpret_cast<CDataMgrLevelView*>(G_CDataManager())->m_level)
+            (short)G_CDataManager()->m_mercenarySystem.m_field4)
         {
             // P183：ORIG 每次使用均由 sig 重新展开 charac_no（sig+0xe0 视图）与
             // mercenary 基址，禁具名缓存。

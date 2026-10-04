@@ -40,7 +40,7 @@ bool CBuyItembyGold::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
     SendSecretShopBuyItem(user, slot, item, -1, 0, remain);
     LogValueStatistic(user, total);
     info.m_shopper.BuyItem(itemIdx, count);
-    m_pStatistic->RecordPrice(*(int*)user->GetSecretShopData(),
+    m_pStatistic->RecordPrice(static_cast<secretshop::SECRET_SHOP_DATA*>(user->GetSecretShopData())->m_openCode,
                               user->getDungeonIdxAfterClear(), total);
     return 1;
 }

@@ -8,10 +8,10 @@ int Inter_LoadBreakAwayPreventMessage::dispatch_sig(CUser* user, char* data, int
         return 0;
 
     // ORIG：包基址在 user 判空后物化入 -0x14(%ebp)
-    Inter_LoadBreakAwayPreventMessagePktView* pPkt = reinterpret_cast<Inter_LoadBreakAwayPreventMessagePktView*>(data);
-    const int state = pPkt->m_4;      // msg+0x4
+    SIG_BREAK_AWAY_PREVENT_MESSAGE* msg = reinterpret_cast<SIG_BREAK_AWAY_PREVENT_MESSAGE*>(data);
+    const int state = msg->m_rewardOrder;      // msg+0x4
     const unsigned int questTime =                             // msg+0x0
-        pPkt->m_0;
+        msg->m_nextRewardTime;
     if (state == 0 || state == 2)
     {   // 活动开启
         PacketGuard packet;

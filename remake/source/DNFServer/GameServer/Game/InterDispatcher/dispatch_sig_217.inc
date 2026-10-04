@@ -12,7 +12,7 @@ int Inter_VillageAttackedCountdown::dispatch_sig(CUser* /*user*/, char* data, in
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0xf1);
-    packet.put_int(pPkt->m_a);
+    packet.put_int(pPkt->m_remain);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;

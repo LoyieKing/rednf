@@ -18,14 +18,14 @@ int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BAS
     {
         return 0xd5;
     }
-    if (*reinterpret_cast<int*>(
-            static_cast<unsigned char*>(user->getGrowthWeaponEventdata()) + 0x04) !=
-        user->get_charac_no(-1))                                    // P48 无 CSE：每字段重调
+    if (static_cast<int>(
+            static_cast<GrowthWeaponEvent*>(user->getGrowthWeaponEventdata())->m_field4) !=
+        user->get_charac_no(-1))
     {
         return 3;
     }
-    if (*reinterpret_cast<int*>(
-            static_cast<unsigned char*>(user->getGrowthWeaponEventdata()) + 0x0c) != 0)
+    if (static_cast<int>(
+            static_cast<GrowthWeaponEvent*>(user->getGrowthWeaponEventdata())->m_fieldc) != 0)
     {
         return 3;
     }
@@ -38,15 +38,14 @@ int Dispatcher_GrowthWeaponEventChangeInfinity::check_error(CUser* user, MSG_BAS
     else
     {
         // ORIG *(int*)(G_CEnvironment()+0x378)（SPremiumInfo.h:33 同址证据：目标服务器代码）
-        serverGroup = *reinterpret_cast<int*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x378);
+        serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
     }
-    if ((int)*reinterpret_cast<short*>(
-            static_cast<unsigned char*>(user->getGrowthWeaponEventdata()) + 0x12) != serverGroup)
+    if ((int)static_cast<GrowthWeaponEvent*>(user->getGrowthWeaponEventdata())->m_field12
+        != serverGroup)
     {
         return 3;
     }
-    if (*reinterpret_cast<short*>(
-            static_cast<unsigned char*>(user->getGrowthWeaponEventdata()) + 0x10)
+    if (static_cast<GrowthWeaponEvent*>(user->getGrowthWeaponEventdata())->m_field10
         < (short)G_CDataManager()->get_GrowthWeaponMaterialMax())
     {
         return 0x11;

@@ -6,6 +6,6 @@ bool GetCharacterJob(CUser& user, char& outJob)
     {
         return false;
     }
-    outJob = cur->m_field26;  // job 字节（+0x26）
+    outJob = cur->m_job;  // job 字节（+0x26）
     return true;
 }

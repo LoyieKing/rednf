@@ -24,31 +24,25 @@ void CBattle_Field::reset_hell_party_value()
     // 4.4 恒折 ⇒ P30/N4 族（4.1 与 4.4 成员常量偏移寻址拆分差异），封顶。
 
     // —— 固定比例字段 ——
-    m_hellPartyRatio0 = static_cast<stHellParty_t*>(
-        G_CDataManager()->get_hellparty_script_values())->m_maxBaseValue;    // +0x1e8
-    m_hellPartyRatio1 = static_cast<stHellParty_t*>(
-        G_CDataManager()->get_hellparty_script_values())->m_minBaseValue;    // +0x1ec
-    m_hellPartyRatio3 = static_cast<stHellParty_t*>(
-        G_CDataManager()->get_hellparty_script_values())->m_baseRisingValue; // +0x1f4
-    m_hellPartyRatio4 = static_cast<stHellParty_t*>(
-        G_CDataManager()->get_hellparty_script_values())->m_subBaseRates / 10000.0f;     // +0x1f8
-    m_hellPartyRatio5 = static_cast<stHellParty_t*>(
-        G_CDataManager()->get_hellparty_script_values())->m_passSubBaseRates / 10000.0f; // +0x1fc
-    m_hellPartyScriptRate = static_cast<stHellParty_t*>(
-        G_CDataManager()->get_hellparty_script_values())->m_ancientDungeonAddRate / 10000.0f; // +0x234
+    m_hellPartyRatio0 = G_CDataManager()->get_hellparty_script_values()->m_maxBaseValue;    // +0x1e8
+    m_hellPartyRatio1 = G_CDataManager()->get_hellparty_script_values()->m_minBaseValue;    // +0x1ec
+    m_hellPartyRatio3 = G_CDataManager()->get_hellparty_script_values()->m_baseRisingValue; // +0x1f4
+    m_hellPartyRatio4 = G_CDataManager()->get_hellparty_script_values()->m_subBaseRates / 10000.0f;     // +0x1f8
+    m_hellPartyRatio5 = G_CDataManager()->get_hellparty_script_values()->m_passSubBaseRates / 10000.0f; // +0x1fc
+    m_hellPartyScriptRate = G_CDataManager()->get_hellparty_script_values()->m_ancientDungeonAddRate / 10000.0f; // +0x234
 
     // —— m_hellPartyDungeonRate[4]（+0x200）= m_levelDiffRates[i]/10000 ——
     for (int i = 0; i < 4; ++i)
-        m_hellPartyDungeonRate[i] = reinterpret_cast<stHellPartyRateSrcView8*>(
-            G_CDataManager()->get_hellparty_script_values())->m_rates[i + 4] / 10000.0f;
+        m_hellPartyDungeonRate[i] = G_CDataManager()->get_hellparty_script_values()
+            ->m_levelDiffRates[i] / 10000.0f;
 
     // —— m_hellPartyMapRate[5]（+0x210）= m_difficultyRates[i]/10000 ——
     for (int i = 0; i < 5; ++i)
-        m_hellPartyMapRate[i] = reinterpret_cast<stHellPartyRateSrcView8*>(
-            G_CDataManager()->get_hellparty_script_values())->m_rates[i + 8] / 10000.0f;
+        m_hellPartyMapRate[i] = G_CDataManager()->get_hellparty_script_values()
+            ->m_difficultyRates[i] / 10000.0f;
 
     // —— m_hellPartyItemRate[4]（+0x224）= m_partyRates[i]/10000 ——
     for (int i = 0; i < 4; ++i)
-        m_hellPartyItemRate[i] = reinterpret_cast<stHellPartyRateSrcViewC*>(
-            G_CDataManager()->get_hellparty_script_values())->m_rates[i + 0xc] / 10000.0f;
+        m_hellPartyItemRate[i] = G_CDataManager()->get_hellparty_script_values()
+            ->m_partyRates[i] / 10000.0f;
 }

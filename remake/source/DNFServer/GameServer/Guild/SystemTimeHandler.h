@@ -6,14 +6,6 @@
 
 #include "PacketHeader.h"
 
-class CommonTime;
-
-// from GuildMisc.h
-class CommonTime
-{
-public:
-    void SetCurTime();
-    char m_time[6];
-};
+#include "../CommonTime.h"
 
 #endif

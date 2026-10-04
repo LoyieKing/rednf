@@ -73,7 +73,7 @@ bool CCreatureMgr::GetCreatureItem(SIG_LOAD_INVENTORY* sig) const
             //   旧形 `sig->m_creature[count]`（成员地址先算 base+0x12880 再 +索引）
             //   使 4.4 产 base-first + %ebx 缓存（多 3 条/处 ×2）。
             reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
-                reinterpret_cast<char*>(sig) + (count * 0x38 + 0x12880)),
+                &sig->m_creature[count * 0x38]),
             m_user);
         // ORIG 每轮两次 operator->（P167 差集：ptEv 少 1）——getExpireTime 经
         // 第二次 it->second 取，勿复用上面缓存的 item 指针。
@@ -86,7 +86,7 @@ bool CCreatureMgr::GetCreatureItem(SIG_LOAD_INVENTORY* sig) const
         //    lea (%ebx,%edx,1),%eax; add $0x128a8,%eax; mov %ecx,(%eax)`
         //   （+0x28 由 add 到元素基址 ⇒ 与旋钮①同形）。
         reinterpret_cast<SIG_CREATURE_ITEM_DETAIL_INFO*>(
-            reinterpret_cast<char*>(sig) + (count * 0x38 + 0x12880))->m_expireTime =
+            &sig->m_creature[count * 0x38])->m_expireTime =
             it->second->getExpireTime();  // 条目 +0x28
         // P167：第一个 map 的 ORIG 增量段是前置 ppEv（第二个 map 才是 ppEi）。
         ++it;

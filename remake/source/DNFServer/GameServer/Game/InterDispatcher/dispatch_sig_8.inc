@@ -3,8 +3,8 @@ int Inter_LoadQuest::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (user->get_state() == 0)
         return 0x1a13;
     // ORIG 0x084c5079：pPkt 在 state 岛后才物化 -0x10（技巧13 声明位置）。
-    Inter_LoadQuestPktView* pPkt = reinterpret_cast<Inter_LoadQuestPktView*>(data);
-    if (pPkt->m_4 == 1)
+    SIG_LOAD_QUEST* load = reinterpret_cast<SIG_LOAD_QUEST*>(data);
+    if (load->m_field04 == 1)
         return 0x1a1a;
     if (user->getCurCharacR() == 0)
         return 0x1a1d;
@@ -12,7 +12,7 @@ int Inter_LoadQuest::dispatch_sig(CUser* user, char* data, int /*len*/)
     // ORIG 0x084c50bd：questR 具名槽 -0xc（+0xc3 先物化 pPkt 实参、+0xc7 槽装 this）。
     UserQuest* questR = user->getCurCharacQuestR();
     questR->set_quest(
-        reinterpret_cast<const SIG_LOAD_QUEST*>(pPkt));
+        load);
 
     if (GlobalData::s_timeGate_->isOpen())
     {

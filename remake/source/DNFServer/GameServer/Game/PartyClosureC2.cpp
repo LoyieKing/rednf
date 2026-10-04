@@ -12,6 +12,7 @@
 //     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
 
+#include "CStatisticMgr.h"
 #include <map>
 #include <string.h>
 #include <utility>

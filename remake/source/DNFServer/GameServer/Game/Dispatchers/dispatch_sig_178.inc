@@ -39,7 +39,7 @@ int Dispatcher_AradAvatarConvert::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         return 0x76d;
     }
-    if (packet.get_short(*reinterpret_cast<unsigned short*>(&sig.m_slot)) != 1)
+    if (packet.get_short(sig.m_slot) != 1)
     {
         return 0x771;
     }

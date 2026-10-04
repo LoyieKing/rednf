@@ -75,7 +75,7 @@ char* getList2inQuery(unsigned int* list, char* out)
             // 报告 +0xdb：透传区内标题串（区无字段化证据）。等价于 m_payload+0xaa
             // （m_payload@+0x31）；P319 整型加法形复现 ORIG 0x0843bb71 两步
             // `add $0xdb,%eax; mov %eax,%ecx`（数组退化在 4.4 恒折单条 lea）。
-            (const char*)((unsigned int)sig + 0xdb),
+            sig->m_title,
             sig->m_letterId,                   // +0x3fbd int&（0843bb65 lea；InsertLetter Ri）
             t, LETTER_STAT_NONE))
     {

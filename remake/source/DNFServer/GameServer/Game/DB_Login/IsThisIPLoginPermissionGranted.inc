@@ -4,7 +4,7 @@ bool DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
     unsigned int allowCnt = 0;
     sig->m_geoAllowSkipFlag = false;                 // +0xb5
     db->set_query("seLect count(*) from geo_allow where allow_ip = '%s'",
-                  SGBC(sig, OFF_LOGIN_IP));
+                  sig->m_blackIpCheckBuf);
     if (!db->exec(true))
     {
         // [b28d-solo-DB_Login] P221/P227：兄弟块三 trace 全表达式临时链复现 ORIG
@@ -29,7 +29,7 @@ bool DB_Login::IsThisIPLoginPermissionGranted(SIG_LOGIN_DATA* sig)
     }
     db->set_query("insert into member_join_info(m_id, reg_date, ip) values(%d, now(), '%s')",
                   sig->m_accId,
-                  SGBC(sig, OFF_LOGIN_IP));
+                  sig->m_blackIpCheckBuf);
     if (!db->exec(true))
     {
         cMyTrace(__PRETTY_FUNCTION__, 0xbc63, 5)(

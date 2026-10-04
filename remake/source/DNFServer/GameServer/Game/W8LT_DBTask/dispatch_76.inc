@@ -9,10 +9,10 @@ bool DB_UpdateCoolTimeItem::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
-    DB_ContinuousItemStatView* sig =
-        (DB_ContinuousItemStatView*)
+    SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO* sig =
+        
         stream->GetOutBuffer<SIG_SAVE_AND_LOAD_CONTINUOUS_ITEM_INFO>();
-    char* blob = db->blob_to_str(0, sig->m_itemData, 0x194);
+    char* blob = db->blob_to_str(0, reinterpret_cast<char*>(&sig->m_info), 0x194);
     db->set_query(
         "upDate charac_item_stat set cooltime_item='%s' where charac_no=%u",
         blob, sig->m_characNo);

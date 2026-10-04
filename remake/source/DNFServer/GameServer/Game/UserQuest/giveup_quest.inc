@@ -15,12 +15,11 @@ int UserQuest::giveup_quest(int questIdx)
                     }
                     if (m_user->get_state() == 5)
                     {
-                        void* party = m_user->GetParty();
+                        CParty* party = m_user->GetParty();
                         if (party != 0)
                         {
-                            void* maze = reinterpret_cast<CBattle_Field*>(static_cast<char*>(party) + 0xb24)->getMaze();
-                            if (maze != 0 &&
-                                reinterpret_cast<MazeQuestView*>(maze)->m_questIdx == questIdx)
+                            MazeScript* maze = party->m_battleField.getMaze();
+                            if (maze != 0 && maze->m_questIdx == questIdx)
                             {
                                 return 0x14;
                             }

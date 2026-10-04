@@ -23,9 +23,9 @@ bool DBSaveHeroMissionEventData::dispatch(int code, int uid, Stream* stream)
         // esi/ebx 寄存器流转、无 serverGroup/characNo/blob 具名槽，帧 0x30）。
         db->set_query(
             "upDate event_hero_mission_data set mission='%s' where server_group=%d and charac_no=%u",
-            db->blob_to_str(0, reinterpret_cast<SigHeroMissionDataView*>(sig)->m_data, 0x100),
+            db->blob_to_str(0, sig->m_data, 0x100),
             G_CEnvironment()->get_server_group(),
-            reinterpret_cast<SigHeroMissionDataView*>(sig)->m_field0);
+            sig->m_characNo);
         if (!db->exec(1))
             throw "exec_update";
         return 1;

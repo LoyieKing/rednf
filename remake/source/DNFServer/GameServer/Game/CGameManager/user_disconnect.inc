@@ -21,7 +21,7 @@ void CGameManager::user_disconnect(CUser* user)
             "USER DISCONNECT [%s][%d]", __PRETTY_FUNCTION__, 0x138b);
         return;
     }
-    HistoryLog::LogClose((FILE*)user->m_field796f8);
+    HistoryLog::LogClose((FILE*)user->m_historyLogFp);
     // ORIG 0x08298bbb：`test %eax,%eax; sete %al; test %al,%al; jne 08298dbc`（08298dbc
     // 为 nop 空岛）——4.1 对 != 的 sete 物化形；4.4 对 if(!=0) 恒产 setne+je。
     // 用 while(x==0){return;} 复现 sete+jne 物化与尾 nop 岛（P225）。

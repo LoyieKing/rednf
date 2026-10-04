@@ -13,12 +13,12 @@ bool DB_SecurityCardDisuse::dispatch(int /*userIdx*/, int /*slot*/,
     db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                            E_SERVER_GROUP_NONE);
     sig = stream->GetOutBuffer<SIG_SECURITY_CARD_DISUSE>();
-    turnOffSecurityFlag(db, ((SecuDisuseView*)sig)->m_id);
+    turnOffSecurityFlag(db, sig->m_mId);
     db->set_query(
         "upDate member_security_card set apply_flag=0 where m_id=%s",
-        NumberToString(((SecuDisuseView*)sig)->m_id, 0));
+        NumberToString(sig->m_mId, 0));
     db->exec(true);
-    saveSecurityCardHistory(db, ((SecuDisuseView*)sig)->m_id,
+    saveSecurityCardHistory(db, sig->m_mId,
                             ENUM_SECURITYCARD_MOD_TYPE_DISUSE);
     return 1;
 }

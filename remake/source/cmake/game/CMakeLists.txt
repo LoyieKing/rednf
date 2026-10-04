@@ -1188,8 +1188,9 @@ dnf_service(game
         #   BN_*/RSA_*/PEM_*/BIO_* 这些 C 符号由真库满足；yaSSL 里的同名 C 兼容符号由
         #   --allow-multiple-definition 容忍但不会被选中（此前两者混用 = RSA/BIGNUM 布局
         #   错位 ⇒ 首个登录包 SIGSEGV 的根因）。静态链入 ⇒ 不新增 DT_NEEDED，与 ORIG 一致。
-        ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/libcrypto32/lib/libcrypto.so.3
-        -Wl,-rpath-link,/home/loyieking/dnf_workspace/dnf_remake/source/toolchains/libcrypto32/lib
+        ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/libcrypto32/lib/libcrypto.a
+        # OpenSSL3 static needs ZSTD/secure_getenv stubs on C6-era link (verify already uses this .o)
+        ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/libcrypto32/stub/openssl3_c6_shim.o
         -Wl,--whole-archive
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/mysqlclient/libmysqlclient.a
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/yassl/libyassl.a

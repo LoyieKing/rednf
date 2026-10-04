@@ -1,4 +1,4 @@
 signed char CUserCharacInfo::getCurCharacVillPrev() const
 {
-    return m_selected ? m_selected->m_field25 : 0;
+    return m_selected ? m_selected->m_villPrev : 0;
 }

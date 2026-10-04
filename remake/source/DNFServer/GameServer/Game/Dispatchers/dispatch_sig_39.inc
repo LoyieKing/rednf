@@ -16,57 +16,45 @@ int Dispatcher_AssertManager::dispatch_sig(CUser* user, PacketBuf& packet)
     // `lea -0x21c(%ebp); add $0xe`（两步）⇒ 原码是**完整类型具名成员**访问。权威头
     // （Packet_Assert_Manager_Info.h）只有 m_data，故在本块内定义同布局 packed 视图
     // 并逐点就地 cast（零额外槽；不改 .h）。
-    struct AssertMgrView
-    {
-        char m_pad00[0xa];
-        int m_category;        // +0x0a
-        char m_desc[0x100];    // +0x0e
-        unsigned short m_f10e; // +0x10e
-        int m_f110;            // +0x110
-        char m_detail[0x100];  // +0x114
-    } __attribute__((packed));
-    if (!packet.get_int(*reinterpret_cast<int*>(
-            reinterpret_cast<char*>(&header) + 0xa)))
+    if (!packet.get_int(header.m_category))
     {
         return LineFunc(0xd275, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (((AssertMgrView*)&header)->m_category > 0xff)
+    if (header.m_category > 0xff)
     {
         return LineFunc(0xd279, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (!packet.get_binary(((AssertMgrView*)&header)->m_desc,
-                           ((AssertMgrView*)&header)->m_category))
+    if (!packet.get_binary(header.m_desc,
+                           header.m_category))
     {
         return LineFunc(0xd27a, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(
-            reinterpret_cast<char*>(&header) + 0x10e)))
+    if (!packet.get_short(header.m_f10e))
     {
         return LineFunc(0xd27d, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (!packet.get_int(*reinterpret_cast<int*>(
-            reinterpret_cast<char*>(&header) + 0x110)))
+    if (!packet.get_int(header.m_f110))
     {
         return LineFunc(0xd27f, __PRETTY_FUNCTION__, 0, 0);
     }
     // ORIG 段直证：两处判断各自重读 `mov -0x10c(%ebp),%eax`（无具名中间量）。
-    if (((AssertMgrView*)&header)->m_f110 > 0xff ||
-        ((AssertMgrView*)&header)->m_f110 < 0)
+    if (header.m_f110 > 0xff ||
+        header.m_f110 < 0)
     {
         return LineFunc(0xd280, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (((AssertMgrView*)&header)->m_f110 > 0)
+    if (header.m_f110 > 0)
     {
         if (!packet.get_binary(
-                ((AssertMgrView*)&header)->m_detail,
-                ((AssertMgrView*)&header)->m_f110))
+                header.m_detail,
+                header.m_f110))
         {
             return LineFunc(0xd283, __PRETTY_FUNCTION__, 0, 0);
         }
     }
     else
     {
-        memset(((AssertMgrView*)&header)->m_detail, 0, 0x100);
+        memset(header.m_detail, 0, 0x100);
     }
     // ORIG 0821e42e..0x0821e460：`lea -0x21c,%ebx`（&header 保活）→ ServerGroup →
     // GetServerProxy 链式 receiver（无 proxy 具名槽）。

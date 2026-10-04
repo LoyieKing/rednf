@@ -10,11 +10,11 @@ bool DB_UpdateItemLock::dispatch(int userIdx, int slot, Stream* stream)
     static const int handleIdx = 3;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   E_SERVER_GROUP_NONE);
-    DB_UpdateItemLockView* sig =
-        (DB_UpdateItemLockView*)stream->GetOutBuffer<SIG_ITEM_LOCK_UPDATE>();
+    SIG_ITEM_LOCK_UPDATE* sig =
+        stream->GetOutBuffer<SIG_ITEM_LOCK_UPDATE>();
     char buf[0x3cc] = { 0 };
     unsigned int bufLen = 0x3cc;
-    if (!compress_zip(buf, bufLen, sig->m_lockData, 800))
+    if (!compress_zip(buf, bufLen, (char*)sig->m_locks, 800))
         return 0;
     {
         // register 局部直落 %ebx（ORIG +0x91 `mov (%eax),%ebx` 免中转拷贝）。

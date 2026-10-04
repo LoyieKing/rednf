@@ -5,7 +5,7 @@ int Inter_MonitorNoticeDeleteMemberId::dispatch_sig(CUser* user, char* data, int
 
     // ORIG：包基址唯一槽 -0x10(%ebp)（get_state 检查后物化）
     Inter_MonitorNoticeDeleteMemberIdPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeDeleteMemberIdPktView*>(data);
-    if (user->get_charac_no(-1) != pPkt->m_e)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {   // m_uCharID 不匹配 → 日志后退出
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -13,7 +13,7 @@ int Inter_MonitorNoticeDeleteMemberId::dispatch_sig(CUser* user, char* data, int
             0x296d,
             "MEMBER : Inter_MonitorNoticeDeleteMemberId::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            pPkt->m_e);
+            pPkt->m_characNo);
         return 0;
     }
 

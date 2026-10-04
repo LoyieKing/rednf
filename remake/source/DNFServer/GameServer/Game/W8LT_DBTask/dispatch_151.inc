@@ -37,23 +37,23 @@ bool DB_InsertResponseTime::dispatch(int /*userIdx*/, int /*slot*/, Stream* stre
     struct tm tmBuf;                // -0x64
     char rowBuf[0xff] = { '\0' };   // -0x163（ORIG 255 字节带对齐分支 rep stos）
     i = 0;
-    while (i <= 99 && i < ((DB_ResponseTimeSigView*)sig)->m_count)
+    while (i <= 99 && i < sig->m_count)
     {
         if (!values.empty())
             values += ",";
         // ORIG 行字段逐次重读（P48 无 CSE）；%llu 直接读 8 字节（低字先行）。
         sprintf(rowBuf, "(%d,from_unixtime(%d),%u,%u,%llu,%u)",
                 G_CEnvironment()->get_channel_no(),
-                ((DB_ResponseTimeSigView*)sig)->m_baseSec,
-                ((DB_ResponseTimeSigView*)sig)->m_entries[i].m_id,
-                ((DB_ResponseTimeSigView*)sig)->m_entries[i].m_count,
+                sig->m_baseSec,
+                sig->m_entries[i].m_id,
+                sig->m_entries[i].m_count,
                 *(unsigned long long*)&
-                    ((DB_ResponseTimeSigView*)sig)->m_entries[i].m_bytesLow,
-                ((DB_ResponseTimeSigView*)sig)->m_entries[i].m_avg);
+                    sig->m_entries[i].m_bytesLow,
+                sig->m_entries[i].m_avg);
         values += rowBuf;
         ++i;
     }
-    occTime = (time_t)((DB_ResponseTimeSigView*)sig)->m_baseSec;
+    occTime = (time_t)sig->m_baseSec;
     localtime_r(&occTime, &tmBuf);
     strftime(monthBuf, 10, "%Y%m", &tmBuf);
     db->set_query(

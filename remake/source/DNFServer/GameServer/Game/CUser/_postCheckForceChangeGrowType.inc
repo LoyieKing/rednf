@@ -59,8 +59,7 @@ void _postCheckForceChangeGrowType(CUser* user, int firstGrow, int secondGrow)
 HIT:
         _postCheckForceChangeGrowType4AheadQuest(user, quest);
         // ORIG 0x8668939：getCurCharacQuestW()+0x4 → CQuestClear::setClearedQuest(idx)
-        ((WongWork::CQuestClear*)((char*)user->getCurCharacQuestW() + 4))
-            ->setClearedQuest((unsigned int)quest->m_index);
+        user->getCurCharacQuestW()->m_cleared.setClearedQuest((unsigned int)quest->m_index);
     }
 
     // ORIG 0x8668984：PacketGuard → getCurCharacQuestR()->get_quest_info(pg) → Send

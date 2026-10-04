@@ -36,7 +36,7 @@ bool DB_SaveCharacterOption::dispatch(int userIdx, int slot, Stream* stream)
     // 覆写形（技巧26 blob 指针），且评估晚于 len spill ⇒ 数组 decay
     // (`lea 0x4(%eax)`) 会把装载提前。
     char* options = db->blob_to_str(
-        0, (char*)((unsigned int)sig + 4u), len);
+        0, ((SIG_CHARACTER_OPTION*)sig)->m_options, len);
     db->set_query("upDate charac_option set options = '%s' where charac_no= %u",
                   options, ((SIG_CHARACTER_OPTION*)sig)->m_characNo);
     if (!(db->exec(true) == 1 && db->getAffectedRowCount() != 0))

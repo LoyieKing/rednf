@@ -65,7 +65,7 @@ bool CUser::reqSendMailCertify()   // [b28d-Main·P292] unsigned int→bool
     Send(packet);
 
     setHumanCertified(false);
-    m_field8e3ed = false;
+    m_sendMailCertified = false;
 
     if (static_cast<unsigned int>(m_humanCertifyTimerKey) > 0x7ffffffeu)
     {

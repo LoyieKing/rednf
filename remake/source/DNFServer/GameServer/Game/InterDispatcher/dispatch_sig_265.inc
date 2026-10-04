@@ -8,7 +8,7 @@ int Inter_AchieveGuildAttendance::dispatch_sig(CUser* user, char* data, int /*le
 
     // ORIG 0x084e4214 `mov 0xa(%eax),%ebx`：register 直落 callee-saved（cmp 方向 N22）。
     register int charIdMsg =                           // recv charId @ msg+0xa
-        pPkt->m_a;
+        pPkt->m_characNo;
     if (charIdMsg != user->getCurCharacNo())
         return 0;
 

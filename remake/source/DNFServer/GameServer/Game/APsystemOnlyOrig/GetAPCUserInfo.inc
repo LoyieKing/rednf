@@ -137,7 +137,7 @@ bool DB_TOD_Reset_UserAPC::GetAPCUserInfo(_APCInfo& info)
                            (unsigned int)binLen))
         {
             info.m_abilities[10] =
-                reinterpret_cast<DB_EquipslotBlobView*>(&items[10])->m_dword2;
+                items[10].m_addInfo;
             db3->set_query(
                 "seLect it_id,name from creature_items where slot=238 and charac_no=%u and expire_date > now()",
                 (unsigned int)info.m_userCharacNo);

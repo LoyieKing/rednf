@@ -29,14 +29,14 @@ int Dispatcher_LoadingTimeReport::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         if (idx < 7)
         {
-            if (!packet.get_int(*reinterpret_cast<unsigned int*>(base + 0xa + idx * 4)))
+            if (!packet.get_int(local_824.m_times[idx]))
             {
                 return LineFunc(0xd806,
                                 __PRETTY_FUNCTION__,
                                 0, 0);
             }
         }
-        *reinterpret_cast<unsigned int*>(base + 0x2e) = user->get_acc_id();  // -0x7f2
+        local_824.m_accId = user->get_acc_id();
         if (idx == 7)
         {
             short count = 0;                           // -0x18
@@ -52,41 +52,41 @@ int Dispatcher_LoadingTimeReport::dispatch_sig(CUser* user, PacketBuf& packet)
                                 __PRETTY_FUNCTION__,
                                 0, 0);
             }
-            *reinterpret_cast<short*>(base + 0x32) = count;   // -0x7ee
+            local_824.m_countA = count;
             for (int j = 0; j < count; ++j)            // -0x10；ORIG cwtl 后有符号 setg
             {
-                if (!packet.get_short(*reinterpret_cast<unsigned short*>(base + 0x30 + j * 9 + 4)))
+                if (!packet.get_short(local_824.m_rowsA[j].m_a))
                 {
                     return LineFunc(0xd811,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_byte(*reinterpret_cast<unsigned char*>(base + 0x30 + j * 9 + 6)))
+                if (!packet.get_byte(local_824.m_rowsA[j].m_b))
                 {
                     return LineFunc(0xd812,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_short(*reinterpret_cast<unsigned short*>(base + 0x30 + j * 9 + 7)))
+                if (!packet.get_short(local_824.m_rowsA[j].m_c))
                 {
                     return LineFunc(0xd813,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_short(*reinterpret_cast<unsigned short*>(base + 0x30 + j * 9 + 9)))
+                if (!packet.get_short(local_824.m_rowsA[j + 1].m_link0))
                 {
                     return LineFunc(0xd814,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_short(*reinterpret_cast<unsigned short*>(base + 0x30 + j * 9 + 0xb)))
+                if (!packet.get_short(local_824.m_rowsA[j + 1].m_link1))
                 {
                     return LineFunc(0xd815,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
             }
-            *reinterpret_cast<unsigned int*>(base + 0xa + 7 * 4) = 0;   // auStack_81a[7]=0
+            local_824.m_times[7] = 0;
         }
         if (idx == 8)
         {
@@ -103,35 +103,35 @@ int Dispatcher_LoadingTimeReport::dispatch_sig(CUser* user, PacketBuf& packet)
                                 __PRETTY_FUNCTION__,
                                 0, 0);
             }
-            *reinterpret_cast<short*>(base + 0x3b8) = count;   // -0x468
+            local_824.m_countB = count;
             for (int j = 0; j < count; ++j)            // -0xc；ORIG cwtl 后有符号 setg
             {
-                if (!packet.get_short(*reinterpret_cast<unsigned short*>(base + 0x3b0 + j * 0xb + 0xa)))
+                if (!packet.get_short(local_824.m_rowsB[j].m_a))
                 {
                     return LineFunc(0xd821,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_byte(*reinterpret_cast<unsigned char*>(base + 0x3b0 + j * 0xb + 0xc)))
+                if (!packet.get_byte(local_824.m_rowsB[j].m_b))
                 {
                     return LineFunc(0xd822,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_int(*reinterpret_cast<unsigned int*>(base + 0x3b0 + j * 0xb + 0xd)))
+                if (!packet.get_int(local_824.m_rowsB[j].m_c))
                 {
                     return LineFunc(0xd823,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_int(*reinterpret_cast<unsigned int*>(base + 0x3b0 + j * 0xb + 0x11)))
+                if (!packet.get_int(local_824.m_rowsB[j].m_d))
                 {
                     return LineFunc(0xd824,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
             }
-            *reinterpret_cast<unsigned int*>(base + 0xa + 8 * 4) = 0;   // auStack_81a[8]=0
+            local_824.m_times[8] = 0;
         }
         ++i;
     }

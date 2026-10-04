@@ -230,7 +230,7 @@ int DisPatcher_DisJointItem::_disjoint(CUser* user, int slot, int type,
         packet.finalize(true);
         user->Send(packet);
         HistoryLog::WriteDisJoint(
-            reinterpret_cast<FILE*>(user->m_field796f8), invenItem.m_addInfo);
+            reinterpret_cast<FILE*>(user->m_historyLogFp), invenItem.m_addInfo);
     }
     catch (ENUM_ERROR e)
     {

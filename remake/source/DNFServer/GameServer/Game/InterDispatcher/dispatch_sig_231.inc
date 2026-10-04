@@ -6,7 +6,7 @@ int Inter_AddPvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
     Inter_AddPvPBuddyResultPktView* pPkt = reinterpret_cast<Inter_AddPvPBuddyResultPktView*>(data);
     if (user->get_state() <= 2)
         return 0;
-    register int characNoMsg = pPkt->m_a;
+    register int characNoMsg = pPkt->m_characNo;
     if (characNoMsg != user->getCurCharacNo())
         return 0;
 
@@ -27,9 +27,9 @@ int Inter_AddPvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
             packet.put_header(1, 0x121);
             packet.put_byte(1);
             packet.put_byte(pPkt->m_13);
-            const int local_14 = (int)strlen(pPkt->m_14);
+            const int local_14 = (int)strlen(pPkt->m_name);
             packet.put_int(local_14);
-            packet.put_str(pPkt->m_14, local_14);
+            packet.put_str(pPkt->m_name, local_14);
             packet.finalize(true);
             user->Send(packet);
         }
@@ -50,9 +50,9 @@ int Inter_AddPvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*/)
         // [L9·2026-09-11 子代理 B-PATCH#2] size_t→int（P265 同型化；同函数 case-0 分支已是 int）：
         // ORIG 084e1ba8/084e1bab/084e1bae `mov -0x14(%ebp),%eax; lea 0x14(%eax),%edx; mov -0xc(%ebp),%eax`
         // （先算 ptr 再装 len）；探针 /tmp/L9/B/pb_str.cpp b1(int)→lea 形逐条同形。
-        const int local_10 = (int)strlen(pPkt->m_14);
+        const int local_10 = (int)strlen(pPkt->m_name);
         packet.put_int(local_10);
-        packet.put_str(pPkt->m_14, local_10);
+        packet.put_str(pPkt->m_name, local_10);
         packet.finalize(true);
         user->Send(packet);
     }

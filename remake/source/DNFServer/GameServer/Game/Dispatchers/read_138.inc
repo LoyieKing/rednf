@@ -12,7 +12,7 @@ int Dispatcher_SaveGameOption_1::read(PacketBuf& packet, MSG_BASE& msg)
         reinterpret_cast<MSG_SAVE_GAME_OPTION_1*>(&msg);
     // [P4-p167 符号性] ORIG callee 直证 get_int(unsigned int&)（m_optionSize 本就
     //   声明为 unsigned int，PacketTypes.h:1308）——只换 cast 目标类型，地址算式不变。
-    if (!packet.get_int(*reinterpret_cast<unsigned int*>(reinterpret_cast<char*>(m) + 0xd)) ||
+    if (!packet.get_int(m->m_optionSize) ||
         m->m_optionSize >= 0x49)
         return LineFunc(0x2860, __PRETTY_FUNCTION__, 0, 0);
     // ORIG 0x081ceaef：len 先经 %edx 保护（`mov %eax,%edx`），buf 计算覆写
@@ -25,7 +25,7 @@ int Dispatcher_SaveGameOption_1::read(PacketBuf& packet, MSG_BASE& msg)
     //   add $0x11,%eax`（值→edx、buf→eax）⇒ buf 实参改「整型加法 + 回 cast」
     //   （探针 /tmp/probe_gb2.cpp d 逐条全等；纯指针形恒值留 eax、buf 落 edx）。
     if (!packet.get_binary(
-            reinterpret_cast<char*>(reinterpret_cast<unsigned int>(m) + 0x11),
+            reinterpret_cast<char*>(&m->m_option),
             (int)m->m_optionSize))
         return LineFunc(0x2862, __PRETTY_FUNCTION__, 0, 0);
     return 0;

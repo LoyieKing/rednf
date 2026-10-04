@@ -11,11 +11,11 @@ int DB_MailBox_Req_System_Multi_Mail::sendResult(int userIdx,
     guard.operator*()->operator<<(0x80);
     guard.operator*()->operator<<(-1);
 
-    SigMailboxSendReplyView* sig = (SigMailboxSendReplyView*)
+    SIG_MAILBOX_SEND_NEW_MAIL* sig =
         guard->GetInBuffer<SIG_MAILBOX_SEND_NEW_MAIL>();
-    sig->m_field00 = 0;
-    sig->m_field04 = userIdx;
-    sig->m_field08 = (int)group;
+    sig->m_reply.m_result = 0;
+    sig->m_reply.m_mailIdx = userIdx;
+    sig->m_reply.m_group = (int)group;
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;

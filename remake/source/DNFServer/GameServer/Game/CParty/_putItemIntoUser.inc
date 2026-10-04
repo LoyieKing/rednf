@@ -184,7 +184,7 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
         const Inven_Item* ref =
             ci->getCurCharacInvenR()->GetInvenRef(
                 items[1].GetInventoryType(), slot);
-        packet.put_int(*reinterpret_cast<const int*>(reinterpret_cast<const char*>(ref) + 2));
+        packet.put_int(static_cast<int>(ref->m_addInfo));
         packet.put_int(ref->get_add_info());
         packet.put_byte((unsigned int)ref->GetItemAttr() & 0xff);
         packet.put_short((unsigned int)ref->m_fieldb & 0xffff);

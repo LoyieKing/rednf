@@ -59,7 +59,7 @@ bool DB_Login::GetAccountCharacterLevelUpOnceGift(SIG_LOGIN_DATA* sig)
     }
     else
     {
-        memset(SGBC(sig, OFF_ONCE_GIFT), 0, 0x20);
+        memset(reinterpret_cast<char*>(&sig->m_levelupGiftAccountOnce), 0, 0x20);
     }
     return 1;
 }

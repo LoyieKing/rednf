@@ -10,6 +10,20 @@
 int DisPatcher_BuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {
+    {
+        const MSG_BUY_ITEM& _diag = *reinterpret_cast<const MSG_BUY_ITEM*>(&msg);
+        FILE* _sf = fopen("/tmp/shop_diag.log", "a");
+        if (_sf) {
+            fprintf(_sf,
+                "[SHOP_DIAG] BuyItem enter itemIdx=%lu buyCount=%u deliveryType=%u state=%d\n",
+                (unsigned long)_diag.m_itemIdx,
+                (unsigned)_diag.m_buyCount,
+                (unsigned)_diag.m_deliveryType,
+                (int)user->get_state());
+            fflush(_sf);
+            fclose(_sf);
+        }
+    }
     int errNo = check_error(user, msg);
     if (errNo > 0)
     {
@@ -101,7 +115,7 @@ int DisPatcher_BuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
     _onBuyItemEvent(data, user);
     statistic_process(user, data);
-    HistoryLog::WriteBuyItem((FILE*)user->m_field796f8,
+    HistoryLog::WriteBuyItem((FILE*)user->m_historyLogFp,
                              data.m_item.m_addInfo, data.m_item.m_addInfo2);
     user->SendAradEventItemLog((unsigned long)data.m_item.m_addInfo,
                                data.m_item.m_addInfo2);

@@ -25,32 +25,32 @@ void CUserCharacInfo::setBloodBestRecord(unsigned int time, int round, int recor
         local.m_time = time;
         m_selected->m_bloodBestRecords.insert(
             std::make_pair<int&, stBloodBestRecord&>(record, local));
-        m_selected->m_fieldEC4 = round;
-        m_selected->m_fieldEC8 = time;
+        m_selected->m_bloodBestRoundRecord = round;
+        m_selected->m_bloodBestTimeRecord = time;
     }
     else
     {
-        m_selected->m_fieldEC4 = it->second.m_round;
-        m_selected->m_fieldEC8 = it->second.m_time;
-        if (round < m_selected->m_fieldEC4)
+        m_selected->m_bloodBestRoundRecord = it->second.m_round;
+        m_selected->m_bloodBestTimeRecord = it->second.m_time;
+        if (round < m_selected->m_bloodBestRoundRecord)
             goto L_SBR_END2;
-        if (m_selected->m_fieldEC8 == time &&
-            m_selected->m_fieldEC4 == round)
+        if (m_selected->m_bloodBestTimeRecord == time &&
+            m_selected->m_bloodBestRoundRecord == round)
             goto L_SBR_END3;
         {
-            if (m_selected->m_fieldEC4 == round)
+            if (m_selected->m_bloodBestRoundRecord == round)
             {
                 setBloodBestRecordUpdate(true);
-                m_selected->m_fieldEC8 = std::min(m_selected->m_fieldEC8, static_cast<int>(time));
+                m_selected->m_bloodBestTimeRecord = std::min(m_selected->m_bloodBestTimeRecord, static_cast<int>(time));
             }
             else
             {
                 setBloodBestRecordUpdate(true);
-                m_selected->m_fieldEC8 = time;
-                m_selected->m_fieldEC4 = round;
+                m_selected->m_bloodBestTimeRecord = time;
+                m_selected->m_bloodBestRoundRecord = round;
             }
-            it->second.m_round = m_selected->m_fieldEC4;
-            it->second.m_time = m_selected->m_fieldEC8;
+            it->second.m_round = m_selected->m_bloodBestRoundRecord;
+            it->second.m_time = m_selected->m_bloodBestTimeRecord;
         }
     }
     }

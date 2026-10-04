@@ -47,7 +47,7 @@ bool CUser::checkHumanCertify(int len, unsigned short* answer)
     if (memcmp(answer, m_capchaCertify, static_cast<size_t>(len)) != 0)
     {
         ++m_humanCertifyErrorCnt;
-        if (isCleanPadVerifyLimit() && m_field8e3ed)
+        if (isCleanPadVerifyLimit() && m_sendMailCertified)
         {
             DB_ForceSaveSimpleSSO::makeRequest(get_acc_id(), m_humanCertifyErrorCnt);
             SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x91), 8);

@@ -1,4 +1,4 @@
 float CUserCharacInfo::GetExpAffectRate()
 {
-    return m_selected ? m_selected->m_fieldEE5 : 0.0f;
+    return m_selected ? m_selected->m_expAffectRate : 0.0f;
 }

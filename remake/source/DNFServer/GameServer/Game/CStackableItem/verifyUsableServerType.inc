@@ -6,15 +6,15 @@ bool CStackableItem::verifyUsableServerType()
     }
     StackableAction::UsableServerType serverType =
         static_cast<StackableAction::UsableServerType>(0);
-    if (((CEnvironmentView*)G_CEnvironment())->m_serverType == 0)
+    if (G_CEnvironment()->m_serverEnvir.m_serverType == 0)
     {
         serverType = StackableAction::USABLE_SERVER_TYPE_GENERAL;
     }
-    if (((CEnvironmentView*)G_CEnvironment())->m_serverType == 2)
+    if (G_CEnvironment()->m_serverEnvir.m_serverType == 2)
     {
         serverType = StackableAction::USABLE_SERVER_TYPE_STARTER;
     }
-    if (((CEnvironmentView*)G_CEnvironment())->m_serverType == 1)
+    if (G_CEnvironment()->m_serverEnvir.m_serverType == 1)
     {
         serverType = StackableAction::USABLE_SERVER_TYPE_EVENT;
     }

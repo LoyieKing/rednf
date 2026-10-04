@@ -54,9 +54,7 @@ bool DB_LoadCharac::_getCharacStat(SIG_LOAD_CHARAC* sig)
     // [s2 探针 t4 命中] ORIG `add $0x59,%eax; mov %eax,%edx`（两步 add）：4.4 对
     // 「整型算术 + 常量偏移」形（`(T*)((unsigned long)p + K)`）恒发 add+mov；
     // 而成员视图 / `(char*)p + K` 两形恒折单条 lea（t1/t2/t3/t5 探针实测）。
-    if (!db->get_uint(
-            col++, *reinterpret_cast<unsigned int*>(
-                       reinterpret_cast<unsigned long>(sig) + 0x59))) // last_play_time（uint&）
+    if (!db->get_uint(col++, sig->m_characData.m_lastPlayTime)) // last_play_time（uint&）
         return false;
     if (!db->get_ushort(col++, sig->m_characData.m_unkB2.m_fieldb3)) // used_fatigue（ushort&）
         return false;

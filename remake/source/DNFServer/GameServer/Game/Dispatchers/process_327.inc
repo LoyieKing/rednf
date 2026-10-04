@@ -31,8 +31,7 @@ int Dispatcher_ObjectBringUp::process(CUser* user, MSG_BASE& msg,
     }
 
     const unsigned short slot =
-        *reinterpret_cast<const unsigned short*>(
-            reinterpret_cast<const char*>(&msg) + 0xe);
+        reinterpret_cast<const MSG_OBJECT_BRING_UP&>(msg).m_field0e;
     const Inven_Item slotItem =
         user->getCurCharacInvenR()->GetInvenSlot(1, static_cast<int>(slot));
     const unsigned int itemIdx = static_cast<unsigned int>(slotItem.m_addInfo);
@@ -58,9 +57,7 @@ int Dispatcher_ObjectBringUp::process(CUser* user, MSG_BASE& msg,
         static_cast<eItemDelReason>(3), true);
 
     // +0x0c 处 vector<int>：sendBringUpReward 输出（每轮消费 4 个 int）
-    std::vector<int>& rewards =
-        *reinterpret_cast<std::vector<int>*>(
-            reinterpret_cast<char*>(&out) + 0xc);
+    std::vector<int>& rewards = out.m_items;
     // ORIG 0x081e1660: rewardOk = entity->sendBringUpReward(user, rewards, out.m_b)
     const bool rewardOk = entity->sendBringUpReward(user, rewards, out.m_b);
 

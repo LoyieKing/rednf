@@ -1,10 +1,10 @@
-// ORIG 0x0815c586：user->m_field8ec31 非 0 直接返回；Acquire(file, 0x294) →
+// ORIG 0x0815c586：user->m_rewarded 非 0 直接返回；Acquire(file, 0x294) →
 // CStreamGuard(true) → internal_stream(guard, 0xc, user->GetUID()) →
 // GetInBuffer<MSG> null → cMyTrace(0x29a)("[Taiwan, MobileAuth] msg is null")；
 // 否则 *buf = user->get_acc_id()；MsgQueueMgr::put(DB_Q, guard)。
 void DBSelectMobileAuthRewardTw::makeRequest(CUser* user)
 {
-    if (user->m_field8ec31 != 0)
+    if (user->m_rewarded != 0)
         return;
     // P89：单一视图表达式（合并 stream 局部）
     CStreamGuard guard(GlobalData::s_stream_pool->Acquire(

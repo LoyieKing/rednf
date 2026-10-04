@@ -31,26 +31,29 @@ static_assert(sizeof(SIG_SAVE_GAME_OPTION_1) == 0x4c,
 struct SIG_SAVE_GAME_OPTION_QUICKCHAT
 {
     unsigned int m_mId;
-    char m_data[0x258];
+    char m_slotA[0x12c];
+    char m_slotB[0x12c];
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_SAVE_GAME_OPTION_QUICKCHAT) == 0x25c, "SIG_SAVE_GAME_OPTION_QUICKCHAT ABI drift");
 
 // SIG_LIMIT_ITEM_INFO —— 限购物品信息（ORIG 唯一消费者 CUser::SetLimitInfo 0x086888f8；
 // 条目区按 ORIG 读点 +0x08 long createTime / +0x0c itemId / +0x10=i*0x10 照抄）。
+#pragma pack(push, 1)
 struct SIG_LIMIT_ITEM_INFO
 {
     struct Entry
     {
-        int m_field0;        // +0x00（写 usage.m_field19，i+1 读侧见报告）
-        int m_field4;        // +0x04
-        long m_createTime;   // +0x08（CommonTime::SetCreateTime 实参，32 位 long=4B）
-        int m_itemId;        // +0x0c（与 stLimitItemUsageInfo::LimitInfo::m_a 匹配）
+        long m_createTime;   // +0x00（绝对 +0x08，ORIG 0x086889f6）
+        int  m_itemId;       // +0x04（绝对 +0x0c）
+        int  m_field0;       // +0x08（绝对 +0x10，usage.m_field19）
+        int  m_field4;       // +0x0c
     };                       // sizeof 0x10
-    int m_count;             // +0x00 条目数
-    char m_pad4[8];          // +0x04..0x0b
-    Entry m_entries[1];      // +0x0c 起，可变长（sizeof 之外按 count 扩展）
+    int m_count;             // +0x00
+    int m_pad4;              // +0x04
+    Entry m_entries[1];      // +0x08 起，可变长
 };
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 struct SIG_SAVE_GEO_REJECT
@@ -215,7 +218,26 @@ static_assert(sizeof(SIG_SAVE_PROXY_LOG) == 0x2d,
 //   前段布局即 PvpResultType（PvpResultType.h 权威：m_totalWinCount@+0x00 …）。
 struct SIG_SAVE_PVP
 {
-    char m_result[0x84];      // +0x00 PvpResultType 33-int 镜像（Set 整体拷入）
+    union
+    {
+        char m_result[0x84];      // +0x00 PvpResultType 33-int 镜像（Set 整体拷入）
+        struct
+        {
+            int m_win;
+            int m_lose;
+            int m_pvpPoint;
+            int m_pad0c;
+            int m_pad10;
+            int m_pvpGrade;
+            int m_avg[15];
+            int m_pvpCount;
+            int m_winPoint;
+            int m_pad5c;
+            int m_playTime;
+            int m_playCount;
+            char m_tail[0x84 - 0x68];
+        };
+    };
     unsigned int m_characNo;  // +0x84（UpdateData 写 getCurCharacNo / SQL charac_no）
 };
 static_assert(sizeof(SIG_SAVE_PVP) == 0x88, "SIG_SAVE_PVP ABI drift");
@@ -242,8 +264,11 @@ static_assert(sizeof(SIG_SAVE_SAME_MID_OTHER_CHAR_LOGIN_HACK) == 0x20,
 struct SIG_SECOND_USER_DATA
 {
     unsigned int m_mId;
-    unsigned int m_goldLo;
-    unsigned int m_goldHi;
+    union
+    {
+        struct { unsigned int m_goldLo; unsigned int m_goldHi; };
+        unsigned long long m_gold;
+    };
     int m_tradeCnt;
     unsigned int m_punished;
 };
@@ -342,7 +367,8 @@ struct SIG_SECURITY_CARD_RETRANSFER
     char m_serverKey[0x27];
     char m_serial[0xc];
     char m_phone[0x29];
-    char m_pad87[5];
+    char m_pad87;
+    int m_error;                // +0x88
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_SECURITY_CARD_RETRANSFER) == 0x8c, "SIG_SECURITY_CARD_RETRANSFER ABI drift");
@@ -494,14 +520,58 @@ struct SIG_UPDATE_CHARACTER_DAY_EVENT
 //   memset 全块后 *(sig+0)=get_acc_id()，+0x14d4=GetServerGroup()（1 字节）；
 //   +0x00 起为 SigUpdateCharacViewRecord[36]（stride 0x94 = 4 头 + CHARAC_LOGIN_DATA
 //   0x90），rec[0] 头=acc_id、rec[i] 头←前一角色 expireSec。因 CHARAC_LOGIN_DATA
-//   在 CUser.h（include SigTypes.h，双向环），记录区保留 blob 不内嵌完整类型。
+// CHARAC_LOGIN_DATA 定义于此，打破 CUser.h 双向环。
+#pragma pack(push, 1)
+struct CHARAC_LOGIN_DATA
+{
+    int           m_characNo;
+    char          m_name[0x14];
+    unsigned char m_job;
+    unsigned char m_field19;
+    short         m_level;
+    unsigned char m_flags;
+    unsigned char m_field1d;
+    int           m_field1e;
+    unsigned char m_renameOrViewState;
+    char          m_pad23[0x28 - 0x23];
+    struct AvatarSlot
+    {
+        int   m_itemIndex;
+        short m_expansionA;
+        short m_expansionB;
+    };
+    AvatarSlot     m_avatarSlots[12];
+    long          m_lastPlayTime;
+    int           m_field8c;
+};
+#pragma pack(pop)
+typedef char charac_login_data_size_ok[(sizeof(CHARAC_LOGIN_DATA) == 0x90) ? 1 : -1];
+
+#pragma pack(push, 1)
+struct SigUpdateCharacViewRecord
+{
+    int m_headField;
+    CHARAC_LOGIN_DATA m_data;
+};
+#pragma pack(pop)
+typedef char sig_charac_view_rec_size_ok[(sizeof(SigUpdateCharacViewRecord) == 0x94) ? 1 : -1];
+
 struct SIG_UPDATE_CHARAC_VIEW
 {
-    char m_records[0x14d0];       // +0x00 SigUpdateCharacViewRecord[36]（stride 0x94；CHARAC_LOGIN_DATA
-                                  //   在 CUser.h 与 SigTypes.h 双向环，记录区保留 blob）
-    char m_pad[4];                // +0x14d0 驻留（ORIG GetInBuffer<SIG_UPDATE_CHARAC_VIEW>
-                                  //   @SigTypes.cpp 模板实例 sizeof 0x14d8 实证）
-    unsigned char m_serverGroup;  // +0x14d4 GetServerGroup()
+    union
+    {
+        struct
+        {
+            SigUpdateCharacViewRecord m_recs[36]; // +0x00
+            char m_pad[4];            // +0x14d0
+        };
+        struct
+        {
+            unsigned int m_mId;       // +0x00 rec[0].m_headField / acc_id
+            char m_info[0x14d0];      // +0x04 压缩源（含尾 4B pad）
+        };
+    };
+    unsigned char m_serverGroup;      // +0x14d4 GetServerGroup()
     char m_pad2[3];
 };
 static_assert(sizeof(SIG_UPDATE_CHARAC_VIEW) == 0x14d8,
@@ -914,13 +984,13 @@ struct SIG_BOOSTER_GAGE_DATA
 // sizeof 0x1c；CCeraShop::LogError 消费 +0x00/+0x04/+0x10/+0x14/+0x18）。
 struct SIG_CERASHOP_ERROR_LOG
 {
-    unsigned int m_field0;    // +0x00（m_id，uint；P248档③ 同型化，S278）
-    int m_field4;             // +0x04
-    int m_field8;             // +0x08
-    int m_fieldc;             // +0x0c
-    unsigned short m_field10; // +0x10
-    int m_field14;            // +0x14
-    int m_field18;            // +0x18
+    union { unsigned int m_field0; unsigned int m_mId; };
+    union { int m_field4; unsigned int m_characNo; };
+    union { int m_field8; unsigned int m_serverId; };
+    union { int m_fieldc; unsigned int m_channelNo; };
+    union { unsigned short m_field10; short m_type; };
+    union { int m_field14; unsigned int m_errCode; };
+    union { int m_field18; int m_goodsId; };
     SIG_CERASHOP_ERROR_LOG()
         : m_field0(0), m_field4(0), m_field8(0), m_fieldc(0),
           m_field10(0), m_field14(0), m_field18(0) {}
@@ -1151,12 +1221,19 @@ struct SIG_SAVE_CHARACINFO4GUILD
 #pragma pack(pop)
 static_assert(sizeof(SIG_SAVE_CHARACINFO4GUILD) == 0x14, "SIG_SAVE_CHARACINFO4GUILD ABI drift");
 #pragma pack(push, 1)
+struct SIG_SAVE_EXPAND_CHARAC_STAT
+{
+    unsigned char m_channelEquipslotSwitch;
+    unsigned char m_expandEquipslotSwitch;
+};
 struct SIG_SAVE_EXPAND_CHARAC
 {
     unsigned int m_characNo;
     Inven_Item m_items[0x24];
-    char m_switch1;
-    char m_switch2;
+    union {
+        struct { char m_switch1; char m_switch2; };
+        SIG_SAVE_EXPAND_CHARAC_STAT m_stat;
+    };
     char m_pad89a[2];
 };
 #pragma pack(pop)
@@ -1298,6 +1375,10 @@ struct SIG_VALUE_STATISTIC
 static_assert(sizeof(SIG_VALUE_STATISTIC) == 0x80,
               "SIG_VALUE_STATISTIC ABI drift");
 // stAchievement_DBSaveData 权威定义见 CAchievement.h（此处不重复）
-struct stTitleBook_Save { char m_pad[0x6b3e]; };
+struct stTitleBook_Save
+{
+    char m_data[0x6b3a];   // +0x00
+    int  m_characNo;       // +0x6b3a
+};
 
 #endif  // DNF_GAME_SIG_TYPES_E_H_

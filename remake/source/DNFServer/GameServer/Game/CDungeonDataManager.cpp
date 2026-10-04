@@ -51,11 +51,6 @@
 namespace
 {
 #pragma pack(push, 1)
-struct SigDungeonStatisticKeyView
-{
-    int m_type;        // +0x00
-    DungeonKey m_key;  // +0x04（sizeof 0xc，覆盖 SIG +0x04..+0x0f）
-};
 #pragma pack(pop)
 }
 

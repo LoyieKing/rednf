@@ -15,7 +15,7 @@ unsigned int Quest::ConvertRewardSelectIndex(const CUser* user, int index)
     for (i = 0; i < (int)m_selectReward.size(); ++i)
     {
         if (({ (m_selectReward[i].m_job == 0xb) ||
-               ((((const RewardItemInfoJobView*)&m_selectReward[i])->m_job ==
+               (((ENUM_CHARACTERJOB)m_selectReward[i].m_job ==
                  (ENUM_CHARACTERJOB)user->get_charac_job()) &&
                 ((m_selectReward[i].m_growType == -1) ||
                  (m_selectReward[i].m_growType ==

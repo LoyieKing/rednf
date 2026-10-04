@@ -97,46 +97,46 @@ struct SigMailboxSendNewMailView
     tmPtr->tm_sec = 0;
     t = mktime(tmPtr);
 
-    if (((const SigMailboxSendNewMailView*)sigRaw)->m_flag != 0)
+    if (sigRaw->m_flag != 0)
     {
-        t = (int)((const SigMailboxSendNewMailView*)sigRaw)->m_nB - 0x13c680;
+        t = (int)sigRaw->m_nB - 0x13c680;
     }
-    else if (((const SigMailboxSendNewMailView*)sigRaw)->m_nB <= 0xe)
+    else if (sigRaw->m_nB <= 0xe)
     {
         // b28d: P211 档③——LHS 与 RHS 异型（unsigned int）⇒ 4.4 出 ORIG 的
         // `mov t,%edx; imul; mov %edx,%ecx; sub %eax,%ecx; mov %ecx,%eax; mov %eax,t`
         // （原 (int) 同型形恒折 `sub %eax,-0x1c(%ebp)`，ORIG 0x0841f389..0x841f3a1）。
-        t = (time_t)((unsigned int)t - ((const SigMailboxSendNewMailView*)sigRaw)->m_nB * 0x15180u);
+        t = (time_t)((unsigned int)t - sigRaw->m_nB * 0x15180u);
     }
-    else if (((const SigMailboxSendNewMailView*)sigRaw)->m_nB > 0xf)
+    else if (sigRaw->m_nB > 0xf)
     {
         // b28d: 同上——`(unsigned int)t` 触发 lea 合并形
         // （ORIG 0x0841f3bd..0x841f3ce `imul→%edx; mov t,%eax; lea (%edx,%eax,1),%eax`）。
-        t = (time_t)((int)(((const SigMailboxSendNewMailView*)sigRaw)->m_nB * 0x15180u) + (unsigned int)t - 0x13c680);
+        t = (time_t)((int)(sigRaw->m_nB * 0x15180u) + (unsigned int)t - 0x13c680);
     }
 
-    if (((const SigMailboxSendNewMailView*)sigRaw)->m_nType != 0 &&
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_nType != last_letter_id)
+    if (sigRaw->m_nType != 0 &&
+        sigRaw->m_nType != last_letter_id)
     {
         db->set_query("upDate letter set stat =%d where letter_id = %d",
-                      1, ((const SigMailboxSendNewMailView*)sigRaw)->m_nType);
+                      1, sigRaw->m_nType);
         db->exec(true);
     }
-    last_letter_id = ((const SigMailboxSendNewMailView*)sigRaw)->m_nType;
-    letterId = ((const SigMailboxSendNewMailView*)sigRaw)->m_nType;
+    last_letter_id = sigRaw->m_nType;
+    letterId = sigRaw->m_nType;
 
-    if (((const SigMailboxSendNewMailView*)sigRaw)->m_titleLen != 0 && letterId == 0)
+    if (sigRaw->m_titleLen != 0 && letterId == 0)
     {
-        if (!InsertLetter(db, ((const SigMailboxSendNewMailView*)sigRaw)->m_amount,
-                          ((const SigMailboxSendNewMailView*)sigRaw)->m_senderCharacNo,
-                          (const char*)sigRaw, ((const SigMailboxSendNewMailView*)sigRaw)->m_title,
+        if (!InsertLetter(db, sigRaw->m_amount,
+                          sigRaw->m_senderCharacNo,
+                          (const char*)sigRaw, sigRaw->m_title,
                           letterId, t, (ENUM_LETTER_STAT)1))
         {
             LogManager::logFormat(1, "DBThread.cpp", __PRETTY_FUNCTION__, 0x550c,
                                   "InsertLetter() error");
         }
-        if (((const SigMailboxSendNewMailView*)sigRaw)->m_addInfo == 0 &&
-            ((const SigMailboxSendNewMailView*)sigRaw)->m_destCharacNo == 0)
+        if (sigRaw->m_addInfo == 0 &&
+            sigRaw->m_destCharacNo == 0)
         {
             return 1;
         }
@@ -146,25 +146,25 @@ struct SigMailboxSendNewMailView
     strcpy(nameBuf, (const char*)sigRaw);
     db->set_query(
         "inSert into postal(occ_time,send_charac_no,receive_charac_no,seal_flag,item_id,add_info,endurance,upgrade,amplify_option,amplify_value,gold,send_charac_name,creature_flag,avata_flag,letter_id,extend_info,item_guid,random_option,seperate_upgrade,unlimit_flag) values(from_unixtime(%d),%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d,%d,%d,%d,'%s','%s',%d,%d)",
-        t, ((const SigMailboxSendNewMailView*)sigRaw)->m_senderCharacNo,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_amount,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_itemField0,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_addInfo,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_addInfo2,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_fieldb,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_itemAttr,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_ampType,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_ampIdx,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_destCharacNo, nameBuf,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_isCreature,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_isAvatarSend, letterId,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_fieldd,
+        t, sigRaw->m_senderCharacNo,
+        sigRaw->m_amount,
+        sigRaw->m_itemField0,
+        sigRaw->m_addInfo,
+        sigRaw->m_addInfo2,
+        sigRaw->m_fieldb,
+        sigRaw->m_itemAttr,
+        sigRaw->m_ampType,
+        sigRaw->m_ampIdx,
+        sigRaw->m_destCharacNo, nameBuf,
+        sigRaw->m_isCreature,
+        sigRaw->m_isAvatarSend, letterId,
+        sigRaw->m_fieldd,
         // blob_to_str 按 ORIG +0x3a/+0x47 裸偏移（byte-blob 读 10/0xe 字节，非自然宽度
         // 字段；&view->m_field15/25 的 int 类型与读长不配会产生地址物化差异）。
         db->blob_to_str(0, (void*)&sigRaw->m_guid, 10),
         db->blob_to_str(1, (void*)&sigRaw->m_rand, 0xe),
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_upgradeSep,
-        ((const SigMailboxSendNewMailView*)sigRaw)->m_cashShopFlag);
+        sigRaw->m_upgradeSep,
+        sigRaw->m_cashShopFlag);
     return db->exec(true);
 }
 

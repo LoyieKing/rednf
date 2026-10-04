@@ -11,8 +11,8 @@ bool DB_ReportMannerlessUser::dispatch(int /*userIdx*/, int /*slot*/,
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                                   E_SERVER_GROUP_NONE);
-    DB_MannerlessUserView* sig =
-        reinterpret_cast<DB_MannerlessUserView*>(
+    SIG_MANNERLESS_USER* sig =
+        /*SIG_MANNERLESS_USER*/(
             stream->GetOutBuffer<SIG_MANNERLESS_USER>());
     static std::string cache_query;
     if (!cache_query.empty())

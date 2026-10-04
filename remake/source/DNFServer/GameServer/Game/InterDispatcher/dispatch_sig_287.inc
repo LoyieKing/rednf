@@ -14,32 +14,29 @@ int Inter_NpcLimitBuyItemInfoAll::dispatch_sig(CUser* user, char* data, int /*le
     Inter_NpcLimitBuyItemInfoAllPktView* pPkt = reinterpret_cast<Inter_NpcLimitBuyItemInfoAllPktView*>(data);
     PacketGuard packet;
     packet.put_header(0, 0x193);
-    packet.put_int(pPkt->m_16);   // msg+0x16 count
+    packet.put_int(pPkt->m_count);   // msg+0x16 count
     // ORIG 0x84e62de..0x84e63a9 每处 `lea (%ecx,%eax,1)` 的 ecx = -0x10 具名槽（pPkt），
     // 非形参 0x10(%ebp)（P30/N4 族可消）。
-#define pData (reinterpret_cast<char*>(pPkt))
     for (int i = 0;
-         i < pPkt->m_16 && i < 0x1e; ++i)
+         i < pPkt->m_count && i < 0x1e; ++i)
     {
-        packet.put_int(
-            *reinterpret_cast<int*>(pData + i * 0xc + 0x1a));
-        if (*reinterpret_cast<int*>(pData + i * 0xc + 0x1e) == 0)
+        packet.put_int(pPkt->m_entries[i].m_itemId);
+        if (pPkt->m_entries[i].m_limit == 0)
         {
             packet.put_int(0);
         }
-        else if ((unsigned int)*reinterpret_cast<unsigned int*>(pData + i * 0xc + 0x22) <
-                 (unsigned int)*reinterpret_cast<unsigned int*>(pData + i * 0xc + 0x1e))
+        else if (pPkt->m_entries[i].m_bought <
+                 static_cast<unsigned int>(pPkt->m_entries[i].m_limit))
         {
             packet.put_int(
-                *reinterpret_cast<int*>(pData + i * 0xc + 0x1e) -
-                *reinterpret_cast<int*>(pData + i * 0xc + 0x22));
+                pPkt->m_entries[i].m_limit -
+                static_cast<int>(pPkt->m_entries[i].m_bought));
         }
         else
         {
             packet.put_int(0);
         }
     }
-#undef pData
     packet.finalize(true);
     user->Send(packet);
     return 0;

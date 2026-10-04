@@ -12,12 +12,12 @@ int Inter_Monitor_DeleteBlackListResult::dispatch_sig(CUser* user, char* data, i
     PacketGuard packet;
     packet.put_header(1, 0x7a);
     // ORIG 0x84d1034 段：无 result 具名槽（每比较点重发 `mov -0xSLOT(%ebp),%eax;
-    // movzbl 0x30(%eax),%eax; cmp $K,%al`）⇒ 内联 pPkt->m_30（P0/P226）。
-    if (pPkt->m_30 == 1)
+    // movzbl 0x30(%eax),%eax; cmp $K,%al`）⇒ 内联 pPkt->m_result（P0/P226）。
+    if (pPkt->m_result == 1)
     {
         // deleteToBlackList 返回 bool：ORIG xor $0x1,%eax; test %al 取反检验
         if (!user->deleteToBlackList(
-                pPkt->m_2c))
+                pPkt->m_characNo))
         {
             LogManager::logFormat(
                 1, "InterDispatcher.cpp",
@@ -32,21 +32,21 @@ int Inter_Monitor_DeleteBlackListResult::dispatch_sig(CUser* user, char* data, i
             packet.put_byte(1);
         }
     }
-    else if (pPkt->m_30 == 2)
+    else if (pPkt->m_result == 2)
     {
         packet.put_byte(0);
         packet.put_int(0x4b);
     }
-    else if (pPkt->m_30 == 3)
+    else if (pPkt->m_result == 3)
     {
         packet.put_byte(0);
         packet.put_int(0x4c);
     }
 
     const int nameLen =                              // msg+0x0e 目标名
-        static_cast<int>(strlen(pPkt->m_e));
+        static_cast<int>(strlen(pPkt->m_name));
     packet.put_int(nameLen);
-    packet.put_str(pPkt->m_e, nameLen);
+    packet.put_str(pPkt->m_name, nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;

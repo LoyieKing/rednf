@@ -9,10 +9,10 @@ int Inter_Monitor_RegisterBlackListResult::dispatch_sig(CUser* user, char* data,
     PacketGuard packet;
     packet.put_header(1, 0x79);
 
-    if (pPkt->m_30 == '\x01')
+    if (pPkt->m_result == '\x01')
     {
         if (!user->registerToBlackList(
-                pPkt->m_2c))
+                pPkt->m_characNo))
         {
             LogManager::logFormat(
                 1, "InterDispatcher.cpp",
@@ -27,30 +27,30 @@ int Inter_Monitor_RegisterBlackListResult::dispatch_sig(CUser* user, char* data,
             packet.put_byte(1);
         }
     }
-    else if (pPkt->m_30 == '\x02')
+    else if (pPkt->m_result == '\x02')
     {
         packet.put_byte(0);
         packet.put_int(0x4a);
     }
-    else if (pPkt->m_30 == '\x03')
+    else if (pPkt->m_result == '\x03')
     {
         packet.put_byte(0);
         packet.put_int(0x4c);
     }
-    else if (pPkt->m_30 == '\x04')
+    else if (pPkt->m_result == '\x04')
     {
         packet.put_byte(0);
         packet.put_int(0x4e);
     }
-    else if (pPkt->m_30 == '\x05')
+    else if (pPkt->m_result == '\x05')
     {
         packet.put_byte(0);
         packet.put_int(0x5a);
     }
 
-    const int local_10 = (int)strlen(pPkt->m_e);
+    const int local_10 = (int)strlen(pPkt->m_name);
     packet.put_int(local_10);
-    packet.put_str(pPkt->m_e, local_10);
+    packet.put_str(pPkt->m_name, local_10);
     packet.finalize(true);
     user->Send(packet);
     return 0;

@@ -33,9 +33,8 @@ cmake --build build -j$(nproc)
 
 ## 运行（本机 WSL chroot）
 
-当前可跑环境不是 Docker。冷启动、部署 df_game_r、重启 siroco11/52、端口与 IP 约束见仓库根：
-
-**[SOP-WSL-chroot-1031-服务端启动.md](../SOP-WSL-chroot-1031-服务端启动.md)**
+当前可跑环境不是 Docker。从零启动、客户端、部署 `df_game_r`、IP 约束的现行文档是
+`D:\Docs\dnf_client_test\使用手册.md`。仓库根的 `SOP-WSL-chroot-1031-服务端启动.md` 只保留跳转，不要按旧步骤操作。
 
 ---
 

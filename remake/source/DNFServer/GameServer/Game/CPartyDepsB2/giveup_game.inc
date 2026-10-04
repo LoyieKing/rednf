@@ -80,7 +80,7 @@ AFTER_STATISTICS:
         if (!_checkValidUser(i))
             continue;
         HistoryLog::WriteGiveUp(
-            reinterpret_cast<FILE*>(m_member[i].m_pUser->m_field796f8),
+            reinterpret_cast<FILE*>(m_member[i].m_pUser->m_historyLogFp),
             user->getCurCharacName());
     }
 

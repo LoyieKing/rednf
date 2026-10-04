@@ -19,9 +19,9 @@ int Dispatcer_polic_one_to_one_chat_disable::dispatch_sig(CUser* user, PacketBuf
         Packet_Disable_User_OneToOneChat_Police pkt;
         // ORIG +0x44/+0x5b：无 nameLen 临时槽——`lea -0x38,%eax; add $0xe` 直传
         // get_int(pkt.m_nameLength)，get_str 第 3 参 `mov -0x2a(%ebp),%eax`（= pkt+0xe）。
-        packet.get_int(*reinterpret_cast<unsigned int*>(
-            reinterpret_cast<char*>(&pkt) +
-            offsetof(Packet_Disable_User_OneToOneChat_Police, m_nameLength)));
+        unsigned int nameLen = 0;
+        packet.get_int(nameLen);
+        pkt.m_nameLength = nameLen;
         packet.get_str(pkt.m_name, static_cast<int>(sizeof(pkt.m_name)),
                        static_cast<int>(pkt.m_nameLength));
         if (user->isGMUser())

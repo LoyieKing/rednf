@@ -49,14 +49,14 @@ void CUser::ResetCurCharac()
     }
     setCurCharac(0);
     setTagCharac(0);
-    m_field8d004 = 0xffff;
+    m_partyIndex = 0xffff;
     m_tradeSpaceIdx = 0xffff;
     m_pvpRoomIdx = 0xffff;
-    m_field8d008 = 0xffff;
-    m_field8d00c = 0xffff;
-    m_field8cfcc = (UserSpace::T)0;
+    m_warRoomIndex = 0xffff;
+    m_blueMarbleIndex = 0xffff;
+    m_moveSpace = (UserSpace::T)0;
     m_gmUserFlag = 0;   // ORIG 0x08658793 movb $0x0,0x711d8（+0x711d8 直证）
-    m_field6ef68 = 0;
+    m_forceItemDrop = 0;
     m_field6ef69 = 0xff;
     m_guildAgitDB.m_pad[2] = 0;
     m_playingDungeonIdx = 0xffffffff;
@@ -72,13 +72,13 @@ void CUser::ResetCurCharac()
     resetTempGuildNameAddr();
     reset_pvp_masterid_walkingout_me();
     m_mcap.resetExposedCount();
-    m_field8d1dc = 0;
-    m_field8d1e0 = 0;
-    m_quest.m_field761c = 0;
+    m_revivalTime = 0;
+    m_useAPCPotionTime = 0;
+    m_quest.m_villageAttackedReward = 0;
     m_pcRoomAuth = 0;   // CUser+0x8cef1（原 m_quest.m_field761d 别名）
     memset(&m_reward, 0, 4);
     setForceDropFlag(false);
     m_rentalFlag1 = 1;
     m_rentalFlag2 = 0;
-    m_field8ec29 = 0;
+    m_comboSkillSet = 0;
 }

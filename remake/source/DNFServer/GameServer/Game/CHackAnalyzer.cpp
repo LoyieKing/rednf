@@ -46,6 +46,9 @@
 #include "DB_SelectCharacMid.h"
 #include "DB_ReqSaveHackUserPunish.h"
 #include "W6_HackPunishDeps.h"
+#include "PacketTypes.h"  // MSG_MAILBOX_SEND / MSG_MULTI_MAILBOX_SEND
+#include "CGameManager.h" // MSG_CHECK_MAIL_RECEIVER 完整定义
+
 
 // ---- 静态概率表（ORIG .rodata 0x8b3e094 / 0x8b3e09c，raw 逐项复核）----
 static const short _S_HACK_CHECK_RATE_BY_PARTYCOUNT[4] = {100, 50, 33, 25};
@@ -120,17 +123,20 @@ namespace WongWork
         unsigned char pad1[0x40 - 0x14];
         unsigned int memVal;       // +0x40
     } buf;
-    if (!stGetHackTypeOperator<unsigned short, 2>::getHackType(
-            pkt, *(unsigned short*)(char*)&buf.pad0[0xd]))
+    unsigned short flags = 0;
+    if (!stGetHackTypeOperator<unsigned short, 2>::getHackType(pkt, flags))
         return 0;
+    buf.flags = flags;
 
     if (m_baseHackType == 0)
         return 1;
 
     if ((buf.flags & 0x1) != 0)
     {
-        if (!pkt->get_int(*(unsigned int*)(char*)&buf.pad0[0xf]))
+        unsigned int speedMs = 0;
+        if (!pkt->get_int(speedMs))
             return 0;
+        buf.speedMs = speedMs;
         _analyzeSpeedHack(buf.speedMs);
     }
     if ((buf.flags & 0x2) != 0)
@@ -140,8 +146,10 @@ namespace WongWork
     }
     if ((buf.flags & 0x8) != 0)
     {
-        if (!pkt->get_int(*(unsigned int*)(char*)&buf.pad1[0x2c]))
+        unsigned int memVal = 0;
+        if (!pkt->get_int(memVal))
             return 0;
+        buf.memVal = memVal;
         _analyzeMemoryHack(buf.memVal);
     }
     if ((buf.flags & 0x4) != 0)

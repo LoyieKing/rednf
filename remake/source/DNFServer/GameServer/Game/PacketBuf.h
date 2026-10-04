@@ -97,6 +97,7 @@ public:
     char* get_buf_ptr(int size);
     bool get_byte(char& out);
     bool get_byte(unsigned char& out);
+    bool get_byte(signed char& out);
     bool get_int(int& out);
     bool get_int(unsigned int& out);
     bool get_int(unsigned long& out);

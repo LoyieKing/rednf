@@ -19,10 +19,10 @@ int Inter_ReportMannerless::dispatch_sig(CUser* user, char* data, int /*len*/)
     //   旧写 `user == 0 || …` 使 user==0 时走 GetUserByAccId ⇒ 向**错误接收者**发包/写 DB（真缺陷）。
     CUser* local_10 = 0;
     if (user != 0 &&
-        pPkt->m_e != user->get_charac_no(-1))
+        pPkt->m_characNo != user->get_charac_no(-1))
     {
         local_10 = G_CGameManager()->GetUserByAccId(
-            pPkt->m_1e);
+            pPkt->m_accId);
     }
     else
     {

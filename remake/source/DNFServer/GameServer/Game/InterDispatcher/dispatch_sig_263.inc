@@ -10,25 +10,25 @@ int Inter_GuildJoinList::dispatch_sig(CUser* user, char* data, int /*len*/)
     PacketGuard packet;
     packet.put_header(1, 0x161);
     packet.put_byte(1);
-    packet.put_int(*reinterpret_cast<int*>(local_1c));
+    Inter_GuildJoinListHdrView* hdr = reinterpret_cast<Inter_GuildJoinListHdrView*>(local_1c);
+    packet.put_int(hdr->m_count);
 
-    for (int local_18 = 0; local_18 < *reinterpret_cast<int*>(local_1c); ++local_18)
+    for (int local_18 = 0; local_18 < hdr->m_count; ++local_18)
     {
-        // [R5·InterDisp 形态收口 2026-09-11] ORIG 0x084e3cf9 `add $0x4,%eax; mov (%eax),%eax`
-        //   —— 裸指针算术 + 解引用（4.4 对此恒发两步 add），非视图成员访问
-        //   （后者折单条 `mov 0x4(%eax)`）。ORIG 0x084e3e8b 同形于 +0x44。
-        packet.put_int(*reinterpret_cast<int*>(local_1c + local_18 * 0x44 + 0x4));
-        const int local_14 = (int)strlen(local_1c + local_18 * 0x44 + 0x08);
+        Inter_GuildJoinListEntryWinView* e =
+            reinterpret_cast<Inter_GuildJoinListEntryWinView*>(local_1c + local_18 * 0x44);
+        packet.put_int(e->m_4);
+        const int local_14 = (int)strlen(e->m_name);
         packet.put_int(local_14);
-        packet.put_str(local_1c + local_18 * 0x44 + 0x08, local_14);
-        packet.put_byte(((Inter_GuildJoinListEntryWinView*)(local_1c + local_18 * 0x44))->m_26);
-        packet.put_byte(((Inter_GuildJoinListEntryWinView*)(local_1c + local_18 * 0x44))->m_27);
-        packet.put_byte(((Inter_GuildJoinListEntryWinView*)(local_1c + local_18 * 0x44))->m_29);
-        packet.put_byte(((Inter_GuildJoinListEntryWinView*)(local_1c + local_18 * 0x44))->m_28);
-        const int local_10 = (int)strlen(local_1c + local_18 * 0x44 + 0x2a);
+        packet.put_str(e->m_name, local_14);
+        packet.put_byte(e->m_26);
+        packet.put_byte(e->m_27);
+        packet.put_byte(e->m_29);
+        packet.put_byte(e->m_28);
+        const int local_10 = (int)strlen(e->m_note);
         packet.put_int(local_10);
-        packet.put_str(local_1c + local_18 * 0x44 + 0x2a, local_10);
-        packet.put_int(*reinterpret_cast<int*>(local_1c + local_18 * 0x44 + 0x44));
+        packet.put_str(e->m_note, local_10);
+        packet.put_int(e->m_44);
     }
 
     packet.finalize(true);

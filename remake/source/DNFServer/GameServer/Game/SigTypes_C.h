@@ -524,11 +524,11 @@ struct CONTINUOUS_ITEM_INFO
 #pragma pack(push, 1)
 struct SIG_REDEEMINFO_LIST_TO_DB
 {
-    char m_pad0[4];                                // +0x000
-    int  m_field4;                                 // +0x004（ctor 清零）
+    union { char m_pad0[4]; unsigned int m_characNo; };
+    int  m_count;                                  // +0x004（ctor 清零；redeem 条数）
     Redeem_Item::Inven_Item_Expand_RedeemInfo m_items[0x15];  // +0x008（0x594）
 
-    SIG_REDEEMINFO_LIST_TO_DB() : m_field4(0) {}   // ORIG W 0x0848f894（C1/C2 同址）：m_items[0x15] 自动数组先于 m_field4=0，故置 init-list
+    SIG_REDEEMINFO_LIST_TO_DB() : m_count(0) {}    // ORIG W 0x0848f894（C1/C2 同址）：m_items[0x15] 自动数组先于 m_count=0，故置 init-list
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_REDEEMINFO_LIST_TO_DB) == 0x59c,
@@ -1037,13 +1037,20 @@ static_assert(offsetof(SIG_LOAD_KILL_MONSTER_INFO, m_characNo) == 0xafc8, "SIG_L
 struct SIG_LOAD_NO_CACHE_DATA
 {
     union {
-        unsigned int m_characNo;   // +0x00（ORIG dispatch 0x08446e.. `movl %edx,(%eax)`
-                                   //   int RHS→unsigned 字段 = P211 异型 RHS-first 形，
-                                   //   b28-L11；协议 charac_no 非负，unsigned 仅表线格式）
-        int m_characNoInt;         // +0x00（同址 int 视角：RHS 为 int 局部时同型直存，
-                                   //   [Lane31W8LTDBTaskView] 消除视图 cast 反模式）
-        char m_pad[0x2c];
+        unsigned int m_characNo;   // +0x00
+        int m_characNoInt;
     };
+    char m_pad4[4];                // +0x04
+    unsigned int m_weekPoint;      // +0x08
+    unsigned int m_weekEnterCount; // +0x0c
+    unsigned int m_weekUseGold;    // +0x10
+    int m_lastPlayDate;            // +0x14
+    unsigned int m_enterCount;     // +0x18
+    unsigned int m_rank;           // +0x1c
+    unsigned char m_reward;        // +0x20
+    char m_pad21[3];               // +0x21
+    unsigned long m_rewardItemId;  // +0x24
+    unsigned int m_rewardGold;     // +0x28
 };
 
 // [Lane31W8LTDBTaskView] 整体字段化 + 匿名 union 双视角：ORIG
@@ -1078,6 +1085,17 @@ static_assert(sizeof(SIG_LOAD_POWER_WAR_STATUE_INFO) == 0x80,
               "SIG_LOAD_POWER_WAR_STATUE_INFO ABI drift");
 static_assert(0x050 + sizeof(((SIG_LOAD_POWER_WAR_STATUE_INFO*)0)->m_guildId) == 0x054,
               "SIG_LOAD_POWER_WAR_STATUE_INFO m_equipment at +0x54");
+
+#pragma pack(push, 1)
+struct SIG_LOAD_POWER_WAR_INFO
+{
+    int m_point;                 // +0x00 SetPowerInfo point
+    int m_channelPoint;          // +0x04 SetPowerInfo channelPoint
+    signed char m_side;          // +0x08 SetPowerInfo side / Winner
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_LOAD_POWER_WAR_INFO) == 0x9,
+              "SIG_LOAD_POWER_WAR_INFO ABI drift");
 
 struct SIG_LOAD_PU_USER_INFO
 {
@@ -1233,10 +1251,10 @@ struct CHARAC_LOAD_MERCENARY
     //   T1 仅定 4 字节（ORIG `mov DWORD PTR [eax+0x28],edx`）；T2 消费端无有符号指令；
     //   ORIG Competition 0x081b3a?? 段为 RHS-first+中转（`mov edx,eax; mov eax,[ebp+8];
     //   mov [eax+0x28],edx`），探针 /tmp/probe_m28.cpp 实测 unsigned 字段+int RHS 逐条复现。
-    unsigned int m_field28;       // +0x28（Reset 写 0）
-    int m_field2c;                // +0x2c（Reset 写 0；GetCompetitionState 竞技结束秒）
-    unsigned char m_field30;      // +0x30（Reset 写 0xff；GetCompetitionState 未报名标志）
-    unsigned char m_field31;      // +0x31（Reset 写 0xff）
+    union { unsigned int m_field28; int m_startTime; };  // +0x28
+    union { int m_field2c; int m_finishTime; };          // +0x2c
+    union { unsigned char m_field30; char m_area; };     // +0x30
+    union { unsigned char m_field31; char m_period; };   // +0x31
     unsigned char m_avatarBonus;  // +0x32 avatar 等级加成：Reset 写 0xa=CalcMercenaryAvatarBonus
                                   //   初值；setAvatarTypeBonus(0x0868ebaa) 写、GetAvatarBonus
                                   //   (0x081b2c94) 读、AddCharac(0x081b4300) 按 m_avatarItems 重算
@@ -1276,7 +1294,18 @@ static_assert(sizeof(SIG_GIVE_GROWTH_CREATURE_EVENT) == 0x1e4,
 // ---- 登录域整包转发视图（dispatch_sig 只作整包指针转发；内部字段归各 owner 批次）
 struct SIG_INGAME_EVENT_HISTORY       { unsigned char m_data[0x178]; };  // +0x3fac..0x4123
 static_assert(sizeof(SIG_INGAME_EVENT_HISTORY) == 0x178, "SIG_INGAME_EVENT_HISTORY size");
-struct SIG_GROWTH_WEAPON_EVENT        { unsigned char m_data[0x14]; };   // +0x4140..0x4153
+#pragma pack(push, 1)
+struct SIG_GROWTH_WEAPON_EVENT
+{
+    bool m_eventFlag;           // +0x00
+    char m_pad1[3];             // +0x01
+    unsigned int m_field4;      // +0x04
+    unsigned int m_field8;      // +0x08
+    unsigned int m_fieldc;      // +0x0c
+    short m_field10;            // +0x10
+    short m_field12;            // +0x12
+};
+#pragma pack(pop)
 static_assert(sizeof(SIG_GROWTH_WEAPON_EVENT) == 0x14, "SIG_GROWTH_WEAPON_EVENT size");
 // [b28d-22] ORIG 0x08691dca setCharacLevelUpGift_AccountOnce 对 sig 用 scaled 索引
 // `mov 0xc(%ebp),%eax; mov 0x4(%eax,%edx,8),%eax` ⇒ 条目数组自 sig+0 起、元素 {int,int}

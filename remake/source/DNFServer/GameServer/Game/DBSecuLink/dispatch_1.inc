@@ -18,7 +18,7 @@ bool DB_CheckJoinGuild::dispatch(int userIdx, int slot, Stream* stream)
     int unused = 0;              // ORIG -0x10 槽（dead local，P31）
     char nameBuf[0x2f];          // escape_string 中转（尺寸按 ORIG 帧反推）
 
-    db->escape_string(nameBuf, reinterpret_cast<const char*>(sig));
+    db->escape_string(nameBuf, sig->m_guildName);  // ORIG 传 sig（+0x00 即公会名区）→ 具名字段
     db->set_query(
         "seLect guild_name,master_name,lev,member_count from guild_info "
         "where server_id=%d and expire_flag=0 and guild_name='%s'",
@@ -46,9 +46,9 @@ bool DB_CheckJoinGuild::dispatch(int userIdx, int slot, Stream* stream)
             return 0;
         if (!db->get_str(1, reply->m_name, 0x1e))
             return 0;
-        if (!db->get_int(2, reply->m_arg3c))
+        if (!db->get_int(2, reply->m_lev))
             return 0;
-        if (!db->get_int(3, reply->m_arg40))
+        if (!db->get_int(3, reply->m_memberCount))
             return 0;
     }
 

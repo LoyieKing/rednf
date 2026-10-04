@@ -12,7 +12,7 @@ bool DB_UpdateCharacView::dispatch(int userIdx, int slot, Stream* stream)
     // 技巧36：删 hv 具名视图指针（ORIG 每站点 `mov -0x10(%ebp),%eax` 参数
     // 结果槽直读+add disp，0x0840888f 区；hv 槽使整帧外推 8B）。
     if (!compress_zip(buf, zipLen,
-                      reinterpret_cast<DB_CharacViewHeaderView*>(sig)->m_info,
+                      sig->m_info,
                       0x14d0))
         return 0;
     // ORIG 0x08408…：`mov %eax,%ebx` mIdStr 直落 callee-saved %ebx（无槽）。
@@ -22,11 +22,11 @@ bool DB_UpdateCharacView::dispatch(int userIdx, int slot, Stream* stream)
     db->set_query("upDate charac_view set info='%s' where m_id=%s",
                   db->blob_to_str(0, buf, (int)zipLen),
                   NumberToString(
-                      reinterpret_cast<DB_CharacViewHeaderView*>(sig)->m_mId, 0));
+                      sig->m_mId, 0));
     if (db->exec(true) != 1 || db->getAffectedRowCount() == 0)
     {
         db->set_query("inSert into charac_view(m_id,info) values(%s,'%s')",
-                      NumberToString(reinterpret_cast<DB_CharacViewHeaderView*>(sig)->m_mId, 0),
+                      NumberToString(sig->m_mId, 0),
                       db->blob_to_str(0, buf, (int)zipLen));
         if (db->exec(true) != 1)
             return 0;

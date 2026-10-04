@@ -10,13 +10,13 @@ int Inter_VillageAttackedEnd::dispatch_sig(CUser* /*user*/, char* data, int /*le
     const unsigned int curSec =                        // -0x38
         GlobalData::s_systemTime_.getCurSec();
     const unsigned int closeTime =                     // -0x34（msg+0x0a）
-        pPkt->m_a;
+        pPkt->m_closeTime;
     const int remainSec =                              // -0x34 复用（Ghidra local_34）
         (closeTime < curSec) ? 0 : (int)(closeTime - curSec);
     int state;                                         // -0x30
 
-    if (pPkt->m_e <
-        pPkt->m_12)
+    if (pPkt->m_scoreA <
+        pPkt->m_scoreB)
     {
         GlobalData::s_revengeDungeonMgr->CloseRevengeDungeon();
         GlobalData::s_revengeDungeonMgr->SetCloseTime(closeTime);
@@ -76,14 +76,11 @@ int Inter_VillageAttackedEnd::dispatch_sig(CUser* /*user*/, char* data, int /*le
                 const unsigned int condCnt = (unsigned int)S207_REVENGE_CONDS.size();
                 for (unsigned int i = 0; i < condCnt; ++i)
                 {
-                    const unsigned int lo =            // 元素 +0x00
-                        *reinterpret_cast<const unsigned int*>(&S207_REVENGE_CONDS[i]);
-                    const unsigned int hi =            // 元素 +0x04
-                        *reinterpret_cast<const unsigned int*>(
-                            reinterpret_cast<const char*>(&S207_REVENGE_CONDS[i]) + 4);
-                    const int cnt =                    // 元素 +0x08
-                        *reinterpret_cast<const int*>(
-                            reinterpret_cast<const char*>(&S207_REVENGE_CONDS[i]) + 8);
+                    const unsigned int lo =
+                        static_cast<unsigned int>(S207_REVENGE_CONDS[i].m_field0);
+                    const unsigned int hi =
+                        static_cast<unsigned int>(S207_REVENGE_CONDS[i].m_field4);
+                    const int cnt = static_cast<int>(S207_REVENGE_CONDS[i].m_field8);
                     if (lo <= (unsigned int)atkCnt &&
                         (unsigned int)atkCnt <= hi)
                     {

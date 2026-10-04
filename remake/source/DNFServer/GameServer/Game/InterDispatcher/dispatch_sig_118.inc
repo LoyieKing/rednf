@@ -6,7 +6,7 @@ int Inter_GuildReplyGuildMasterDelegate::dispatch_sig(CUser* user, char* data, i
     Inter_GuildReplyGuildMasterDelegatePktView* pPkt = reinterpret_cast<Inter_GuildReplyGuildMasterDelegatePktView*>(data);
 
 
-    if (user->get_charac_no(-1) != pPkt->m_a)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {   // m_uCharID 不匹配 → 日志后退出
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -14,20 +14,20 @@ int Inter_GuildReplyGuildMasterDelegate::dispatch_sig(CUser* user, char* data, i
             0x23ba,
             "Inter_NoticeGuildMasterDelegate::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            pPkt->m_a);
+            pPkt->m_characNo);
         return 0;
     }
 
     PacketGuard packet;
     packet.put_header(1, 0x9e);
-    if (pPkt->m_12 == 0)
+    if (pPkt->m_result == 0)
     {   // 结果码为零 → 成功
         packet.put_byte(1);
     }
     else
     {
         packet.put_byte(0);
-        packet.put_byte(pPkt->m_12);
+        packet.put_byte(pPkt->m_result);
     }
     packet.finalize(true);
     user->Send(packet);

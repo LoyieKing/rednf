@@ -131,10 +131,10 @@ bool CParty::checkMoveMapHackCnt(MSG_MOVE_MAP& info)
                 m_battleField.m_pDungeon->get_dimension_possible() == 0 &&
                 prevAux != 0 && m_field1aa0 != 1)
             {   // user+0x8eb48 计数超 9 归零并上报 0xdc
-                ++memberUser(this, i)->m_field8eb48;
-                if (9 < memberUser(this, i)->m_field8eb48)
+                ++memberUser(this, i)->m_moveMapHackCnt;
+                if (9 < memberUser(this, i)->m_moveMapHackCnt)
                 {
-                    memberUser(this, i)->m_field8eb48 = 0;
+                    memberUser(this, i)->m_moveMapHackCnt = 0;
                     memberUser(this, i)->getHackAnalyzer()->addServerHackCnt(
                         memberUser(this, i), (WongWork::ENUM_HACKTYPE)0xdc, 1, 0, 0);
                 }

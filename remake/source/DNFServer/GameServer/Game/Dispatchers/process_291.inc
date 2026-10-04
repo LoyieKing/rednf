@@ -30,9 +30,9 @@ int Dispatcher_ImageCommunicationEquipmentUse::process(CUser* user, MSG_BASE& ms
         // ORIG：价格值经 %ebx 跨调用直传（`mov (%eax),%ebx`），无具名 price 槽
         //   （原 `const int price` 占 -0xc 槽，产生 `mov %eax,-0xc(%ebp)` 往返）。
         user->getCurCharacInvenW()->use_money(
-            *(int*)G_CDataManager()->GetImageCommnicationData(),
+            static_cast<ImageCommunicationData*>(G_CDataManager()->GetImageCommnicationData())->m_charge,
             (eMoneySubReason)0x30, true);
-        out.m_8 = *(int*)G_CDataManager()->GetImageCommnicationData();
+        out.m_8 = static_cast<ImageCommunicationData*>(G_CDataManager()->GetImageCommnicationData())->m_charge;
         out.m_c = user->getCurCharacMoney();
     }
     return 0;

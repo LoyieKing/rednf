@@ -112,11 +112,11 @@ void CUser::setHackUser(unsigned int p1, unsigned int p2, unsigned int p3,
                                     static_cast<TIMER_MESSAGE>(0x81), delaySec,
                                     get_unique_id(), 0xffffffffu);
         OnPunishUser();
-        if (m_field796d8 != 0 && GetTradePunishType() != 0)
+        if (m_puUser != 0 && GetTradePunishType() != 0)
         {
             return;
         }
-        if (m_field796d8 != 0 && (type == 1 || type == 4 || type == 9))
+        if (m_puUser != 0 && (type == 1 || type == 4 || type == 9))
         {
             type = 10;
         }

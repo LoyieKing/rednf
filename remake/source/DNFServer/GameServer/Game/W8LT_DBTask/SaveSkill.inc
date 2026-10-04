@@ -32,7 +32,7 @@ bool DB_SaveSkill::SaveSkill(SIG_LOAD_SKILL* sig)
         sig->m_remainSfpTree2,
         out3,
         sig->m_field411,
-        ((DB_SaveSkillCharacView*)sig)->m_characNo);
+        sig->m_characNo);
     r = db->exec(true);
     if (!r)
         return 0;

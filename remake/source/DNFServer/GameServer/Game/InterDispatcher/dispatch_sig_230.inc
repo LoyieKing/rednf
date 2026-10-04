@@ -9,7 +9,7 @@ int Inter_ReqAddPvPBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0;
     // ORIG +0x27 一步 `mov 0xa(%eax),%ebx` ⇒ register 局部。
     register int charIdMsg =                           // recv charId @ msg+0xa
-        pPkt->m_a;
+        pPkt->m_characNo;
     if (charIdMsg != user->getCurCharacNo())   // ORIG `cmp %eax,%ebx` 同上
         return 0;
 
@@ -17,9 +17,9 @@ int Inter_ReqAddPvPBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_header(0, 0x10c);
     packet.put_byte((int)pPkt->m_12);   // movsbl
     // ORIG：strlen 单次调用，结果落 -0xc 复用。
-    const int nameLen = strlen(pPkt->m_13);
+    const int nameLen = strlen(pPkt->m_name);
     packet.put_int(nameLen);
-    packet.put_str(pPkt->m_13, nameLen);
+    packet.put_str(pPkt->m_name, nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;

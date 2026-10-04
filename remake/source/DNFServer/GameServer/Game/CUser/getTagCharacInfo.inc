@@ -11,10 +11,10 @@ int CUser::getTagCharacInfo(int param_1, unsigned int characNo, TAG_CHARAC_DATA*
         return 0;
     out->m_characNo = m_characList[param_1].m_characNo;
     strncpy(out->m_name, m_characList[param_1].m_name, 0x1d);
-    out->m_field21 = m_characList[param_1].m_field26;   // job（ORIG movzbl 读）
+    out->m_field21 = m_characList[param_1].m_job;   // job（ORIG movzbl 读）
     out->m_field22 = (unsigned short)m_characList[param_1].m_level;  // ORIG movzwl 0x27
-    out->m_field24 = m_characList[param_1].m_field29.m_growthType;
-    out->m_field25 = m_characList[param_1].m_field1239;
+    out->m_field24 = m_characList[param_1].m_growthType.m_growthType;
+    out->m_field25 = m_characList[param_1].m_skillTreeIndex;
     memcpy(&out->m_add, &m_characList[param_1].m_additioalInfo, 0x52);
     return 1;
 }

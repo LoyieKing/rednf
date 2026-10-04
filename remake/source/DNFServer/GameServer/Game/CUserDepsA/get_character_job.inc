@@ -11,7 +11,7 @@ int CUser::get_character_job(unsigned int characNo) const
     while (it != mark)
     {
         if (static_cast<unsigned int>(it->m_characNo) == characNo)
-            return static_cast<int>(it->m_field26);  // +0x26 job（movsbl）
+            return static_cast<int>(it->m_job);  // +0x26 job（movsbl）
         ++it;
     }
     return -1;

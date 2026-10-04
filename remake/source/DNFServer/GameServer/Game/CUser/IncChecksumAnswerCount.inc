@@ -1,4 +1,4 @@
 void CUser::IncChecksumAnswerCount()
 {
-    m_field8cfd8 += 1;
+    m_checksumAnswerCount += 1;
 }

@@ -9,31 +9,32 @@
 //   即 gap' 的 +5P 来源）。data 以 pPkt 具名槽（ORIG -0x24）作全部地址基址。
 int Inter_LoadDeathTowerBestRecord::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    Inter_LoadDeathTowerBestRecordPktView* pPkt = reinterpret_cast<Inter_LoadDeathTowerBestRecordPktView*>(data);
+    SIG_DEATH_TOWER_GET_BEST_RECORD* load = reinterpret_cast<SIG_DEATH_TOWER_GET_BEST_RECORD*>(data);
 
 // [G2B-Monitor] 残余留 N（写域外）：本 .inc 只含包基址声明，函数体其余部分由聚合器
 //   InterDispatcher.cpp 在 `#include` 之后续写；/tmp/g2_norm 里的实质差异
 //   （`imul $0x6c`/`imul $0x1b0`/`add $0x6c`+`mov (%eax)` vs `mov 0x6c(%eax)` 段、
 //   `mov %edi,0x10(%esp)` 序）全部落在续写段 ⇒ 不在本任务写域，无法修改 ⇒ 留 N。
-#define pRec (reinterpret_cast<Inter_LoadDeathTowerBestRecordRecWinView*>( \
-    reinterpret_cast<char*>(pPkt) + i * 0x1b0 + j * 0x6c))
-    for (unsigned int i = 0; i < pPkt->m_0; ++i)
+    Inter_LoadDeathTowerBestRecordGroup* groups =
+        reinterpret_cast<Inter_LoadDeathTowerBestRecordGroup*>(load->m_rows);
+    for (unsigned int i = 0; i < load->m_count; ++i)
     {
         for (int j = 0; j <= 3; ++j)
         {
-            if (pRec->m_6c != 0)
+            Inter_LoadDeathTowerBestRecordRecWinView* rec =
+                reinterpret_cast<Inter_LoadDeathTowerBestRecordRecWinView*>(
+                    groups[i].m_recs[j]);
+            if (rec->m_6c != 0)
             {
                 ((WongWork::CDeathTowerRanking*)
                      WongWork::CDeathTowerRanking::getRankTable(j + 1))->registBestRecord(
-                    (unsigned int)*reinterpret_cast<unsigned short*>(
-                        reinterpret_cast<char*>(pPkt) + i * 0x1b0 + 0xc),
-                    pPkt->m_4,
-                    reinterpret_cast<const stDeathTowerRecordMemberInfo_t*>(&pRec->m_10),
-                    pRec->m_6c,
-                    pRec->m_70);
+                    (unsigned int)load->m_rows[i].m_towerIndex,
+                    load->m_characNo,
+                    reinterpret_cast<const stDeathTowerRecordMemberInfo_t*>(&rec->m_10),
+                    rec->m_6c,
+                    rec->m_70);
             }
         }
     }
-#undef pRec
     return 0;
 }

@@ -84,20 +84,13 @@ public:
 
     // GetInBuffer<SIG_SECOND_USER_DATA>：ORIG memset(payload, 0, 0x14)
     {
-        struct SecondUserDataView   // SIG_SECOND_USER_DATA 载荷视图
-        {
-            unsigned int m_accId;        // +0x00
-            unsigned long long m_gold;   // +0x04
-            unsigned int m_uid;          // +0x0c
-            unsigned int m_who;          // +0x10
-        };
-        SecondUserDataView* v =
-            reinterpret_cast<SecondUserDataView*>(guard->GetInBuffer<SIG_SECOND_USER_DATA>());
+        SIG_SECOND_USER_DATA* v =
+            guard->GetInBuffer<SIG_SECOND_USER_DATA>();
         memset(v, 0, 0x14);
-        v->m_accId = accId;
+        v->m_mId = accId;
         v->m_gold = gold;
-        v->m_uid = uid;
-        v->m_who = who;
+        v->m_tradeCnt = (int)uid;
+        v->m_punished = who;
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -125,16 +118,16 @@ public:
             unsigned short m_a7;         // +0x24
             unsigned int m_a8;           // +0x28
         };
-        InsertAutoPunishFirstView* v = reinterpret_cast<InsertAutoPunishFirstView*>(
-            guard->GetInBuffer<SIG_INSERT_AUTO_PUNISH_FIRST_USER>());
-        v->m_accId = accId;
+        SIG_INSERT_AUTO_PUNISH_FIRST_USER* v =
+            guard->GetInBuffer<SIG_INSERT_AUTO_PUNISH_FIRST_USER>();
+        v->m_memberId = accId;
         strncpy(v->m_ip, ip, 0x10);
-        v->m_a3 = a3;
-        v->m_a4 = a4;
-        v->m_a5 = a5;
-        v->m_a6 = a6;
-        v->m_a7 = a7;
-        v->m_a8 = a8;
+        v->m_hackType = a3;
+        v->m_cnt = a4;
+        v->m_hackSubType = a5;
+        v->m_hackSubCnt = a6;
+        v->m_punishFlag = a7;
+        v->m_etcValue = a8;
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -156,12 +149,12 @@ public:
             unsigned long long m_gold;   // +0x08
             bool m_punish;               // +0x10（P211：与 RHS punish(bool) 同型化⇒复现 ORIG LHS-first `mov -0xc,%eax; movzbl -0x24,%edx; mov %dl,0x10(%eax)` @0x0842e34e）
         };
-        InsertAutoPunishSecondView* v = reinterpret_cast<InsertAutoPunishSecondView*>(
-            guard->GetInBuffer<SIG_INSERT_AUTO_PUNISH_SECOND_USER>());
-        v->m_accId = accId;
-        v->m_who = who;
+        SIG_INSERT_AUTO_PUNISH_SECOND_USER* v =
+            guard->GetInBuffer<SIG_INSERT_AUTO_PUNISH_SECOND_USER>();
+        v->m_memberId = accId;
+        v->m_hackMemberId = who;
         v->m_gold = gold;
-        v->m_punish = punish;            // bool↔bool 同型直存（movzbl/mov %dl）
+        v->m_punishFlag = punish;
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -193,12 +186,12 @@ public:
             unsigned int m_a3;       // +0x20
             unsigned int m_a4;       // +0x24
         };
-        HackIpSaveView* v = reinterpret_cast<HackIpSaveView*>(
-            guard->GetInBuffer<SIG_HACK_IP_SAVE>());
-        strncpy(v->m_startIp, startIp, 0xd);
-        v->m_a3 = a3;
-        v->m_a4 = a4;
-        strncpy(v->m_rawIp, rawIp, 0x10);
+        SIG_HACK_IP_SAVE* v =
+            guard->GetInBuffer<SIG_HACK_IP_SAVE>();
+        strncpy(v->m_classIp, startIp, 0xd);
+        v->m_hackType = (int)a3;
+        v->m_hackSubType = (int)a4;
+        strncpy(v->m_fullIp, rawIp, 0x10);
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);

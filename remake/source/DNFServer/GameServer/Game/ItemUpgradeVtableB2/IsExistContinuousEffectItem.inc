@@ -25,8 +25,8 @@ bool expert_job::CAlchemist::IsExistContinuousEffectItem(CUser* user,
         {
             // 视图指针必须**内联**在条件表达式里（P183）：具名指针会多一个
             // 地址槽（-0xc），使 it/last 槽整体下移 4（ORIG 直用 deEv 的 eax）。
-            if (reinterpret_cast<const ContinuousItemIdxView*>(&(*it))
-                    ->m_itemIdx == itemId)
+            if (static_cast<unsigned int>((*it).m_itemIdx) ==
+                static_cast<unsigned int>(itemId))
             {
                 // P167 新判据（b28c C28L8）：ORIG 全函数只调 `deEv`
                 // （`(*it).m` 形），不调 `ptEv`（`it->m` 形）⇒ 此处写

@@ -1,6 +1,6 @@
 void Dispatcher_RefundSkill::send(CUser* user, ParamBase& param)
 {
-    RefundParamView& v = *reinterpret_cast<RefundParamView*>(&param);
+    stRefundSkill& v = static_cast<stRefundSkill&>(param);
     // ORIG 0x081dabxx：`test %eax,%eax; jne <guard 段>` —— 正常（err==0）路径 fall-through，
     // SendCmdErrorPacket 上报体在**函数物理尾**（技巧17/23，同 SkillInit::send）。
     if (v.m_err == 0) {                                         // +0x18 错误码

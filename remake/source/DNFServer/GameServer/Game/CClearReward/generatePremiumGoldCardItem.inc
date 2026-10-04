@@ -23,8 +23,8 @@ void CClearReward::generatePremiumGoldCardItem(
         {
             // 视图 + 内联索引：ORIG `mov 0x14(%eax,%edx,4),%eax` 单条 scaled 装载
             // （指针局部会多占槽并使基址链改形，P0）。
-            if (roll <= reinterpret_cast<CDataManagerRarityProbView*>(
-                            G_CDataManager())->m_probs[i + kRarityProbIdx])
+            if (roll <= G_CDataManager()->m_serverParameter
+                            .m_premiumGoldCard4894.m_rarityDecision[i])
             {
                 rarityIdx = static_cast<ENUM_RARITY>(i);
                 break;

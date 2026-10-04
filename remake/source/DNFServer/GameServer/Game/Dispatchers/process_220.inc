@@ -14,13 +14,19 @@ int Dispatcher_PvpMissionComboClear::process(CUser* user, MSG_BASE& msg, ParamBa
     // ORIG 0x081d5aa9 `mov 0x10(%ebp),%eax; mov %eax,-0xc(%ebp)`：msg 具名引用槽；
     // 0x081d5aac / 0x081d5ad1 / 0x081d5b95 三处均 `mov -0xc(%ebp),%eax; movzbl 0xd(%eax),%eax`
     // 折 disp 重读，全文无 `mov %al,-0x9(%ebp)` 槽写入 ⇒ 原码无 comboIdx 具名局部（P0）。
-    MSG_BASE& mref = msg;
-    if (*(unsigned char*)((char*)&mref + 0xd) <= 8)   // ORIG cmp $0x8; jbe
+#pragma pack(push, 1)
+    struct ComboClearMsg {
+        char m_head[0xd];
+        unsigned char m_idx;  // +0xd
+        unsigned char m_val;  // +0xe
+    };
+#pragma pack(pop)
+    ComboClearMsg& mref = reinterpret_cast<ComboClearMsg&>(msg);
+    if (mref.m_idx <= 8)
     {
-        // ORIG 实参序：第1参 = msg+0xe（byte→int），第2参 = msg+0xd（byte→short）
         user->Update_ComboMission(
-            (int)*(unsigned char*)((char*)&mref + 0xe),
-            (short)*(unsigned char*)((char*)&mref + 0xd));
+            (int)mref.m_val,
+            (short)mref.m_idx);
         return 0;
     }
 
@@ -30,7 +36,7 @@ int Dispatcher_PvpMissionComboClear::process(CUser* user, MSG_BASE& msg, ParamBa
     char logBuf[256] = {0};
     OS_API::snprintf(logBuf, 0x100,
                      "[@missionSystem] invalid Combo Mission index:%d",
-                     (unsigned int)*(unsigned char*)((char*)&mref + 0xd));
+                     (unsigned int)mref.m_idx);
     cMyTrace trace(
         __PRETTY_FUNCTION__,
         0x3963, 5);

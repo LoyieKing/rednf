@@ -4,11 +4,7 @@
 // 生成 add+mov，与 ORIG 单指令位移读不符；亦不可用中间指针变量（栈缓存）。
 bool DB_AvatarItemMove::MoveAvatarItem(SIG_AVATAR_MOVE* sig)
 {
-    ChangeSlot(reinterpret_cast<DB_AvatarMoveView*>(sig)->m_uiId0,
-               reinterpret_cast<DB_AvatarMoveView*>(sig)->m_slot0,
-               reinterpret_cast<DB_AvatarMoveView*>(sig)->m_clearAvatarId0);
-    ChangeSlot(reinterpret_cast<DB_AvatarMoveView*>(sig)->m_uiId1,
-               reinterpret_cast<DB_AvatarMoveView*>(sig)->m_slot1,
-               reinterpret_cast<DB_AvatarMoveView*>(sig)->m_clearAvatarId1);
+    ChangeSlot(sig->m_uiId0, sig->m_slot0, sig->m_clearAvatarId0);
+    ChangeSlot(sig->m_uiId1, sig->m_slot1, sig->m_clearAvatarId1);
     return 1;
 }

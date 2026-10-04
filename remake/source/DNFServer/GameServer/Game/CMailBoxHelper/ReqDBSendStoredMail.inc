@@ -5,16 +5,16 @@ void CMailBoxHelper::ReqDBSendStoredMail(CUser* user)
     CMailBox* box = (CMailBox*)user->GetMailBox();
     if (box == 0)
         return;
-    if (reinterpret_cast<CMailBoxView*>(box)->m_streamList.empty()) // +0x58
+    if (box->m_streamList.empty()) // +0x58
         return;
     MailStreamList::iterator it =
-        reinterpret_cast<CMailBoxView*>(box)->m_streamList.begin();
+        box->m_streamList.begin();
     MailStreamList::iterator e =
-        reinterpret_cast<CMailBoxView*>(box)->m_streamList.end();
+        box->m_streamList.end();
     while (it != e)
     {
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, *it);
         ++it;
     }
-    reinterpret_cast<CMailBoxView*>(box)->m_streamList.clear();
+    box->m_streamList.clear();
 }

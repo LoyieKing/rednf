@@ -35,6 +35,7 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
     // 0x165 TITLE: client parses inner 0x165 as plaintext after 561 unwrap.
     // G_Cipher XTEA of 0x165 crashes Squirrel. ORIG 561-wraps when verify!=0;
     // SDK verify returns 0 for 0x165 here, so use the same 561 envelope as 0x15.
+    // Restored from 3badc73 (last known good enter-game).
     if (encReq || packetId == 0x165)
     {
         // §4.5 例外：s_antibotChecker_（GlobalData.h `void*`）承自外部
@@ -93,17 +94,34 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
     //   无具名 bool 槽。具名 `bool doEnc` 使 4.4 多发 `mov %al,-0x25(%ebp)` +
     //   `cmpb $0x0,-0x25(%ebp)`（+1 指令）且 VLA 帧 0x1739c→0x173a0（+4B）。
     //   修法 = P226 语句表达式内联条件（内不含具名变量 ⇒ 零槽短路物化）。
+    // ORIG 0x0864841c..0x08648441: (!encReq && isEncryptRequired()) || encFailed
+    // no packetId filter (AntibotSend.md)
+    // DIAG_SKIP_GCI_CHARLIST: temporary bisect. Plain CHARLIST body matches ORIG
+    // byte-for-byte but UI still empty after GCI (67->71). Skip GCI for cmd==2
+    // only; if slots appear, Cipher Encrypt for key=2 is the breaker.
+#define DIAG_SKIP_GCI_CHARLIST 0
     if (({ (!encReq && packet.isEncryptRequired()) || encFailed; }))
     {
-        sendBuf.copy(packet);
-        sendBuf.encrypt_packet();
-        data = sendBuf.get_packet(0);
-        len = sendBuf.get_len();
-        sendBuf.encFinalize();
-#if !remake_verify
-        cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
-            "[DNF-DIAG GCI] id=%u afterEnc=%d", (unsigned)packetId, len);
+#if !remake_verify && DIAG_SKIP_GCI_CHARLIST
+        if (packetId == 2)
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
+                "[DNF-DIAG GCI] SKIP id=2 len=%d (plain zlib CHARLIST bisect)",
+                packet.get_len());
+        }
+        else
 #endif
+        {
+            sendBuf.copy(packet);
+            sendBuf.encrypt_packet();
+            data = sendBuf.get_packet(0);
+            len = sendBuf.get_len();
+            sendBuf.encFinalize();
+#if !remake_verify
+            cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
+                "[DNF-DIAG GCI] id=%u afterEnc=%d", (unsigned)packetId, len);
+#endif
+        }
     }
     _NS_PI_2ND_SendHash_SC(data, (unsigned short)len, this);
     int sret = m_network.send_packet(data, len);

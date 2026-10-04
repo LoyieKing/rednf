@@ -2,6 +2,6 @@ void CUserCharacInfo::ClearProperDungeonUser()
 {
     if (m_selected)
     {
-    m_selected->m_field1238 = 0;
+    m_selected->m_properDungeonUser = 0;
     }
 }

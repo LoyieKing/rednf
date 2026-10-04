@@ -2,8 +2,8 @@
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=110（ORIG 0x84d3364）：N101 imul/lea 折叠+N18a 单段 regmove+N82/P112 帧槽平移。
 int Inter_DeathTowerLoadTopRanker::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    Inter_DeathTowerLoadTopRankerPktView* pPkt = reinterpret_cast<Inter_DeathTowerLoadTopRankerPktView*>(data);
-    if (pPkt->m_4 == '\0')
+    SIG_DEATH_TOWER_LOAD_TOP_RANKER* load = reinterpret_cast<SIG_DEATH_TOWER_LOAD_TOP_RANKER*>(data);
+    if (load->m_flag == '\0')
     {
         for (unsigned int t = 1; t <= 4; ++t)
         {
@@ -27,7 +27,7 @@ int Inter_DeathTowerLoadTopRanker::dispatch_sig(CUser* /*user*/, char* data, int
 //   残余留 N：续写段寄存器/寻址折叠（N18a/N4 族）。
 #define pWin_rec \
     (reinterpret_cast<Inter_DeathTowerLoadTopRankerRecWinView*>(data + i * 0x6c))
-    for (unsigned int i = 0; i < pPkt->m_0; ++i)
+    for (unsigned int i = 0; i < load->m_count; ++i)
     {
         const unsigned int stage = pWin_rec->m_1010;
         const unsigned int playTime = pWin_rec->m_100c;

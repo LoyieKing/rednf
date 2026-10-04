@@ -12,21 +12,21 @@ int Inter_TodayGuildMember::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->getCurCharacNo())
         return 0;
 
-    if (pPkt->m_16 != 0 &&
-        pPkt->m_16 == user->getCurCharacNo())
+    if (pPkt->m_characNo != 0 &&
+        pPkt->m_characNo == user->getCurCharacNo())
     {
         user->SetTodayGuildMember(true);
     }
 
     PacketGuard packet;
     packet.put_header(0, 0x130);
-    if (pPkt->m_16 != 0)
+    if (pPkt->m_characNo != 0)
     {
         packet.put_byte(1);
         // len 槽 int 精确匹配 put_str(char*,int)（size_t 会致 decay 参数降级 add+反序）
-        const int msgLen = (int)strlen(pPkt->m_1a);
+        const int msgLen = (int)strlen(pPkt->m_msg);
         packet.put_int(msgLen);
-        packet.put_str(pPkt->m_1a, msgLen);
+        packet.put_str(pPkt->m_msg, msgLen);
         packet.put_byte((int)pPkt->m_38);
         packet.put_byte((int)pPkt->m_39);
         packet.put_byte((int)pPkt->m_3a);

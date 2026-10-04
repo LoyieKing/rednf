@@ -18,20 +18,20 @@ int Inter_NoticeGuildCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0;
 
     if (user->get_charac_no(-1) !=
-        pPkt->m_e)         // msg+0x0e 角色号校验
+        pPkt->m_characNo)         // msg+0x0e 角色号校验
         return 0;
 
     user->m_historyLog.GuildCargoResult(
         (ENUM_GUILD_CARGO_HISTORY_REASON)2, 0,
-                           pPkt->m_18ea);
+                           pPkt->m_capacity);
     user->SetGuildCargoCapacity(                     // msg+0x18ea 容量
-        pPkt->m_18ea);
+        pPkt->m_capacity);
 
     int countIdx = 0;                                // local_1c/asm -0x18(%ebp)
     int putCount = 0;                                // local_14/asm -0x10(%ebp)
     PacketGuard packet;
     packet.put_header(0, 0xed);
-    packet.put_int(pPkt->m_18ea);
+    packet.put_int(pPkt->m_capacity);
     countIdx = packet.get_index();                   // 回填位
     packet.put_short(putCount);
     for (int i = 0; i <= 0x77; ++i)                  // asm cmpl $0x77, setle

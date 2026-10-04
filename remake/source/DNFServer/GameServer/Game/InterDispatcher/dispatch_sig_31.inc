@@ -15,14 +15,14 @@ int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_LoadEventItemPktView* pPkt = reinterpret_cast<Inter_LoadEventItemPktView*>(data);
     CUser* target = G_CGameManager()->GetUserByAccId(
-        pPkt->m_0);        // msg+0x0 accId
+        pPkt->m_accId);        // msg+0x0 accId
     if (target == 0)
         return 0;
 
     Inter_LoadEventItemBuf buf;                         // ORIG 0x084cf10b memset 基址 = &count
     memset(&buf, 0, 0x18);
     for (int i = 0;
-         i < pPkt->m_8; ++i)  // msg+0x8 条数
+         i < pPkt->m_itemCount; ++i)  // msg+0x8 条数
     {
         // P183：ORIG 无 skip 具名槽（084cf12f `cmp $0x3e7,%eax` 后 `je 主体`、
         //   次条件不满足时 `jne 循环尾`）⇒ 原码是单个短路条件，不设 bool skip；
@@ -34,19 +34,18 @@ int Inter_LoadEventItem::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
         //   W6_SecMiscDeps/RecvInfoFromDB.inc），故此处**必须**删 cast：ORIG 0x084cf1b5
         //   `call; test %al,%al; je`（0x084cf1ba/0x084cf1bc）无 setcc；保留 cast 会重新引入
         //   `test %al,%al; setne %al`（我方旧 NEW 0x815e4e8 段 `0f 95 c0` 实证）。
-        if (*reinterpret_cast<int*>(data + i * 0x10 + 0x10) == 999
+        if (pPkt->m_rows[i].m_a == 999
             || (target->get_state() > 2 &&
-                target->getCurCharacNo() == pPkt->m_4))
+                target->getCurCharacNo() == pPkt->m_characNo))
         {
             if (WongWork::CWebEvent::RecvInfoFromDB(
                     target,
-                    (unsigned int)*reinterpret_cast<int*>(data + i * 0x10 + 0x10),
-                    (unsigned int)*reinterpret_cast<int*>(data + i * 0x10 + 0x14),
-                    (unsigned int)*reinterpret_cast<int*>(data + i * 0x10 + 0x18),
-                    (unsigned int)*reinterpret_cast<int*>(data + i * 0x10 + 0xc)))
+                    (unsigned int)pPkt->m_rows[i].m_a,
+                    (unsigned int)pPkt->m_rows[i].m_b,
+                    (unsigned int)pPkt->m_rows[i].m_c,
+                    (unsigned int)pPkt->m_rows[i].m_item))
             {
-                buf.m_items[buf.m_count] =
-                    *reinterpret_cast<int*>(data + i * 0x10 + 0xc);
+                buf.m_items[buf.m_count] = pPkt->m_rows[i].m_item;
                 buf.m_count = buf.m_count + 1;
             }
         }

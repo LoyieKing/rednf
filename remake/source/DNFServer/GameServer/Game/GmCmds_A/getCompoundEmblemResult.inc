@@ -31,8 +31,7 @@ bool CBoosterTest::getCompoundEmblemResult(CItem const* item,
     // 0x60 且全组浅移 4）；get_grade 实参用 p1（ORIG 0x084af155 `mov -0x28(%ebp)`)
     int grade = p1->get_grade();
     int emblemId =
-        reinterpret_cast<const CBoosterEmblemIdTableView*>(G_CDataManager())
-            ->m_ids[grade * 6 + jewelType + 0x208];
+        G_CDataManager()->m_serverParameter.m_emblemCompound[grade].m_result[jewelType];
 
     CStackableItem const* emblem =
         static_cast<CStackableItem const*>(G_CDataManager()->find_item(emblemId));

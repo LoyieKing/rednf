@@ -13,7 +13,7 @@ bool DB_UpdateDimension::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
-    DB_UpdateDimensionView* sig = reinterpret_cast<DB_UpdateDimensionView*>(
+    SIG_UPDATE_DIMENSION* sig = /*SIG_UPDATE_DIMENSION*/(
         stream->GetOutBuffer<SIG_UPDATE_DIMENSION>());
     if (sig->m_dimensionInoutSave != 0)
     {

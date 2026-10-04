@@ -1,4 +1,4 @@
 int CUser::GetLastLoginCharacNo()
 {
-    return m_field8d0f4;
+    return m_lastLoginCharacNo;
 }

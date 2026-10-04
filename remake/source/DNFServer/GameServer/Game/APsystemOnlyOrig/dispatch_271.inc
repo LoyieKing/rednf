@@ -22,8 +22,8 @@ bool DB_MailBoxSendNewMailWithDBWork::dispatch(int userIdx, int slot,
     static const int handleIdx = 3;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   E_SERVER_GROUP_NONE);
-    DB_MailBoxSendNewMailView* sig =
-        reinterpret_cast<DB_MailBoxSendNewMailView*>(
+    SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK* sig =
+        (
             stream->GetOutBuffer<SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK>());
     // [K5W8LTDBTask W8DiagD 旋钮 P161/P311] ORIG 0x0842735b/…67/…7a/…96 对 mailBuf
     // 字段是**单条 ebp 偏移 store**（`mov %eax,-0x172(%ebp)`、`mov %al,-0x13d(%ebp)`、

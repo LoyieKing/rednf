@@ -12,7 +12,7 @@ bool DB_UpdateOneDayLetheSkill::ProcessUseLethe(
     // ORIG 0x08434223 `add $0xd,%eax` 覆写基址 vs gcc4.4 decay `lea
     // 0xd(%eax),%edx` 新寄存器——add-vs-lea 固有差（N4/P30），保语义具名成员。
     if (!put_compressed_blob_data(
-            db, 0, (char*)((unsigned long)sig + 0xdUL), 0x198, &blob))
+            db, 0, sig->m_skills, 0x198, &blob))
     {
         return false;
     }

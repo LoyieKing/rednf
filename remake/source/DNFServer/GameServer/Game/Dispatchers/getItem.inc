@@ -13,7 +13,7 @@ int Dispatcher_UseRenameCard::getItem(const CUser& user, int invenType, short sl
 
     out = slotItem; // ORIG：0x3d 字节逐字段复制
 
-    if (*(int*)((char*)&out + 0x02) == 0) // m_addInfo(item idx)==0 → 视为空槽失败
+    if (out.m_addInfo == 0)
     {
         return 1;
     }

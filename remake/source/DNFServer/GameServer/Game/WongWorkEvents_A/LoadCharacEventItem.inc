@@ -60,9 +60,8 @@ void EventCommon::LoadCharacEventItem(memberIdentificationNumber_t eventId,
     (*guard.operator*()) << 0x4b;                      // msg id（operator<< int @0x80c8c56）
     (*guard.operator*()) << -1;                        // size 占位
 
-    SigLoadEventItemView* sig =
-        reinterpret_cast<SigLoadEventItemView*>(
-            guard.operator->()->GetInBuffer<SIG_LOAD_EVENTITEM>());
+    SIG_LOAD_EVENTITEM* sig =
+        guard.operator->()->GetInBuffer<SIG_LOAD_EVENTITEM>();
     sig->m_eventId = eventId;
     sig->m_characNo = characNo;
 

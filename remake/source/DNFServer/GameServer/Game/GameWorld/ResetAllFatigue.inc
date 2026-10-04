@@ -138,7 +138,7 @@ void GameWorld::ResetAllFatigue()
                 AradServerStateMessage msg;
                 ARAD::notifyOpenMessageDialog(user, 0, 0x8e, msg);
             }
-            user->m_field8ec32 = 4;
+            user->m_pcroomDailyRemain = 4;
             InterSelectPcroomDailyReward::SendPacket(user);
             ARAD::Singleton<HeroMissionEvent>::Get()->processMission(
                 user, (HeroMissionCondition::MissionNo::T)5, 0);

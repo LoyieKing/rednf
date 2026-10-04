@@ -67,18 +67,15 @@ void break_away_prevent::CBreakAwayPreventSystem::loadDbData(
         //   `*((char*)this + i*0x18 + 0x11)` 会被 4.4 折成单 `add $0x11`
         //   （探针 fA 实证）⇒ 改视图形后 4.4 与 ORIG 同出 add $0x10 + disp。
         //   （int 字段保持裸形：ORIG 是 `add $0x14`+`mov (%eax)`，裸形已同。）
-        key.m_data[0] = ((const SIG_BREAK_AWAY_PREVENT_REWARD_MANAGER*)
-                         ((const char*)this + i * 0x18 + 0x10))->m_field1;
-        key.m_data[1] = ((const SIG_BREAK_AWAY_PREVENT_REWARD_MANAGER*)
-                         ((const char*)this + i * 0x18 + 0x10))->m_field2;
-        key.m_data[2] = ((const SIG_BREAK_AWAY_PREVENT_REWARD_MANAGER*)
-                         ((const char*)this + i * 0x18 + 0x10))->m_field0;
+        key.m_data[0] = m_rewards[i].m_field1;
+        key.m_data[1] = m_rewards[i].m_field2;
+        key.m_data[2] = m_rewards[i].m_field0;
 
-        reward.m_field0  = *(int*)((const char*)this + i * 0x18 + 0x14);
-        reward.m_field4  = *(int*)((const char*)this + i * 0x18 + 0x18);
-        reward.m_field8  = *(int*)((const char*)this + i * 0x18 + 0x1c);
-        reward.m_fieldc  = *(int*)((const char*)this + i * 0x18 + 0x20);
-        reward.m_field10 = *(int*)((const char*)this + i * 0x18 + 0x24);
+        reward.m_field0  = m_rewards[i].m_field4;
+        reward.m_field4  = m_rewards[i].m_field8;
+        reward.m_field8  = m_rewards[i].m_fieldc;
+        reward.m_fieldc  = m_rewards[i].m_field10;
+        reward.m_field10 = m_rewards[i].m_field14;
 
         std::map<STRewardDataKey, STRewardDataList>::iterator it =
             m_rewardMap.find(key);

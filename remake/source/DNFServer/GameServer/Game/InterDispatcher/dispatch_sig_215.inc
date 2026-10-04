@@ -31,9 +31,9 @@ int Inter_VillageAttackedStart::dispatch_sig(CUser* /*user*/, char* data, int /*
     packet.clear();
     packet.put_header(0, 0xf1);
     packet.put_int(0);
-    packet.put_int(pPkt->m_a);
-    packet.put_int(pPkt->m_e);
-    packet.put_int(pPkt->m_12);
+    packet.put_int(pPkt->m_time);
+    packet.put_int(pPkt->m_scoreA);
+    packet.put_int(pPkt->m_scoreB);
     packet.put_int(0);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);

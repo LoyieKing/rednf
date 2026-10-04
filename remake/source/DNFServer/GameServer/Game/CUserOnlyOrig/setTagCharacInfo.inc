@@ -32,10 +32,10 @@ bool CUser::setTagCharacInfo(int idx, unsigned int characNo, TAG_CHARAC_DATA* da
         // lea 0x4(%eax),%ebx`（单条 lea 进 callee-saved）vs 数组退化实参
         // `add $0x4,%eax; mov %eax,%ebx` 两段 ⇒ 写显式元素取址。
         strncpy(m_characList[idx].m_name, &data->m_name[0], 0x1d);        // wire +0x04
-        m_characList[idx].m_field26 = data->m_field21;                    // wire +0x21 → +0x26 job
+        m_characList[idx].m_job = data->m_field21;                    // wire +0x21 → +0x26 job
         m_characList[idx].m_level = static_cast<short>(data->m_field22);  // wire +0x22 → +0x27
-        m_characList[idx].m_field29.m_growthType = data->m_field24;       // wire +0x24 → +0x29
-        m_characList[idx].m_field1239 = data->m_field25;                  // wire +0x25 -> +0x1239
+        m_characList[idx].m_growthType.m_growthType = data->m_field24;       // wire +0x24 → +0x29
+        m_characList[idx].m_skillTreeIndex = data->m_field25;                  // wire +0x25 -> +0x1239
         memcpy(&m_characList[idx].m_additioalInfo, &data->m_add, 0x52);   // 具名 _Additioal_info
         return 1;
     }

@@ -301,8 +301,8 @@ namespace expert_job {
         int m_field00;
         unsigned long m_itemIdx04;
     };
-    ((EJKeyView*)this)->m_field00 = type;
-    ((EJKeyView*)this)->m_itemIdx04 = itemIdx;
+    m_field00 = type;
+    m_itemIdx04 = itemIdx;
 }
 
 // ORIG operator< W 0x086106da：int 有符号前置序 + unsigned long 无符号次序。

@@ -11,5 +11,5 @@
 //   （返回类型 bool vs ORIG unsigned char 的 .h 项另报 P7HeaderAxis）。
 unsigned char CUserCharacInfo::GetCurCharacSuperState()
 {
-    return m_selected ? m_selected->m_fieldE65 : 0;
+    return m_selected ? m_selected->m_superState : 0;
 }

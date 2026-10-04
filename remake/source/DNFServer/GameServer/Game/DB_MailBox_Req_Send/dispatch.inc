@@ -8,12 +8,12 @@ bool DB_MailBox_Req_Send::dispatch(int userIdx, int slot, Stream* stream)
     static const int handleIdx = 3;
     SIG_MAILBOX_SEND_NEW_MAIL* sigRaw = stream->GetOutBuffer<SIG_MAILBOX_SEND_NEW_MAIL>();
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
-        DB_HANDLE_3, (ENUM_SERVER_GROUP)((const SigMailboxSendNewMailView*)sigRaw)->m_serverGroup);
+        DB_HANDLE_3, sigRaw->m_serverGroup);
     if (!insertMailData(db, sigRaw))
     {
         return 0;
     }
     return sendResult(slot, 0,
-                      (int)((const SigMailboxSendNewMailView*)sigRaw)->m_amount,
-                      (ENUM_SERVER_GROUP)((const SigMailboxSendNewMailView*)sigRaw)->m_serverGroup);
+                      (int)sigRaw->m_amount,
+                      sigRaw->m_serverGroup);
 }

@@ -24,11 +24,11 @@ bool CUser::MakeTagCharacInfo(PacketGuard& packet)
     packet.put_str(getTagCharacR()->m_name, nameLen & 0xff);
 
     packet.put_byte((int)(short)getTagCharacR()->m_level);   // movswl +0x27 → byte
-    packet.put_byte((int)(char)getTagCharacR()->m_field26);  // movsbl +0x26
-    // [Main 2026-09-10] m_field29 已由 L31CharacPad 类型化为 STGrowthType（sizeof 1，
+    packet.put_byte((int)(char)getTagCharacR()->m_job);  // movsbl +0x26
+    // [Main 2026-09-10] m_growthType 已由 L31CharacPad 类型化为 STGrowthType（sizeof 1，
     // 断言锁定）；此处 ORIG 为 `movsbl +0x29`（有符号字节读）⇒ 取首字节视角并显式
     // 有符号转换（避免 4.4 折恒等，见判据⑤）。
-    packet.put_byte((int)(signed char)getTagCharacR()->m_field29.m_growthType);  // movsbl +0x29
+    packet.put_byte((int)(signed char)getTagCharacR()->m_growthType.m_growthType);  // movsbl +0x29
 
     packet.put_byte(getCurCharacStrikerSkillIndex() & 0xff);
 
@@ -71,17 +71,17 @@ bool CUser::MakeTagCharacInfo(PacketGuard& packet)
         // [b28d-PoolGlobalData P329] 去 baseSmall 具名 bool（其 -0x1d 槽把全帧
         // 标量顶深 4 + 产 `mov %al,-slot; cmpb $0,-slot` 往返；ORIG 0x086907xx
         // 短路直落 `test %al,%al; je`）⇒ 条件内联回 if。
-        char* base;
-        if ((char)getTagCharacR()->m_field1239 == (char)-1 ||
-            (char)getTagCharacR()->m_field1239 == (char)0)
-            base = getTagCharacSkillW() + 0x46;
-        else
-            base = getTagCharacSkillW() + 0x1de;
-        if (base[i * 2] != 0)
+        SkillSlot* sk = reinterpret_cast<SkillSlot*>(getTagCharacSkillW());
+        _Mastered_skill* skills =
+            ((char)getTagCharacR()->m_skillTreeIndex == (char)-1 ||
+             (char)getTagCharacR()->m_skillTreeIndex == (char)0)
+                ? sk->m_skillSlot
+                : sk->m_skillSlot2;
+        if (skills[i].m_index != 0)
         {
             packet.put_byte(i);
-            packet.put_byte(*(unsigned char*)(base + i * 2));
-            packet.put_byte((int)*(char*)(base + i * 2 + 1));
+            packet.put_byte(skills[i].m_index);
+            packet.put_byte((int)skills[i].m_level);
             ++count;
         }
     }

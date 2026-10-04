@@ -169,8 +169,7 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
             ref.m_rankBonusIndex = 1;                          // ORIG movl
             ref.m_goldBase = 1;                                // ORIG movw +0x3c
             ref.m_goldFactor = 1;                              // ORIG movw +0x3e
-            *reinterpret_cast<unsigned short*>(&ref.m_dungeon) = 1;       // ORIG movw 低 16 位
-            *(reinterpret_cast<unsigned short*>(&ref.m_dungeon) + 1) = 1; // ORIG movw 高 16 位
+            ref.m_dungeon = reinterpret_cast<CDungeon*>(0x00010001); // ORIG movw 1,1 叠指针槽
 
             stGenerateResult_t randomResult;                   // ORIG -0xb8 独立结果区
             // [P282 真 bug 修] ORIG 08462131 `mov (%eax),%edx; add $0xc,%edx;

@@ -14,7 +14,7 @@ bool CUser::GetInventory(SIG_LOAD_INVENTORY* sig)
     memcpy(&sig->m_equipMirror, getCurCharacInvenR()->m_invenItem, 0x53e);
     // creature tail：m_invenType3 区内 +0x38b6 跨条目 0xf4 B（源 m_invenItem[22..25]，
     // ORIG 0x0864d646 忠实保留跨对齐写）。
-    memcpy(((SIG_LI_CreatureTailView*)sig)->m_tail,
+    memcpy(&sig->m_invenType3[0xee],
            &getCurCharacInvenR()->m_invenItem[22], 0xf4);
     getCurCharacInvenR()->GetClearAvatar(sig->m_clearAvatar);   // b28d-solo-CUser：数组退化免 cast（P255/g17 形）
     sig->m_cargoCapacity = getCurCharacCargoR()->GetCapacity();   // 同型直存（GetCapacity 已 unsigned 化）

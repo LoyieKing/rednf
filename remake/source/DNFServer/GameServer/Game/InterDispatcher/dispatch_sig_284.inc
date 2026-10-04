@@ -2,7 +2,7 @@ int Inter_HadesAction::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_HadesActionPktView* pPkt = reinterpret_cast<Inter_HadesActionPktView*>(data);
 
-    if (user != 0 && user->get_acc_id() == pPkt->m_a)
+    if (user != 0 && user->get_acc_id() == pPkt->m_accId)
     {
         char ipBuf[16] = { '\0' };                     // 16 字节内联清零
         static_cast<XNuclear::CHades*>(user->getHades())
@@ -15,12 +15,12 @@ int Inter_HadesAction::dispatch_sig(CUser* user, char* data, int /*len*/)
                              ipBuf);
         send_alert(user, pPkt->m_12);
     }
-    else if (user == 0 && pPkt->m_a != 0)
+    else if (user == 0 && pPkt->m_accId != 0)
     {
         if ((pPkt->m_12 & 2) != 0)
         {   // 双端惩罚（type=2）
             DB_HadesPunish::makeRequest(
-                pPkt->m_a, 2,
+                pPkt->m_accId, 2,
                 pPkt->m_16,
                 pPkt->m_1a,
                 pPkt->m_1e,
@@ -29,7 +29,7 @@ int Inter_HadesAction::dispatch_sig(CUser* user, char* data, int /*len*/)
         if ((pPkt->m_12 & 1) != 0)
         {   // 单端惩罚（type=1）
             DB_HadesPunish::makeRequest(
-                pPkt->m_a, 1,
+                pPkt->m_accId, 1,
                 pPkt->m_16,
                 pPkt->m_1a,
                 pPkt->m_1e,

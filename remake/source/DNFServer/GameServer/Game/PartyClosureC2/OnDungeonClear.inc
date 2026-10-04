@@ -19,7 +19,7 @@ int CParty::OnDungeonClear(CUser* user, bool success)
         {
             if (user->getCurCharacR() != 0)
             {
-                if (user->m_field8e074 != 0 &&
+                if (user->m_hasCharacterStatistic != 0 &&
                     m_battleField.m_pDungeon != 0)   // 旧 m_character.m_f40（+0x40）——布局修正后为 CUser 直属 +0x8e074
                 {
                     SendDungeonCharacInfo(user, success);
@@ -36,8 +36,7 @@ int CParty::OnDungeonClear(CUser* user, bool success)
     else if (m_battleField.m_pDungeon != 0 &&
              (signed char)m_battleField.m_pDungeon->get_dimension_possible() > 0)
     {
-        reinterpret_cast<CStatisticMgrExpView*>(GlobalData::s_statisticMgr)
-            ->m_dungeonExp.IncreaseDungeonExp(user->get_charac_level(),
+        GlobalData::s_statisticMgr->m_dungeonExp.IncreaseDungeonExp(user->get_charac_level(),
                                               user->m_character.m_f28,
                                               user->m_character.m_f30);
     }
@@ -46,8 +45,7 @@ int CParty::OnDungeonClear(CUser* user, bool success)
         if (m_battleField.m_pDungeon->get_standard_level() - 5 <= user->get_charac_level() &&
             m_battleField.m_pDungeon->get_standard_level() + 3 >= user->get_charac_level())
         {
-            reinterpret_cast<CStatisticMgrExpView*>(GlobalData::s_statisticMgr)
-                ->m_dungeonExp.IncreaseDungeonExp(user->get_charac_level(),
+            GlobalData::s_statisticMgr->m_dungeonExp.IncreaseDungeonExp(user->get_charac_level(),
                                                   user->m_character.m_f28,
                                                   user->m_character.m_f30);
         }

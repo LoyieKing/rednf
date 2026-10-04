@@ -29,8 +29,9 @@ int Inter_PvPBuddyConnList::dispatch_sig(CUser* user, char* data, int /*len*/)
     for (int i = 0; i < (int)reinterpret_cast<Inter_PvPBuddyConnListPktView*>(base)->m_12; ++i)
         // 求值序 = ORIG：i 项先算（eax），再 add $0x10 / add base 槽 / add $0x6
         // （base 置于两常量之间阻折叠 ⇒ 三段就地 add，N4a）。
-        packet.put_binary(reinterpret_cast<char*>(i * 0x29 + 0x10 + base + 6),
-                          0x29);
+        packet.put_binary(
+            reinterpret_cast<Inter_PvPBuddyConnListPktView*>(base)->m_recs[i].m_data,
+            0x29);
     packet.finalize(true);
     user->Send(packet);
     return 0;

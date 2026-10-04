@@ -22,8 +22,7 @@ bool DB_StatPVPPlay2::dispatch(int userIdx, int slot, Stream* stream)
         // 写 `(*it).first/second`。
         const StatisticsPvP::PvP_Key& key = (*it).first;
         // [M8DBB] 真偏移视图（ORIG 16B，见上）；`&(*it).second` 仍走 deEv+8。
-        const DB_StatPVPPlay2RoomView& room =
-            *(const DB_StatPVPPlay2RoomView*)&(*it).second;
+        const StatisticsPvP::PvP_Room& room = (*it).second;
         db->set_query(
             "inSert into pvp_status(occ_date,room_number,play_type,no_participants,occ_count) values(cast(now() as date),%d,%d,%d,%d)",
             key.m_a, key.m_b, room.m_resultSum, room.m_roomCount);

@@ -28,7 +28,7 @@ bool DB_ReloadAutoPunishRuleBackIP::dispatch(int userIdx, int slot,
     // 落 out+0（无 rowCount 具名槽，P0/P48），且循环条件 ORIG 0x0842d043 **每轮重取**
     // get_n_rows 并按无符号比较（`cmp -0xc(%ebp),%eax; seta`）⇒ i 改 unsigned int、
     // 界改内联 call；ipStr ORIG 清零 15 字节（`movl×3 + movw + movb`）⇒ 数组改 0xf。
-    DB_AutoPunishBlackIpView* out = reinterpret_cast<DB_AutoPunishBlackIpView*>(
+    SIG_AUTO_PUNISH_RULE_BLACK_IP* out = /*SIG_AUTO_PUNISH_RULE_BLACK_IP*/(
         guard->GetInBuffer<SIG_AUTO_PUNISH_RULE_BLACK_IP>());
     out->m_count = (unsigned short)db->get_n_rows();
     for (unsigned int i = 0; i < (unsigned int)db->get_n_rows(); ++i)

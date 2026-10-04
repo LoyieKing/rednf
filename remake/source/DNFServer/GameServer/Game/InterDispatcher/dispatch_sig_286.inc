@@ -7,19 +7,19 @@ int Inter_SelectCharacMid::dispatch_sig(CUser* user, char* data, int /*len*/)
     // m_0 检查独立正向（jne tail）；fatigue 实参免槽（call→movzwl %ax,%edi 跨双 call，R2L）。
     if (({ user != 0 && user->getCurCharacR() != 0; }))
     {
-        if (pPkt->m_0 == 0)
+        if (pPkt->m_ok == 0)
         {
             user->getHackAnalyzer()->addServerHackCnt(
                 user,
-                (WongWork::ENUM_HACKTYPE)pPkt->m_4, 1,
-                pPkt->m_10,
-                pPkt->m_8);
-            if (pPkt->m_4 == 0x2ce)
+                (WongWork::ENUM_HACKTYPE)pPkt->m_hackType, 1,
+                pPkt->m_arg10,
+                pPkt->m_arg8);
+            if (pPkt->m_hackType == 0x2ce)
             {
                 reinterpret_cast<XNuclear::CHades*>(user->getHades())->GoldTracking(
                     2,
-                    pPkt->m_10, "",
-                    pPkt->m_8,
+                    pPkt->m_arg10, "",
+                    pPkt->m_arg8,
                     user->getCurCharacUsedFatigue() & 0xffff);
             }
         }

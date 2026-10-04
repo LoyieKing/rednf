@@ -21,8 +21,8 @@ int Inter_LoadCharacLinkBonus::dispatch_sig(CUser* user, char* data, int /*len*/
     Inven_Item item;                                   // -0xa5（默认构造）
 
     Inter_LoadCharacLinkBonusPktView* pPkt = reinterpret_cast<Inter_LoadCharacLinkBonusPktView*>(data);
-    bonusExp = pPkt->m_0;
-    bonusGold = pPkt->m_4;
+    bonusExp = pPkt->m_bonusExp;
+    bonusGold = pPkt->m_bonusGold;
 
     if (bonusExp != 0 || bonusGold != 0)
     {

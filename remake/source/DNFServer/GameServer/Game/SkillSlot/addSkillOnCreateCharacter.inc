@@ -24,8 +24,7 @@ void addSkillOnCreateCharacter(_Mastered_skill* skill, int job)
         return;
     }
     std::vector<std::pair<int, int> > skillList =
-        *(std::vector<std::pair<int, int> >*)(
-            (char*)G_CDataManager()->m_characList + job * 0x7dc + 0x240);
+        ((CCharacter*)G_CDataManager()->m_characList)[job].m_giveSkillList[0];
     int skillIdx;
     int level;
     for (int i = 0; i < (int)skillList.size(); ++i)

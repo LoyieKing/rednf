@@ -214,21 +214,34 @@ struct MailBoxListV
         int m_itemIdx;                   // +0x04
         int m_period;                    // +0x08
         int m_expire2;                   // +0x0c
-    };                                   // 步长 0x25
+        char m_pad10[0x15];              // +0x10 → stride 0x25
+    };
 
     // DetailEntry 已上收权威头：SIG_LETTER_INFO（CMailBoxHelper.h pack(1)
     // 字段版）与本视图同布局，明细区直接按 SIG_LETTER_INFO 访问。
 
-    char m_padEntries[0x794];
-    int m_mailCount;                 // +0x794
-    int m_notLoadedMailCount;        // +0x798
-    long m_loadTime;                 // +0x79c
-    int m_avatarCount;               // +0x7a0
-    char m_padAvatar[0xd30 - 0x7a4]; // avatar 条目区首 @+0x7a4（0x47 步长）
-    int m_creatureCount;             // +0xd30
-    char m_padCreature[0x1018 - 0xd34];
-    int m_detailCount;               // +0x1018
-    char m_padDetail[0x332a - 0x101c];
+    union
+    {
+        Entry m_mails[20];               // +0x00 20×0x61 → +0x7a4
+        struct
+        {
+            char m_padEntries[0x794];
+            int m_mailCount;             // +0x794
+            int m_notLoadedMailCount;    // +0x798
+            long m_loadTime;             // +0x79c
+            int m_avatarCount;           // +0x7a0
+        };
+    };
+    AvatarEntry m_avatars[20];           // +0x7a4 20×0x47 → +0xd30
+    union
+    {
+        int m_creatureCount;             // +0xd30
+        CreatureEntry m_creatures[20];   // 20×0x25 → +0x1014
+    };
+    char m_pad1014[4];                   // +0x1014
+    int m_detailCount;                   // +0x1018
+    SIG_LETTER_INFO m_details[30];       // +0x101c 30×0x12b → +0x3326
+    char m_padDetailTail[4];             // +0x3326 → +0x332a
     int m_loadedAdd;                 // +0x332a
     char m_padLack[0x333a - 0x332e];
     unsigned int m_lackTable[20];    // +0x333a
@@ -236,6 +249,10 @@ struct MailBoxListV
 #pragma pack(pop)
 static_assert(sizeof(MailBoxListV) == 0x338a, "MailBoxListV ABI drift");
 static_assert(sizeof(MailBoxListV::Entry) == 0x61, "MailBoxListV::Entry ABI drift");
+static_assert(sizeof(MailBoxListV::CreatureEntry) == 0x25, "MailBoxListV::CreatureEntry ABI drift");
+static_assert(offsetof(MailBoxListV, m_avatars) == 0x7a4, "MailBoxListV avatars offset drift");
+static_assert(offsetof(MailBoxListV, m_creatures) == 0xd30, "MailBoxListV creatures offset drift");
+static_assert(offsetof(MailBoxListV, m_details) == 0x101c, "MailBoxListV details offset drift");
 static_assert(sizeof(MailBoxListV::AvatarEntry) == 0x47, "MailBoxListV::AvatarEntry ABI drift");
 
 // SIG_MAILBOX_SEND_NEW_MAIL（_makeSendMailData 0x8555756 逐字段证据），总 0x168。
@@ -344,7 +361,7 @@ struct MailBoxSendNewMailCreatureV
     // ORIG 0x0855651e `lea 0x30(%eax),%edx; call _ZN21Inven_Item_Compatible7setCopyERK10Inven_Item`
     // ⇒ +0x30 槽按 Inven_Item_Compatible 布局转写（sizeof 0x28 → 紧接 +0x58 seed）。
     Inven_Item_Compatible m_item;    // +0x30..+0x58
-    char m_pad58[0x70 - 0x58];
+    union { char m_pad58[0x70 - 0x58]; unsigned int m_seed; };
     unsigned int m_unk70;            // +0x70（creature=100）
     int m_nDestCharacNo;             // +0x74
     char m_pad78[0x7c - 0x78];       // +0x78（memset 清零区）
@@ -414,7 +431,7 @@ struct CMailBoxView
 
 // 成员视图宏（P49：-O0 下 inline helper 会发真实 call，ORIG 无此符号）；
 // 语义 = box+0x40 的 MailMap&（CMailBoxView 布局，推断）。
-#define mail_map(box) (reinterpret_cast<CMailBoxView*>(box)->m_mailMap)
+#define mail_map(box) ((box)->m_mailMap)
 
 // MSG_MAILBOX_SEND 布局镜像（PacketTypes.h 冻结 m_pad[0x100]；偏移见
 // ReqDBSendNewMail(MSG) 0x8555b14 报告）。
@@ -573,14 +590,10 @@ inline unsigned int GetUIDOf(CUser* user) { return user->GetUID(); }
 // 表达式取 `i*step + info`（i 先求值）以复现 ORIG 4.1.2 装载序
 // （`mov -0x30,%eax; imul $0x61; lea (%edx,%eax,1)` vs 4.4 info-先形态）。
 #define MBV (reinterpret_cast<MailBoxListV const*>(info))
-#define MB_ENTRY(k) (reinterpret_cast<MailBoxListV::Entry const*>( \
-    (k) * 0x61 + reinterpret_cast<char const*>(info)))
-#define MB_AVATAR(k) (reinterpret_cast<MailBoxListV::AvatarEntry const*>( \
-    (k) * 0x47 + reinterpret_cast<char const*>(info) + 0x7a4))
-#define MB_CREATURE(k) (reinterpret_cast<MailBoxListV::CreatureEntry const*>( \
-    (k) * 0x25 + reinterpret_cast<char const*>(info) + 0xd30))
-#define MB_DETAIL(k) (reinterpret_cast<SIG_LETTER_INFO const*>( \
-    (k) * 0x12b + reinterpret_cast<char const*>(info) + 0x101c))
+#define MB_ENTRY(k) (&MBV->m_mails[(k)])
+#define MB_AVATAR(k) (&MBV->m_avatars[(k)])
+#define MB_CREATURE(k) (&MBV->m_creatures[(k)])
+#define MB_DETAIL(k) (&MBV->m_details[(k)])
 
 #include "CMailBoxHelper/SetMailBoxInfo.inc"
 

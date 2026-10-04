@@ -29,9 +29,8 @@ void CTitleBook::deleteTimeoutItem(
                 // 真定义 CDataManager.h:3665 `DeleteInvalidItemScript m_deleteInvalidItem; // +0xb658`。
                 // 镜像内补该字段会把其落 +0x00 而非 +0xb658 → 真实地址漂移 bug，故保留
                 // 具名视图 + 文档化基址访问（同 CItemLock/CMailBoxHelper 判例）。
-                else if (reinterpret_cast<DeleteInvalidItemScript*>(
-                             (char*)G_CDataManager() + 0xb658)
-                             ->IsInvalidItem2Delete(item->m_addInfo))
+                else if (G_CDataManager()->m_deleteInvalidItem.IsInvalidItem2Delete(
+                             item->m_addInfo))
                 {
                     // ORIG make_pair<unsigned long const&, int const&>：实参直接取
                     // m_addInfo 地址（+0x02）⇒ 用同尺寸 unsigned long 左值视图

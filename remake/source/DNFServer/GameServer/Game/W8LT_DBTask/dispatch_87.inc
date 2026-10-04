@@ -11,8 +11,8 @@
 //   ⇒ 复现 ORIG 的 3 push（edi/esi/ebx）+ 帧 0x5c + C1 前 varargs 物化。
 bool DB_UpdateDetailChannel::dispatch(int userIdx, int slot, Stream* stream)
 {
-    DB_UpdateDetailChannelView* sig =
-        reinterpret_cast<DB_UpdateDetailChannelView*>(
+    SIG_UPDATE_DETAIL_CHANNEL* sig =
+        /*SIG_UPDATE_DETAIL_CHANNEL*/(
             stream->GetOutBuffer<SIG_UPDATE_DETAIL_CHANNEL>());
     int t = GlobalData::s_systemTime_.getCurSec();
     int mod = t % 0x708;

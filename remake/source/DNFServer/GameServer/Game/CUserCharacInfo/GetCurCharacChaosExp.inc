@@ -1,4 +1,4 @@
 int CUserCharacInfo::GetCurCharacChaosExp()
 {
-    return m_selected ? m_selected->m_fielde4d : 0;
+    return m_selected ? m_selected->m_chaosExp : 0;
 }

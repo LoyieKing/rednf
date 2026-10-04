@@ -42,8 +42,7 @@ void WongWork::CCompoundAvatar::ProcTest(ENUM_CHARACTERJOB job,
         int rate = info->m_a[equipType] + addRate * info->m_e[equipType];
         if (bonusFlag == 1)
         {
-            rate += *(int*)((char*)G_CDataManager() +
-                            0x4a54);   // ORIG 直访（字段未建模）
+            rate += G_CDataManager()->m_serverParameter.m_49ec;
         }
 
         unsigned long range = 10000;

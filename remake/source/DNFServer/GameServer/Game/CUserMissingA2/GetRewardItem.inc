@@ -57,7 +57,7 @@ bool CHARAC_LOAD_MERCENARY::GetRewardItem(
     unsigned long range = 10000;
     static int itemDropDice;
     itemDropDice = probabilityRewardItem.randInt(range);
-    if (user->m_field6ef68 != 0)
+    if (user->m_forceItemDrop != 0)
         itemDropDice = 0;
     // ORIG 0x081b33c6：`mov itemDropDice,%eax; cmp dropRate,%eax; jl <继续>`
     // ⇒ 源码比较方向为 itemDropDice < dropRate（P196 折痕：jg↔jl 同义）。

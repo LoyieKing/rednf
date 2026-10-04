@@ -9,7 +9,7 @@ int Dispatcher_BlueMarbleConfirmInfo::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<short*>(&req.m_0e)))    // +0x0e index
+    if (!packet.get_short(req.m_0e))    // +0x0e index
     {
         return LineFunc(24848,
                         __PRETTY_FUNCTION__,

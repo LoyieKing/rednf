@@ -28,8 +28,8 @@ bool CRedeemItem::_saveData(CUser* pUser)
     //   `mov -0x24(%ebp),%eax; mov %eax,-0x20(%ebp)` 槽往返。现把 cast 内联到
     //   使用点、局部本身即视图指针类型（与 CItemMakingSkill::_saveData 同手法），
     //   复现 ORIG 单槽 + RHS-first store 形。
-    RedeemListHeadView* sig = reinterpret_cast<RedeemListHeadView*>(
-        guard->GetInBuffer<SIG_REDEEMINFO_LIST_TO_DB>());
+    SIG_REDEEMINFO_LIST_TO_DB* sig =
+        guard->GetInBuffer<SIG_REDEEMINFO_LIST_TO_DB>();
     if (sig == 0)
         return false;
     memset(sig, 0, 0x59c);
@@ -58,8 +58,7 @@ bool CRedeemItem::_saveData(CUser* pUser)
         //   后算 dst，4.4 恒先算 dst 入 %ebx（P226 裸语句表达式历史已试无效）⇒ 维持
         //   （新=DIFF 135/134 gap=+1, blocks=5：唯一残差为该求值序 + `mov %edx,%ebx`
         //   RHS 保活两条 + GI 假阳性计数）。
-        *(Inven_Item_Expand_RedeemInfo*)(
-            reinterpret_cast<char*>(sig) + 8 + i * 0x44) = *it;
+        sig->m_items[i] = *it;
         ++i;
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);

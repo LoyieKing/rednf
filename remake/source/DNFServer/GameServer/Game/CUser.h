@@ -491,33 +491,7 @@ enum ENUM_GM_ITEM_UPGRADE { E_GM_ITEM_UPGRADE_NONE = 0 };
 // ORIG CUser::updateCharacViewVisibleData(_Charac_info const&, CHARAC_LOGIN_DATA&)
 // （0x8651322 T）的可见数据宿主；布局按 UpdateCharacView(0x8651740)/
 // updateCharacViewVisibleData 报告逐偏移具名（总长 0x90，pack(1)）。
-#pragma pack(push, 1)
-struct CHARAC_LOGIN_DATA
-{
-    int           m_characNo;        // +0x00（记录 +0x04）
-    char          m_name[0x14];      // +0x04 有效名区（ORIG strncpy n=0x1e，
-                                     //   尾部越界覆盖 +0x18 起头部字段后再次被覆写）
-    unsigned char m_job;             // +0x18 ← _Charac_info+0x26
-    unsigned char m_field19;         // +0x19 ← _Charac_info+0x29
-    short         m_level;           // +0x1a ← _Charac_info+0x27
-    unsigned char m_flags;           // +0x1c bit0=禁玩标记(info+0x1240)/bit4=info+0xe40 bit1
-    unsigned char m_field1d;         // +0x1d ← _Charac_info+0x14b7
-    int           m_field1e;         // +0x1e ← _Charac_info+0x14b8
-    unsigned char m_renameOrViewState; // +0x22（当前角色=getRequestRenameState；否则=viewState）
-    char          m_pad23[0x28 - 0x23];
-    struct AvatarSlot                        // 外观槽数组元素（8 字节）
-    {
-        int   m_itemIndex;                   // +0x00 物品索引/GetClearAvatar 结果
-        short m_expansionA;                  // +0x04 GetExpansionInfo(key)[0]
-        short m_expansionB;                  // +0x06 GetExpansionInfo(key)[1]
-    };
-    AvatarSlot     m_avatarSlots[12];       // +0x28..0x87（memset(data+0x28,0,0x60)）
-    long          m_lastPlayTime;            // +0x88 ← CommonTime(_Charac_info+0x39)
-    int           m_field8c;                 // +0x8c ← _Charac_info+0xe5d
-};
-#pragma pack(pop)
-
-typedef char charac_login_data_size_ok[(sizeof(CHARAC_LOGIN_DATA) == 0x90) ? 1 : -1];
+// CHARAC_LOGIN_DATA / SigUpdateCharacViewRecord：权威定义 SigTypes_E.h
 
 // ---------------------------------------------------------------------------
 // tagCharacVisibleFlag —— _Charac_info +0xe40 子对象（权威定义点，2026-09-10 L31CharacPad
@@ -535,6 +509,8 @@ public:
 };
 
 #pragma pack(push, 1)
+namespace expert_job { class CExpertJob; }
+
 struct _Charac_info
 {
     // copy-ctor / operator= 不声明 → 编译器隐式生成（ORIG W 0x08699863 / 0x0869da62 即编译器逐字段版，
@@ -547,24 +523,24 @@ struct _Charac_info
     // 覆盖末 2 字节（7×int(0x04..0x1f)+short(0x20..0x21)）；CHackAnalyzer
     // strncmp(m_name, name, 0x1e)==0 亦为 0x1e=30。原 0x1d+pad21 系误标。
     char m_name[0x1e];      // +0x04..0x21
-    unsigned char m_field22;          // +0x22 growType 规整位（setCharacInfoDetail 0x0864ac1a）
-    unsigned char m_field23;          // +0x23 报告固定写 2
-    unsigned char m_field24;          // +0x24 特例写 7
-    unsigned char m_field25;          // +0x25 备份 data[0x22]
-    char m_field26;         // +0x26（job）
+    unsigned char m_vill;             // +0x22 growType 规整位（setCharacInfoDetail 0x0864ac1a）
+    unsigned char m_villFixed;        // +0x23 报告固定写 2
+    unsigned char m_villSpecial;      // +0x24 特例写 7
+    unsigned char m_villPrev;         // +0x25 备份 data[0x22]
+    char m_job;             // +0x26（job）
     short m_level;          // +0x27（ORIG CalcurateUserMaxLevel 两处 movzwl+cwtl 符号扩展⇒signed；getCharacLevelByCharacNo 单 movzwl 系 ORIG 源码显式 (unsigned short) cast，非字段类型，CUserC8 反证回滚）
     // [L31CharacPad 2026-09-10] ORIG C1 0x8695d00/0x8695d0e：两处 `mov 0x8(%ebp); add $0x29/
     //   $0x2a; mov (%esp); call STGrowthType::C1(0x8486bce)`（ctor 写 0xff）⇒ 1 字节子对象；
     //   消费点改 `.m_growthType` 字节视角（sizeof 1 由断言锁定）。
-    STGrowthType m_field29;           // +0x29
+    STGrowthType m_growthType;        // +0x29
     STGrowthType m_pad2a;             // +0x2a
-    int m_field2b;                    // +0x2b ← CHARAC_DATA+0x28 (int)
+    int m_exp;                        // +0x2b ← CHARAC_DATA+0x28 (int)
     // 2026-09-04 §4.3 字段化（CUserOnlyOrig 批次，Main 授权 _Charac_info 区；
     // 全部宽度证据 docs/class_func_reports/_Charac_info/Reset.md objdump 0x086822b8）
-    int m_field2f;                    // +0x2f ← Reset movl $0,0x2f（R+0x066）
-    unsigned short m_field33;         // +0x33 ← CHARAC_DATA+0x2c (u16)
-    unsigned short m_field35;         // +0x35 max-fatigue（GetRepeatEvent 键2缩放/键0x57 附加）
-    unsigned short m_field37;         // +0x37 ← CHARAC_DATA+0x30 (u16)
+    int m_partyBonusExp;               // +0x2f ← Reset movl $0,0x2f（R+0x066）
+    unsigned short m_fatigue;         // +0x33 ← CHARAC_DATA+0x2c (u16)
+    unsigned short m_maxFatigue;      // +0x35 max-fatigue（GetRepeatEvent 键2缩放/键0x57 附加）
+    unsigned short m_fatigueGrownUpBuff; // +0x37 ← CHARAC_DATA+0x30 (u16)
     // [P344 · CUserWorker 2026-09-11 · Main 批准] ORIG 隐式 `_ZN12_Charac_infoC1ERKS_`
     //   （0x08699863）在该区是**单段 16B + 单段 4B int**：objdump 0x086998d0 段 4 组
     //   4B mov（ecx×3 + edx 收尾）后才 reload 做 0x49 的单 int（源先 `mov 0xc(%ebp),%eax;
@@ -572,9 +548,9 @@ struct _Charac_info
     //   源指针 ⇒ 拷貝形不同。布局逐字节不变（CommonTime 视图只用前 0xc 字节）。
     char m_delReqTime[0x10];          // +0x39..0x48（CommonTime 视图 +0x39，sizeof 0xc）
     int  m_pad49;                     // +0x49..0x4c
-    unsigned short m_field4d;         // +0x4d ← CHARAC_DATA+0xb3 (u16)
-    unsigned short m_field4f;         // +0x4f ← CHARAC_DATA+0x32 (u16，FATIGUE BATTERY 主载体)
-    int m_field51;                    // +0x51 ← CHARAC_DATA+0xb5 (int)
+    unsigned short m_usedFatigue;     // +0x4d ← CHARAC_DATA+0xb3 (u16)
+    unsigned short m_fatigueBattery;         // +0x4f ← CHARAC_DATA+0x32 (u16，FATIGUE BATTERY 主载体)
+    int m_tutorialFlag;                // +0x51 ← CHARAC_DATA+0xb5 (int)
     char m_tradeRestrictData[0x10];   // +0x55..0x64 ← memcpy(CHARAC_DATA+0xb9,0x10)
     char m_reliablePerson[0xc];       // +0x65..0x70（CReliablePerson reinterpret 视图前段；
                                       //   InitTradeGold 消费方 cast 视图不依赖数组尺寸）
@@ -583,10 +559,10 @@ struct _Charac_info
                                       //   m_reliablePerson.m_schoolPoint 同字段实证）
     unsigned char m_stamina;    // +0x75（疲劳值；SelectCharac 恢复/make_charac_stat 序列化）
     char m_pad76;                     // +0x76
-    unsigned short m_field77;         // +0x77 ← CHARAC_DATA+0x5b (u16)
-    unsigned short m_field79;         // +0x79 ← CHARAC_DATA+0x5d (u16)
-    int m_field7b;                    // +0x7b ← CHARAC_DATA+0x4d (int，"CharLastPlayTick")
-    int m_field7f;                    // +0x7f ← CHARAC_DATA+0x118 (int)
+    unsigned short m_premiumFatigue;         // +0x77 ← CHARAC_DATA+0x5b (u16)
+    unsigned short m_maxPremiumFatigue;         // +0x79 ← CHARAC_DATA+0x5d (u16)
+    int m_lastPlayTick;                    // +0x7b ← CHARAC_DATA+0x4d (int，"CharLastPlayTick")
+    int m_lastPlayTickPowerWar;                    // +0x7f ← CHARAC_DATA+0x118 (int)
     char m_pad83;                     // +0x83 ← Reset movb $0,0x83（R+0x1e6；CharacListElemView
                                       //   m_forbidPlayFlag 同位）
     int m_field84;                    // +0x84 ← Reset movl $0,0x84（R+0x1f0；ElemView m_forbidPlayLeftSec 同位）
@@ -610,63 +586,63 @@ struct _Charac_info
     SkillSlot m_skillSlot;            // +0x892..0xda9（0x518；ORIG SkillSlot@+0x892）
     CCargo m_cargo;                   // +0xdaa..0xdbd（0x14；ORIG CCargo@+0xdaa）
     int m_guildId;                    // +0xdbe（GetGuildIdBeforeDeleteCharacter 读取）
-    unsigned char m_fielddc2;         // +0xdc2 ← CHARAC_DATA[0x5a]
+    unsigned char m_guildCreateRight;         // +0xdc2 ← CHARAC_DATA[0x5a]
     // [P344 · CUserWorker 2026-09-11 · Main 批准] ORIG 同函数 0x08699b3d..0x08699bd5 段的
     //   拷贝单元划分（逐条 objdump）：short(0xdc3) 独立（movzwl+mov %dx）；0xdc5..0xddb
     //   为**单段 0x17**（5×4B mov 用 ecx + `movzwl/mov %cx` + `movzbl/mov %dl` 收尾，
     //   全程不 reload）；reload 后 0xddc..0xde8 为**单段 0xd**（3×4B ecx + movzbl/dl 收尾）。
     //   旧 char[0x26] 单段使 4.4 在 0xdd5/0xde4 提前释放源指针 ⇒ 拷贝形短 12 条。
-    short m_fieldDC3;      // +0xdc3
+    short m_guildCreateFlag;      // +0xdc3
     char  m_padDC5[0x17];  // +0xdc5..0xddb
     char  m_padDDC[0xd];   // +0xddc..0xde8
-    int m_fieldDE9;                   // +0xde9 ← Reset movl $0（R+0x20a）
-    short m_fieldDED;                 // +0xded ← Reset movw $0（R+0x217）
-    int m_fieldDEF;                   // +0xdef ← Reset movl $0（R+0x223）
-    char m_fieldDF3;                  // +0xdf3 ← Reset movb $0（R+0x230）
+    int m_guildExp;                   // +0xde9 ← Reset movl $0（R+0x20a）
+    short m_guildTempExp;                 // +0xded ← Reset movw $0（R+0x217）
+    int m_guildTodayExp;                   // +0xdef ← Reset movl $0（R+0x223）
+    char m_guildMemberGrade;                  // +0xdf3 ← Reset movb $0（R+0x230）
     int m_resetDwordDf4;              // +0xdf4 ← 常量清零（ORIG movl $0）
     int m_resetDwordDf8;              // +0xdf8 ← 常量清零
-    short m_fieldDFC;                 // +0xdfc ← Reset movw $0（R+0x23a）
-    int m_fieldDFE;                   // +0xdfe ← Reset movl $0（R+0x13d）
-    int m_fieldE02;                   // +0xe02 ← Reset movl $0（R+0x116）
-    int m_fieldE06;                   // +0xe06 ← Reset movl $0（R+0x14a）
-    int m_fieldE0A;                   // +0xe0a ← Reset movl $0（R+0x157）
+    short m_levelBeforeDungeon;                 // +0xdfc ← Reset movw $0（R+0x23a）
+    int m_helpAbuseComputedRatio;                   // +0xdfe ← Reset movl $0（R+0x13d）
+    int m_loginTick;                   // +0xe02 ← Reset movl $0（R+0x116）
+    int m_finishPoint;                   // +0xe06 ← Reset movl $0（R+0x14a）
+    int m_finishPointTotal;                   // +0xe0a ← Reset movl $0（R+0x157）
     float m_warAreaKill[5];           // +0xe0e（0x14；WarAreaKill 5×float）
-    int m_fielde22;                   // +0xe22 ← CHARAC_DATA+0x00（data[0x5f]!=0 才写）
-    int m_fieldE26;                   // +0xe26 ← Reset movl $0（R+0x181）
-    int m_fieldE2A;                   // +0xe2a ← Reset movl $0（R+0x18e）
-    int m_fieldE2E;                   // +0xe2e ← Reset movl $0（R+0x1c5）
-    char m_fieldE32;                  // +0xe32 ← Reset movb $0（R+0x1d2）
-    int m_fieldE33;                   // +0xe33 ← Reset movl $0（R+0x1ab；非对齐 int 实证）
-    int m_fieldE37;                   // +0xe37 ← Reset movl $0（R+0x1b8）
+    int m_memberkey;                   // +0xe22 ← CHARAC_DATA+0x00（data[0x5f]!=0 才写）
+    int m_connectUpperMember;                   // +0xe26 ← Reset movl $0（R+0x181）
+    int m_memberBonusExp;                   // +0xe2a ← Reset movl $0（R+0x18e）
+    int m_fatigueBufBonusExp;                   // +0xe2e ← Reset movl $0（R+0x1c5）
+    char m_uppermemberExpLevel;                  // +0xe32 ← Reset movb $0（R+0x1d2）
+    int m_memberPayTexMoneyToUpper;                   // +0xe33 ← Reset movl $0（R+0x1ab；非对齐 int 实证）
+    int m_memberPayTexFatigueToUpper;                   // +0xe37 ← Reset movl $0（R+0x1b8）
     unsigned char m_needCheckOverEquipItem;  // +0xe3b（SetNeedCheckOverEquipItem 0x0867ceae 写 1）
-    int m_fieldE3C;                   // +0xe3c ← Reset movl $0（R+0x1fd）
+    int m_blackCount;                   // +0xe3c ← Reset movl $0（R+0x1fd）
     // [L31CharacPad 2026-09-10] ORIG C1 0x8695d67 `add $0xe40; mov (%esp); call
     //   tagCharacVisibleFlag::C1`（0x8695c60 写首字节 0）⇒ 子对象成员（首字节视图 sizeof 1，
     //   断言锁定）；0xe41..0xe8c 标量保留。消费点 `...m_tagVisibleFlags` → `.m_flag`
     //   （getCharacInfoDetail 0x0864c7e6 movzbl 读→CHARAC_DATA+0x12e → m_flag 仍 unsigned char）。
     tagCharacVisibleFlag m_tagVisibleFlags;  // +0xe40
-    int m_fieldE41;                   // +0xe41 ← Reset movl $0（R+0x246）
-    int m_fielde45;                   // +0xe45..0xe5d 六连 int ← CHARAC_DATA+{0xed,0xd5,0xd9,0xdd,0xe1,0xe5}
-    int m_fielde49;
-    int m_fielde4d;
-    int m_fielde51;
-    int m_fielde55;
-    int m_fielde59;
-    int m_fielde5d;                   // +0xe5d ← +0xe9
-    int m_fieldE61;                   // +0xe61 ← Reset movl $0（R+0x294）
-    char m_fieldE65;                  // +0xe65 ← Reset movb $0（R+0x29d）
-    char m_fieldE66;                  // +0xe66 ← Reset movb $0（R+0x2fd）
-    char m_fieldE67;                  // +0xe67 ← Reset movb $0（R+0x30a）
-    int m_fielde68;                   // +0xe68 ← +0xf1 (int)
-    int m_fieldE6C;                   // +0xe6c ← Reset movl $0（R+0x317）
-    unsigned char m_fielde70;         // +0xe70 ← CHARAC_DATA[0xf5]
-    int m_fielde71;                   // +0xe71 ← CHARAC_DATA+0xf6 (int)
-    int m_fieldE75;                   // +0xe75 ← Reset movl $0（R+0x331）
-    int m_fielde79;                   // +0xe79 ← +0xfa
-    int m_fielde7d;                   // +0xe7d ← +0x106
-    int m_fielde81;                   // +0xe81 ← +0x10a
-    int m_fieldE85;                   // +0xe85 ← Reset movl $0（R+0x358）
-    int m_fieldE89;                   // +0xe89 ← Reset movl $0（R+0x365）
+    int m_assaultPlace;                   // +0xe41 ← Reset movl $0（R+0x246）
+    int m_assaultCount;                   // +0xe45..0xe5d 六连 int ← CHARAC_DATA+{0xed,0xd5,0xd9,0xdd,0xe1,0xe5}
+    int m_chaosPoint;
+    int m_chaosExp;
+    int m_chaosModeCount;
+    int m_chaosKillCount;
+    int m_chaosDieCount;
+    int m_chaosDieTime;                   // +0xe5d ← +0xe9
+    int m_chaosStateTime;                   // +0xe61 ← Reset movl $0（R+0x294）
+    char m_superState;                  // +0xe65 ← Reset movb $0（R+0x29d）
+    char m_ghost;                  // +0xe66 ← Reset movb $0（R+0x2fd）
+    char m_leaveTimeout;                  // +0xe67 ← Reset movb $0（R+0x30a）
+    int m_chaosKillTime;                   // +0xe68 ← +0xf1 (int)
+    int m_assaultFatigueCount;                   // +0xe6c ← Reset movl $0（R+0x317）
+    unsigned char m_opencoin;         // +0xe70 ← CHARAC_DATA[0xf5]
+    int m_luckPoint;                   // +0xe71 ← CHARAC_DATA+0xf6 (int)
+    int m_luckPointUpdateTimeCount;                   // +0xe75 ← Reset movl $0（R+0x331）
+    int m_dungeonPlayCount;                   // +0xe79 ← +0xfa
+    int m_expertJobType;                   // +0xe7d ← +0x106
+    int m_expertJobExp;                   // +0xe81 ← +0x10a
+    expert_job::CExpertJob* m_expertJob; // +0xe85 ? Reset movl $0????? 4B
+    int m_onlinePreliminaryTeam;                   // +0xe89 ← Reset movl $0（R+0x365）
     // [L31CharacPad 2026-09-10] ORIG C1 0x8695d6c `add $0xe8d; mov (%esp); call
     //   STPowerWarCharacData::C1`（0x86959dc：+0 word=0 / +2 byte=0 / +3 byte=1 / +4 int=0 /
     //   +8 int=0，sizeof 0xc 断言锁定）⇒ 真实子对象。
@@ -677,77 +653,77 @@ struct _Charac_info
     //   （各 sizeof 0xc，偏移由断言锁定；编译器隐式构造/析构，dtor 顺序随声明逆序=偏移降序）。
     std::vector<ContinuousItemInfo> m_continuousItemListA;  // +0xe9a..0xea5
     std::vector<ContinuousItemInfo> m_continuousItemListB;  // +0xea6..0xeb1
-    char m_fieldEB2;                  // +0xeb2 ← Reset movb $0（R+0x393）
+    char m_isAffectedExpDouble;                  // +0xeb2 ← Reset movb $0（R+0x393）
     char m_padEB3;                    // +0xeb3（无证据）
-    char m_fieldEB4;                  // +0xeb4 ← Reset movb $0（R+0x3a4）
+    char m_isInitSkillFlag;                  // +0xeb4 ← Reset movb $0（R+0x3a4）
     // [P344 · CUserWorker 2026-09-11 · Main 批准] ORIG 0x08699c9x：0xeb5/0xeb6 是两个
     //   **独立 char**（各自 reload 后 movzbl+mov %dl），非 2 字节数组（char[2] 会生成
     //   movzwl 合并单元）。
     char m_padEB5;                    // +0xeb5
     char m_padEB6;                    // +0xeb6
-    char m_fieldEB7;                  // +0xeb7 ← Reset movb $0（R+0x3b1）
-    char m_fieldEB8;                  // +0xeb8 ← Reset movb $0（R+0x39d）
+    char m_firstTimeLogin;                  // +0xeb7 ← Reset movb $0（R+0x3b1）
+    char m_saveDemensionInoutValue;                  // +0xeb8 ← Reset movb $0（R+0x39d）
     unsigned char m_demensionInout[6]; // +0xeb9 ← Reset memset(0,6)；CParty 0x0859f510 movzbl 零扩展=unsigned
-    char m_fieldEBF;                  // +0xebf ← Reset movb $0（R+0x3db）
+    char m_saveBloodInoutValue;                  // +0xebf ← Reset movb $0（R+0x3db）
     unsigned char m_ultimateInout[3];  // +0xec0 ← Reset memset(0,3)；CParty 0x0859fa8f movzbl 零扩展=unsigned
-    char m_fieldEC3;                  // +0xec3 ← Reset movb $0（R+0x405）
-    int m_fieldEC4;                   // +0xec4 ← Reset movl $-1（R+0x40f）
-    int m_fieldEC8;                   // +0xec8 ← Reset movl $0x17d78400（R+0x41c）
+    char m_bloodBestRecordUpdate;                  // +0xec3 ← Reset movb $0（R+0x405）
+    int m_bloodBestRoundRecord;                   // +0xec4 ← Reset movl $-1（R+0x40f）
+    int m_bloodBestTimeRecord;                   // +0xec8 ← Reset movl $0x17d78400（R+0x41c）
     std::map<int, stBloodBestRecord> m_bloodBestRecords;    // +0xecc（Reset 0x086822b8 map::clear 实证；sizeof 0x18，P40 口径）
-    char m_fieldEE4;                  // +0xee4 ← Reset movb $0（R+0x436）
-    float m_fieldEE5;                 // +0xee5（Reset 0x086822b8+0x443 `mov $0,%edx;mov %edx,mem` 两段物化=float 成员；镜像 CUserCharacInfo.h:450 已 float；CUOC7 probe p14）
-    char m_fieldEE9;                  // +0xee9 ← Reset movb $0（R+0x45a）
-    char m_fieldEEA;                  // +0xeea ← Reset movb $0（R+0x464）
-    short m_fieldEEB;                 // +0xeeb ← Reset movw $0（R+0x46e）
+    char m_expItemAffected;                  // +0xee4 ← Reset movb $0（R+0x436）
+    float m_expAffectRate;                 // +0xee5（Reset 0x086822b8+0x443 `mov $0,%edx;mov %edx,mem` 两段物化=float 成员；镜像 CUserCharacInfo.h:450 已 float；CUOC7 probe p14）
+    char m_disguiseCharac;                  // +0xee9 ← Reset movb $0（R+0x45a）
+    char m_disguiseKind;                  // +0xeea ← Reset movb $0（R+0x464）
+    short m_disguiseIndex;                 // +0xeeb ← Reset movw $0（R+0x46e）
     // [L31CharacPad 2026-09-10] ORIG C1 0x8695db7/0x8695dc7：两处 `add $0xeed/$0x1086; mov (%esp);
     //   call SIG_LOAD_PREMIUM_LETHE::C1`（0x848ff7c：0xcc×_Mastered_skill 循环构造；sizeof
     //   0x199 断言锁定）⇒ 两个真实子对象。
     SIG_LOAD_PREMIUM_LETHE m_premiumLethe;   // +0xeed..0x1085
     SIG_LOAD_PREMIUM_LETHE m_premiumLethe2;  // +0x1086..0x121e
-    unsigned short m_field121f;       // +0x121f ← CHARAC_DATA+0x10e (u16)
-    int m_field1221;                  // +0x1221 ← +0x110 (int)
-    int m_field1225;                  // +0x1225 ← +0x114 (int)
-    short m_field1229;                // +0x1229 ← Reset movw $0（R+0x4de）
-    char m_field122B;                 // +0x122b ← Reset movb $0（R+0x4ea）
-    short m_field122C;                // +0x122c ← Reset movw $0（R+0x4f4）
-    int m_field122E;                  // +0x122e ← Reset movl $0（R+0x500）
-    short m_field1232;                // +0x1232 ← Reset movw $0（R+0x50d）
-    short m_field1234;                // +0x1234 ← Reset movw $0（R+0x519）
-    short m_field1236;                // +0x1236 ← Reset movw $0（R+0x525）
-    char m_field1238;                 // +0x1238 ← Reset movb $0（R+0x531）
-    unsigned char m_field1239;        // +0x1239 ← CHARAC_DATA[0x11e]（MakeTagCharacInfo 技能区选择）
-    short m_field123A;                // +0x123a ← Reset movw $0（R+0x545）
-    short m_field123C;                // +0x123c ← Reset movw $0（R+0x551）
-    unsigned char m_field123e;        // +0x123e ← CHARAC_DATA[0x11f]
-    unsigned char m_field123f;        // +0x123f ← CHARAC_DATA[0x120]
+    unsigned short m_powerWarPoint;       // +0x121f ← CHARAC_DATA+0x10e (u16)
+    int m_powerWarAssaultCount;                  // +0x1221 ← +0x110 (int)
+    int m_powerWarAssaultVictoryCount;                  // +0x1225 ← +0x114 (int)
+    short m_straightVictories;                // +0x1229 ← Reset movw $0（R+0x4de）
+    char m_endLetheAtLogin;                 // +0x122b ← Reset movb $0（R+0x4ea）
+    short m_emotion;                // +0x122c ← Reset movw $0（R+0x4f4）
+    int m_lastItemLimitEditionBuyTime;                  // +0x122e ← Reset movl $0（R+0x500）
+    short m_conditionEventStep;                // +0x1232 ← Reset movw $0（R+0x50d）
+    short m_conditionEventRewardStep;                // +0x1234 ← Reset movw $0（R+0x519）
+    short m_properDungeonClearCount;                // +0x1236 ← Reset movw $0（R+0x525）
+    char m_properDungeonUser;                 // +0x1238 ← Reset movb $0（R+0x531）
+    unsigned char m_skillTreeIndex;        // +0x1239 ← CHARAC_DATA[0x11e]（MakeTagCharacInfo 技能区选择）
+    short m_eventItemCount;                // +0x123a ← Reset movw $0（R+0x545）
+    short m_eventAddItemCount;                // +0x123c ← Reset movw $0（R+0x551）
+    unsigned char m_exEquipSlotStat;        // +0x123e ← CHARAC_DATA[0x11f]
+    unsigned char m_eventCharacterGrowtype;        // +0x123f ← CHARAC_DATA[0x120]
     char m_pad1240;
-    bool m_field1241;                 // +0x1241 ← (CHARAC_DATA[0x121]!=0)
-    char m_field1242;                 // +0x1242 ← Reset movb $0（R+0x571）
-    char m_field1243;                 // +0x1243 ← Reset movb $0（R+0x57b）
-    char m_field1244;                 // +0x1244 ← Reset movb $0（R+0x585）
-    char m_field1245;                 // +0x1245 ← Reset movb $0xff（R+0x58f）
+    bool m_memberDungeonFlag;                 // +0x1241 ← (CHARAC_DATA[0x121]!=0)
+    char m_villageAttackCount;                 // +0x1242 ← Reset movb $0（R+0x571）
+    char m_revengeDungeonCount;                 // +0x1243 ← Reset movb $0（R+0x57b）
+    char m_villageAttackDBUpdate;                 // +0x1244 ← Reset movb $0（R+0x585）
+    char m_linkCharacSlotIndex;                 // +0x1245 ← Reset movb $0xff（R+0x58f）
     unsigned char m_characLinkType;   // +0x1246（checkCharacLinkType 读）
-    int m_field1247;                  // +0x1247 ← Reset movl $0（R+0x5a3）
-    int m_field124B;                  // +0x124b ← Reset movl $0（R+0x5b0）
+    int m_characLinkBonusExp;                  // +0x1247 ← Reset movl $0（R+0x5a3）
+    int m_characLinkBonusGold;                  // +0x124b ← Reset movl $0（R+0x5b0）
     unsigned char m_linkBonusSetting; // +0x124f（isCharacLinkBonusSetting movzbl 直返）
     int m_field1250;                  // +0x1250 ← Reset movl $0（R+0x5c7）
 #pragma pack(pop)   // map 内部布局按默认 4 字节对齐：pack(1) 传染使 _Rb_tree_impl 变 header@+1/sizeof 0x15，ORIG 为 header@+4/0x18（NEW 二进制 _M_initialize 实证）
     std::map<int, STSkillCommandData> m_skillCommandsMap;   // +0x1254（Reset map::clear 实证；sizeof 0x18）
 #pragma pack(push, 1)   // 恢复 _Charac_info 的 pack(1)
-    unsigned short m_field126c;       // +0x126c ← CHARAC_DATA+0x122 (u16)
-    unsigned char m_field126e;        // +0x126e ← CHARAC_DATA[0x124]
-    int m_field126f;                  // +0x126f ← +0x125 (int)
-    char m_field1273;                 // +0x1273 ← Reset movb $0（R+0x607）
-    char m_field1274;                 // +0x1274 ← Reset movb $0（R+0x611）
-    unsigned char m_field1275;        // +0x1275 ← CHARAC_DATA[0x129]
-    unsigned char m_field1276;        // +0x1276 ← CHARAC_DATA[0x12a]
-    unsigned char m_field1277;        // +0x1277 ← CHARAC_DATA[0x12b]
-    unsigned char m_field1278;        // +0x1278 ← CHARAC_DATA[0x12c]
+    unsigned short m_memberBonusFatigue;       // +0x126c ← CHARAC_DATA+0x122 (u16)
+    unsigned char m_guildSecede;        // +0x126e ← CHARAC_DATA[0x124]
+    int m_lastPlayDungeonIndex;                  // +0x126f ← +0x125 (int)
+    char m_upgradeSeparateTrueFlag;                 // +0x1273 ← Reset movb $0（R+0x607）
+    char m_upgradeSeparateFalseFlag;                 // +0x1274 ← Reset movb $0（R+0x611）
+    unsigned char m_equipslotFlag;        // +0x1275 ← CHARAC_DATA[0x129]
+    unsigned char m_channelEquipslotSwitch;        // +0x1276 ← CHARAC_DATA[0x12a]
+    unsigned char m_expandEquipslotSwitch;        // +0x1277 ← CHARAC_DATA[0x12b]
+    unsigned char m_bringUpRewardFlag;        // +0x1278 ← CHARAC_DATA[0x12c]
     char m_pad1279;
-    unsigned char m_field127a;        // +0x127a ← CHARAC_DATA[0x12d]
-    char m_field127B;                 // +0x127b ← Reset movb $0（R+0x667）
-    int m_field127C;                  // +0x127c ← Reset movl $0（R+0x671）
-    unsigned char m_field1280;        // +0x1280 ← CHARAC_DATA[0x12f]
+    unsigned char m_useBringUpMaterialTotal;        // +0x127a ← CHARAC_DATA[0x12d]
+    char m_growthPowerExpRewardRight;                 // +0x127b ← Reset movb $0（R+0x667）
+    int m_seriaBufBonusExp;                  // +0x127c ← Reset movl $0（R+0x671）
+    unsigned char m_growthPowerReward;        // +0x1280 ← CHARAC_DATA[0x12f]
     // stAuraAvatarOption 子对象（@0x1281，3×int）——证据 CUser/GetAuraAvatarOption.md
     // 0x0868ddc2 mov 0x1281/0x1285/0x1289(%eax) 三连 + get_aura_avatar_option_value
     // 写侧 cur+0x1281+idx*4（idx<3 边界）。Reset 的 reset() 视图 call 仍走 this+0x1281。
@@ -762,8 +738,8 @@ struct _Charac_info
         // POD 整体赋值（ORIG 0x0868ddc2 目标基址驻 %edx + 源 disp32 三连直读）。
         stAuraAvatarOption m_auraAvatarOption;  // +0x1281，sizeof 0xc，零布局影响
     };
-    int m_field128D;                  // +0x128d ← Reset movl $0（R+0x6a5）
-    int m_field1291;                  // +0x1291 ← Reset movl $0（R+0x698）
+    int m_premiumBonusExp;                  // +0x128d ← Reset movl $0（R+0x6a5）
+    int m_weekendBonusExp;                  // +0x1291 ← Reset movl $0（R+0x698）
     int m_field1295;                  // +0x1295 ← Reset movl $0（R+0x6b2）
     int m_field1299;                  // +0x1299 ← Reset movl $0（R+0x6bf）
     // [L31CharacPad 2026-09-10] ORIG C1 0x8695de7/0x8695df7：`call WpBonusPointResult::C1`
@@ -771,30 +747,30 @@ struct _Charac_info
     //   两类型 sizeof 8（断言锁定）⇒ Reset 的 memset(8) 由 ctor 等价覆盖。
     WpBonusPointResult m_wpBonusPointResult;    // +0x129d..0x12a4
     ExpBonusPointResult m_expBonusPointResult;  // +0x12a5..0x12ac
-    int m_field12ad;                  // +0x12ad ← +0x130 (int)
-    int m_field12B1;                  // +0x12b1 ← Reset movl $0（R+0x719）
-    short m_field12B5;                // +0x12b5 ← Reset movw $0（R+0x726）
+    int m_chaosResponTime;                  // +0x12ad ← +0x130 (int)
+    int m_assaultMoney;                  // +0x12b1 ← Reset movl $0（R+0x719）
+    short m_assaultedUserId;                // +0x12b5 ← Reset movw $0（R+0x726）
     // [L31CharacPad 2026-09-10] ORIG C1 0x8695e07 `add $0x12b7; mov (%esp); call
     //   CharacterOption::C1`（0x822abec：memset(this,0xff,0x200)；sizeof 0x200 断言锁定）
     //   ⇒ 真实子对象；字节视图消费点改 `.m_pad`。
     CharacterOption m_characterOption;   // +0x12b7..0x14b6
-    unsigned char m_field14b7;        // +0x14b7（SelectCharac::process 回填 MSG_CHARAC_SELECT+0x12）
-    int m_field14b8;                  // +0x14b8（SelectCharac::process 回填 MSG_CHARAC_SELECT+0xe）
+    unsigned char m_strikerSkillIndex;        // +0x14b7（SelectCharac::process 回填 MSG_CHARAC_SELECT+0x12）
+    int m_tagCharacNo;                  // +0x14b8（SelectCharac::process 回填 MSG_CHARAC_SELECT+0xe）
     // [b28d-solo-CUserOnlyOrig 代落 P248档②] char→bool：ORIG SendTagCharacInfo
     // 0x0869043x `movzbl 0x14bc(%eax),%eax; xor $0x1,%eax; test %al,%al; je`
     // （字段 bool 直测）；char 裸 if(!f) 4.4 产 test/sete 双物化。消费点 5 处均 0/1。
-    bool m_field14BC;                 // +0x14bc ← Reset movb $0（R+0x769）
-    char m_field14BD;                 // +0x14bd ← Reset movb $0（R+0x773）
-    int m_field14BE;                  // +0x14be ← Reset movl $0（R+0x77d）
-    int m_field14C2;                  // +0x14c2 ← Reset movl $0（R+0x78a）
+    bool m_tagCharacInfoSent;                 // +0x14bc ← Reset movb $0（R+0x769）
+    char m_blueMarbleEnterCount;                 // +0x14bd ← Reset movb $0（R+0x773）
+    int m_blueMarbleUserDeadCount;                  // +0x14be ← Reset movl $0（R+0x77d）
+    int m_maxEquipLevel;                  // +0x14c2 ← Reset movl $0（R+0x78a）
     int m_viewState;        // +0x14c6
     // [L31CharacPad 2026-09-10] ORIG C1 0x8695e17 `add $0x14ca; mov (%esp); call
     //   seriaRoom_AniDeco::C1`（0x822ee18：两 movw $0 ⇒ 两 short 成员 m_field0/m_field2；
     //   sizeof 4 断言锁定）⇒ 覆盖原 0x14ca/0x14cc 两标量（Reset 的 movw $0 即其成员写）。
     seriaRoom_AniDeco m_aniDeco;      // +0x14ca..0x14cd
-    char m_field14CE;                 // +0x14ce ← Reset movb $0（R+0x7bc）
-    char m_field14CF;                 // +0x14cf ← Reset movb $0（R+0x7c6）
-    char m_field14D0;                 // +0x14d0 ← Reset movb $0（R+0x7d0）
+    char m_cubePremiumActive;                 // +0x14ce ← Reset movb $0（R+0x7bc）
+    char m_cubePremiumCount;                 // +0x14cf ← Reset movb $0（R+0x7c6）
+    char m_savedPremiumCubeInfo;                 // +0x14d0 ← Reset movb $0（R+0x7d0）
 };
 #pragma pack(pop)
 // [remake_verify=0] 现代 libstdc++ 的 std::map 内部布局与 4.4 不同（pack(1) 下
@@ -824,7 +800,7 @@ static_assert(sizeof(WpBonusPointResult) == 8, "WpBonusPointResult 8");
 static_assert(sizeof(ExpBonusPointResult) == 8, "ExpBonusPointResult 8");
 static_assert(sizeof(CharacterOption) == 0x200, "CharacterOption 0x200");
 static_assert(sizeof(seriaRoom_AniDeco) == 4, "seriaRoom_AniDeco 4");
-static_assert(__builtin_offsetof(_Charac_info, m_field29) == 0x29, "STGrowthType @0x29");
+static_assert(__builtin_offsetof(_Charac_info, m_growthType) == 0x29, "STGrowthType @0x29");
 static_assert(__builtin_offsetof(_Charac_info, m_pad2a) == 0x2a, "STGrowthType @0x2a");
 static_assert(__builtin_offsetof(_Charac_info, m_additioalInfo) == 0x88, "_Additioal_info @0x88");
 static_assert(__builtin_offsetof(_Charac_info, m_tagVisibleFlags) == 0xe40, "tagCharacVisibleFlag @0xe40");
@@ -840,15 +816,15 @@ static_assert(__builtin_offsetof(_Charac_info, m_aniDeco) == 0x14ca, "seriaRoom_
 // [P344 · CUserWorker 2026-09-11] 拷贝单元划分反推出的字段边界锁定（ORIG 隐式 C1ERKS_）。
 static_assert(__builtin_offsetof(_Charac_info, m_delReqTime) == 0x39, "m_delReqTime @0x39");
 static_assert(__builtin_offsetof(_Charac_info, m_pad49) == 0x49, "m_pad49 @0x49");
-static_assert(__builtin_offsetof(_Charac_info, m_field4d) == 0x4d, "m_field4d @0x4d");
-static_assert(__builtin_offsetof(_Charac_info, m_fielddc2) == 0xdc2, "m_fielddc2 @0xdc2");
-static_assert(__builtin_offsetof(_Charac_info, m_fieldDC3) == 0xdc3, "m_fieldDC3 @0xdc3");
+static_assert(__builtin_offsetof(_Charac_info, m_usedFatigue) == 0x4d, "m_usedFatigue @0x4d");
+static_assert(__builtin_offsetof(_Charac_info, m_guildCreateRight) == 0xdc2, "m_guildCreateRight @0xdc2");
+static_assert(__builtin_offsetof(_Charac_info, m_guildCreateFlag) == 0xdc3, "m_guildCreateFlag @0xdc3");
 static_assert(__builtin_offsetof(_Charac_info, m_padDC5) == 0xdc5, "m_padDC5 @0xdc5");
 static_assert(__builtin_offsetof(_Charac_info, m_padDDC) == 0xddc, "m_padDDC @0xddc");
-static_assert(__builtin_offsetof(_Charac_info, m_fieldDE9) == 0xde9, "m_fieldDE9 @0xde9");
+static_assert(__builtin_offsetof(_Charac_info, m_guildExp) == 0xde9, "m_guildExp @0xde9");
 static_assert(__builtin_offsetof(_Charac_info, m_padEB5) == 0xeb5, "m_padEB5 @0xeb5");
 static_assert(__builtin_offsetof(_Charac_info, m_padEB6) == 0xeb6, "m_padEB6 @0xeb6");
-static_assert(__builtin_offsetof(_Charac_info, m_fieldEB7) == 0xeb7, "m_fieldEB7 @0xeb7");
+static_assert(__builtin_offsetof(_Charac_info, m_firstTimeLogin) == 0xeb7, "m_firstTimeLogin @0xeb7");
 #endif  /* remake_verify */
 
 // Overlay CharacInfoFields must hit the same bytes as live _Charac_info members.
@@ -1228,7 +1204,7 @@ public:
     unsigned short m_overSkillLevel; // +0x85e（getOverSkillLevel 0x0860939e movzwl）
     unsigned short m_ceraDiscountRate;  // +0x860（getCeraShopDiscountRate movzwl 源；
                                         //       ReCalcAdvantage 取 def.m_field5a 较大者）
-    bool m_field862;                    // +0x862（startPremium 依 def.m_applyDayMask 置位；ORIG IsNeedCheckEveryday movzbl 按 bool 读取）
+    bool m_needCheckEveryday;                    // +0x862（startPremium 依 def.m_applyDayMask 置位；ORIG IsNeedCheckEveryday movzbl 按 bool 读取）
     char m_pad863[1];       // +0x863
     int m_overEquipableLevel[0x16];  // +0x864..0x8bb（additionalInfo[0x58]，GetOverEquipableLevel 按 type 索引）
     char m_field8bc;        // +0x8bc（field8bc）
@@ -1441,7 +1417,7 @@ public:
     int m_field14;         // +0x14（cond5）
     int m_urgentQuest;     // +0x18（UserQuest+0x75f0；-1=无紧急任务）
     char m_authen[0x28];   // +0x1c（UserQuest+0x75f4..0x761b；SaveQuestNotify 10×int）
-};  // sizeof 0x44（ORIG ctor/reset 显式 memset 0x48，尾部覆盖紧随的 m_field761c/d）
+};  // sizeof 0x44（ORIG ctor/reset 显式 memset 0x48，尾部覆盖紧随的 m_villageAttackedReward/d）
 
 struct stSelectQuestParam;  // 完整定义见 Quest.h（引用形参仅需前向声明）
 
@@ -1494,7 +1470,7 @@ public:
     int m_quest[20];                  // +0x7538
     int m_trigger[20];                // +0x7588
     _Quest_Authen_Data m_authenData;  // +0x75d8（0x44；ctor 按 ORIG memset 0x48 覆盖尾部）
-    bool m_field761c;                 // +0x761c（SetVillageAttackedReward 0x8cef0 实证）
+    bool m_villageAttackedReward;                 // +0x761c（SetVillageAttackedReward 0x8cef0 实证）
 };  // sizeof 0x761d（pack(1)；0x761d = CUser m_pcRoomAuth）
 #pragma pack(pop)
 
@@ -1986,7 +1962,7 @@ public:
     unsigned int MakeHashForSending(unsigned char* data, unsigned int len,
                                     bool bNewKey);  // ORIG 0x0808be6e（U3ShopDb）
 
-    char m_pad[4];       // +0x04..0x07（+0x00..0x03 为 vptr；+0x04 为发送 hash key 字节）
+    unsigned char m_pad[4];  // +0x04..0x07（+0x00..0x03 为 vptr；+0x04 为发送 hash key 字节）
     bool m_nonClientFlag;            // +0x08（0x8eaf4 GetNonClientFlag；ORIG SetNonClientFlag 0x08275694 bool 写形）
     char m_pad9[3];      // +0x09..0x0b
     int m_nonClientRandInt;          // +0x0c（0x8eaf8 GetNonClientRandInt）
@@ -2098,7 +2074,7 @@ public:
     void operator+=(const Character& other); // ORIG W 0x084867ee 尾 store 后 leave;ret 无 return *this（0x8486815）；mangled pLE 不含返回类型零 ABI 险；唯一调用 CDungeonNode.cpp:404 不消费（CUserC8）
     // 布局修正（Layout_D 2026-08-30）：ORIG 中 +0x40/+0x44/+0x48 是 CUser 直属字段
     // （0x8e074 reset 清零 byte / 0x8e078 rating / 0x8e07c schoolNo），非 Character 成员；
-    // 已移回 CUser（见 CUser 类 m_field8e074/m_rating/m_schoolNo）。ORIG Character 大小 0x40
+    // 已移回 CUser（见 CUser 类 m_hasCharacterStatistic/m_rating/m_schoolNo）。ORIG Character 大小 0x40
     // （Character::Reset 只写 0x3c）。
 };
 static_assert(sizeof(Character) == 0x40, "Character size");
@@ -2454,7 +2430,7 @@ public:
 
     // ---- 成员布局（ORIG 构造 0x864e410 逐子对象推导，总尺寸 0x8ec30） ----
     CNetwork<4096, 450000> m_network;                       // +0x0e0
-    char m_field6ef68;                                      // +0x6ef68（reset=0；CNetwork 后独立状态字节）
+    char m_forceItemDrop;                                      // +0x6ef68（reset=0；CNetwork 后独立状态字节）
     char m_field6ef69;                                      // +0x6ef69（reset=0xff）
     char m_pad6ef6a[2];                                     // +0x6ef6a
     UserMercenaryInfoMgr m_mercenaryMgr;                    // +0x6ef6c
@@ -2476,8 +2452,8 @@ public:
     STBreakAwayRewards m_breakAway;                         // +0x703c4
     STSkillCommandData::STCommand m_skillCommands[50];      // +0x703db
     short m_slotIDX;                                        // +0x704a4（GetSlotIDX movzwl 直返）
-    short m_field704a6;                                     // +0x704a6（SetIncreID 0x82a6859 this-先需 short 字段×short 形参；ushort 反致 arg-先回退，GetUID cwtl 被 fold 无增益，故保 short）
-    unsigned short m_field704a8;                            // +0x704a8
+    short m_increId;                                     // +0x704a6（SetIncreID 0x82a6859 this-先需 short 字段×short 形参；ushort 反致 arg-先回退，GetUID cwtl 被 fold 无增益，故保 short）
+    unsigned short m_uniqueId;                            // +0x704a8
     char m_pad704aa[2];                                     // +0x704aa..0x704ab
     unsigned int m_accId;                              // +0x704ac（set_acc_info 0x08649c02 this-先=成员×uint 形参全等直落；int 反产 arg-先，CUOC7 技巧5）
     char m_accName[0x128];                                  // +0x704b0..0x705d7
@@ -2509,7 +2485,7 @@ public:
                                                             //   比较/写回；~CUser.md 逆序 dtor 0x7966c..0x79664 区间实证）
     unsigned char m_dupMsgSlotIdx;                          // +0x7966c（isDuplicationMessage ORIG 0x8688814 movzbl 读取并 ^1 轮转写回实证）
     char m_pad7966d[3];                                     // +0x7966d..0x7966f（ORIG ctor 0x865836d 清零；无访问证据保留 pad）
-    int m_field79670;                                       // +0x79670
+    int m_beforeAreaTime;                                       // +0x79670
     CharacMoneyLog m_moneyLogs[7];                          // +0x79674
     int m_moneyLogIdx;                                      // +0x796c8（货币日志游标；
                                                             //   NextCharacMoneyLog 推进/钳 6）
@@ -2524,10 +2500,10 @@ public:
     // uchar 名保留）：ORIG SetPuUser 0x08692b58 的 `mov %al,-0x4; mov 0x8,%eax; movzbl -0x4,%edx;
     // mov %dl,0x796d8(%eax)` 10 条形需 bool 成员直访问（`*(bool*)&field=` 视图多一条 add $0x796d8）。
     union {
-        unsigned char m_field796d8;                         // +0x796d8（Inter_LoadPuUserCheck 0x084e7fe2 uchar 读）
+        unsigned char m_puUser;                         // +0x796d8（Inter_LoadPuUserCheck 0x084e7fe2 uchar 读）
         bool m_bPuUser796d8;
     };
-    char m_field796d9;                                      // +0x796d9（WorkPerFiveMin 公会经验上报负载字节，
+    char m_guildExpReportLoad;                                      // +0x796d9（WorkPerFiveMin 公会经验上报负载字节，
                                                             //   oldGmRoutine 0x0820c478 置 1；与 ORIG 一致保留）
     unsigned char m_seedBackup796da[6];                     // +0x796da..0x796df（无 ORIG 具名访问；CUser::backupSeed
                                                             //   0x859506f 读 *(int*)(this+0x796e0)——即本块 +6 与
@@ -2536,7 +2512,7 @@ public:
     unsigned int m_backupSeed;                              // +0x796e4（b28d-Main 试验：与 m_checkSumSeed 同型化）
     std::vector<_Charac_info> m_characList;                 // +0x796e8
     CCharacterView m_characterView;                         // +0x796f4
-    int m_field796f8;                                       // +0x796f8（HistoryLog::WriteLevelUp 文件句柄）
+    int m_historyLogFp;                                       // +0x796f8（HistoryLog::WriteLevelUp 文件句柄）
     int m_winPointBuffer;                                   // +0x796fc（add_pvp_result 累加缓冲，ORIG 0x865c678）
     cUserHistoryLog m_historyLog;                           // +0x79700
     charac_expand::CDataMgr m_characExpand;                 // +0x79744
@@ -2545,7 +2521,7 @@ public:
     bool m_pcRoomAuth;                                      // +0x8cef1（ORIG setPcRoomAuth 0x084ec834 bool 写形）
     char m_pad8cef2[2];                                     // +0x8cef2..0x8cef3
     std::vector<unsigned int> m_vec8cef4;                   // +0x8cef4
-    int m_field8cf00;                                       // +0x8cf00
+    int m_abnormalUserLogType;                                       // +0x8cf00
     int m_playingDungeonIdx;                                       // +0x8cf04
     int m_lastPacketID;                                     // +0x8cf08
     // [CUserLane 2026-09-11 · P211 档③] char → unsigned char：+0x8cf0c/0x8cf0d 为
@@ -2555,7 +2531,7 @@ public:
     int m_antibotKey;                                       // +0x8cf10
     unsigned int m_clientVersion;                           // +0x8cf14
     char m_pad8cf18[0x40];                                  // +0x8cf18..0x8cf57
-    int m_field8cf58;                                       // +0x8cf58
+    int m_antibotFill;                                       // +0x8cf58
     char m_pad8cf5c[8];                                     // +0x8cf5c..0x8cf63
     CDungeonGainedGold m_dungeonGainedGold;                 // +0x8cf64
     std::vector<LimitItemUsage> m_limitItemUsage;           // +0x8cf68
@@ -2563,17 +2539,17 @@ public:
     std::list<int> m_list8cf80;                             // +0x8cf80
     Mutex m_mutex1;                                         // +0x8cf88
     Mutex m_mutex2;                                         // +0x8cfa0
-    int m_field8cfb8;                                       // +0x8cfb8
-    int m_field8cfbc;                                       // +0x8cfbc
-    int m_field8cfc0;                                       // +0x8cfc0
+    int m_beforeArea;                                       // +0x8cfb8
+    int m_area;                                       // +0x8cfbc
+    int m_trickArea;                                       // +0x8cfc0
     ch_state m_chState;                                  // +0x8cfc4（set_state 0x0867edb9 this-先直存=成员×ch_state 形参全等；int 反产 arg-先，CUserC7 技巧5；enum 4B 同宽）
-    short m_field8cfc8;                                     // +0x8cfc8
+    short m_connectCount;                                     // +0x8cfc8
     char m_pad8cfca[2];                                     // +0x8cfca..0x8cfcb
-    UserSpace::T m_field8cfcc;                              // +0x8cfcc
-    int m_field8cfd0;                                       // +0x8cfd0
-    int m_field8cfd4;                                       // +0x8cfd4
-    int m_field8cfd8;                                       // +0x8cfd8
-    char m_field8cfdc;                                      // +0x8cfdc（OnDisconnect 清零的状态字节）
+    UserSpace::T m_moveSpace;                              // +0x8cfcc
+    int m_checkConnInterval;                                       // +0x8cfd0
+    int m_resumeChecksumTime;                                       // +0x8cfd4
+    int m_checksumAnswerCount;                                       // +0x8cfd8
+    char m_onDisconnectState;                                      // +0x8cfdc（OnDisconnect 清零的状态字节）
     char m_pad8cfdc[3];                                     // +0x8cfdd..0x8cfdf
     int m_guildWarPoint;                                    // +0x8cfe0
     std::set<unsigned int> m_set8cfe4;                      // +0x8cfe4
@@ -2582,12 +2558,12 @@ public:
     char m_direction;                                      // +0x8d000
     char m_pad8d001;                                        // +0x8d001
     short m_tradeSpaceIdx;                                     // +0x8d002
-    short m_field8d004;                                     // +0x8d004
+    short m_partyIndex;                                     // +0x8d004
     short m_pvpRoomIdx;                                     // +0x8d006
-    short m_field8d008;                                     // +0x8d008
+    short m_warRoomIndex;                                     // +0x8d008
     char m_pad8d00a[2];                                     // +0x8d00a..0x8d00b
-    short m_field8d00c;                                     // +0x8d00c
-    short m_field8d00e;                                     // +0x8d00e
+    short m_blueMarbleIndex;                                     // +0x8d00c
+    short m_deathTowerIndex;                                     // +0x8d00e
     short m_bossTowerIdx;                                     // +0x8d010
     short m_advanceAltarIdx;                                     // +0x8d012
     unsigned int m_regDate;                                 // +0x8d014
@@ -2597,16 +2573,16 @@ public:
     STGuildAgitDBInfo m_guildAgitDB;                        // +0x8d0dd
     std::vector<LevelupSupportEventManger::EventInfo>
         m_levelupEvents;                                    // +0x8d0e4
-    bool m_field8d0f0;                                      // +0x8d0f0（unlock4DataLoad 0x864a9dd xor$1 唯 bool 产，CUserB probe14/8）
-    bool m_field8d0f1;                                      // +0x8d0f1（DeleteCharac 锁，isLockedDeleteCharac 0x864aa78 movzbl 直返）
-    bool m_field8d0f2;                                      // +0x8d0f2（CreateCharac 锁，isLockedCreateCharac 0x864aae6 movzbl 直返）
+    bool m_locked4DataLoad;                                      // +0x8d0f0（unlock4DataLoad 0x864a9dd xor$1 唯 bool 产，CUserB probe14/8）
+    bool m_lockedDeleteCharac;                                      // +0x8d0f1（DeleteCharac 锁，isLockedDeleteCharac 0x864aa78 movzbl 直返）
+    bool m_lockedCreateCharac;                                      // +0x8d0f2（CreateCharac 锁，isLockedCreateCharac 0x864aae6 movzbl 直返）
     char m_pad8d0f3;                                        // +0x8d0f3
-    int m_field8d0f4;                                       // +0x8d0f4
-    int m_field8d0f8;                                       // +0x8d0f8
-    bool m_field8d0fc;                                      // +0x8d0fc
+    int m_lastLoginCharacNo;                                       // +0x8d0f4
+    int m_lastLoginChannelNo;                                       // +0x8d0f8
+    bool m_validLastLoginCharac;                                      // +0x8d0fc
     char m_pad8d0fd[0xf];                                   // +0x8d0fd..0x8d10b
     int m_tradeCount;                                       // +0x8d10c（incTradeCount 自增；UpdateLogout 随包上报、log_out 清零）
-    int m_field8d110;                                       // +0x8d110
+    int m_reportMannerlessUserCount;                                       // +0x8d110
     WongWork::CSecurityCard m_securityCard;                 // +0x8d114
     Sanicova::CPad m_cpad;                                  // +0x8d160
     // CUser::._379（0x10 字节；ORIG 名 _ZN5CUser5._3795resetEv）
@@ -2626,8 +2602,8 @@ public:
     std::vector<stLookOuts> m_lookOuts1;                    // +0x8d1b8
     std::vector<stLookOuts> m_lookOuts2;                    // +0x8d1c4
     std::vector<tyIPCounters> m_ipCounters;                 // +0x8d1d0
-    int m_field8d1dc;                                       // +0x8d1dc
-    int m_field8d1e0;                                       // +0x8d1e0
+    int m_revivalTime;                                       // +0x8d1dc
+    int m_useAPCPotionTime;                                       // +0x8d1e0
     CerashopAddRestrict::UserInfo m_ceraUserInfo;           // +0x8d1e4
     // +0x8d24d 起 0x17 字节：ORIG 为 CUser 平铺字段区（STExpReward 类型仅 4 字节
     // 用于 vector/解析；此处字段独立——2026-08-31 影子测试实测分离）。
@@ -2648,7 +2624,7 @@ public:
     // 布局修正（Layout_D 2026-08-30）：0x8e074/0x8e078/0x8e07c 为 CUser 直属字段
     // （ORIG reset movb $0x0,0x8e074 / GetRating/SetRating / GetSchoolNo/SetSchoolNo），
     // 自 Character 移回（见 Character 类注释）。
-    char m_field8e074;                                      // +0x8e074（reset 清零状态字节）
+    char m_hasCharacterStatistic;                                      // +0x8e074（reset 清零状态字节）
     char m_pad8e075[3];                                     // +0x8e075..0x8e077
     float m_rating;                                         // +0x8e078（GetRating/SetRating）
     unsigned int m_schoolNo;                                // +0x8e07c（GetSchoolNo/SetSchoolNo）
@@ -2658,7 +2634,7 @@ public:
     char m_pad8e08b;                                        // +0x8e08b
     int m_fatigueGain;                                       // +0x8e08c（FatigueUp 写入）
     int m_debugCommand;                                     // +0x8e090（GetDebugCommand/SetDebugCommand）
-    unsigned int m_field8e094;                              // +0x8e094
+    unsigned int m_guildCargoCapacity;                              // +0x8e094
     unsigned char m_childrensDayEventState;                 // +0x8e098（==0xff 判定）
     char m_pad8e099[3];                                     // +0x8e099..0x8e09b
     int m_childrensDaySlots[10];                            // +0x8e09c..0x8e0c3（ClearChildrensDayEvent 置 -1 表 A）
@@ -2672,7 +2648,7 @@ public:
     char m_mailMsgData[0x145];                               // +0x8e101 MSG_MAILBOX_SEND
     char m_multiMailMsgData[0x1a6];                          // +0x8e246 MSG_MULTI_MAILBOX_SEND
     unsigned char m_multiMailFlag;                           // +0x8e3ec
-    bool m_field8e3ed;                                      // +0x8e3ed
+    bool m_sendMailCertified;                                      // +0x8e3ed
     WongWork::CMCAPManager m_mcap;                          // +0x8e3f0
     XNuclear::CHades m_hades;                               // +0x8e954
     Secu_GoldControl m_goldControl;                         // +0x8e980
@@ -2680,60 +2656,60 @@ public:
     std::map<short, int> m_mapEtc;                          // +0x8eaa4（GetETC 0x08697474 / SetETC 0x080f9968；占 0x8ea68+sizeof(Secu_HackLogCheck 后空隙至 +0x8eabc）
     std::map<std::pair<char, char>, int> m_map8eabc;        // +0x8eabc
     char m_pad8ead4[4];                                     // +0x8ead4..0x8ead7
-    bool m_field8ead8;                                      // +0x8ead8（ORIG SetBuyingGold 0x08692a08 bool 写形）
+    bool m_buyingGold;                                      // +0x8ead8（ORIG SetBuyingGold 0x08692a08 bool 写形）
     char m_pad8ead9[3];                                     // +0x8ead9..0x8eadb
     unsigned int m_ceraPoint;                               // +0x8eadc（GetCeraPoint/SetCeraPoint）
-    bool m_field8eae0;                                      // +0x8eae0
+    bool m_usedCoinInDungeon;                                      // +0x8eae0
     char m_pad8eae1[3];                                     // +0x8eae1..0x8eae3
     PIReceiverManager m_piReceiver;                         // +0x8eae4
     PISenderManager m_piSender;                             // +0x8eaec
     std::set<std::pair<unsigned char, unsigned short> >
         m_set8eb00;                                         // +0x8eb00
-    unsigned char m_field8eb18;                             // +0x8eb18
+    unsigned char m_randomHashKey;                             // +0x8eb18
     char m_pad8eb19[3];
-    int m_field8eb1c;                                       // +0x8eb1c
+    int m_usedCoinCount;                                       // +0x8eb1c
     bool m_deleteEventDungeonInvitation;                                      // +0x8eb20
     char m_pad8eb21[3];                                     // 0x8eb21..0x8eb23
     int m_itemSellCount;                                    // +0x8eb24
-    char m_sellCountData[0x1c];                             // +0x8eb28..0x8eb43
-    bool m_field8eb44;                                      // +0x8eb44
+    unsigned int m_sellCountData[7];                        // +0x8eb28..0x8eb43
+    bool m_checkPickUpRandomOptionItem;                                      // +0x8eb44
     char m_pad8eb45[3];
-    int m_field8eb48;                                       // +0x8eb48
+    int m_moveMapHackCnt;                                       // +0x8eb48
     char m_serverFatigueValue;                                      // +0x8eb4c
     char m_serverFatigueDbType;                                      // +0x8eb4d
     char m_pad8eb4e[2];                                     // 0x8eb4e..0x8eb4f
     std::map<unsigned char, short> m_map8eb50;              // +0x8eb50
     std::map<int, std::pair<int, int> > m_map8eb68;         // +0x8eb68
     std::map<int, bool> m_map8eb80;                         // +0x8eb80
-    bool m_field8eb98;                                      // +0x8eb98
-    bool m_field8eb99;                                      // +0x8eb99
+    bool m_useCraneStart;                                      // +0x8eb98
+    bool m_properLevelDungeonUser;                                      // +0x8eb99
     char m_pad8eb9a[2];                                     // 0x8eb9a..0x8eb9b
     unsigned int m_pcRoomPlayStartTime;                     // +0x8eb9c（setPcRoomPlayStartTime）
     unsigned int m_totalPcRoomPlayTime;                     // +0x8eba0（setPcRoomPlayTimeData 0x0868f808 this-先载 ⇒ uint）
     unsigned char m_pcRoomPlayTimeRewardCnt;                // +0x8eba4（getPcRoomPlayTimeRewardCnt）
     char m_pad8eba5[3];                                     // +0x8eba5..0x8eba7
-    unsigned int m_field8eba8;                              // +0x8eba8（ORIG Inc 0x08110e1e copy-add 形需 uint）
-    unsigned int m_field8ebac;                              // +0x8ebac（ORIG Inc 0x08110e3a copy-add 形需 uint）
-    bool m_field8ebb0;                                      // +0x8ebb0（SetChangedGiftFatigueQuantity 0x8110e7a this-先 bool=bool 直落）
+    unsigned int m_usedFatigueQuantity;                              // +0x8eba8（ORIG Inc 0x08110e1e copy-add 形需 uint）
+    unsigned int m_usedGiftFatigueQuantity;                              // +0x8ebac（ORIG Inc 0x08110e3a copy-add 形需 uint）
+    bool m_changedGiftFatigue;                                      // +0x8ebb0（SetChangedGiftFatigueQuantity 0x8110e7a this-先 bool=bool 直落）
     unsigned char m_informNoticeFlags[16];                  // +0x8ebb1..0x8ebc0（bit 索引访问）
     bool m_saveInformNoticeFlag;                                // +0x8ebc1
     char m_pad8ebc2[2];                                     // 0x8ebc2..0x8ebc3
     std::vector<unsigned char> m_vec8ebc4;                  // +0x8ebc4
-    int m_field8ebd0;                                       // +0x8ebd0
-    int m_field8ebd4;                                       // +0x8ebd4
-    int m_field8ebd8;                                       // +0x8ebd8
+    int m_manageLevel;                                       // +0x8ebd0
+    int m_managePoint;                                       // +0x8ebd4
+    int m_userMaxLevel;                                       // +0x8ebd8
     BingoData m_bingo;                                      // +0x8ebdc
     GrowthWeaponEvent m_growthWeapon;                       // +0x8ebe4
     GrowthCreatureEvent m_growthCreature;                   // +0x8ebf8
     CharacLevelUpGiftAccountOnce m_levelUpGift;             // +0x8ec04
-    int m_field8ec24;                                       // +0x8ec24
+    int m_antibotSerialNum;                                       // +0x8ec24
     char m_receivedRequestType;                             // +0x8ec28（SetReceivedRequestType 0x082308cc this-先仅 char 成员可产，probe36 决定性；Get movzbl 非排他）
-    bool m_field8ec29;                                      // +0x8ec29
+    bool m_comboSkillSet;                                      // +0x8ec29
     char m_pad8ec2a[2];                                     // 0x8ec2a..0x8ec2b
-    int m_field8ec2c;                                       // +0x8ec2c
+    int m_recipeProbability;                                       // +0x8ec2c
     bool m_eventCreateDnfReward;                            // +0x8ec30（SetEventCreateDnfReward 0x08693198 bool=bool 唯一产此序）
-    bool m_field8ec31;                                      // +0x8ec31（[b28d-Main 代落·S336 P211] char→bool：ORIG 0x0816158d 段 `movzbl 0x4(%eax),%edx; mov %dl,0x8ec31(%eax)` 单段直落；异型 RHS(bool) 会多 1 条 eax→edx 中转。1 字节/偏移/后续字段不变）
-    char m_field8ec32;                                      // +0x8ec32
+    bool m_rewarded;                                      // +0x8ec31（[b28d-Main 代落·S336 P211] char→bool：ORIG 0x0816158d 段 `movzbl 0x4(%eax),%edx; mov %dl,0x8ec31(%eax)` 单段直落；异型 RHS(bool) 会多 1 条 eax→edx 中转。1 字节/偏移/后续字段不变）
+    char m_pcroomDailyRemain;                                      // +0x8ec32
     char m_pad8ec33[1];                                     // +0x8ec33（ORIG CUser = 0x8ec34）
 
     // ---- 构造 / 重置 ----
@@ -2811,8 +2787,8 @@ public:
     void SetChangedGiftFatigueQuantity(bool flag);
     void resetTotalPcRoomPlayTime();                    // ORIG（CUser.cpp 已有定义）
     void ResetCurCharacUsedFatigueQuantity();           // ORIG（CUser.cpp 已有定义）
-    void IncCurCharacUsedFatigueQuantity(unsigned int n);       // ORIG W 0x08110e1e：m_field8eba8 += n
-    void IncCurCharacUsedGiftFatigueQuantity(unsigned int n);   // ORIG W 0x08110e3a：m_field8ebac += n
+    void IncCurCharacUsedFatigueQuantity(unsigned int n);       // ORIG W 0x08110e1e：m_usedFatigueQuantity += n
+    void IncCurCharacUsedGiftFatigueQuantity(unsigned int n);   // ORIG W 0x08110e3a：m_usedGiftFatigueQuantity += n
     void ResetDailyQuest();
     void ResetTrainingQuest();
     void SetPvpIndex(short idx);
@@ -3255,7 +3231,7 @@ public:
     bool is_clear_stealingSkillMission() const;
     void givePvPSkillTree(int a, bool b, int c);
     bool make_basic_info(char* buf, char type);            // ORIG 0x0865a44e；串定 bool（b28c SIGFIX）
-    unsigned short get_unique_id() const;   // ORIG 单 movzwl（返回 unsigned short，读 m_field704a8）
+    unsigned short get_unique_id() const;   // ORIG 单 movzwl（返回 unsigned short，读 m_uniqueId）
     int get_pvp_WinningRate_relateMission() const;  // ORIG 0x86626e0
     CParty* GetParty();   // 体即 return G_CGameManager()->GetParty(idx)（CParty* 透传，
                           // void* 系历史规避写法；调用点 cast 变冗余 no-op，用户令修正）
@@ -3509,7 +3485,7 @@ public:
     void SetTutorialSkipable(unsigned char flag);
     unsigned int getHumanCertifyTimerKey();   // 2026-09-11 H3CUser（Main 核准）：ORIG 0x086371cd 调用点 `mov 0x10(%ebp),%edx; cmp %edx,%eax; seta`（无符号比较 2 条形）⇒ unsigned 返回；返回类型不进 mangled
     void setHumanCertifyErrorCnt(int cnt);
-    bool isSendMailCertified();  // b28d-Main(P292)：ORIG 0x086371a4 调用点 `call; test %al,%al; je` ⇒ bool（字段 m_field8e3ed 已 bool，体直透）
+    bool isSendMailCertified();  // b28d-Main(P292)：ORIG 0x086371a4 调用点 `call; test %al,%al; je` ⇒ bool（字段 m_sendMailCertified 已 bool，体直透）
     void setRestingUserRestrict(bool flag);
     void setPunishTradeAlert(short alert);
     short getPunishTradeAlert();
@@ -3556,7 +3532,7 @@ public:
     //   布局/偏移零变化）。依据：ORIG 唯一消费点 CParty::ClearDungeon 0x085a96d4 段为
     //   `call IsUsedCoinInDungeon; xor $0x1,%eax; test %al,%al; je`（raw 字节
     //   0x085a96d9 = 83 f0 01 84 c0 74 3a）⇒ P292 消费端判据 = bool；
-    //   字段 m_field8eae0 已为 bool（值域 {0,1}）⇒ 语义不变、指令与 ORIG 同形。
+    //   字段 m_usedCoinInDungeon 已为 bool（值域 {0,1}）⇒ 语义不变、指令与 ORIG 同形。
     bool IsUsedCoinInDungeon() const;
     void ResetCoinCount();
     int GetUsedCoinCount();
@@ -3775,11 +3751,11 @@ public:
         int get_SoloPlay_msgType(MSG_REQ_TO_PEER const& msg);       // 0x0868dd76 T
         int getInDungeonItemSellCount(int invenType, int slotIdx);  // 0x0868b106 T
         unsigned char getInformNoticeFlag(int idx);                 // 0x0868fa76 T：ORIG 单 movzbl（返回 unsigned char）
-        int getCharacAntibotSerialNum() const;                      // 0x0823089c W（读 m_field8ec24）
+        int getCharacAntibotSerialNum() const;                      // 0x0823089c W（读 m_antibotSerialNum）
         // ---- Premium ----
         int getAddExpRateFromPremium(ENUM_PREMIUM_TYPE type);           // 0x085bfd76 W
         int getAddQuestItemDropRateFromPremium(ENUM_PREMIUM_TYPE type); // 0x0869733e W
-        unsigned char GetChangedGiftFatigueQuantity() const;        // 0x086975ee W（读 m_field8ebb0）
+        unsigned char GetChangedGiftFatigueQuantity() const;        // 0x086975ee W（读 m_changedGiftFatigue）
         // ---- Childrens Day ----
         int GetChildrensDayEventTargetItemPeriod(int idx);          // 0x08328262 W
         int GetChildrensDayEventTargetItemSlot(int idx);            // 0x08328240 W

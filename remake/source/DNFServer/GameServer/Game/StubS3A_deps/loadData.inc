@@ -24,13 +24,13 @@ bool CRedeemItem::loadData(CUser* pUser, char* pData)
 {
     (void)pUser;
     _reset();   // ORIG 0x085f7846：虚调 vtable slot7
-    const RedeemEntryView* buf =
-        reinterpret_cast<const RedeemEntryView*>(pData);   // ORIG 0x085f7848
-    for (unsigned int i = 0; i < ((const RedeemListHeadView*)buf)->m_count; ++i)
+    const SIG_REDEEMINFO_LIST_TO_DB* sig =
+        reinterpret_cast<const SIG_REDEEMINFO_LIST_TO_DB*>(pData);
+    for (unsigned int i = 0; i < (unsigned int)sig->m_count; ++i)
     {
-        if (buf[i].m_head.m_check == 0)   // ORIG 0x085f7867 mov 0xa(%eax,%edx,1)
+        if (sig->m_items[i].m_item.m_addInfo == 0)
         {
-            alter();   // ORIG 0x085f7875: charac_expand::CData::alter()
+            alter();
         }
         else
         {
@@ -46,9 +46,7 @@ bool CRedeemItem::loadData(CUser* pUser, char* pData)
             //   同名 0x085f788c `lea 0x8(%eax),%edx` vs `add $0x8,%eax`（视图/union/
             //   指针算术三形 + m_body 偏移 0 陷阱历史已试）⇒ 维持（新=DIFF 49/50
             //   gap=-1, blocks=2：两处均为 4.1 基址/indexed 寻址折叠差）。
-            m_redeemList.push_back(
-                *reinterpret_cast<const Inven_Item_Expand_RedeemInfo*>(
-                    buf[i].m_body.m_info));
+            m_redeemList.push_back(sig->m_items[i]);
         }
     }
     return true;

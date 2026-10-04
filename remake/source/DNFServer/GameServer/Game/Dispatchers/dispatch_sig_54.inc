@@ -36,19 +36,19 @@ int Dispatcher_Lag_Statistics::dispatch_sig(CUser* user, PacketBuf& packet)
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (!packet.get_int(*reinterpret_cast<int*>(base + 0xb + idx * 10)))
+        if (!packet.get_int(local_161.m_modules[idx].m_a))
         {
             return LineFunc(0xdead,
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (!packet.get_int(*reinterpret_cast<int*>(base + 0xb + idx * 10 + 4)))
+        if (!packet.get_int(local_161.m_modules[idx].m_b))
         {
             return LineFunc(0xdeae,
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (!packet.get_short(*reinterpret_cast<unsigned short*>(base + 0xb + idx * 10 + 8)))
+        if (!packet.get_short(local_161.m_modules[idx].m_c))
         {
             return LineFunc(0xdeaf,
                             __PRETTY_FUNCTION__,
@@ -71,55 +71,55 @@ int Dispatcher_Lag_Statistics::dispatch_sig(CUser* user, PacketBuf& packet)
             }
             for (int j = 0; j < (int)(unsigned int)count2; ++j)
             {
-                if (!packet.get_short(*reinterpret_cast<unsigned short*>(base + 0x50 + j * 0x18 + 0xc)))
+                if (!packet.get_short(local_161.m_dungeons[j].m_w0))
                 {
                     return LineFunc(0xdebc,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_byte(*reinterpret_cast<unsigned char*>(base + 0x50 + j * 0x18 + 0xe)))
+                if (!packet.get_byte(local_161.m_dungeons[j].m_b2))
                 {
                     return LineFunc(0xdebd,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_int(*reinterpret_cast<int*>(base + 0x50 + j * 0x18 + 0xf)))
+                if (!packet.get_int(local_161.m_dungeons[j].m_i3))
                 {
                     return LineFunc(0xdebe,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_int(*reinterpret_cast<int*>(base + 0x50 + j * 0x18 + 0x13)))
+                if (!packet.get_int(local_161.m_dungeons[j].m_i7))
                 {
                     return LineFunc(0xdebf,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_short(*reinterpret_cast<unsigned short*>(base + 0x50 + j * 0x18 + 0x17)))
+                if (!packet.get_short(local_161.m_dungeons[j].m_wb))
                 {
                     return LineFunc(0xdec0,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_byte(*reinterpret_cast<unsigned char*>(base + 0x50 + j * 0x18 + 0x19)))
+                if (!packet.get_byte(local_161.m_dungeons[j].m_bd))
                 {
                     return LineFunc(0xdec1,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_int(*reinterpret_cast<int*>(base + 0x50 + j * 0x18 + 0x1a)))
+                if (!packet.get_int(local_161.m_dungeons[j].m_ie))
                 {
                     return LineFunc(0xdec2,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_int(*reinterpret_cast<int*>(base + 0x50 + j * 0x18 + 0x1e)))
+                if (!packet.get_int(local_161.m_dungeons[j].m_i12))
                 {
                     return LineFunc(0xdec3,
                                     __PRETTY_FUNCTION__,
                                     0, 0);
                 }
-                if (!packet.get_short(*reinterpret_cast<unsigned short*>(base + 0x50 + j * 0x18 + 0x22)))
+                if (!packet.get_short(local_161.m_dungeons[j].m_w16))
                 {
                     return LineFunc(0xdec4,
                                     __PRETTY_FUNCTION__,

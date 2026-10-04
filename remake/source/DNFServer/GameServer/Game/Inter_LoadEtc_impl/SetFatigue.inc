@@ -19,15 +19,15 @@ bool Inter_LoadEtc::SetFatigue(CUser* user)
         return false;
 
     if (CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                               user->getCurCharacR()->m_field7b,
+                               user->getCurCharacR()->m_lastPlayTick,
                                GlobalData::s_systemTime_.getCurSec()))     // +0x7b
     {
         int days = 0;
-        if (user->getCurCharacR()->m_field7b != 0)
+        if (user->getCurCharacR()->m_lastPlayTick != 0)
         {
             days = ComputeDaysScheduleTime(
                 G_CEnvironment()->m_serverEnvir.m_fatigueTime,
-                user->getCurCharacR()->m_field7b,
+                user->getCurCharacR()->m_lastPlayTick,
                 GlobalData::s_systemTime_.getCurSec());
         }
 
@@ -41,7 +41,7 @@ bool Inter_LoadEtc::SetFatigue(CUser* user)
                 "FATIGUE BATTERY : charno(%d) days(%d), lastplaytick(%d), "
                 "curTick(%d), charging(%d), cur charging(%d)",
                   (int)user->getCurCharacNo(), days,
-                  (unsigned)user->getCurCharacR()->m_field7b,
+                  (unsigned)user->getCurCharacR()->m_lastPlayTick,
                   (unsigned)GlobalData::s_systemTime_.getCurSec(),
                 (int)charging,
                 curCharging);

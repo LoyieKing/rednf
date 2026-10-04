@@ -15,8 +15,7 @@ unsigned int CParty::getMonsterTotalExp(unsigned int monsterIdx, char flag, int 
     // ORIG base = G_CDataManager()+0x68 == &CDataManager::m_serverParameter
     //（CDataManager.h 权威布局 +0x68）。ORIG 0x085a23f4：call 返回 %eax
     // 直接 add $0x68 后 spill 基址指针局部（-0x14），非引用绑定。
-    ServerParameterScript* sp = reinterpret_cast<ServerParameterScript*>(
-        reinterpret_cast<char*>(G_CDataManager()) + 0x68);
+    ServerParameterScript* sp = &G_CDataManager()->m_serverParameter;
     float rate;
     if (flag <= 3)
     {

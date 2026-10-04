@@ -16,7 +16,7 @@ void CMailBoxHelper::ReqDBSendNewCreatureMail(CUser* user, int nCharacNo,
     m->m_senderCharacNo = user->getCurCharacNo();
     std::memset(&m->m_pad2c[0], 0, 0x74);
     m->m_item.setCopy(item);   // Inven_Item_Compatible::setCopy（ORIG 0x0855651e）
-    reinterpret_cast<MailBoxCreatureSeedView*>(m)->m_seed = 0;  // movl $0,0x58
+    m->m_seed = 0;
     m->m_nDestCharacNo = nCharacNo;
     m->m_unk70 = 100;
     m->m_unk7d = 0x20;

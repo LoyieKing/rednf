@@ -21,13 +21,7 @@ void CPrivateStore::SavePrivateStore()
     // [b28d-solo] P311 成员数组视图：ORIG 0x85ca1e3 `lea 0x8(%eax),%ebx`（成员
     // 数组名退化取址单条 lea）；字节数组 + cast 形 4.4 恒 `add $0x8,%eax;
     // mov %eax,%ebx`（N107 六形探针之一）。
-    struct SigItemsView
-    {
-        char m_pad[8];
-        PrivateStoreItem m_items[14];
-    };
-    std::copy(m_items.begin(), m_items.begin() + 0xe,
-              reinterpret_cast<SigItemsView*>(sig)->m_items);
+    std::memcpy(sig->m_items, &m_items[0], 14 * 0x4c);
     // ORIG 双守卫各重读一次 getter（P48/P184；三目形只出 1 次调用）。
     if (isDollCreated())
         sig->m_dollCreated = 1;

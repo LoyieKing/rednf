@@ -13,8 +13,8 @@ bool DB_AutoPunishedSecondUserData::dispatch(int userIdx, int slot,
     (void)deadFlag;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   E_SERVER_GROUP_NONE);
-    DB_AutoPunishedSecondUserReqView* req =
-        reinterpret_cast<DB_AutoPunishedSecondUserReqView*>(
+    SIG_SECOND_USER_DATA* req =
+        /*SIG_SECOND_USER_DATA*/(
             stream->GetOutBuffer<SIG_SECOND_USER_DATA>());
     db->set_query(
         "seLect trade_cnt,trade_gold from auto_punish_second_user where m_id=%s",
@@ -26,8 +26,8 @@ bool DB_AutoPunishedSecondUserData::dispatch(int userIdx, int slot,
             GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x88f1), true);
         guard.operator*()->operator<<(0x1ca);
         guard.operator*()->operator<<(req->m_tradeCnt);
-        DB_AutoPunishedSecondUserSetView* out =
-            reinterpret_cast<DB_AutoPunishedSecondUserSetView*>(
+        SIG_SECOND_USER_DATA_SET* out =
+            /*SIG_SECOND_USER_DATA_SET*/(
                 guard->GetInBuffer<SIG_SECOND_USER_DATA_SET>());
         memset(out, 0, sizeof(*out));
         // ORIG 0x0843a4fd 失败分支逐字段（report dispatch.md）：
@@ -59,8 +59,8 @@ bool DB_AutoPunishedSecondUserData::dispatch(int userIdx, int slot,
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x8901), true);
     guard.operator*()->operator<<(0x1ca);
     guard.operator*()->operator<<(req->m_tradeCnt);
-    DB_AutoPunishedSecondUserSetView* out =
-        reinterpret_cast<DB_AutoPunishedSecondUserSetView*>(
+    SIG_SECOND_USER_DATA_SET* out =
+        /*SIG_SECOND_USER_DATA_SET*/(
             guard->GetInBuffer<SIG_SECOND_USER_DATA_SET>());
     memset(out, 0, sizeof(*out));
     // ORIG 0x0843a4fd 成功分支逐字段（report dispatch.md）：

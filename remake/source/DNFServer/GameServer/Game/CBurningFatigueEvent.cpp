@@ -26,6 +26,7 @@
 #include "CGuildServerProxy.h"   // G_CDataManager / CDataManager
 #include "cMyTraceNoop.h"
 
+#include "CDataManager.h"
 #include "CBurningFatigueEvent/CBurningFatigueEvent.inc"
 
 

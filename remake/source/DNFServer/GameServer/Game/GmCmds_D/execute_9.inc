@@ -15,10 +15,8 @@ void CHeroMissionCommand::execute()
         // b28d-solo-GmCmds_D：ORIG 两处 `mov 0x10/0xc(%eax),%eax; mov %eax,%esi/%ebx`
         // 两段装载（4.1 对 enum 字段保留 eax→callee-saved 中转）⇒ 经 enum 字段
         // 视图 + 裸 register 局部复现（P254/P231；探针 /tmp/b28d_gmd/p6.cpp g10 全等）。
-        register unsigned int param = static_cast<unsigned int>(
-            ((const GmDHeroMissionCmdView*)this)->param);
-        register unsigned int no = static_cast<unsigned int>(
-            ((const GmDHeroMissionCmdView*)this)->no);
+        register unsigned int param = m_param;
+        register unsigned int no = m_missionNo;
         ARAD::Singleton<HeroMissionEvent>::Get()->processMission(
             user, static_cast<HeroMissionCondition::MissionNo::T>(no), param);
     }

@@ -16,7 +16,7 @@ int Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig(CUser* user, char* d
 
     // ORIG：包基址在两道 guard 后物化入 -0x14(%ebp)
     Inter_MonitorNoticeMemberChatMsgHyperLinkPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberChatMsgHyperLinkPktView*>(data);
-    if (user->get_charac_no(-1) != pPkt->m_e)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -24,7 +24,7 @@ int Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig(CUser* user, char* d
             0x6411,
             "MEMBER : Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            pPkt->m_e);
+            pPkt->m_characNo);
         return 0;
     }
 
@@ -33,19 +33,19 @@ int Inter_MonitorNoticeMemberChatMsgHyperLink::dispatch_sig(CUser* user, char* d
     packet.put_byte(8);
     packet.put_byte(0);
     // len 槽 int 精确匹配（size_t 致 decay 降级 add+反序）
-    const int local_14 = (int)strlen(pPkt->m_12);
+    const int local_14 = (int)strlen(pPkt->m_msg);
     packet.put_int(local_14);
-    packet.put_str(pPkt->m_12, local_14);
+    packet.put_str(pPkt->m_msg, local_14);
     packet.put_byte(0);
     packet.put_int(
-        (unsigned int)pPkt->m_169);
+        (unsigned int)pPkt->m_linkLen);
     packet.put_str(
-        reinterpret_cast<char*>(pPkt) + 0x16a,        // ORIG 经 -0x14 槽
-        (unsigned int)pPkt->m_169);
+        pPkt->m_link,        // +0x16a 链接串
+        (unsigned int)pPkt->m_linkLen);
     packet.put_byte(
-        (unsigned int)pPkt->m_30);
+        (unsigned int)pPkt->m_itemCount);
     for (int local_10 = 0;
-         local_10 < (int)(unsigned int)pPkt->m_30;
+         local_10 < (int)(unsigned int)pPkt->m_itemCount;
          ++local_10)
     {
         // ORIG 0x084e5xxx：数组寻址两步位移形态（见 PktView ItemView 注释）。

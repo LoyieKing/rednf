@@ -32,18 +32,14 @@ int DisPatcher_Lottery::dispatch_sig(CUser* user, PacketBuf& packet)
     // struct + char[2]）实测 166→169 劣化（落位偏 + 第二读未折回），本形按 SetPVPMapIndex
     // 已验证成功的 pragma 形重试。⚠不可用 `__attribute__((packed))`（4.4 拒绝绑定
     // 紧实字段到 short&）。
-#pragma pack(push, 1)
-    struct LotteryMsgView : MSG_BASE
+    MSG_LOTTERY_ITEM sig;
     {
-        short m_idx;
-    };
-#pragma pack(pop)
-    LotteryMsgView sig;
-    if (!packet.get_short(*reinterpret_cast<short*>(reinterpret_cast<char*>(&sig) + 0xd)))
-    {
-        return LineFunc(0x861c,
-                        __PRETTY_FUNCTION__,
-                        0, 0);
+        short idx = 0;
+        if (!packet.get_short(idx))
+        {
+            return LineFunc(0x861c, __PRETTY_FUNCTION__, 0, 0);
+        }
+        sig.m_idx = idx;
     }
     int result = user->lottery_item((int)sig.m_idx);
     // [DPC-SigC 2026-09-11] P324/P59 块序：ORIG 0x081e1e6x `cmpl $0x0,-0x10(%ebp);

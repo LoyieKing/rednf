@@ -1,4 +1,4 @@
 bool CUserCharacInfo::IsEndLetheAtLogin()
 {
-    return m_selected ? m_selected->m_field122B : 0;
+    return m_selected ? m_selected->m_endLetheAtLogin : 0;
 }

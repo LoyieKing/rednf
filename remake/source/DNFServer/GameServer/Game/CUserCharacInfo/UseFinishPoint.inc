@@ -10,6 +10,6 @@ unsigned int CUserCharacInfo::UseFinishPoint(int point)
     }
     ChangeFinishPoint(-point);
     ((CUser*)this)->m_historyLog.FPSub(
-        point, m_selected->m_fieldE06, m_selected->m_fieldE0A, eFPSubReason_0);
-    return m_selected->m_fieldE06;
+        point, m_selected->m_finishPoint, m_selected->m_finishPointTotal, eFPSubReason_0);
+    return m_selected->m_finishPoint;
 }

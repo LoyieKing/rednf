@@ -25,7 +25,7 @@ bool CDataManager::set_reward_sp()  // [P330 int→bool] 与 CDataManager.h 声�
     //   即可删除）；本 TU 内源形已穷举 7 形 ⇒ 封 N7/N18a。
     for (int i = 0; i < 0x60; ++i)
     {
-        ((CDataManagerRewardSpView*)this)->m_sp8[0x36a2 + i] = 0;
+        this->m_spTableTail[i] = 0;
     }
     for (unsigned long i = 1; i < 0x60; ++i)
     {
@@ -36,7 +36,7 @@ bool CDataManager::set_reward_sp()  // [P330 int→bool] 与 CDataManager.h 声�
         // ②同址 int 视角 union（m_sp8i）+ 去 cast 使两端异型 —— 产物与 unsigned
         // 原形**逐条全同**（66 条，无中转）⇒ 4.4 视同宽整型转换为无操作，
         // 属寄存器指派族（N7/N18a）封顶，判词同 b28d bm4。
-        ((CDataManagerRewardSpView*)this)->m_sp8[0x36a2 + i] = table[i];
+        this->m_spTableTail[i] = table[i];
     }
     return 1;
 }

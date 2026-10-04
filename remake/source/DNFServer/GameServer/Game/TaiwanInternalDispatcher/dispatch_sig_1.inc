@@ -15,7 +15,7 @@
 // volatile 守卫探针（ehtest2.C）可出 body 但条件三段 short-circuit 形距 ORIG
 // `test;jmp` 更远、且需新增 TU static 符号（链接污染）+误启用发信行为风险。
 // ⇒ 编译期不可构造，终判 N111（无入口死块，4.4 恒 DCE）；本函数保持「仅可达路径」
-//   语义忠实实现，tail（0x0816158d）已逐条对齐（CUser.h m_field8ec31 bool 化代落后）。
+//   语义忠实实现，tail（0x0816158d）已逐条对齐（CUser.h m_rewarded bool 化代落后）。
 // ============================================================================
 // [b28d-solo-TaiwanInternalDispatcher] DIFF·N111 封顶（ORIG 0x08161384 无条件 jmp 后
 // 0x5a..0x263 发邮件主体为无入口死块，4.4 恒 DCE；可达 tail 已逐条对齐，p167 3 MISSING 全在死块）
@@ -74,6 +74,6 @@ int InterSelectMobileAuthReward::dispatch_sig(CUser* user, char* buf, int len)
             }
         }
     }
-    user->m_field8ec31 = msg->m_rewarded;
+    user->m_rewarded = msg->m_rewarded;
     return 0;
 }

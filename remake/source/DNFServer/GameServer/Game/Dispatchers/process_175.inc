@@ -21,12 +21,7 @@ int Dispatcher_RequestMemberEnter::process(CUser* user, MSG_BASE& msg, ParamBase
     // ORIG 0x081cb8f2: `mov 0x10(%ebp),%eax; mov %eax,-0xc(%ebp)` —— msg 具名引用槽；
     //   0x081cb91f 起长度读 `mov 0x10(%eax),%eax` 常量偏移。
     MSG_BASE& m = msg;
-    struct __attribute__((packed)) ReqMemberEnterMsgView
-    {
-        char m_pad[0x10];
-        unsigned int m_nameLen;   // +0x10：ORIG `mov 0x10(%eax),%eax` disp 直读
-        char m_name[0x1e];        // +0x14：ORIG `add $0x14,%edx`
-    };
+
     Packet_Monitor_Request_Member_Enter pkt;   // ORIG W ctor 0x0822b9ce（局部帧 -0x40 起）
     // ORIG 实测帧内偏移（pkt 基 -0x40）：0x081cb90e `mov %eax,-0x36(%ebp)` = pkt+0xa ← GetUID；
     //   0x081cb91c `mov %eax,-0x32(%ebp)` = pkt+0xe ← getCurCharacNo；
@@ -41,8 +36,8 @@ int Dispatcher_RequestMemberEnter::process(CUser* user, MSG_BASE& msg, ParamBase
     pkt.m_uid = user->GetUID();                          // +0x0a
     pkt.m_characNo = user->getCurCharacNo();             // +0x0e
     std::strncpy(pkt.m_name,
-                 reinterpret_cast<const ReqMemberEnterMsgView*>(&m)->m_name,
-                 reinterpret_cast<const ReqMemberEnterMsgView*>(&m)->m_nameLen);
+                 reinterpret_cast<const MSG_REQUEST_MEMBER_ENTER*>(&m)->m_characName,
+                 reinterpret_cast<const MSG_REQUEST_MEMBER_ENTER*>(&m)->m_nameLen);
     // ORIG 0x081cb941：&pkt 先物化 %ebx，receiver 链内联（无 proxy 具名槽）
     GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup())
         ->SendTcpPacket(reinterpret_cast<char*>(&pkt), 0x30);

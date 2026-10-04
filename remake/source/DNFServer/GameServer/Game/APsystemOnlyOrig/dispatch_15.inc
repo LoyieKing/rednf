@@ -34,67 +34,67 @@ bool DB_UpdateLogout::dispatch(int userIdx, int slot, Stream* stream)
                               __PRETTY_FUNCTION__,
                               0x4939,
                               "UpdateLogout() fail - m_id[%s]\n",
-                              NumberToString(((DB_UpdateLogoutSigView*)sig)->m_accId, 0));
+                              NumberToString(static_cast<unsigned int>(sig->m_accId), 0));
         return 0;
     }
-    if (((DB_UpdateLogoutSigView*)sig)->m_stateFlag)
+    if (sig->m_stateFlag)
     {
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6, E_SERVER_GROUP_NONE);
-        if (((DB_UpdateLogoutSigView*)sig)->m_pcbang)
+        if (sig->m_pcbangFlag)
         {
             db->set_query("upDate member_play_info set play_time=play_time+%d,play_count=play_count+1,trade_cnt=trade_cnt+%d, exp=exp+%u, used_fatigue=used_fatigue+%u, ting_count=ting_count+%d, ip='%s', last_play_time=%u, pcbang_flag=%d, end_ip='%s', mac_addr='%s', server_id = %d where occ_date=cast(now() as date) and m_id=%s",
-                          ((DB_UpdateLogoutSigView*)sig)->m_playTime,
-                          ((DB_UpdateLogoutSigView*)sig)->m_field17,
-                          ((DB_UpdateLogoutSigView*)sig)->m_field1b,
-                          ((DB_UpdateLogoutSigView*)sig)->m_field1f,
-                          ((DB_UpdateLogoutSigView*)sig)->m_puUser ? 0 : 1,
-                          ((DB_UpdateLogoutSigView*)sig)->m_field37,
-                          ((DB_UpdateLogoutSigView*)sig)->m_field23,
-                          ((DB_UpdateLogoutSigView*)sig)->m_pcbang,
-                          ((DB_UpdateLogoutSigView*)sig)->m_field43,
-                          ((DB_UpdateLogoutSigView*)sig)->m_mac,
-                          ((DB_UpdateLogoutSigView*)sig)->m_serverId,
-                          NumberToString(((DB_UpdateLogoutSigView*)sig)->m_accId, 0));
+                          sig->m_playTime,
+                          sig->m_field17,
+                          sig->m_playExpAdd,
+                          sig->m_totalFatigueUsed,
+                          sig->m_puUser ? 0 : 1,
+                          sig->m_ipPrefix,
+                          sig->m_ipDword,
+                          sig->m_pcbangFlag,
+                          sig->m_ipSuffix,
+                          sig->m_mac,
+                          sig->m_serverId,
+                          NumberToString(static_cast<unsigned int>(sig->m_accId), 0));
         }
         else
         {
             db->set_query("upDate member_play_info set play_time=play_time+%d,play_count=play_count+1,trade_cnt=trade_cnt+%d, exp=exp+%u, used_fatigue=used_fatigue+%u, ting_count=ting_count+%d, ip='%s', last_play_time=%u, end_ip='%s', mac_addr='%s', server_id = %d where occ_date=cast(now() as date) and m_id=%s",
-                          ((DB_UpdateLogoutSigView*)sig)->m_playTime,
-                          ((DB_UpdateLogoutSigView*)sig)->m_field17,
-                          ((DB_UpdateLogoutSigView*)sig)->m_field1b,
-                          ((DB_UpdateLogoutSigView*)sig)->m_field1f,
-                          ((DB_UpdateLogoutSigView*)sig)->m_puUser ? 0 : 1,
-                          ((DB_UpdateLogoutSigView*)sig)->m_field37,
-                          ((DB_UpdateLogoutSigView*)sig)->m_field23,
-                          ((DB_UpdateLogoutSigView*)sig)->m_field43,
-                          ((DB_UpdateLogoutSigView*)sig)->m_mac,
-                          ((DB_UpdateLogoutSigView*)sig)->m_serverId,
-                          NumberToString(((DB_UpdateLogoutSigView*)sig)->m_accId, 0));
+                          sig->m_playTime,
+                          sig->m_field17,
+                          sig->m_playExpAdd,
+                          sig->m_totalFatigueUsed,
+                          sig->m_puUser ? 0 : 1,
+                          sig->m_ipPrefix,
+                          sig->m_ipDword,
+                          sig->m_ipSuffix,
+                          sig->m_mac,
+                          sig->m_serverId,
+                          NumberToString(static_cast<unsigned int>(sig->m_accId), 0));
         }
-        if (((DB_UpdateLogoutSigView*)sig)->m_accId != 0)
+        if (sig->m_accId != 0)
         {
             if (!db->exec(true) || db->getAffectedRowCount() == 0)
             {
                 db->set_query("inSert into member_play_info(occ_date,m_id,play_time,play_count,trade_cnt,exp,used_fatigue,ting_count, ip, last_play_time, pcbang_flag, end_ip, mac_addr, server_id) values(cast(now() as date),%s,%d,1,%d,%u,%u,%d,'%s', %u, %d, '%s', '%s',%d)",
-                              NumberToString(((DB_UpdateLogoutSigView*)sig)->m_accId, 0),
-                              ((DB_UpdateLogoutSigView*)sig)->m_playTime,
-                              ((DB_UpdateLogoutSigView*)sig)->m_field17,
-                              ((DB_UpdateLogoutSigView*)sig)->m_field1b,
-                              ((DB_UpdateLogoutSigView*)sig)->m_field1f,
-                              ((DB_UpdateLogoutSigView*)sig)->m_puUser ? 0 : 1,
-                              ((DB_UpdateLogoutSigView*)sig)->m_field37,
-                              ((DB_UpdateLogoutSigView*)sig)->m_field23,
-                              ((DB_UpdateLogoutSigView*)sig)->m_pcbang,
-                              ((DB_UpdateLogoutSigView*)sig)->m_field43,
-                              ((DB_UpdateLogoutSigView*)sig)->m_mac,
-                              ((DB_UpdateLogoutSigView*)sig)->m_serverId);
+                              NumberToString(static_cast<unsigned int>(sig->m_accId), 0),
+                              sig->m_playTime,
+                              sig->m_field17,
+                              sig->m_playExpAdd,
+                              sig->m_totalFatigueUsed,
+                              sig->m_puUser ? 0 : 1,
+                              sig->m_ipPrefix,
+                              sig->m_ipDword,
+                              sig->m_pcbangFlag,
+                              sig->m_ipSuffix,
+                              sig->m_mac,
+                              sig->m_serverId);
                 if (!db->exec(true))
                     return 0;
             }
         }
     }
-    if (((DB_UpdateLogoutSigView*)sig)->m_field88)
-        UpdateAccountMemberBonusFatigue(((DB_UpdateLogoutSigView*)sig)->m_accId,
-                                        ((DB_UpdateLogoutSigView*)sig)->m_field89);
+    if (sig->m_saveMemberBonusFlag)
+        UpdateAccountMemberBonusFatigue(sig->m_accId,
+                                        sig->m_memberBonusFatigue);
     return SendResult(userIdx, slot, sig);
 }

@@ -21,21 +21,7 @@ void CUser::SetLimitInfo(SIG_LIMIT_ITEM_INFO* info)
         // 使我们的对应读点落在 +0x18/+0x0c/+0x14 ⇒ 三处字段整体错位（运行时读错限购数据）。
         // 头修正属跨文件广播项，本轮只报告；此处按 ORIG 绝对偏移用局部视图读取（等价映射：
         // 元素基址 info+0x8、步长 0x10、createTime@元素+0 / itemId@+4 / field0@+8）。
-        struct LimitInfoEntryView {
-            long m_createTime;   // 元素+0x00 ⇒ 绝对 +0x08（ORIG 0x086889f6）
-            int  m_itemId;       // 元素+0x04 ⇒ 绝对 +0x0c（ORIG 0x08688985）
-            int  m_field0;       // 元素+0x08 ⇒ 绝对 +0x10（ORIG 0x086889e3）
-            int  m_field4;       // 元素+0x0c（ORIG 未读）
-        };
-        struct LimitInfoView {
-            int m_count;                     // +0x00（ORIG 0x08688a2c 循环条件读）
-            int m_pad4;                      // +0x04
-            LimitInfoEntryView m_entries[1]; // +0x08 起，步长 0x10
-        };
-        // [H6 2026-09-11 P183 修正] 视图指针**不具名缓存**：ORIG 每处重读形参
-        // `mov 0xc(%ebp),%eax`；具名 `LimitInfoView* lim` 会占 -0x18 槽并每次回读
-        // （实测 +16 条、多 push %esi）⇒ 用宏展开，零槽。
-#define CUOO_LIM (reinterpret_cast<LimitInfoView*>(info))
+#define CUOO_LIM (info)
         m_limitItemUsage.clear();
         stLimitItemUsageInfoEx* usageInfo = G_CDataManager()->GetLimitItemUsageInfo();
         std::vector<stLimitItemUsageInfo::LimitInfo>::iterator it =

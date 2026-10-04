@@ -133,6 +133,7 @@ struct RedeemListHeadView
     //   unsigned（RHS 仍 int = get_charac_no 返回值）⇒ 异型转换中转，翻回 ORIG 序。
     unsigned int m_characNo; // +0x00（RHS `pUser->get_charac_no(-1)` 为 int）
     unsigned int m_count;    // +0x04
+    Inven_Item_Expand_RedeemInfo m_items[0x15]; // +0x08
 };
 #pragma pack(pop)
 static_assert(sizeof(RedeemEntryView) == 0x44, "Redeem entry stride drift");

@@ -99,7 +99,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     WongWork::CSimpleSSO::stOutputData_t ssoOut;
     if (!GlobalData::s_psimpleSSO->checkValidPassword(
             sig->m_accId, serverPwd,
-            SGBC(sig, OFF_CLIENT_IP), ssoOut))
+            sig->m_pad18, ssoOut))
     {
         // ORIG 0x84136c0-0x841370e：LogManager::logFormat（1,"DBThread.cpp",
         // __PRETTY_FUNCTION__,0x39da,"[Taiwan, Auth] Fail query member_login. (mid:%s)"）
@@ -139,18 +139,16 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     // [DBLogin-V3 旋钮B] P311：ORIG +0x5c5 `movzbl -0x200(%ebp),%edx; mov 0xc(%ebp),%eax;
     // mov %dl,0x39dc(%eax)`（3 条，直 disp store）；旧 SGFC 宏的 `(char*)sig+off` 指针算术
     // 在 -O0 物化为 `lea 0x39dc(%eax),%edx; …; mov %al,(%edx)`（4 条）⇒ 改具名视图成员写。
-    struct SecFlagView { char m_pad[0x39dc]; char m_secCertFlag; };
-    reinterpret_cast<SecFlagView*>(sig)->m_secCertFlag = ssoOut.m_securityFlag; // +0x39dc
-    strncpy(SGBC(sig, OFF_SSO_LOGINIP), ssoOut.m_loginIp, 0x10); // +0x3a3a（共享头名 m_webAddress，语义错位保留）
+    sig->m_ssoSecurityFlag = ssoOut.m_securityFlag; // +0x39dc
+    strncpy(sig->m_webAddress, ssoOut.m_loginIp, 0x10); // +0x3a3a（共享头名 m_webAddress，语义错位保留）
     sig->m_dungeonGainedGold = ssoOut.m_dungeonGainGold;        // +0x395c
 
     // [SweepDBLogin 本轮] P0/P82：ORIG 0x0841xxxx 段为 `call getCurSec; mov %eax,%ebx;
     // mov -0x22c,%esi; call G_CEnvironment; mov 0x37c(%eax),%eax; …call`（curSec 留
     // %ebx 跨调用保活、无具名槽；+0x37c disp 直读）。旧 `long long curSec` 具名局部
     // 触发 64 位符号扩展 `sar $0x1f` + 双槽物化（OURS-only sar/mov×3）。
-    struct EnvFatigueView { char m_pad[0x37c]; int m_fatigueTime; };
     if (CheckDailyScheduleTime(
-            reinterpret_cast<EnvFatigueView*>(G_CEnvironment())->m_fatigueTime,
+            G_CEnvironment()->m_serverEnvir.m_fatigueTime,
             ssoOut.m_lastPlayTime, GlobalData::s_systemTime_.getCurSec()))
     {
         sig->m_dungeonGainedGold = 0;
@@ -219,7 +217,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
               reinterpret_cast<const char*>(sig));
         return false;
     }
-    if (!db->get_str(5, SGBC(sig, 0x2184), 0x80))    // user_name → sig+0x2184
+    if (!db->get_str(5, sig->m_userDetailIpPort, 0x80))    // user_name → sig+0x2184
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0x3a93, 5);
         trace("DB_Login::GetAccountInfo, get(5) ERROR m_id=%s",
@@ -240,7 +238,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     }
     // ORIG 汇编 0x8413e91-0x8413eac：lea 0x2204 / snprintf(dst,0x7f,decEmail)
     // —— 直传解密串为格式参（3 参，无 "%s" 包装），原样复刻。
-    OS_API::snprintf(SGBC(sig, 0x2204), 0x7f, decEmail);
+    OS_API::snprintf(sig->m_userDetailSsn, 0x7f, decEmail);
 
     unsigned int hangameFlag = 0;
     if (!db->get_uint(7, hangameFlag))
@@ -265,8 +263,7 @@ bool DB_Login::GetAccountInfo(SIG_LOGIN_DATA* sig)
     // [DBLogin-V3 旋钮C] P311 同型：ORIG 0x08413fde `mov -0x134(%ebp),%edx;
     // mov 0xc(%ebp),%eax; mov %edx,0xd0(%eax)`（3 条直 disp）；旧 SGFC 产
     // `mov 0xc(%ebp),%eax; lea 0xd0(%eax),%edx; mov -0x6c(%ebp),%eax; mov %eax,(%edx)`（4 条）。
-    struct BirthDateView { char m_pad[0xd0]; unsigned int m_birthDate; };
-    reinterpret_cast<BirthDateView*>(sig)->m_birthDate = regRaw;   // +0xd0（SigTypes_D 该区 pad，ORIG 写保留）
+    sig->m_birthDate = regRaw;
     OS_API::snprintf(sig->m_birth, sizeof(sig->m_birth), "%d%d",   // +0x2284
                      (int)firstVal, (int)secondVal);
 

@@ -1,4 +1,4 @@
 int CUser::GetCurCharacUsedFatigueQuantity()
 {
-    return m_field8eba8;
+    return m_usedFatigueQuantity;
 }

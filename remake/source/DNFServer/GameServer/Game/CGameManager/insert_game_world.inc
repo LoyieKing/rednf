@@ -101,7 +101,7 @@ bool CGameManager::insert_game_world(CUser* user)   // P139：ORIG prett 串 = `
     int curSec2 = GlobalData::s_systemTime_.getCurSec();
     if (CheckDailyScheduleTime(
             G_CEnvironment()->m_serverEnvir.m_fatigueTime,  // ORIG env+0x37c
-            (long)user->getCurCharacR()->m_field7b, curSec2))  // _Charac_info +0x7b（CharLastPlayTick）
+            (long)user->getCurCharacR()->m_lastPlayTick, curSec2))  // _Charac_info +0x7b（CharLastPlayTick）
     {
         std::vector<std::pair<int, int> > vecC;
         user->deleteDailyStackableItem(vecC, 3, 8);
@@ -220,12 +220,16 @@ bool CGameManager::insert_game_world(CUser* user)   // P139：ORIG prett 串 = `
     user->make_basic_info((char*)&guard, 1);
     guard.finalize(true);
     user->Send(guard);
+    // DIAG restored 2026-09-21: Expand_Equip id=339 live again (empty CHARLIST unrelated to this skip).
     expandSlot->Send_Expand_Equip_Info(user);
     user->processReturnUserQuestAutoClear();
+    // Restored 2026-09-21: ORIG sends CLEAR_QUEST + QUEST_INFO after expand equip.
     user->send_clear_quest_list();
     guard.clear();
     user->getCurCharacQuestR()->get_quest_info((char*)&guard);
     user->Send(guard);
+#if 0 /* was DIAG skip post-339 town client extras; restored ORIG path */
+#else
     ((CTitleBook*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)14))->sendList();
     ((CAchievement*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)15))->sendList();
     ((item_lock::CItemLock*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)2))->SendItemLockList(user);
@@ -304,6 +308,7 @@ bool CGameManager::insert_game_world(CUser* user)   // P139：ORIG prett 串 = `
     G_TimerQueue()->InsertTimer(
         TimerEntry::OBJ_TYPE_0, user->GetUID(), (TIMER_MESSAGE)0x60, 600,
         user->GetLoginTick(), user->getCurCharacNo());
-    user->send_ontime_reward_start_notify();
+#endif
+        user->send_ontime_reward_start_notify();
     return 1;
 }

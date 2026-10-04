@@ -10,46 +10,19 @@
 //   ⚠ 部件按**花括号深度**切分（v3）：函数体内列 0 的 #define/struct/#pragma
 //     不会再截断函数。改动 include 顺序会改 codegen。
 // ============================================================================
-// CommonTime — 时间小结构（ORIG 0x822d0e6..0x822d201 / 0x86947d8..0x869498a；
-// 权威参照 docs/class_func_reports/_lt_global_gt_.md 对应段 + 本报告）
-// 布局（0x14）：
-//   +0x00 m_year  两位年（tm_year - 100 = 历年 - 2000）
-//   +0x01 m_month 1..12
-//   +0x02 m_day
-//   +0x03 m_hour
-//   +0x04 m_min
-//   +0x05 m_wday  ORIG 此处存 tm_wday（星期），非秒
-//   +0x08 m_curTime（秒）
-//   +0x0c m_createTime（秒）
-// 全部方法在 ORIG 为 W（头内联/弱），本 TU 落地为强定义（体逐字节一致）。
-// 注意：无用户 ctor/dtor（ORIG 无符号，勿补）。
+// CommonTime 定义在 ../CommonTime.h。本 TU 只放方法。
+// ORIG SetCurTime 0x082a4224 写到 +0x0c，对象大小 0x10。
+#include "../CommonTime.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+static_assert(sizeof(CommonTime) == 0x10, "CommonTime is 0x10");
+static_assert(__builtin_offsetof(CommonTime, m_wday) == 0x05, "m_wday");
+static_assert(__builtin_offsetof(CommonTime, m_curTime) == 0x08, "m_curTime");
+static_assert(__builtin_offsetof(CommonTime, m_createTime) == 0x0c, "m_createTime");
 
-class CommonTime
-{
-public:
-    void SetCreateTime(long t);
-    void SetCreateTime(char* src);
-    void SetCurTime();
-    void clear();
-    void GetCreateTime(char* buf) const;
-    void MakeTime(tm& out) const;
-    operator long() const;
-
-    char m_year;   // +0x00
-    char m_month;  // +0x01
-    char m_day;    // +0x02
-    char m_hour;   // +0x03
-    char m_min;    // +0x04
-    char m_wday;   // +0x05
-    char m_pad[2]; // +0x06
-    long m_curTime;      // +0x08
-    long m_createTime;   // +0x0c
-};
 
 #include "CommonTime/SetCreateTime.inc"
 

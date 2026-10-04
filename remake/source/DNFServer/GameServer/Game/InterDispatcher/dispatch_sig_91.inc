@@ -24,7 +24,7 @@ int Inter_Monitor_RequestBlackListResult::dispatch_sig(CUser* user, char* data, 
              ++i)
         {
             const int nameLen =
-                (int)strlen(reinterpret_cast<char*>(pPkt) + i * 0x28 + 0x13);
+                (int)strlen(pPkt->m_recs[i].m_name);
             if (nameLen == 0)
             {
                 LogManager::logFormat(
@@ -34,18 +34,16 @@ int Inter_Monitor_RequestBlackListResult::dispatch_sig(CUser* user, char* data, 
                     user->getCurCharacNo());
             }
             packet.put_int((int)nameLen);
-            packet.put_str(reinterpret_cast<char*>(pPkt) + i * 0x28 + 0x13,
+            packet.put_str(pPkt->m_recs[i].m_name,
                            (int)nameLen);
             struct tm tmVal;                               // P43：经返回值访问
             struct tm* ptm = localtime_r(
-                reinterpret_cast<time_t*>(
-                    reinterpret_cast<char*>(pPkt) + i * 0x28 + 0x33), &tmVal);
+                &pPkt->m_recs[i].m_time, &tmVal);
             packet.put_byte(ptm->tm_year);
             packet.put_byte(ptm->tm_mon);
             packet.put_byte(ptm->tm_mday);
             user->registerToBlackList(
-                *reinterpret_cast<unsigned int*>(
-                    reinterpret_cast<char*>(pPkt) + i * 0x28 + 0xf));
+                pPkt->m_recs[i].m_id);
         }
         packet.finalize(true);
         user->Send(packet);

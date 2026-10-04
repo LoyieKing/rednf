@@ -31,21 +31,11 @@ bool DisPatcher_DebugCommand::_debugCommandGuildLevelUp(CUser* user)
                            ({ user->getCurCharacNo(); }),
                            ({ user->get_charac_guildkey(); }), 0);  // +0xdd
 
-    char* dbInfo = reinterpret_cast<char*>(user->GetGuildDBInfo());  // +0xe2（raw DB blob，
-                                                                     // 沿用仓库裸读先例）
-    // §4.3 具名视图（本 TU 私有，零新符号）：ORIG 用 disp 形
-    // `movzbl 0x95(%eax),%eax`/`movzbl 0x1b(%eax),%eax`，裸 char* 下标在 4.4
-    // 产 add+解引用（N107 族）⇒ 视图成员访问折叠回 disp。
-    struct GuildDbInfoView
-    {
-        char m_pad00[0x1b];             // +0x00..0x1a
-        unsigned char m_level;          // +0x1b
-        char m_pad1c[0x95 - 0x1c];      // +0x1c..0x94
-        unsigned char m_powerSide;      // +0x95
-    };
-    STGuildProxy proxyInfo(dbInfo,                              // ctor(name,lev,powerSide)
-                           (unsigned char)(((GuildDbInfoView*)dbInfo)->m_level + 1),  // 等级 +1
-                           (unsigned char)((GuildDbInfoView*)dbInfo)->m_powerSide);
+    STGuildDBInfoOnly* dbInfo =
+        reinterpret_cast<STGuildDBInfoOnly*>(user->GetGuildDBInfo());
+    STGuildProxy proxyInfo(dbInfo->m_guildName,
+                           (unsigned char)(dbInfo->m_fundLevel + 1),
+                           dbInfo->m_field95);
     proxyInfo.m_agitFlag = 0;   // ORIG 0x0858f78c `movb $0x0,-0x2d(%ebp)`（+0x19）
     GlobalData::s_guild_proxy_mgr->GetServerProxy(
         static_cast<ENUM_SERVER_GROUP>(0))                      // +0x128 再取一次

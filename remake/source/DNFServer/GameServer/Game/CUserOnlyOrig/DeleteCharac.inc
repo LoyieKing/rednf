@@ -10,18 +10,18 @@ void CUser::DeleteCharac(unsigned int characNo)
     {
         if (m_characList[i].m_characNo == characNo)
         {
-            HistoryLog::WriteDeleteCh(reinterpret_cast<FILE*>(m_field796f8),
+            HistoryLog::WriteDeleteCh(reinterpret_cast<FILE*>(m_historyLogFp),
                                       m_characList[i].m_name,
-                                      (int)m_characList[i].m_field26,
+                                      (int)m_characList[i].m_job,
                                       (int)(short)m_characList[i].m_level,
                                       // ORIG 0x0864b0xx `movzbl 0x29(%eax),%eax; movsbl %al,%edi`
                                       // 双段 = 字节读后**符号扩展**传参（P11）⇒ 显式 signed char cast。
-                                      (int)static_cast<signed char>(m_characList[i].m_field29.m_growthType));
+                                      (int)static_cast<signed char>(m_characList[i].m_growthType.m_growthType));
             m_historyLog.CharacDel(i);
             erased = true;
         }
-        if (m_characList[i].m_field14b8 == characNo)        // +0x14b8 striker link 槽
-            m_characList[i].m_field14b8 = 0;
+        if (m_characList[i].m_tagCharacNo == characNo)        // +0x14b8 striker link 槽
+            m_characList[i].m_tagCharacNo = 0;
         if (!erased)
             delIt++;
         ++i;

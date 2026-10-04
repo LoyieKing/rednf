@@ -32,8 +32,7 @@ int Dispatcher_SaveQuestNotify::read(PacketBuf& packet, MSG_BASE& msg)
         // [G6·read_111 负结论 2026-09-11] packed 视图 + 引用绑定形（SaveQuestNotifyIdsView
         //   + `unsigned int m_ids[5]`）实测 61/62 gap−1 ndiff=5 → 61/63 gap−2 ndiff=13
         //   ⇒ 劣化（+1 条、残差翻倍），父子双证引用槽开销 > 索引序收益 ⇒ 保持原指针算术形。
-        if (!packet.get_int(*reinterpret_cast<unsigned int*>(
-                (reinterpret_cast<char*>(&req) + i * 4) + 0xd)))
+        if (!packet.get_int(req.m_questIdx[i]))
 
         {
             return LineFunc(0x2bb,

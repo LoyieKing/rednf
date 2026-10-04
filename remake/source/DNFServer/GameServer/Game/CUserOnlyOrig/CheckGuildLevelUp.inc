@@ -19,8 +19,8 @@ unsigned int CUser::CheckGuildLevelUp(unsigned int& priceOut)
     // ORIG 无 gps 槽：每个调用点重新 G_CDataManager()+0xa50c（P48）。
     // [b28d-solo-CUserOnlyOrig 试形] ORIG `mov 0x4(%eax),%eax`（param[1] 单条 disp）⇒
     // param 静态类型须为指针（头声明返回 int，此处 cast 后为指针；int→ptr 32 位 no-op）。
-    unsigned int* param = (unsigned int*)G_CDataManager()->m_guildParameter
-                    .getGuildLevelUpParam((int)m_guildDB.m_fundLevel + 1);  // m_guildParameter +0xa50c
+    int* param = G_CDataManager()->m_guildParameter
+                    .getGuildLevelUpParam((int)m_guildDB.m_fundLevel + 1);
     if (param == 0)
     {
         // [b28d-solo-CUserOnlyOrig P227 试形] ORIG 变参值在 ctor 前求值并入 %ebx 跨
@@ -49,9 +49,8 @@ unsigned int CUser::CheckGuildLevelUp(unsigned int& priceOut)
     // 写 param[1]（ORIG `cmp %eax,%ebx; seta` = param[1] > fundExp）。
     // [b28d-solo-CUserOnlyOrig P311 试形] ORIG `mov 0x4(%eax),%eax` 单条 disp；4.4 对
     // 指针常量下标 `param[1]` 折 add 两段 ⇒ 用具名成员视图。
-    struct GuildParamView { unsigned int m_head; int m_value; };
-    if ((unsigned int)((GuildParamView*)param)->m_value >
-        ((STGuildDBInfoOnly*)GetGuildDBInfo())->m_fundExp)              // ORIG +0x29 字段
+    if ((unsigned int)param[1] >
+        ((STGuildDBInfoOnly*)GetGuildDBInfo())->m_fundExp)
         return 0x54;
     return 0;
 }

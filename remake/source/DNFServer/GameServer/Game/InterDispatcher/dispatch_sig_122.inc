@@ -8,18 +8,18 @@ int Inter_ReplyGuildCreate::dispatch_sig(CUser* user, char* data, int /*len*/)
             __PRETTY_FUNCTION__,
             0x3464,
             "GUILD : Inter_ReplyGuildCreate:: recv->m_uCharID(%d)",
-            pPkt->m_a);
+            pPkt->m_characNo);
         return 0;
     }
 
-    if (user->get_charac_no(-1) != pPkt->m_a)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x346a,
             "GUILD : Inter_ReplyGuildCreate:: : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), pPkt->m_a);
+            user->get_charac_no(-1), pPkt->m_characNo);
         return 0;
     }
 
@@ -30,8 +30,8 @@ int Inter_ReplyGuildCreate::dispatch_sig(CUser* user, char* data, int /*len*/)
         packet.put_byte(1);
         user->m_historyLog.GuildCreate(
             (unsigned int)user->get_charac_guildkey(),
-            reinterpret_cast<char*>(pPkt) + 0x16,   // ORIG 经 -0x10 槽
-            pPkt->m_a);
+            pPkt->m_guildName,   // ORIG 经 -0x10 槽
+            pPkt->m_characNo);
     }
     else
     {   // 建会失败：退还建会费用
@@ -49,7 +49,7 @@ int Inter_ReplyGuildCreate::dispatch_sig(CUser* user, char* data, int /*len*/)
     {   // 公会代理缓存 + 全服广播
         STGuildProxy proxy;
         proxy.m_level = 0;
-        memcpy(proxy.m_guildName, reinterpret_cast<char*>(pPkt) + 0x16, 0x16);  // ORIG 经 -0x10 槽
+        memcpy(proxy.m_guildName, pPkt->m_guildName, 0x16);  // ORIG 经 -0x10 槽
         proxy.m_powerSide = 0;
         user->SetGuildInfoProxy(proxy);
 

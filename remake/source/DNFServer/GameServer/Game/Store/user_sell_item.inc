@@ -139,7 +139,7 @@ int Store::user_sell_item(CUser* user, char invenType, short slot, short count)
             user, (WongWork::ENUM_HACKTYPE)CHackLog_InvitationPaperSellToNPC::GetHackType(),
             1, 0, 0);
     }
-    HistoryLog::WriteSellItem((FILE*)user->m_field796f8, price, count);
+    HistoryLog::WriteSellItem((FILE*)user->m_historyLogFp, price, count);
 
     return 0;
 }

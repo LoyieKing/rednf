@@ -83,7 +83,7 @@ int DB_Login::_getRewardInfo(SIG_LOGIN_DATA* sig)
     char validIp[16] = {0};
     char ipMatch = 1;
     db->get_str(9, validIp, 0x10);    // ORIG：get_str 直接覆盖，无预清零
-    if (strncmp(validIp, SGBC(sig, OFF_LOGIN_IP), 0x10) != 0)
+    if (strncmp(validIp, sig->m_blackIpCheckBuf, 0x10) != 0)
     {
         ipMatch = 0;
     }

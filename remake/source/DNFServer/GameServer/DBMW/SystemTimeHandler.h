@@ -41,16 +41,6 @@ public:
     double m_lastTime;  // +4
 };
 
-class CommonTime
-{
-public:
-    void SetCurTime();
-    char m_year;   // +0
-    char m_mon;    // +1
-    char m_mday;   // +2
-    char m_hour;   // +3
-    char m_min;    // +4
-    char m_sec;    // +5
-};
+#include "../CommonTime.h"
 
 #endif  // DBMW_SYSTEMTIMEHANDLER_H_

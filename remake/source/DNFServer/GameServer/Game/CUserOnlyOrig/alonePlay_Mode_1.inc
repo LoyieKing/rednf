@@ -17,14 +17,13 @@ bool CUser::alonePlay_Mode(const MSG_REQ_TO_PEER& req)
     // P1 组件视图把 `add $0xf; movzbl (%eax)` 折叠为 ORIG 0x0868dcea 单条
     // `movzbl 0xf(%eax),%eax`（MSG_REQ_TO_PEER 无布局符号，§4.3 例外具名视图）。
     // 免具名 reqType 槽（ORIG `add $0,%eax` 即 4.1 无槽物化；槽版挤占 opt/-0xa）。
-    struct PeerTypeView { char m_pad[0xf]; unsigned char m_reqType; };
     // ORIG 0x0868dcea-0x0868dd00：`add $0x0,%eax; cmp $0x3,%eax; jbe` 后随
     // mov$0 false 岛 = switch 连续 0..3 区间 lower-bound 减法形（4.1 range
     // lowering）⇒ 用 switch 全 case break + default return false 复现。
     // [b28d-solo-CUserOnlyOrig P279/P0] 具名 t 局部生 -0x10 槽 + 回读（ORIG 无槽）
     // ⇒ switch 直接吃表达式（call/load 结果寄存器直比）。
     switch (static_cast<signed char>(
-        (reinterpret_cast<const PeerTypeView*>(&req))->m_reqType)) {
+        req.m_reqType)) {
     case 0: case 1: case 2: case 3:
         break;
     default:

@@ -35,14 +35,14 @@ int Dispatcher_AuctionMyRegistedItemInfo::dispatch_sig(CUser* user, PacketBuf& p
     if (channel == 1)
     {
         PCK_AUCTION_MY_REGISTED_ITEM_INFO_GP pkt;          // -0x3b ctor 0x0822eb70
-        *(unsigned int*)((char*)&pkt + 0x12) = user->GetUID();       // local_29 (ORIG 0x08216a9c,+0x12)
-        *(unsigned int*)((char*)&pkt + 0x16) = (unsigned int)user->getCurCharacNo();  // local_25 (ORIG 0x08216aaa,+0x16)
+        pkt.m_uid = user->GetUID();
+        pkt.m_characNo = (unsigned int)user->getCurCharacNo();
         GlobalData::s_cera_auction_proxy->SendPacket((nsl::PACKET_HEADER*)&pkt);
         return 0;
     }
     PCK_AUCTION_MY_REGISTED_ITEM_INFO_GA pkt;              // -0x55 ctor 0x0822e7ac
-    *(unsigned int*)((char*)&pkt + 0x12) = user->GetUID();           // local_43 (ORIG 0x08216ae1,+0x12)
-    *(unsigned int*)((char*)&pkt + 0x16) = (unsigned int)user->getCurCharacNo();    // local_3f (ORIG 0x08216aef,+0x16)
+    pkt.m_uid = user->GetUID();
+    pkt.m_characNo = (unsigned int)user->getCurCharacNo();
     GlobalData::s_auction_proxy->SendPacket((nsl::PACKET_HEADER*)&pkt);
     for (int i = 0; i < 5; i++)                            // gmList 0x093701d8
     {

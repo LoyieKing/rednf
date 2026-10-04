@@ -6,8 +6,8 @@ bool DB_UpdateGrowType::UpdateGrowType(SIG_UPDATE_GROWTYPE* sig)
     bool r;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2, E_SERVER_GROUP_NONE);
     db->set_query("upDate charac_info set grow_type=%d where charac_no=%u",
-                  ((DB_UpdateGrowTypeView*)sig)->m_growType,
-                  ((DB_UpdateGrowTypeView*)sig)->m_characNo);
+                  sig->m_growType,
+                  sig->m_characNo);
     r = db->exec(true);
     if (!r)
         return 0;

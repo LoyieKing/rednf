@@ -5,7 +5,7 @@ int Inter_RemovePvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
 
-    register int characNoMsg = pPkt->m_a;
+    register int characNoMsg = pPkt->m_characNo;
     if (characNoMsg != user->getCurCharacNo())
         return 0;
 
@@ -23,9 +23,9 @@ int Inter_RemovePvPBuddyResult::dispatch_sig(CUser* user, char* data, int /*len*
         packet.put_header(1, 0x123);
         packet.put_byte(1);
         packet.put_byte((int)pPkt->m_12);
-        const int nameLen = strlen(pPkt->m_13);
+        const int nameLen = strlen(pPkt->m_name);
         packet.put_int(nameLen);
-        packet.put_str(pPkt->m_13, nameLen);
+        packet.put_str(pPkt->m_name, nameLen);
         packet.finalize(true);
         user->Send(packet);
     }

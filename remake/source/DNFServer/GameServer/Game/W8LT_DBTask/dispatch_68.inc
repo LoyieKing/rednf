@@ -12,7 +12,7 @@ bool DB_SaveGameOption_1::dispatch(int userIdx, int slot, Stream* stream)
     static const int compressedBufferSize = 0x62;  // ORIG _ZZ…DB_SaveGameOption_1…E20compressedBufferSize
     char buf[0x62] = { '\0' };
     unsigned int bufLen = compressedBufferSize;
-    if (!compress_zip(buf, bufLen, (const char*)sig + 4, 0x48))
+    if (!compress_zip(buf, bufLen, sig->m_option, 0x48))
         return 0;
     db->set_query("upDate %s set option_1='%s' where m_id=%s",
                   get_member_game_option(),

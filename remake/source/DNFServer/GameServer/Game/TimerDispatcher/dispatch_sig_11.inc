@@ -28,8 +28,8 @@ bool TimerFatigueReset::dispatch_sig(int p1, int p2, memberIdentificationNumber_
 
     // ORIG：三个统计域上报（CLevelDungeonPlayStatistic@+0x0、CDungeonExpStatistic@+0x18、
     // CExpertJobStatistic 单例），与上面两个 InsertDatabase 同批落库。
-    ((CLevelDungeonPlayStatistic*)GlobalData::s_statisticMgr)->InsertDatabase();
-    ((CDungeonExpStatistic*)((char*)GlobalData::s_statisticMgr + 0x18))->InsertDatabase();
+    GlobalData::s_statisticMgr->m_levelDungeonPlay.InsertDatabase();
+    GlobalData::s_statisticMgr->m_dungeonExp.InsertDatabase();
     GetInstanceExpertJobStatistic()->UpdateExpertJob();
 
     advancealtar::HistoryLog::updateStatistics();   // 已声明，定义未链接 → UNLINKED_CALLEE

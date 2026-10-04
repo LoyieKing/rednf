@@ -15,8 +15,7 @@ int GenerateRandomUpgrade::generateEquipGrade(int levelDelta)
     // ORIG 空检用 081b48ac=vector::size()（+0x066 sete / +0x08c setne），operator[] 非 const
     // ⇒ rates 去 const、`empty()`→`size()==0`（P197④/P175）。
     std::vector<std::pair<int, float> >* rates =
-        reinterpret_cast<std::vector<std::pair<int, float> >*>(
-            reinterpret_cast<char*>(G_CDataManager()) + 0x540);
+        &G_CDataManager()->m_serverParameter.m_vec4d8;
     if (rates->size() == 0)
         return 0x5aa7;
     if (rates->size() == 0)                  // ORIG 双重空检照抄

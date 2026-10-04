@@ -49,25 +49,27 @@ int Dispatcher_FrameLagStatistics::dispatch_sig(CUser* user, PacketBuf& packet)
         // 调用点**（Ghidra C：单层 r 循环体内 4 条连续调用，LineFunc 0xc914..0xc917），
         // 原内层 c 循环把 4 个调用点折成 1 个（p167 MISSING get_shortERs×3 + LineFunc×3）
         // ⇒ 按 ORIG 展开为 4 条，dst = &pkt + r*0x38 + 0x24 + {0,2,4,6}。
-        if (!packet.get_short(*reinterpret_cast<short*>(
-                reinterpret_cast<char*>(&pkt) + r * 0x38 + 0x24)))
-            FLLF(0xc914);
-        if (!packet.get_short(*reinterpret_cast<short*>(
-                reinterpret_cast<char*>(&pkt) + r * 0x38 + 0x24 + 2)))
-            FLLF(0xc915);
-        if (!packet.get_short(*reinterpret_cast<short*>(
-                reinterpret_cast<char*>(&pkt) + r * 0x38 + 0x24 + 4)))
-            FLLF(0xc916);
-        if (!packet.get_short(*reinterpret_cast<short*>(
-                reinterpret_cast<char*>(&pkt) + r * 0x38 + 0x24 + 6)))
-            FLLF(0xc917);
-        for (int j = 0; j <= 5; ++j)         // ORIG -0x10
+#pragma pack(push, 1)
+        struct LagRow {
+            short m_s[4];
+            struct { int m_n; char m_bin[4]; } m_cells[6];
+        };
+#pragma pack(pop)
+        LagRow* row = reinterpret_cast<LagRow*>(pkt.m_body + r * 0x38);
         {
-            if (!packet.get_int(*reinterpret_cast<int*>(
-                    reinterpret_cast<char*>(&pkt) + ((r * 7 + j + 4) << 3) + 0xc)))
-                FLLF(0xc91f);
-            if (!packet.get_binary(
-                    reinterpret_cast<char*>(&pkt) + ((r * 7 + j + 4) << 3) + 0x10, 4))
+            short s0=0,s1=0,s2=0,s3=0;
+            if (!packet.get_short(s0)) FLLF(0xc914);
+            if (!packet.get_short(s1)) FLLF(0xc915);
+            if (!packet.get_short(s2)) FLLF(0xc916);
+            if (!packet.get_short(s3)) FLLF(0xc917);
+            row->m_s[0]=s0; row->m_s[1]=s1; row->m_s[2]=s2; row->m_s[3]=s3;
+        }
+        for (int j = 0; j <= 5; ++j)
+        {
+            int n = 0;
+            if (!packet.get_int(n)) FLLF(0xc91f);
+            row->m_cells[j].m_n = n;
+            if (!packet.get_binary(row->m_cells[j].m_bin, 4))
                 FLLF(0xc920);
         }
     }
@@ -75,7 +77,7 @@ int Dispatcher_FrameLagStatistics::dispatch_sig(CUser* user, PacketBuf& packet)
     // [SigB] P328⑤：ORIG 0x08217638 `lea -0x15(%ebp),%eax` 直接传址，全函数无
     // `movb $0x0,-0x15` ⇒ 原码 tailCount 未预清（读失败即 LineFunc 返回，无行为差）。
     signed char tailCount;
-    if (!packet.get_byte(*reinterpret_cast<char*>(&tailCount)))
+    if (!packet.get_byte(tailCount))
         FLLF(0xc925);
 
     // ---- 尾表（ORIG -0xc）：读侧算址 &pkt+0xa+(i+0xb8)*2，缺项清零 &pkt+0xa+i*2 ----
@@ -83,18 +85,19 @@ int Dispatcher_FrameLagStatistics::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         if (i < (int)tailCount)
         {
-            if (!packet.get_byte(
-                    reinterpret_cast<char*>(&pkt)[0x170 + i]))
-                FLLF(0xc92a);
-            if (!packet.get_short(*reinterpret_cast<short*>(
-                    reinterpret_cast<char*>(&pkt) + 0xa + ((i + 0xb8) << 1))))
-                FLLF(0xc92b);
+            {
+                char flg = 0;
+                short sh = 0;
+                if (!packet.get_byte(flg)) FLLF(0xc92a);
+                if (!packet.get_short(sh)) FLLF(0xc92b);
+                pkt.m_tail.m_tailFlag[i] = static_cast<unsigned char>(flg);
+                pkt.m_tail.m_tailShort[i] = sh;
+            }
         }
         else
         {
-            reinterpret_cast<char*>(&pkt)[0x170 + i] = 0;
-            *reinterpret_cast<short*>(
-                reinterpret_cast<char*>(&pkt) + 0xa + (i << 1)) = 0;
+            pkt.m_tail.m_tailFlag[i] = 0;
+            reinterpret_cast<short*>(&pkt.m_fieldA)[i] = 0;
         }
     }
 

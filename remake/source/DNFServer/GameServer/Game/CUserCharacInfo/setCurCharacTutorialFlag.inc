@@ -20,9 +20,9 @@ bool CUserCharacInfo::setCurCharacTutorialFlag(unsigned int flag)
             // [b28d-solo-CUserCharacInfo N6 翻案] `1 << flag`（int 字面量）保 ORIG 的
             // `mov $1,%ebx; mov %ebx,%esi; shl %cl,%esi`；`1u <<` 被 4.4 折成
             // `shr %cl; and $1`（探针 /tmp/s156_probe/p12.cpp f1 vs f4）。
-            if ((m_selected->m_field51 & (1 << flag)) != 0)
+            if ((m_selected->m_tutorialFlag & (1 << flag)) != 0)
                 return false;
-            m_selected->m_field51 |= 1 << flag;
+            m_selected->m_tutorialFlag |= 1 << flag;
             return true;
         }
         if (flag < 0x80)

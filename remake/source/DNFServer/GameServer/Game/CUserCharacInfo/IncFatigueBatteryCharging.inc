@@ -15,14 +15,14 @@ void CUserCharacInfo::IncFatigueBatteryCharging(short value)
                                      offsetof(CDataManager, m_serverParameter));
         // P209 翻案：old 声明 signed short 出 ORIG 直 `cmp -0xa(%ebp),%ax`
         // 内存比较（探针 /tmp/bl10/p5.cpp h1/h2）。
-        short old = (short)m_selected->m_field4f;
+        short old = (short)m_selected->m_fatigueBattery;
         // P254 packed enum 视角：复现 ORIG `movzwl 0x4f(%edx),%edx; mov %edx,%ecx` 两段。
-        m_selected->m_field4f =
-            (EFatigueBatteryValue)((int)m_selected->m_field4f + value);
-        if ((short)m_selected->m_field4f < old ||
-            (int)(short)m_selected->m_field4f > (int)sp->m_fatigueTable5c0.m_capLimit)
+        m_selected->m_fatigueBattery =
+            (EFatigueBatteryValue)((int)m_selected->m_fatigueBattery + value);
+        if ((short)m_selected->m_fatigueBattery < old ||
+            (int)(short)m_selected->m_fatigueBattery > (int)sp->m_fatigueTable5c0.m_capLimit)
         {
-            m_selected->m_field4f = sp->m_fatigueTable5c0.m_capLimit;
+            m_selected->m_fatigueBattery = sp->m_fatigueTable5c0.m_capLimit;
         }
     }
 }

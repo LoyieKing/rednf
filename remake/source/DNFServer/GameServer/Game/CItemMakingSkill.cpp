@@ -37,6 +37,7 @@
 #include "CItemMakingSkill.h"
 
 #include "CDataManager.h"   // G_CDataManager() / GetItemMakingSkill() / stItemMakingSkill
+#include "SigTypes_B.h"      // SIG_ITEM_MAKING_SKILL
 
 // [b28d-solo-CItemMakingSkill] SIG_ITEM_MAKING_SKILL 序列化视图（ORIG getData
 // 0x08545b42 / _saveData 0x08545276 双证）：+0x00 characNo（4 字节，本函数不写）

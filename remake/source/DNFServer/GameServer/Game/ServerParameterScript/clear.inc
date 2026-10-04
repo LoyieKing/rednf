@@ -65,7 +65,7 @@ void ServerParameterScript::clear()
     {
         m_55c[i] = 0;
     }
-    m_578 = 0;
+    m_noticeLegacyWithUpgrade = 0;
     m_burning48c.clear();
     m_luck48.clear();
     m_luckDed54.clear();

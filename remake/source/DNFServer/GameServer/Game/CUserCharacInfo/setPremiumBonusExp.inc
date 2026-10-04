@@ -4,8 +4,8 @@ int CUserCharacInfo::setPremiumBonusExp(unsigned int exp, int percent)
 {
     if (m_selected)
     {
-        m_selected->m_field128D = (int)(long long)((double)exp * (percent / 100.0f));
-        return m_selected->m_field128D;
+        m_selected->m_premiumBonusExp = (int)(long long)((double)exp * (percent / 100.0f));
+        return m_selected->m_premiumBonusExp;
     }
     return 0;
 }

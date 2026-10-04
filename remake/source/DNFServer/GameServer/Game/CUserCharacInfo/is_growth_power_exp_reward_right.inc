@@ -3,5 +3,5 @@
 // 字段已由 Main 在 CUserCharacInfo.h 正式改 bool，TU 局部视图已删除（直读）。
 bool CUserCharacInfo::is_growth_power_exp_reward_right() const
 {
-    return m_selected ? m_selected->m_field127B : 0;
+    return m_selected ? m_selected->m_growthPowerExpRewardRight : 0;
 }

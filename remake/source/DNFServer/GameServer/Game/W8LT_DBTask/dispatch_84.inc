@@ -139,10 +139,8 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
         }
         // it_id 列回填 +0x08（DB_CreatureItemInserView::m_itId；32 位
         // unsigned long==unsigned int 同宽，ORIG 传槽地址）。
-        DB_CreatureItemInserView* iv =
-            reinterpret_cast<DB_CreatureItemInserView*>(out);
         ok = db->get_ulong(
-            1, *reinterpret_cast<unsigned long*>((void*)&iv->m_itId));
+            1, *reinterpret_cast<unsigned long*>((void*)&out->m_itemView.m_itemIdx));
         if (!ok)
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x5741, 5);
@@ -181,7 +179,7 @@ bool DB_UpdateCreatureItem::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Free(guard);
             return 0;
         }
-        if (!db->get_ushort(5, iv->m_endurance))
+        if (!db->get_ushort(5, out->m_itemView.m_endurance))
         {
             cMyTrace trace(__PRETTY_FUNCTION__, 0x576d, 5);
             trace("DB_UpdateCreatureItem::dispatch, get_ushort(5) ERROR charac_no=%u",

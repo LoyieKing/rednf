@@ -15,6 +15,6 @@ bool DB_SaveMileage::dispatch(int userIdx, int slot, Stream* stream)
         return 0;
     }
     db->set_query("upDate member_miles set miles = %d where m_id = %u",
-                  ((DB_MileageView*)sig)->m_miles, ((DB_MileageView*)sig)->m_mId);
+                  sig->m_mileage, sig->m_accId);
     return db->exec(true);
 }

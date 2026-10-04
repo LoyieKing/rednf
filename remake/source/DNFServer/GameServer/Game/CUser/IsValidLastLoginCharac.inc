@@ -1,4 +1,4 @@
 bool CUser::IsValidLastLoginCharac()
 {
-    return m_field8d0fc;
+    return m_validLastLoginCharac;
 }

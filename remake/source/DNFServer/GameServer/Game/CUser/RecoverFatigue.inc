@@ -32,7 +32,7 @@ void CUser::RecoverFatigue(int value)
         {
             if (ev2->IsEventing((CUser*)0))
             {
-                cur->m_field35 =
+                cur->m_maxFatigue =
                     (unsigned short)(
                         reinterpret_cast<CMaxFatigueFactorEvent*>(ev2)
                             ->GetMaxFatigueFactor()
@@ -40,7 +40,7 @@ void CUser::RecoverFatigue(int value)
             }
             else
             {
-                cur->m_field35 = (unsigned short)DEFAULT_MAX_FATIGUE;
+                cur->m_maxFatigue = (unsigned short)DEFAULT_MAX_FATIGUE;
             }
         }
         if (IsHavePremiumAdvantage())
@@ -80,12 +80,12 @@ void CUser::RecoverFatigue(int value)
     if (GlobalData::s_event_manager->GetRepeatEvent(0x57)->IsEventing((CUser*)0))
     {
         _Charac_info* curW = getCurCharacW();
-        curW->m_field35 = (unsigned short)(
+        curW->m_maxFatigue = (unsigned short)(
             // dm+0x51c = SPS(+0x68)+0x4b4 = m_weekendBouns4b4.m_bonusFatiguePercent
             // [L9-C组J PATCH J2] ORIG `movzwl 0x51c(%eax),%eax` 单条 disp；取址+解引用在 4.4
             //   产 `add $0x51c,%eax; movzwl (%eax),%eax`（多 1 条）⇒ 直接值成员访问
             //   （字段本为 unsigned short，ServerParameterScript.h:302，读值不变）。
-            curW->m_field35
+            curW->m_maxFatigue
             + G_CDataManager()->m_serverParameter.m_weekendBouns4b4
                   .m_bonusFatiguePercent);
         if (m_premium.GetAdvantageFatigueRate() != 0

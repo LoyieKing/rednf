@@ -37,7 +37,7 @@ int Inter_RequestTagCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*
     user->m_characterView.enableSaveCharacView();      // +0x796f4
 
     // ORIG 0x084e7b6b `movb $0x1,0x14bc(%eax)`：operator[] 重调结果具名字段直折 disp。
-    user->m_characList[tagIdx].m_field14BC = 1;
+    user->m_characList[tagIdx].m_tagCharacInfoSent = 1;
 
     user->SendTagCharacInfo();
     return 0;

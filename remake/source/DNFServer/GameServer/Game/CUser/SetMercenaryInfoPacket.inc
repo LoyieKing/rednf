@@ -12,7 +12,7 @@ void CUser::SetMercenaryInfoPacket(PacketGuard& packet)
     cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
         "[DNF-DIAG MERC] SetMercenaryInfoPacket: m_characs.size()=%u manageLevel=%d managePoint=%d",
         (unsigned int)m_mercenaryMgr.m_characs.size(),
-        (int)m_field8ebd0, (int)m_field8ebd4);
+        (int)m_manageLevel, (int)m_managePoint);
 #endif
     int remainSec = 0;
     int nameLen = 0;

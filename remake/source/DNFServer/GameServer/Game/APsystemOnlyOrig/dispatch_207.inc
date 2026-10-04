@@ -8,8 +8,8 @@
 bool DB_ReqSaveCrazyLevelupEvent::dispatch(int /*userIdx*/, int /*slot*/,
                                            Stream* stream)
 {
-    DB_SaveCrazyLevelupEventView* sig =
-        reinterpret_cast<DB_SaveCrazyLevelupEventView*>(
+    SIG_SAVE_CRAZY_LEVELUP_EVENT* sig =
+        /*SIG_SAVE_CRAZY_LEVELUP_EVENT*/(
             stream->GetOutBuffer<SIG_SAVE_CRAZY_LEVELUP_EVENT>());
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                                   E_SERVER_GROUP_NONE);

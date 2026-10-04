@@ -1,4 +1,4 @@
 long CUser::GetRevivalTime()
 {
-    return m_field8d1dc;
+    return m_revivalTime;
 }

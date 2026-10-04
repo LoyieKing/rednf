@@ -19,9 +19,9 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
         packet.put_byte(pPkt->m_a);
         packet.put_byte(0x15);
         // ORIG 每分支单次 strlen（p167 EXTRA strlen×4 实证）⇒ 具名缓存。
-        const int strLen = static_cast<int>(strlen(pPkt->m_17));
+        const int strLen = static_cast<int>(strlen(pPkt->m_msg));
         packet.put_int(strLen);
-        packet.put_str(pPkt->m_17, strLen);
+        packet.put_str(pPkt->m_msg, strLen);
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
@@ -37,9 +37,9 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
         packet.put_header(0, 0x173);
         packet.put_byte(pPkt->m_a);
         packet.put_byte(0x4d);
-        const int strLen = static_cast<int>(strlen(pPkt->m_17));
+        const int strLen = static_cast<int>(strlen(pPkt->m_msg));
         packet.put_int(strLen);
-        packet.put_str(pPkt->m_17, strLen);
+        packet.put_str(pPkt->m_msg, strLen);
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
@@ -55,9 +55,9 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
         packet.put_header(0, 0x173);
         packet.put_byte(pPkt->m_a);
         packet.put_byte(0x5a);
-        const int strLen = static_cast<int>(strlen(pPkt->m_17));
+        const int strLen = static_cast<int>(strlen(pPkt->m_msg));
         packet.put_int(strLen);
-        packet.put_str(pPkt->m_17, strLen);
+        packet.put_str(pPkt->m_msg, strLen);
         packet.put_byte(0);
         packet.put_int(0);
         packet.put_str("", 0);
@@ -70,14 +70,14 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
     else
     {
         // ORIG 0x84e5a18/0x84e5a42：两处独立 get_charac_no 调用（P48，无具名缓存）。
-        if (user->get_charac_no(-1) != pPkt->m_13)
+        if (user->get_charac_no(-1) != pPkt->m_characNo)
         {
             LogManager::logFormat(
                 1, "InterDispatcher.cpp",
                 __PRETTY_FUNCTION__, 0x6497,
                 "Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig() : "
                 "pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-                user->get_charac_no(-1), pPkt->m_13);
+                user->get_charac_no(-1), pPkt->m_characNo);
             return 0;
         }
 
@@ -85,14 +85,14 @@ int Inter_MonitorNoticeOtherChannelChatHyperLink::dispatch_sig(
         packet.put_header(0, 0x173);
         packet.put_byte(pPkt->m_a);
         packet.put_byte(0);
-        const int strLen = static_cast<int>(strlen(pPkt->m_17));
+        const int strLen = static_cast<int>(strlen(pPkt->m_msg));
         packet.put_int(strLen);
-        packet.put_str(pPkt->m_17, strLen);
+        packet.put_str(pPkt->m_msg, strLen);
         packet.put_byte(0);
         // ORIG 084e5b28/084e5b44：0x16f 按 1 字节读（movzbl），零扩展传值。
-        packet.put_int(pPkt->m_16f);
-        packet.put_str(pPkt->m_170,
-                       pPkt->m_16f);
+        packet.put_int(pPkt->m_linkLen);
+        packet.put_str(pPkt->m_link,
+                       pPkt->m_linkLen);
         packet.put_byte(pPkt->m_items[0].m_itemCount);
         for (int i = 0; i < (int)pPkt->m_items[0].m_itemCount; ++i)
             packet.put_binary(pPkt->m_items[i].m_binary, 0x68);

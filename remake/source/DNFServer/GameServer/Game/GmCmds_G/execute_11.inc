@@ -33,7 +33,7 @@ void CUpgradeCardDebug::execute()
     // P0/P183：ORIG 0x084b1bba `mov 0x8(%ebp),%eax; mov 0x8(%eax),%ebx` 把 m_slot
     // 装 callee-saved %ebx 直传 find_item（无具名槽）⇒ 内联表达式，不设具名局部。
     CItem* item = G_CDataManager()->find_item(
-        reinterpret_cast<const IntSlotView*>(this)->m_slot);
+        m_itemIdx);
     if (item == 0)
         return;
 

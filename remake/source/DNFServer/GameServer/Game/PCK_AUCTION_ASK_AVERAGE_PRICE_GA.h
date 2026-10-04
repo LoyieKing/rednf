@@ -13,9 +13,13 @@
 // ROI_Category 类对齐 4 会把 m_roi 推到 0x24，外层须 pack(1)（sizeof 0x2f 不变）。
 struct PCK_AUCTION_ASK_AVERAGE_PRICE_GA : public nsl::PACKET_HEADER
 {
-    char m_pad1[0x10];        // +0x12..+0x21
-    ROI_Category m_roi;       // +0x22（ORIG ctor 显式调用，随后 memset 覆盖等效）
-    char m_tail[0x2f - 0x2e]; // +0x2e
+    unsigned int m_uid;       // +0x12
+    int m_characNo;           // +0x16
+    unsigned int m_itemIdx;   // +0x1a
+    char m_flag;              // +0x1e
+    char m_upgrade[3];        // +0x1f
+    ROI_Category m_roi;       // +0x22
+    char m_tail;              // +0x2e
 
     PCK_AUCTION_ASK_AVERAGE_PRICE_GA()
     {

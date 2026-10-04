@@ -20,9 +20,8 @@ void CCeraShop::_onBuySpecialItem(CUser* user, ENUM_CERA_SPECIALITEM,
                                true);
         guard.operator*()->operator<<((int)0xb4);
         guard.operator*()->operator<<(-1);
-        SaveCrazyLevelupPayloadView* buf =
-            reinterpret_cast<SaveCrazyLevelupPayloadView*>(
-                guard->GetInBuffer<SIG_SAVE_CRAZY_LEVELUP_EVENT>());
+        SIG_SAVE_CRAZY_LEVELUP_EVENT* buf =
+            guard->GetInBuffer<SIG_SAVE_CRAZY_LEVELUP_EVENT>();
         std::memcpy(buf->m_tag, "0707", 5);  // DAT_08c25e65 = "0707\0"
         buf->m_accId = user->get_acc_id();
         buf->m_characNo = user->get_charac_no(-1);

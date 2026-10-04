@@ -15,13 +15,13 @@ void CUser::UpdateBloodRecord()
         // （直接 `guard <<`/`guard.GetInBuffer` 少 3 条 call）。
         (*guard)->operator<<(0x140);
         (*guard)->operator<<((int)GetUID());
-        BloodBestRecordSigView* sig = reinterpret_cast<BloodBestRecordSigView*>(
-            guard.operator->()->GetInBuffer<SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD>());
+        SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD* sig =
+            guard.operator->()->GetInBuffer<SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD>();
         memset(sig, 0, 0x10);
         sig->m_characNo = getCurCharacNo();
-        sig->m_time = it->second.m_time;
-        sig->m_round = it->second.m_round;
-        sig->m_key = it->first;
+        sig->m_bestTime = it->second.m_time;
+        sig->m_bestRound = it->second.m_round;
+        sig->m_dungeonIndex = it->first;
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     }
     setBloodBestRecordUpdate(false);

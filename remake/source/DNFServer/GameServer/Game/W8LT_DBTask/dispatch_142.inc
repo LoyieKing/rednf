@@ -17,8 +17,8 @@ bool DB_LoadServerMessage::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   E_SERVER_GROUP_NONE);
-    DB_ServerMessageSelectView* sel =
-        reinterpret_cast<DB_ServerMessageSelectView*>(
+    SIG_SELECT_SERVER_MESSAGE* sel =
+        /*SIG_SELECT_SERVER_MESSAGE*/(
             stream->GetOutBuffer<SIG_SELECT_SERVER_MESSAGE>());
     db->set_query("seLect kind, message_index, charac_name, message, unix_timestamp(update_time) from event_server_message where server_info=%d and (channel_no=%d or channel_no=0)",
                   (unsigned int)(unsigned short)sel->m_server,

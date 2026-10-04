@@ -13,7 +13,7 @@ int Inter_VillageAttackedScore::dispatch_sig(CUser* user, char* data, int /*len*
     // ORIG：包基址槽在门 3（getCurCharacR）之后才物化。
     Inter_VillageAttackedScorePktView* pPkt = reinterpret_cast<Inter_VillageAttackedScorePktView*>(data);
 
-    if (user->get_charac_no(-1) != pPkt->m_e)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
         return 0;
 
     PacketGuard packet;

@@ -28,7 +28,7 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
     int count;
     int i;
     int idx;
-    if (!db->get_binary(col++, reinterpret_cast<SigLoadEtcOptionsView*>(sig)->m_options,
+    if (!db->get_binary(col++, sig->m_characOptions,
                         0x200))                                 // col0 options
     {
         return false;
@@ -46,9 +46,9 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
     {
         // ORIG `mov 0xc(%eax,%edx,4)`（edx=i+0x3b34）= sig+0xECDC+i*4：具名数组成员
         // 视图（P291）产 scaled 索引；P0：无指针局部槽往返。
-        if (reinterpret_cast<SigLoadEtcNegClampView*>(sig)->m_clamp[i + 0x3b34] < 0)
+        if (reinterpret_cast<int*>(sig->m_bestClearTime + 4)[i] < 0)
         {
-            reinterpret_cast<SigLoadEtcNegClampView*>(sig)->m_clamp[i + 0x3b34] = 0;
+            reinterpret_cast<int*>(sig->m_bestClearTime + 4)[i] = 0;
         }
     }
 
@@ -58,7 +58,7 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
         return false;
     }
     // charac_inform_notice @+0x14a9a = attendanceEvent(+0x14a99)+1 重叠区。
-    if (!db->get_str(col++, reinterpret_cast<SigLoadEtcNoticeView*>(sig)->m_notice, 16))
+    if (!db->get_str(col++, reinterpret_cast<char*>(sig->m_attendanceEvent.m_pad), 16))
     {
         return false;
     }
@@ -75,7 +75,7 @@ bool DB_LoadEtc::LoadCharacOption(int userIdx, int slot, SIG_LOAD_ETC* sig)
         // `add $0xecd8; mov (%eax)`（8 折进基址常量，ORIG 为 `add $0xecd0; mov 0x8(%eax)`）；
         // ②`*(int*)((char*)&m_rows[idx] + 8)` ⇒ `add $0xecd0; add $0x8; mov (%eax)`（多 1 条）。
         // 两形各含对方缺的一半 ⇒ N1 两步常量折叠族封顶。
-        if (reinterpret_cast<SigLoadEtcBestClearTimeView*>(sig)->m_rows[idx].m_first == 0)
+        if (*reinterpret_cast<int*>(sig->m_bestClearTime + idx * 0x18) == 0)
             break;
         ++count;
         ++idx;

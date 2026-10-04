@@ -7,8 +7,8 @@ void CUser::UpdateDimensionInout()
     // 选中 operator<<(int) 重载——否则误落 operator<<(unsigned int)，const 重载甄别）。
     guard.operator*()->operator<<(static_cast<int>(GetUID()));
 
-    UpdateDimensionInoutSigView* sig = reinterpret_cast<UpdateDimensionInoutSigView*>(
-        guard->GetInBuffer<SIG_UPDATE_DIMENSION>());
+    SIG_UPDATE_DIMENSION* sig =
+        guard->GetInBuffer<SIG_UPDATE_DIMENSION>();
     memset(sig, 0, 0x10);
     sig->m_characNo = getCurCharacNo();
 
@@ -24,7 +24,7 @@ void CUser::UpdateDimensionInout()
             (v < 0) ||
             (static_cast<int>(v) > (G_CDataManager()->get_dimensionInout(i) + 10)))
         {
-            sig->m_inoutValue[i] = 0;
+            sig->m_dungeon[i] = 0;
             // [FL5 2026-09-10 P37/P227] 全表达式临时链
             cMyTrace(__PRETTY_FUNCTION__, 0x1bde, 0)(
                 "DIMENSION DUNGEON INOUT_COUNT ABNORMAL USER!! CHARAC_NO(%d)",
@@ -32,15 +32,15 @@ void CUser::UpdateDimensionInout()
         }
         else
         {
-            sig->m_inoutValue[i] = v;
+            sig->m_dungeon[i] = v;
         }
     }
 
     // [A06 2026-09-10 P300] 三处 uchar 返回值直落 uchar 成员：ORIG `mov %al,0xc(%edx)`
     // 单步；加 `(char)` 转换反而多一条 `mov %eax,%edx` 中转。
-    sig->m_ultimateInout = getUltimateInoutValue('\x02');
-    sig->m_saveDimension = IsSaveDemensionInoutValue();
-    sig->m_saveBlood = IsSaveBloodInoutValue();
+    sig->m_bloodDungeon1 = getUltimateInoutValue('\x02');
+    sig->m_dimensionInoutSave = IsSaveDemensionInoutValue();
+    sig->m_bloodInoutSave = IsSaveBloodInoutValue();
     SetSaveDemensionInoutValue(false);
     SetSaveBloodInoutValue(false);
 

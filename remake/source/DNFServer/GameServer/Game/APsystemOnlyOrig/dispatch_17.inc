@@ -8,8 +8,8 @@ bool DB_LogCeraShopError::dispatch(int userIdx, int slot, Stream* stream)
                                                   E_SERVER_GROUP_NONE);
     if (db == 0)
         return 0;
-    DB_CerashopErrorLogView* sig =
-        reinterpret_cast<DB_CerashopErrorLogView*>(
+    SIG_CERASHOP_ERROR_LOG* sig =
+        (
             stream->GetOutBuffer<SIG_CERASHOP_ERROR_LOG>());
     if (sig == 0)
         return 0;

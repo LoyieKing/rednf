@@ -5,7 +5,7 @@ int Inter_MonitorAddBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     // ORIG：包基址在 get_state 检查后物化入 -0x10(%ebp)
     Inter_MonitorAddBuddyPktView* pPkt = reinterpret_cast<Inter_MonitorAddBuddyPktView*>(data);
-    if (user->getCurCharacNo() != pPkt->m_a)
+    if (user->getCurCharacNo() != pPkt->m_characNo)
         return 0;
 
     PacketGuard packet;
@@ -17,9 +17,9 @@ int Inter_MonitorAddBuddy::dispatch_sig(CUser* user, char* data, int /*len*/)
         // ORIG 0x084d15xx：strlen 参走指针算术（add），put_str 参走数组 decay（lea）；
         // len 槽 int 精确匹配 put_str(char*,int)，避免隐式转换重排求值序。
         const int local_10 =
-            (int)strlen(reinterpret_cast<char*>(pPkt) + 0x12);
+            (int)strlen(pPkt->m_name);
         packet.put_int(local_10);
-        packet.put_str(pPkt->m_12, local_10);
+        packet.put_str(pPkt->m_name, local_10);
         packet.put_byte((int)pPkt->m_30);
         packet.put_byte((int)pPkt->m_32);
         packet.put_byte((int)pPkt->m_33);

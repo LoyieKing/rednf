@@ -50,7 +50,9 @@ bool CSession::Parsing(int recvLen)
     #pragma pack(push, 1)
     struct ParsingHeaderView
     {
-        char m_head[3];
+        unsigned char m_b0;
+        unsigned char m_b1;
+        unsigned char m_b2;
         unsigned int m_size;
         char m_tail[HEADER_SIZE - 7];
     };

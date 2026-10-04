@@ -18,8 +18,8 @@ bool DB_UpdateServerMessage::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   E_SERVER_GROUP_NONE);
-    DB_UpdateServerMessageView* sig =
-        reinterpret_cast<DB_UpdateServerMessageView*>(
+    SIG_UPDATE_SERVER_MESSAGE* sig =
+        /*SIG_UPDATE_SERVER_MESSAGE*/(
             stream->GetOutBuffer<SIG_UPDATE_SERVER_MESSAGE>());
     char msg[0x80];    // -0xdc..-0x5d（message escape 目标）
     char name[0x40];   // -0x5c..-0x1d（charac_name escape 目标）
@@ -42,8 +42,8 @@ bool DB_UpdateServerMessage::dispatch(int userIdx, int slot, Stream* stream)
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x80e3), true);
     guard.operator*()->operator<<((int)userIdx);
     guard.operator*()->operator<<((int)slot);
-    DB_UpdateServerMessageView* out =
-        reinterpret_cast<DB_UpdateServerMessageView*>(
+    SIG_UPDATE_SERVER_MESSAGE* out =
+        /*SIG_UPDATE_SERVER_MESSAGE*/(
             guard->GetInBuffer<SIG_UPDATE_SERVER_MESSAGE>());
     memset(out, 0, 0x60);
     out->m_serverInfo = sig->m_serverInfo;

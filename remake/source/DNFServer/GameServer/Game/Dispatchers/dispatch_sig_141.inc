@@ -68,9 +68,8 @@ int Dispatcher_DeathTowerStageCommand::dispatch_sig(CUser* user, PacketBuf& pack
                     }
                     // [G5DsigE] ORIG 0x08208cxx 链式：get_user→getDeathTower→add $0xb58 直传
                     //   （`mov %eax,(%esp); call`），MapClear 亦 `call get_user; add $0x79700,%eax`。
-                    reinterpret_cast<DTChkView*>(
-                        local_14->get_user(local_c)->getDeathTower())
-                        ->m_killChecker.init();                        // +0xb58
+                    local_14->get_user(local_c)->getDeathTower()
+                        ->getKillChecker().init();
                     // [g01 2026-09-11 · P-g01-b] 同上：`getCStage` 结果直传 getStageClearTime。
                     uVar9 = (unsigned int)local_18->getCStage()->getStageClearTime();
                     // [g01 2026-09-11 · P0] ORIG 0x08208ce9 `movzwl -0x1e(%ebp,%eax,2),%eax;

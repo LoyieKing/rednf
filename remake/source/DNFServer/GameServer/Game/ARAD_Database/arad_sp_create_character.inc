@@ -35,25 +35,25 @@ int CREATE_QUERY::arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig)
     // （-0xac..-0x6c）顺序声明，4.4 全头部声明同向分配即逐槽对齐。
     int expertJob        = static_cast<int>(static_cast<char>(sig->m_pad25)); // -0xac
     int maxFatigue       = DEFAULT_MAX_FATIGUE;                              // -0xa8
-    unsigned int chaWt   = SIG_ATTR(sig, m_chaWt);                           // -0xa4
-    int jump             = static_cast<short>(SIG_ATTR(sig, m_jump));        // -0xa0
-    int hitRecov         = static_cast<short>(SIG_ATTR(sig, m_hitRecov));    // -0x9c
-    unsigned int castSpd = SIG_ATTR(sig, m_castSpd);                         // -0x98
-    unsigned int atkSpd  = SIG_ATTR(sig, m_atkSpd);                          // -0x94
-    unsigned int moveSpd = SIG_ATTR(sig, m_moveSpd);                         // -0x90
-    int mpRegen          = static_cast<short>(SIG_ATTR(sig, m_mpRegen));     // -0x8c
-    int hpRegen          = static_cast<short>(SIG_ATTR(sig, m_hpRegen));     // -0x88
-    unsigned int invenWt = SIG_ATTR(sig, m_invenWt);                         // -0x84
+    unsigned int chaWt   = sig->m_jobStats.m_expertJob;                           // -0xa4
+    int jump             = static_cast<short>(sig->m_jobStats.m_jump);        // -0xa0
+    int hitRecov         = static_cast<short>(sig->m_jobStats.m_hitRecovery);    // -0x9c
+    unsigned int castSpd = sig->m_jobStats.m_castSpeed;                         // -0x98
+    unsigned int atkSpd  = sig->m_jobStats.m_attackSpeed;                          // -0x94
+    unsigned int moveSpd = sig->m_jobStats.m_moveSpeed;                         // -0x90
+    int mpRegen          = static_cast<short>(sig->m_jobStats.m_mpRegen);     // -0x8c
+    int hpRegen          = static_cast<short>(sig->m_jobStats.m_hpRegen);     // -0x88
+    unsigned int invenWt = sig->m_jobStats.m_invenWeight;                         // -0x84
     // blob 序列化（ORIG 0x0818b0fb/0x0818b123 调用、0x0818b1f5/0x0818b1fc 压栈实证）：
     // 列序 element_resist(第11实参) ← blob_to_str(db,0,sig+0x36,8)＝-0x7c；
     //      spec_property(第12实参) ← blob_to_str(db,1,sig+0x3e,0x22)＝-0x80。
     // 故源码先求值 spec_property(+0x3e,0x22)、后求值 element_resist(+0x36,8)（cdecl 右→左）。
-    char* specProperty   = db->blob_to_str(1, (char*)SIG_ATTR(sig, m_specProperty), 0x22); // -0x80
-    char* elementResist  = db->blob_to_str(0, (char*)SIG_ATTR(sig, m_elementResist), 8);    // -0x7c
-    unsigned int magDef  = SIG_ATTR(sig, m_magDef);                          // -0x78
-    unsigned int magAtk  = SIG_ATTR(sig, m_magAtk);                          // -0x74
-    unsigned int phyDef  = SIG_ATTR(sig, m_phyDef);                          // -0x70
-    unsigned int phyAtk  = SIG_ATTR(sig, m_phyAtk);                          // -0x6c
+    char* specProperty   = db->blob_to_str(1, (char*)sig->m_jobStats.m_specProperty, 0x22); // -0x80
+    char* elementResist  = db->blob_to_str(0, (char*)sig->m_jobStats.m_elementResist, 8);    // -0x7c
+    unsigned int magDef  = sig->m_jobStats.m_magDefense;                          // -0x78
+    unsigned int magAtk  = sig->m_jobStats.m_magAttack;                          // -0x74
+    unsigned int phyDef  = sig->m_jobStats.m_phyDefense;                          // -0x70
+    unsigned int phyAtk  = sig->m_jobStats.m_phyAttack;                          // -0x6c
     int ret = db->insert(
             "inSert into charac_info "
             "( m_id,charac_name,job,sex,maxHP,maxMP,phy_attack,phy_defense,mag_attack,"
@@ -66,7 +66,7 @@ int CREATE_QUERY::arad_sp_create_character(MySQL* db, SIG_CREATE_CHARAC* sig)
             escName,
             static_cast<int>(static_cast<char>(sig->m_slot)),            // +0x22
             static_cast<int>(static_cast<char>(sig->m_ssnCheckFail)),    // +0x534c
-            SIG_ATTR(sig, m_maxHP), SIG_ATTR(sig, m_maxMP), phyAtk, phyDef, magAtk, magDef,
+            sig->m_jobStats.m_maxHp, sig->m_jobStats.m_maxMp, phyAtk, phyDef, magAtk, magDef,
             elementResist, specProperty,
             invenWt, hpRegen, mpRegen, moveSpd, atkSpd, castSpd, hitRecov, jump,
             chaWt, maxFatigue, expertJob);

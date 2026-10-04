@@ -266,8 +266,8 @@ class MSG_CHARAC_SELECT : public MSG_BASE
 public:
     MSG_CHARAC_SELECT();
     signed char m_slot;      // +0xd（请求选择的角色槽位）
-    unsigned int m_0e;       // +0xe（process 从 _Charac_info.m_field14b8 回填）
-    unsigned char m_12;      // +0x12（_Charac_info.m_field14b7）
+    unsigned int m_0e;       // +0xe（process 从 _Charac_info.m_tagCharacNo 回填）
+    unsigned char m_12;      // +0x12（_Charac_info.m_strikerSkillIndex）
 };
 #pragma pack(pop)
 
@@ -383,8 +383,8 @@ class MSG_DELETE_CHARACTER : public MSG_BASE
 {
 public:
     signed char m_slot;      // +0xd
-    char m_padE[0x22];        // +0xe..（b28d-solo-S153：ORIG 0x825a2ce 帧距 sizeof=0x30
-                              //   [m=-0x44/p=-0x14]，原 0x21 少 1 字节）
+    union { char m_padE[4]; int m_nameLen; }; // +0xe
+    char m_name[0x1e];        // +0x12 待删角色名
 };
 #pragma pack(pop)
 
@@ -523,8 +523,9 @@ class MSG_EXCHANGE_RANDOM_ITEM_REWARD : public MSG_BASE
 public:
     MSG_EXCHANGE_RANDOM_ITEM_REWARD();
     // ORIG C1：std::vector<int> 构造于 +0x10（+0xd..+0xf 未出线）
-    char m_padD[3];                    // +0x0d..+0x0f
-    std::vector<int> m_rewardItems;    // +0x10（4 对齐推入；ORIG 单 call 实证）
+    char m_padD;                       // +0x0d
+    unsigned short m_field0e;          // +0x0e
+    std::vector<int> m_rewardItems;    // +0x10
 };
 
 #pragma pack(push, 1)
@@ -794,8 +795,12 @@ public:
     char m_title11[0x1e];         // +0x11 收件人名（get_str 上限 0x1e）
     unsigned int m_gold2f;        // +0x2f 附金币
     unsigned char m_count33;      // +0x33 附件条目数（<=10）
-    // 条目区 stride 0xb（并行视图；逐字段相对偏移见 MultiMailBoxSend dispatch_sig 实现注释）：
-    char m_body34[0x6e];          // +0x34..0xa1
+    struct {
+        unsigned char m_space;    // +0x00
+        unsigned short m_slot;    // +0x01
+        int m_itemIdx;            // +0x03
+        int m_flag7;              // +0x07
+    } m_attach[10];               // +0x34 stride 0xb
     int m_msgLenA2;               // +0xa2 消息长度
     char m_msgTextA6[0x100];      // +0xa6..0x1a5 消息正文
 };                                // sizeof 0x1a6
@@ -1094,12 +1099,71 @@ public:
 };
 #pragma pack(pop)
 
+#pragma pack(push, 1)
 class MSG_PVP_TIMEOUT : public MSG_BASE
 {
 public:
-    char m_pad[0x2a];         // +0xd..（b28d-solo-S153：ORIG 0x8258f28 帧距 sizeof=0x37
-                              //   [m=-0x4b/p=-0x14]，原 0x29 少 1 字节）
+    int m_seats[8];           // +0x0d time_out 席位
+    char m_pad[0xa];          // +0x2d
 };
+#pragma pack(pop)
+
+#pragma pack(push, 1)
+class MSG_COMPOUND_ITEM : public MSG_BASE
+{
+public:
+    unsigned long m_itemId;     // +0x0d
+    unsigned char m_type;       // +0x11
+    unsigned short m_count;     // +0x12
+};
+class MSG_LOTTERY_ITEM : public MSG_BASE
+{
+public:
+    short m_idx;                // +0x0d
+};
+class MSG_ENTER_PVP : public MSG_BASE
+{
+public:
+    short m_pvpIdx;             // +0x0d
+};
+struct MSG_REQ_TO_PEER : public MSG_BASE
+{
+    unsigned char m_pad0d;
+    unsigned char m_pad0e;
+    unsigned char m_reqType;       // +0x0f
+};
+struct MSG_MAKE_PVP_ROOM : public MSG_BASE
+{
+    char m_field0d;          // +0x0d
+    char m_name[0x1e];       // +0x0e
+    short m_field2c;         // +0x2c
+    char m_field2e;          // +0x2e
+    int m_field2f;           // +0x2f
+    char m_field33[9];       // +0x33
+    char m_battleMode;       // +0x3c
+};
+class MSG_SET_PVP_TEAM : public MSG_BASE
+{
+public:
+    char m_team;                // +0x0d
+};
+class MSG_SET_PVP_MAP_INDEX : public MSG_BASE
+{
+public:
+    short m_mapIdx;             // +0x0d
+};
+class MSG_SET_IP : public MSG_BASE
+{
+public:
+    unsigned char m_natType;    // +0x0d
+    unsigned int m_innerIp;     // +0x0e
+    unsigned int m_natIp;       // +0x12
+    unsigned short m_natPort;   // +0x16
+    unsigned int m_mtu;         // +0x18
+    unsigned int m_macLen;      // +0x1c
+    char m_macBuf[0x41];        // +0x20
+};
+#pragma pack(pop)
 
 class MSG_QUEST_SHOP : public MSG_BASE
 {
@@ -1201,11 +1265,12 @@ class MSG_RENT_ITEM : public MSG_BASE
 {
 public:
     MSG_RENT_ITEM();
-    // ORIG C1：+0xd/+0xe byte 清零、memset(this+0xf,0,2)
-    unsigned char m_0d;       // +0x0d
-    unsigned char m_0e;       // +0x0e
-    char m_0f[2];             // +0x0f..+0x10（ctor memset 全零）
-    // pad removed
+    unsigned char m_0d;       // +0x0d count
+    unsigned char m_0e;       // +0x0e type
+    struct Pair {
+        unsigned char m_sectionIdx;  // +0x0f + 2i
+        unsigned char m_itemIdx;     // +0x10 + 2i
+    } m_pairs[1];             // +0x0f
 };
 
 #pragma pack(push, 1)
@@ -2781,7 +2846,17 @@ class stRefundSkill : public ParamBase
 {
 public:
     stRefundSkill();
-    char m_pad[0x18];
+    char m_treeIndex;            // +0x04
+    char m_special;              // +0x05
+    unsigned short m_remain;     // +0x06
+    int m_result;                // +0x08
+    unsigned char m_kind;        // +0x0c
+    unsigned char m_level;       // +0x0d
+    char m_pad0e[2];
+    int m_itemIdx;               // +0x10
+    unsigned char m_count;       // +0x14
+    char m_pad15[3];
+    int m_err;                   // +0x18
 };
 
 class stRegenROIResult : public ParamBase
@@ -2910,7 +2985,7 @@ class stRightOfChangeGrowType : public ParamBase
 {
 public:
     stRightOfChangeGrowType();
-    char m_pad[0x4];
+    int m_4;                 // +0x04
 };
 
 class stSaveCharacOption : public ParamBase
@@ -2963,14 +3038,15 @@ public:
     int m_14;   // +0x14
 };
 
+#pragma pack(push, 1)
 class stSelectStriker : public ParamBase
 {
 public:
     stSelectStriker();
-    // b28d-solo-S161：ORIG dispatch_template 0x824a3d8 域 param 槽距 = 9
-    // （msg@-0x1b / param@-0x24 ⇒ param 尾 -0x1c 紧贴 msg）⇒ 4(pad)+5=9。
-    char m_pad[0x5];
+    int m_err;                // +0x04
+    char m_pad;               // +0x08，总 9
 };
+#pragma pack(pop)
 
 class stSendClearedMission : public ParamBase
 {
@@ -3034,14 +3110,16 @@ public:
     // pad removed
 };
 
+#pragma pack(push, 1)
 class stStackableActionUse : public ParamBase
 {
 public:
     stStackableActionUse();
-    // b28d-solo-S161：ORIG 0x826033e 域 param 槽距 = 0xf（msg@-0x29 / param@-0x38）
-    // ⇒ 4(pad)+0xb=0xf（原 0x7 得 0xb，差 4）。
-    char m_pad[0xb];
+    int m_err;               // +0x04
+    short m_echoSlot;        // +0x08
+    char m_echoType;         // +0x0a
 };
+#pragma pack(pop)
 
 class stStartGameParam : public ParamBase
 {
@@ -3059,7 +3137,8 @@ public:
     stTeleportParam();
     int m_4;              // +0x04
     short m_8;            // +0x08
-    char m_gapA[6];       // +0x0a..+0x0f（ORIG 未初始化区）
+    char m_gapA[2];       // +0x0a..+0x0b
+    unsigned int m_fieldC; // +0x0c
     unsigned char m_10;   // +0x10
     unsigned char m_11;   // +0x11
     // [b28d-Main 代落·S162 真语义 bug] ORIG ctor 0x08231362 写 +0x14 int、
@@ -3071,14 +3150,15 @@ public:
 };
 #pragma pack(pop)
 
+#pragma pack(push, 1)
 class stTournamentRewardSelect : public ParamBase
 {
 public:
     stTournamentRewardSelect();
-    // b28d-solo-S161：ORIG 0x822e0aa 域 param 槽距 = 9（msg@-0x1b / param@-0x24）
-    // ⇒ 4(pad)+5=9（原 0x4 得 8，差 1）。
-    char m_pad[0x5];
+    int m_err;                // +0x04
+    char m_pad;               // +0x08
 };
+#pragma pack(pop)
 
 class stTournamentRewardSelectState : public ParamBase
 {

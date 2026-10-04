@@ -1,4 +1,4 @@
 short CUser::GetPartyIndex()
 {
-    return (short)(unsigned short)m_field8d004;
+    return (short)(unsigned short)m_partyIndex;
 }

@@ -7,7 +7,7 @@ int Inter_GuildCargoHistory::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0;
 
     if (user->get_charac_no(-1) !=
-        pPkt->m_e)         // msg+0x0e 角色号校验
+        pPkt->m_characNo)         // msg+0x0e 角色号校验
         return 0;
 
     // ORIG 084dd6f9 `movl $0x0,-0x18(%ebp)`（在 putCount 的 084dd700 之前、PacketGuard
@@ -26,11 +26,10 @@ int Inter_GuildCargoHistory::dispatch_sig(CUser* user, char* data, int /*len*/)
         //   （084dd6a6 `mov 0x10(%ebp),%eax; mov %eax,-0x14(%ebp)` 直证）⇒ 原码两处基址
         //   都用 pPkt 具名指针；我方旧写形参 `data + ...` 会发 `add 0x10(%ebp),%eax`
         //   （形参直读，见本 diff N 侧），与 ORIG 084dd792 `add -0x14(%ebp),%eax` 不符。
-        if (*reinterpret_cast<int*>(
-                reinterpret_cast<char*>(pPkt) + (i * 3 + 1) * 0x10 + 2) != 0)
+        if (*reinterpret_cast<int*>(pPkt->m_recs[i].m_blob) != 0)
         {
             packet.put_binary(
-                reinterpret_cast<char*>(pPkt) + (i * 3 + 1) * 0x10 + 2, 0x30);
+                pPkt->m_recs[i].m_blob, 0x30);
             ++putCount;
         }
     }

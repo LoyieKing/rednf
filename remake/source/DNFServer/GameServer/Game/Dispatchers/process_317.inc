@@ -25,11 +25,6 @@ int Dispatcher_PcRoomRentItem::process(CUser* user, MSG_BASE& msg, ParamBase& pa
     // —— 基址=msg(-0x10)、**缩放因子 2**、disp 0xf 与 0x10 ⇒ 原码是 msg+0xf 起的
     // 2 字节元素结构数组（uchar 对），非 `char[]` 的 `i*2`/`i*2+1` 下标形
     // （后者 4.4 恒产 lea+×1，P311 成员数组视图判据）。MSG 头冻结 ⇒ 本 TU 视图承接。
-    struct __attribute__((packed)) RentPairView
-    {
-        char m_head[0xf];
-        struct Pair { unsigned char m_sectionIdx, m_itemIdx; } m_pairs[1];  // +0xf 起
-    };
     // [AttackA b28d-r7 P341 试形·负结论] 具名类型化局部（`RentPairView* view`）落
     // -0x14 具名槽并使全帧平移 4（ORIG 无该槽，-0x10/-0xc 两槽不变）⇒ 已回退；
     // 维持每使用点内联 cast 表达式（P0）。残余仅 index/base 装载序（P75 族）。
@@ -37,10 +32,10 @@ int Dispatcher_PcRoomRentItem::process(CUser* user, MSG_BASE& msg, ParamBase& pa
     {
         InstanceRentalSystem::RentInElem elem;
         elem.m_sectionIdx =
-            reinterpret_cast<RentPairView*>(&req)->m_pairs[i].m_sectionIdx;
+            req.m_pairs[i].m_sectionIdx;
 
         elem.m_itemIdx =
-            reinterpret_cast<RentPairView*>(&req)->m_pairs[i].m_itemIdx;
+            req.m_pairs[i].m_itemIdx;
 
         input.m_elems.push_back(elem);
     }

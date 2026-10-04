@@ -9,10 +9,10 @@ bool DB_GatheringParyStatus::save_dnf_party_result_history(SIG_PARTY_STATUS* sig
     // [r3] 同 pvp 版：`+0x20` 显式算术（ORIG 0842156a `add $0x20,%eax;
     // mov 0xe(%eax)`）⇒ gap 1→0、ndiff 5→4；残余 = 装载序/常量结合序（N18a）。
     sprintf(buf, "%d.%d.%d.%d",
-            (unsigned char)sig->m_tryEntries[idx][2],
-            (unsigned char)sig->m_tryEntries[idx][3],
-            (unsigned char)sig->m_tryEntries[idx][4],
-            (unsigned char)sig->m_tryEntries[idx][5]);
+            sig->m_tryEntries[idx].m_peerIp[0],
+            sig->m_tryEntries[idx].m_peerIp[1],
+            sig->m_tryEntries[idx].m_peerIp[2],
+            sig->m_tryEntries[idx].m_peerIp[3]);
     db->set_query(
         "inSert into dnf_party_result_history (str_ip,nat_type,m_id,party_result,"
         "occ_time,map_id,dungeon_id,peer_nat_type,peer_ip,established_time, "
@@ -22,14 +22,12 @@ bool DB_GatheringParyStatus::save_dnf_party_result_history(SIG_PARTY_STATUS* sig
         sig->m_ip,
         sig->m_natType,
         NumberToString(sig->m_accId, 0),
-        (unsigned char)sig->m_tryEntries[idx][0],
+        sig->m_tryEntries[idx].m_result,
         sig->m_field18,
         sig->m_field1c,
-        (unsigned char)sig->m_tryEntries[idx][1],
+        sig->m_tryEntries[idx].m_peerNat,
         buf,
-        reinterpret_cast<const DB_TryNatSection*>(
-            reinterpret_cast<const char*>(
-                sig) + idx * 10 + 0x20)->m_f,
+        sig->m_tryEntries[idx].m_estTime,
         (unsigned char)sig->m_field21,
         sig->m_field22,
         G_CEnvironment()->m_serverEnvir.m_relayIP,

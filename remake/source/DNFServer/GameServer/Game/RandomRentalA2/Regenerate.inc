@@ -100,11 +100,11 @@ int RegenerationROI::Regenerate(int baseLv0, int baseLv1, int partIdx,
         // （0x085f8bde `mov i; mov &outItem; add; add; lea; add $0x25`），
         // 不缓存 slot 指针（旧 slot 局部多占一槽且形不符）。
         ss << "[" << i << "] :"
-           << (int)(reinterpret_cast<const unsigned char*>(&outItem) + 0x25 + i * 3)[0]
+           << (int)outItem.m_random.m_random.m_fields[i].m_field0
            << ":"
-           << (int)(reinterpret_cast<const unsigned char*>(&outItem) + 0x25 + i * 3)[1]
+           << (int)outItem.m_random.m_random.m_fields[i].m_field1
            << ":"
-           << (int)(reinterpret_cast<const unsigned char*>(&outItem) + 0x25 + i * 3)[2]
+           << (int)outItem.m_random.m_random.m_fields[i].m_field2
            << "\n";
     }
     SendMessageToCUser(user, ss.str().c_str());

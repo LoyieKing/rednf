@@ -14,7 +14,7 @@ int DisPatcher_SetPos::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_11)))
+    if (!packet.get_byte(req.m_11))
     {
         return LineFunc(0x1ca6,
                         __PRETTY_FUNCTION__,

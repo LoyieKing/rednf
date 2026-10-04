@@ -2,13 +2,13 @@
 // 6. void CUser::initAllSkill() @0x0868fc46
 void CUser::initAllSkill()
 {
-    // ORIG 0x0868fc46：直接读 getCurCharacR()->m_field7b(+0x7b) 与
+    // ORIG 0x0868fc46：直接读 getCurCharacR()->m_lastPlayTick(+0x7b) 与
     // 0x50c79ed0 比较（setl），不经 getCurCharacLastPlayTick 转发。
     // P0：ORIG threshold 槽双写（0x0868fc5b: movl $0x50076318 后立即
     // movl $0x50c79ed0 覆写同槽）⇒ 源码「声明=旧值 + 覆写」两句式（P197③ 族）。
     int allSkillLimit = (int)0x50076318;
     allSkillLimit = (int)0x50c79ed0;
-    if (getCurCharacR()->m_field7b < allSkillLimit)
+    if (getCurCharacR()->m_lastPlayTick < allSkillLimit)
     {
         ((SkillSlot*)getCurCharacSkillW())->clear_all_skills((ENUM_SKILL_TREE_KIND)0);
         ((SkillSlot*)getCurCharacSkillW())->set_parent(this);

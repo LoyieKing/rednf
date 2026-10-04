@@ -49,11 +49,6 @@ int DisPatcher_SelectCharac::RequestDBETC(CUser* user, MSG_CHARAC_SELECT& msg)
     // 声明）⇒ 4.4 产 `movzbl %al,%eax`（零扩展），job ≥ 0x80 时与 ORIG 值分叉
     // （-128 vs 128）。调用点显式收窄为 signed char 即复现 movsbl（CUser.h 的返回
     // 类型由 K4/K7 泳道属主决定，此处不越界）。
-    struct LoadEtcComboJobView
-    {
-        char m_pad[0x14ab0];
-        unsigned int m_job;              // ORIG 0x081c77dd `mov %edx,0x14ab0(%eax)`
-    };
     // [Q5BigTURest.DisPatcherCore 2026-09-11 P30 disp 折叠轴·落地] ORIG 0x081c77dd 为
     // 单级大 disp：`call GetCharacJob; movsbl %al,%edx; mov -0xc(%ebp),%eax;
     // mov %edx,0x14ab0(%eax)`；原形两级（`reinterpret_cast<SIG_COMBO_SKILL*>
@@ -61,7 +56,7 @@ int DisPatcher_SelectCharac::RequestDBETC(CUser* user, MSG_CHARAC_SELECT& msg)
     // callee-saved（`mov -0xc,%eax; add $0x14aaa,%eax; mov %eax,%ebx` 三条）⇒ 改具名
     // 偏移视图后大 disp 复现，gap −2→**0**（152=152；ours 差异行 8→5）。
     // 残差：`mov -0xc(%ebp),%ebx` 预载（4.4 跨 call callee-saved）与 0x378 自中转（N7/N18a）。
-    reinterpret_cast<LoadEtcComboJobView*>(sig)->m_job =
+    reinterpret_cast<SIG_COMBO_SKILL*>(sig->m_comboSkill)->m_job =
         static_cast<unsigned int>(static_cast<signed char>(
             user->GetCharacJob(static_cast<int>(static_cast<signed char>(msg.m_slot)))));
     // [b28e-L5] C05-① 复查实测**不命中**（已回退）：本件 ORIG 尾部同样是两分支

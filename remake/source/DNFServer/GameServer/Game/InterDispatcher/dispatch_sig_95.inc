@@ -5,9 +5,9 @@ int Inter_MemberExpLevelUp::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (user->get_state() == 0)
         return 0;
     Inter_MemberExpLevelUpPktView* pPkt = reinterpret_cast<Inter_MemberExpLevelUpPktView*>(data);
-    if ((bool)(user->getCurCharacNo() != pPkt->m_e))
+    if ((bool)(user->getCurCharacNo() != pPkt->m_characNo))
         return 0;
     user->set_uppermember_exp_level(
-        pPkt->m_12);
+        pPkt->m_uppermemberExpLevel);
     return 0;
 }

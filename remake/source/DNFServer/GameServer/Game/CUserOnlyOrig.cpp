@@ -2881,7 +2881,7 @@ private:
 //     Send(packet);
 //
 //     setHumanCertified(false);
-//     m_field8e3ed = false;
+//     m_sendMailCertified = false;
 //     if (m_humanCertifyTimerKey > 0x7ffffffe)
 //         m_humanCertifyTimerKey = 0;
 //     ++m_humanCertifyTimerKey;
@@ -3027,7 +3027,7 @@ private:
 //         if (stam > 100) stam = 100;
 //         setCurCharacStamina((unsigned char)stam);
 //     }
-//     HistoryLog::WriteSelectCh(*(_IO_FILE**)m_field796f8,
+//     HistoryLog::WriteSelectCh(*(_IO_FILE**)m_historyLogFp,
 //         getCurCharacName(), get_charac_job(), get_charac_level(),
 //         getCurCharacGrowType());
 //     getCurCharacInvenR()->set_parent(this);
@@ -3543,9 +3543,9 @@ private:
 //                                     get_unique_id(), (TIMER_MESSAGE)0x81,
 //                                     secs, GetUID(), 0xffffffff);
 //         OnPunishUser();
-//         if (!(m_field796d8 != 0 && GetTradePunishType() != 0)) {
+//         if (!(m_puUser != 0 && GetTradePunishType() != 0)) {
 //             unsigned short t2 = type;
-//             if (m_field796d8 != 0 &&
+//             if (m_puUser != 0 &&
 //                 (type == 1 || type == 4 || type == 9)) {
 //                 t2 = 10;
 //             }
@@ -4761,12 +4761,12 @@ public:
         short m_f10;                 // +0x10（与目标 m_field10 同型，P211 档③）
         short m_f12;                 // +0x12（与目标 m_field12 同型）
     };
-    m_growthWeapon.m_eventFlag = ((const GrowthWeaponSigView*)&sig)->m_eventFlag;
-    m_growthWeapon.m_field4    = ((const GrowthWeaponSigView*)&sig)->m_f4;
-    m_growthWeapon.m_field8    = ((const GrowthWeaponSigView*)&sig)->m_f8;
-    m_growthWeapon.m_field10   = ((const GrowthWeaponSigView*)&sig)->m_f10;
-    m_growthWeapon.m_fieldc    = ((const GrowthWeaponSigView*)&sig)->m_fc;
-    m_growthWeapon.m_field12   = ((const GrowthWeaponSigView*)&sig)->m_f12;
+    m_growthWeapon.m_eventFlag = sig.m_eventFlag;
+    m_growthWeapon.m_field4    = sig.m_field4;
+    m_growthWeapon.m_field8    = sig.m_field8;
+    m_growthWeapon.m_field10   = sig.m_field10;
+    m_growthWeapon.m_fieldc    = sig.m_fieldc;
+    m_growthWeapon.m_field12   = sig.m_field12;
 
     if (GlobalData::s_event_manager->GetRepeatEvent(100)->IsEventing(
             static_cast<CUser*>(0)))

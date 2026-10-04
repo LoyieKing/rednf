@@ -4,6 +4,6 @@ void CUserCharacInfo::setDemensionInoutValue(char index, char value)
 {
     if (index > 5 || index < 0)
         return;
-    m_selected->m_fieldEB8 = 1;
+    m_selected->m_saveDemensionInoutValue = 1;
     m_selected->m_demensionInout[index] = (unsigned char)value;
 }

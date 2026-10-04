@@ -25,44 +25,27 @@ int Dispatcher_RequestJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& 
     //   原 +0x24/+0x28/+0x2c/+0x30/+0x32 全部错 0xc。
     //   形态：三处 int 写入为 `mov %eax,-0x38/-0x34/-0x30(%ebp)`（0x081d4ecf/…edd/…efc/…f0c）
     //   ⇒ P0/P82：必须经栈对象具名成员访问（char* 取址生 lea+%ebx 缓存、跨 call 保活）。
-    struct JoinGuildSigView
-    {
-        char m_guildName[0x16];       // +0x00 ← msg+0x11（0x16 字节）
-        char m_pad16[2];              // +0x16..+0x17
-        unsigned int m_characNo;      // +0x18
-        unsigned int m_id;            // +0x1c
-        unsigned int m_serverGroup;   // +0x20
-        char m_bornYear[2];           // +0x24（memcpy 2 字节）
-        char m_pad26;                 // +0x26
-        char m_memo[0x19];            // +0x27 ← msg+0x2c（0x19 字节）
-        char m_pad40[4];              // +0x40..+0x43（保持 sizeof 0x44）
-    };
-    union JoinGuildSigBuf
-    {
-        SIG_REQUEST_JOIN_GUILD sig;   // 栈 0x44（SigTypes_D.h m_pad[0x44]）
-        JoinGuildSigView       view;
-    };
-    JoinGuildSigBuf sigBuf;
-    memset(&sigBuf.sig, 0, 0x44);                                 // 0x081d4e8c
+    SIG_REQUEST_JOIN_GUILD sig;
+    memset(&sig, 0, sizeof(sig));
     // [G3 负结论 2026-09-11] ORIG 0x081d4ea7/0x081d4f34 为就地形 `mov -0xc(%ebp),%eax;
     //   add $0x11,%eax`；试写 `(char*)&m + 0x11`（及 +0x2c）后 fresh 复编读数**逐值不变**
     //   （仍 88/89，仍 `lea 0x11(%eax),%edx`）⇒ 4.4 恒折 lea→新寄存器（N-注册表死区）。
     MSG_REQUEST_JOIN_GUILD& req = *reinterpret_cast<MSG_REQUEST_JOIN_GUILD*>(&m);
-    strncpy(sigBuf.view.m_guildName, req.m_guildName, 0x16);
-    sigBuf.view.m_characNo = (unsigned int)user->getCurCharacNo();        // 0x081d4ecf
-    sigBuf.view.m_id = (unsigned int)user->get_acc_id();                  // 0x081d4edd
+    strncpy(sig.m_guildName, req.m_guildName, 0x16);
+    sig.m_characNo = (unsigned int)user->getCurCharacNo();        // 0x081d4ecf
+    sig.m_mId = (unsigned int)user->get_acc_id();                  // 0x081d4edd
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
-        sigBuf.view.m_serverGroup = (unsigned int)user->GetServerGroup();  // 0x081d4efc
+        sig.m_serverGroup = (unsigned int)user->GetServerGroup();  // 0x081d4efc
     }
     else
     {
-        sigBuf.view.m_serverGroup =
+        sig.m_serverGroup =
             static_cast<unsigned int>(G_CEnvironment()->m_serverEnvir.m_serverGroup);
     }
-    memcpy(sigBuf.view.m_bornYear, user->GetSsnString(), 2);             // 0x081d4f26
-    strncpy(sigBuf.view.m_memo, req.m_memo, 0x19);
+    memcpy(sig.m_bornYear, user->GetSsnString(), 2);             // 0x081d4f26
+    strncpy(sig.m_memo, req.m_memo, 0x19);
 
-    DB_RequestJoinGuild::makeRequest(user->GetUID(), &sigBuf.sig);      // 0x081d4f5f
+    DB_RequestJoinGuild::makeRequest(user->GetUID(), &sig);      // 0x081d4f5f
     return 0;
 }

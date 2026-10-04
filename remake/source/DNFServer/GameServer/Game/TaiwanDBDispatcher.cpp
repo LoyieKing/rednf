@@ -54,7 +54,7 @@
 #include "InterSelectCreateDnfUserInfo.h"
 #include "InterSelectMobileAuthReward.h"
 #include "InterSelectPcroomDailyReward.h"
-#include "CUser.h"            // CUser::GetUID / get_acc_id / m_field8ec31
+#include "CUser.h"            // CUser::GetUID / get_acc_id / m_rewarded
 #include "CGuildServerProxy.h"  // CEventManager/CEventBase（GetRepeatEvent/IsEventing）
 // ORIG T 0x081090b4（u32 版；权威声明见 CInventory.h:535，本 TU 同款局部声明）
 char* NumberToString(unsigned int value, int radix);

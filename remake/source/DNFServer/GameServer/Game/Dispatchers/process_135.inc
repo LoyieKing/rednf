@@ -44,8 +44,8 @@ int Dispatcher_SaveGameOption_1::process(CUser* user, MSG_BASE& msg, ParamBase& 
         guard.operator*()->operator<<((int)user->GetUID());
         SIG_SAVE_GAME_OPTION_1* save =
             guard->GetInBuffer<SIG_SAVE_GAME_OPTION_1>();
-        *(unsigned int*)save = user->get_acc_id();
-        memcpy(reinterpret_cast<char*>(save) + 4, &saveMsg.m_option, 0x48);
+        save->m_mId = user->get_acc_id();
+        memcpy(save->m_option, &saveMsg.m_option, 0x48);
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     }
     return 0;

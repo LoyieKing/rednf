@@ -10,17 +10,17 @@ bool DB_UpdateChannel::UpdateChannel(SIG_UPDATE_CHANNEL* sig)
         "upDate game_channel set gc_now=%d,gc_up_time=now(),gc_swordman_cnt=%d,gc_fighter_cnt=%d,"
         "gc_gunner_cnt=%d,gc_mage_cnt=%d,gc_priest_cnt=%d,gc_at_gunner_cnt=%d,gc_thief_cnt=%d,"
         "gc_hangame=%d,gc_nexon=%d where gc_no=%d",
-        ((DB_UpdateChannelView*)sig)->m_gcNow,
-        ((DB_UpdateChannelView*)sig)->m_swordmanCnt,
-        ((DB_UpdateChannelView*)sig)->m_fighterCnt,
-        ((DB_UpdateChannelView*)sig)->m_gunnerCnt,
-        ((DB_UpdateChannelView*)sig)->m_mageCnt,
-        ((DB_UpdateChannelView*)sig)->m_priestCnt,
-        ((DB_UpdateChannelView*)sig)->m_atGunnerCnt,
-        ((DB_UpdateChannelView*)sig)->m_thiefCnt,
-        ((DB_UpdateChannelView*)sig)->m_hangame,
-        ((DB_UpdateChannelView*)sig)->m_nexon,
-        ((DB_UpdateChannelView*)sig)->m_gcNo);
+        sig->m_gcNow,
+        sig->m_swordmanCnt,
+        sig->m_fighterCnt,
+        sig->m_gunnerCnt,
+        sig->m_mageCnt,
+        sig->m_priestCnt,
+        sig->m_atGunnerCnt,
+        sig->m_thiefCnt,
+        sig->m_hangame,
+        sig->m_nexon,
+        sig->m_gcNo);
     r = db->exec(true);
     if (!r)
         return 0;

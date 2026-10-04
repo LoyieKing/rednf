@@ -21,24 +21,20 @@ int DisPatcher_SetPVPMapIndex::dispatch_sig(CUser* user, PacketBuf& packet)
     // ⚠不可用 `__attribute__((packed))`：GCC4.4 拒绝「紧实字段绑定到 short&」
     // （父泳道 00:4x 编译失败实证）；改 `#pragma pack` 形（与聚合器 IncreStatusSigView 同法，
     // probe /tmp/probe_pack.cpp 实证：pragma 形可绑引用，attribute 形报错）。
-#pragma pack(push, 1)
-    struct SetPVPMapIndexMsgView : MSG_BASE
-    {
-        short m_mapIdx;
-    };
-#pragma pack(pop)
-    SetPVPMapIndexMsgView sig;
+    MSG_SET_PVP_MAP_INDEX sig;
     PacketGuard guard;                       // ORIG -0x2c（声明序：sig,guard,flag）
     bool flag;                               // ORIG -0x2d
     // [H5DisPatcher 兜底] 4.4 禁止对 packed 成员取址/绑定（`&sig.m_mapIdx` 与
     // `*reinterpret_cast<short*>(&sig.m_mapIdx)` 均报「不能将紧实的字段…绑定到
     // 'short int&'」）。改为「结构体基址 + 0xd 偏移」取址 ⇒ 仍复现 ORIG
     // 0x081f8634 `lea -0x1f(%ebp),%eax; add $0xd,%eax` 的两步取址形态。
-    if (!packet.get_short(*reinterpret_cast<short*>(reinterpret_cast<char*>(&sig) + 0xd)))
     {
-        return LineFunc(0x8650,
-                        __PRETTY_FUNCTION__,
-                        0, 0);
+        short mapIdx = 0;
+        if (!packet.get_short(mapIdx))
+        {
+            return LineFunc(0x8650, __PRETTY_FUNCTION__, 0, 0);
+        }
+        sig.m_mapIdx = mapIdx;
     }
     PvP_Room* room = static_cast<PvP_Room*>(user->GetPVPRoom());
     if (room == 0)

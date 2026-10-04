@@ -14,7 +14,7 @@ bool DB_SecuServiceUpdateValidityTime::dispatch(int userIdx, int slot,
             sig->m_type,
             // ORIG +0x59 `lea 0xa(%edx),%ecx`：validity_ip 取 sig+10（数组
             // decay 取地址复现单条 lea；`+10` 指针算术会成 add+mov 两条）。
-            (const char*)&((char*)sig)[10],
+            sig->m_uid,
             NumberToString(sig->m_mId, 0));
     }
     else if (sig->m_flag == 0x10)
@@ -22,7 +22,7 @@ bool DB_SecuServiceUpdateValidityTime::dispatch(int userIdx, int slot,
         db->set_query(
             "upDate member_security_grade set goblin_validity_time\t\t=unix_timestamp(now())+%d , validity_ip = '%s' where m_id=%s",
             sig->m_type,
-            (const char*)&((char*)sig)[10],
+            sig->m_uid,
             NumberToString(sig->m_mId, 0));
     }
     db->exec(true);

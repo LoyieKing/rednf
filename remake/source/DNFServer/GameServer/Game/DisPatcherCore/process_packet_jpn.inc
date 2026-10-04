@@ -60,7 +60,7 @@ int DisPatcher_AddFriend::process_packet_jpn(CUser* user, MSG_BASE& msg, ParamBa
         sig->m_notGmFlag =
             GlobalData::s_pGMAccounts_->isGM(user->get_acc_id()) ? 0 : 1;
         strncpy(sig->m_characName,                               // sig+0x05..0x22
-                reinterpret_cast<STFriendReqView*>(&req)->m_name, // msg+0x11
+                reinterpret_cast<MSG_ADD_FRIEND*>(&req)->m_name, // msg+0x11
                 0x1e);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);    // QUEUE_IDX 2=DB_Q
     }

@@ -161,6 +161,7 @@ struct CEnvironmentView
     int m_serverType;   // +0x1a8
 };
 
+class CChattingEmoticonList;
 class CDataManager
 {
 public:
@@ -168,14 +169,10 @@ public:
     void set_lottery_use_cost(unsigned int cost, unsigned int flag);
     char m_pad[0xc];
     class CItemList* m_itemList;   // +0x0c
+    char m_pad10[0x18];
+    CChattingEmoticonList* m_emoticonList;  // +0x28
 };
 extern CDataManager* G_CDataManager();
-
-struct CDataManagerView
-{
-    char m_pad[0x28];
-    int m_field28;   // +0x28
-};
 
 #include "CSystemTime.h"
 

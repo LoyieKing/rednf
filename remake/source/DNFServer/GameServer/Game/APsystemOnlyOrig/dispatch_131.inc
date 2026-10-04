@@ -3,8 +3,8 @@ bool DB_InsertCirculationStatistic::dispatch(int userIdx, int slot,
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_4,
                                                   E_SERVER_GROUP_NONE);
-    DB_CirculationStatisticView* sig =
-        reinterpret_cast<DB_CirculationStatisticView*>(
+    SIG_CIRCULATION_STATISTIC* sig =
+        /*SIG_CIRCULATION_STATISTIC*/(
             stream->GetOutBuffer<SIG_CIRCULATION_STATISTIC>());
     db->set_query(
         "inSert into log_gold_stat(channel_no,occ_time ,level,dungeon_drop,result_card,sell_store,quest_reward,death_tower_reward,illusion_tower_reward,war_area_drop,member_tax,blood_dungeon_reward,blood_dungeon_lotto,power_dungeon_drop,power_dungeon_result_card,buy_store,stamina_recovery,repair_item,private_store_commission,gold_card,gold_drop,upgrade,quest_use,mail_commission,punish_user,restrict_trade,guild_level_up,guild_skill,guild_mail,item_compound,blood_dungeon_enter,buy_cerashop,war_area_enter,assault_gold,upgrade_guild_agit,upgrade_guild_cargo) values(%d,from_unixtime(%d),%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u)",

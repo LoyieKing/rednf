@@ -21,18 +21,18 @@ int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*
     }
 
     Inter_ResposncePCRoomPlyerListPktView* pPkt = reinterpret_cast<Inter_ResposncePCRoomPlyerListPktView*>(data);
-    if (user->get_charac_no(-1) != pPkt->m_e)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
             __PRETTY_FUNCTION__,
             0x4192,
             "Inter_ResposncePCRoomPlyerList::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
-            user->get_charac_no(-1), pPkt->m_e);
+            user->get_charac_no(-1), pPkt->m_characNo);
         return 0;
     }
 
-    if (pPkt->m_12 > 0x28)   // 条目数越界
+    if (pPkt->m_count > 0x28)   // 条目数越界
     {
         packet.put_header(1, 0xd8);
         packet.put_byte(0);
@@ -44,11 +44,11 @@ int Inter_ResposncePCRoomPlyerList::dispatch_sig(CUser* user, char* data, int /*
 
     packet.put_header(1, 0xd8);
     packet.put_byte(1);
-    packet.put_byte((int)pPkt->m_12);
+    packet.put_byte((int)pPkt->m_count);
 
     // ORIG 0x84d9ed4/0x84d9f09 等 7 处 `add -0x14(%ebp),%eax`：循环体基址走 pPkt 具名槽。
 #define pData (reinterpret_cast<char*>(pPkt))
-    for (int i = 0; i < (int)pPkt->m_12; ++i)
+    for (int i = 0; i < (int)pPkt->m_count; ++i)
     {
         const int nameLen = strlen(pData + i * 0x25 + 0x10 + 0x7);
         packet.put_int(nameLen);

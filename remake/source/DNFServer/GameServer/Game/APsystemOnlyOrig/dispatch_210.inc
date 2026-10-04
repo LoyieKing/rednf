@@ -22,8 +22,8 @@ bool DB_InsertAutoPunishSecondUser::dispatch(int /*userIdx*/, int /*slot*/,
                                                    E_SERVER_GROUP_NONE);
     // 声明序 db6→sig 与 ORIG 一致（ORIG 先 GetDBHandle(6) 后 GetOutBuffer，
     // db6=-0x24/sig=-0x20）；db1 只在 punish_flag 分支内获取（ORIG 0x0842e155）。
-    DB_InsertAutoPunishSecondUserView* sig =
-        reinterpret_cast<DB_InsertAutoPunishSecondUserView*>(
+    SIG_INSERT_AUTO_PUNISH_SECOND_USER* sig =
+        /*SIG_INSERT_AUTO_PUNISH_SECOND_USER*/(
             stream->GetOutBuffer<SIG_INSERT_AUTO_PUNISH_SECOND_USER>());
     // ORIG 实参序（汇编 0x8..0x1c）：sig+8, sig+0xc, sig+8, sig+0xc,
     // punish_flag, m_id —— 重复传递是 ORIG 原样（多余 vararg 被忽略）。

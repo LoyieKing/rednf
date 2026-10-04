@@ -46,15 +46,6 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
     //    `(%eax)`/`(%edx)` 间接写读（7 条/站 vs ORIG 4 条/站）⇒ 正是 gap +6 的唯一来源。
     //    解 = 具名视图（P311/P246 组件·union 具型视图）：把 `this` 视作 +0x1c 处为
     //    byte 别名的结构，成员访问即折进位移 `0x1c(%eax)`（无地址临时、无槽）。
-    struct GuildAbilityByteView
-    {
-        char m_pad[0x1c];
-        union
-        {
-            unsigned short m_ability;   // 与 STGuildDBInfoOnly::m_ability 同址（+0x1c）
-            unsigned char m_field1C;    // 低字节（ORIG 仅动此字节）
-        };
-    };
     // 2026-09-11（Lane2，P311 附：复用 memset 返回值）：ORIG 0x08694061 `call memset`
     //   之后 0x08694069 直接 `movzbl 0x1c(%eax),%edx` —— 复用 memset 返回值
     //   （= m_guildName = this）寻址，**无** `mov 0x8(%ebp),%edx` 重载；我方分两句写
@@ -64,8 +55,9 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
     // [CUserLane 2026-09-11 T3 实测无效] P211 档③ 同型化（RHS `(unsigned char)1`）产物
     //   与 `|= 1` 逐条相同（88/90、ndiff 2 不变）⇒ 装载序锁在 memset 返回值复用形上，
     //   维持 N 封顶（第 7 形失败）。
-    ((GuildAbilityByteView*)memset(m_guildName, 0, 0x17))->m_field1C |= 1;
-    ((GuildAbilityByteView*)this)->m_field1C &= ~2;
+    memset(m_guildName, 0, 0x17);
+    m_ability |= 1;
+    m_ability &= ~2;
     memset(m_skills, 0, 0x50);          // +0x45
     memset(m_masterName, 0, 0x15);      // +0xa4
 }

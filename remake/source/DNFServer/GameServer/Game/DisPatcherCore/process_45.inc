@@ -17,7 +17,7 @@ int DisPatcher_MoveMap::process(CUser* user, MSG_BASE& msg, ParamBase& param)
                         __PRETTY_FUNCTION__,
                         out.m_errNo, user->get_acc_id());
     }
-    MoveMapMsgView& req = *reinterpret_cast<MoveMapMsgView*>(&msg);
+    MSG_MOVE_MAP& req = *reinterpret_cast<MSG_MOVE_MAP*>(&msg);
     // ORIG 0x081...：`movzbl 0x1a(%eax),%eax; xor $0x1,%eax; test %al,%al; je` =
     // bool 字段 ! 物化（唯 bool lvalue 产 xor$1；uchar 出 cmp$1）。视图字段判 + 恢复传参。
     if (!req.m_1a)

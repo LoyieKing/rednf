@@ -23,7 +23,7 @@ DB_Login::RV_GetGameDBCharacInfo DB_Login::_getGameDBCharacView(SIG_LOGIN_DATA* 
     {
         return -1;
     }
-    if (!get_compressed_blob_data(db, 0, SGBC(sig, OFF_CHARAC_VIEW),
+    if (!get_compressed_blob_data(db, 0, reinterpret_cast<char*>(&sig->m_characData),
                                   0x14d0, 0x94))
     {
         // P87/P227：全表达式临时链 ⇒ m_accId 入 %ebx 跨 ctor 保活。

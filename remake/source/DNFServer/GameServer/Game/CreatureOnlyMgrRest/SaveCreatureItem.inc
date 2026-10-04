@@ -33,7 +33,7 @@ bool CCreatureMgr::SaveCreatureItem()
     }
 
     memset(list, 0, sizeof(SIG_CREATURE_ITEM_LIST));   // 0x4078
-    *(int*)(void*)list = 0;                            // count
+    list->m_count = 0;
 
     for (std::map<int, CCreatureItem*>::iterator it = m_creatureItems.begin();
          it != m_creatureItems.end(); it++)
@@ -52,21 +52,15 @@ bool CCreatureMgr::SaveCreatureItem()
         if (entry->IsSave())
         {
             entry->SaveCreatureItem(
-                (Inven_Item*)(
-                                     (*(int*)(void*)list * 0x3d +
-                                      (int)(void*)list) + 4),
-                (SIG_CREATURE_ITEM_DETAIL_INFO*)(
-                                     (*(int*)(void*)list * 0x38 + 0x21a0) +
-                                     (int)(void*)list),
+                (Inven_Item*)(list->m_preRows + list->m_count * 0x3d),
+                (SIG_CREATURE_ITEM_DETAIL_INFO*)((char*)list + list->m_count * 0x38 + 0x21a0),
                 m_user);
-            // detail.m_uid（详情区 +4）非 0 视为写入成功。
-            if (*(int*)(void*)((int)(void*)list +
-                        *(int*)(void*)list * 0x38 + 0x21a4) != 0)
-                *(int*)(void*)list = *(int*)(void*)list + 1;
+            if (list->m_rows[list->m_count].m_uiId != 0)
+                list->m_count = list->m_count + 1;
         }
     }
 
-    if (*(int*)(void*)list != 0)
+    if (list->m_count != 0)
         sender.Send();
     else
         sender.Cancel();

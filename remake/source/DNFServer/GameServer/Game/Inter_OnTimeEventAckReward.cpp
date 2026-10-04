@@ -23,15 +23,20 @@
 
 // data 包缓冲的组件视图（P1：组件视图 → 单指令 disp 寻址，匹配 ORIG
 // movzwl 0xa(%eax) / mov 0x10(%eax) 等；裸指针加偏移生成 add 两步）
+#pragma pack(push, 1)
 struct AckRewardView
 {
-    char m_pad[0xa];        // +0x00
-    short m_resultNo;       // +0x0a（signed：ORIG movzwl+movswl）
-    char m_pad2[0x4];       // +0x0e
-    unsigned int m_accId;   // +0x10
-    unsigned int m_charNo;  // +0x14
-    unsigned int m_itemNo;  // +0x18
+    unsigned short m_packetId;    // +0x00
+    unsigned short m_packetSize;  // +0x02
+    unsigned short m_reversed1;   // +0x04
+    unsigned int m_connNo;        // +0x06
+    short m_resultNo;             // +0x0a
+    char m_padC[4];               // +0x0c
+    unsigned int m_accId;         // +0x10
+    unsigned int m_charNo;        // +0x14
+    unsigned int m_itemNo;        // +0x18
 };
+#pragma pack(pop)
 
 #include "Inter_OnTimeEventAckReward/dispatch_sig.inc"
 

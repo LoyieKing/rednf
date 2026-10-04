@@ -10,8 +10,8 @@ int Inter_LoadEventLevelupSupport::dispatch_sig(CUser* user, char* data, int /*l
         return 0x6def;
     }
 
-    Inter_LoadEventLevelupSupportEntryPktView* pPkt =
-        reinterpret_cast<Inter_LoadEventLevelupSupportEntryPktView*>(data);
+    SIG_EVENT_LEVEUP_SUPPORT_INFO* info =
+        reinterpret_cast<SIG_EVENT_LEVEUP_SUPPORT_INFO*>(data);
 
     user->m_levelupEvents.clear();
     user->m_levelupEvents =
@@ -30,13 +30,13 @@ int Inter_LoadEventLevelupSupport::dispatch_sig(CUser* user, char* data, int /*l
         }
     }
 
-    for (int local_24 = 0; local_24 < pPkt->m_count; ++local_24)
+    for (int local_24 = 0; local_24 < info->m_count; ++local_24)
     {
         if (user->m_levelupEvents[local_24].m_level ==
-            pPkt->m_entries[local_24].m_level)         // ORIG `movzwl 0x4(%eax,%edx,4)`
+            info->m_entries[local_24].m_level)         // ORIG `movzwl 0x4(%eax,%edx,4)`
         {
             user->m_levelupEvents[local_24].m_state =
-                pPkt->m_entries[local_24].m_state;     // ORIG `movzwl 0x6(%edx,%ecx,4)`
+                info->m_entries[local_24].m_state;     // ORIG `movzwl 0x6(%edx,%ecx,4)`
         }
         else
         {
@@ -49,7 +49,7 @@ int Inter_LoadEventLevelupSupport::dispatch_sig(CUser* user, char* data, int /*l
         }
     }
 
-    if (pPkt->m_count == 0)
+    if (info->m_count == 0)
     {
         for (unsigned int local_20 = 0;
              local_20 < user->m_levelupEvents.size();

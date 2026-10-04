@@ -20,15 +20,15 @@ bool DB_CheckAddFriend::dispatch(int userIdx, int slot, Stream* stream)
     int result = 0;              // -0x2c 查询 m_id
     MySQL* db = 0;               // -0x28
     int outCode = 1;             // -0x24 回包结果码
-    DB_CheckAddFriendView* req = 0;  // -0x20
-    DB_CheckAddFriendView* out = 0;  // -0x1c
+    SIG_CHECK_ADD_FRIEND* req = 0;  // -0x20
+    SIG_CHECK_ADD_FRIEND* out = 0;  // -0x1c
     char name[0x3b] = { '\0' };      // -0x6f escape 目标
     if (stream == 0)
         return 0;
-    req = (DB_CheckAddFriendView*)stream->GetOutBuffer<SIG_CHECK_ADD_FRIEND>();
+    req = stream->GetOutBuffer<SIG_CHECK_ADD_FRIEND>();
     if (req == 0)
         return 0;
-    if (req->m_flag != 0)
+    if (req->m_notGmFlag != 0)
     {
         db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                E_SERVER_GROUP_NONE);
@@ -37,7 +37,7 @@ bool DB_CheckAddFriend::dispatch(int userIdx, int slot, Stream* stream)
         // 合并 && 短路链被 4.4 jump-thread 成单出口 ⇒ 改多源裸 goto 到同一尾标签。
         if (db == 0)
             goto send_packet;
-        if (!db->escape_string(name, req->m_name))
+        if (!db->escape_string(name, req->m_characName))
             goto send_packet;
         if (!db->set_query(
                 "seLect m_id from charac_info where charac_name='%s' and delete_flag=0",
@@ -66,12 +66,12 @@ send_packet:
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xc05e), true);
     guard.operator*()->operator<<(0x33e);
     guard.operator*()->operator<<(slot);
-    out = (DB_CheckAddFriendView*)guard.operator->()
+    out = guard.operator->()
               ->GetInBuffer<SIG_CHECK_ADD_FRIEND>();
     if (out != 0)
     {
         out->m_result = outCode;
-        strncpy(out->m_name, req->m_name, 0x1e);
+        strncpy(out->m_characName, req->m_characName, 0x1e);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
     }

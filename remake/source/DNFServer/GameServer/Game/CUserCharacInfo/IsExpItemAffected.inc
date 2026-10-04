@@ -3,5 +3,5 @@
 //   消费点 0x085adc8a `call; test %al,%al; je` 无 setne（P292）双向闭合。
 bool CUserCharacInfo::IsExpItemAffected()
 {
-    return m_selected ? m_selected->m_fieldEE4 : 0;
+    return m_selected ? m_selected->m_expItemAffected : 0;
 }

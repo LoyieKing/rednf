@@ -278,6 +278,7 @@ namespace WongWork
     int onTimer(TIMER_MESSAGE, unsigned int);
     void reset();
     int* getTimerKeys() { return m_timerKeys; }
+    stMapMonsterKillChecker_t& getKillChecker() { return m_killChecker; }
     void setIdx(int);
     int setTowerState(ENUM_TOWER_STATE);
 
@@ -288,7 +289,15 @@ private:
     CDungeonMgr m_dungeonMgr;  // +0x0c
     CStage m_stage;         // +0x14
     CPlayData m_playData;   // +0x110（尺寸 0xa2c，至 +0xb3c）
-    int m_timerKeys[10];    // +0xb3c (TIMER_MESSAGE 0x48..)
+    union
+    {
+        int m_timerKeys[10];    // +0xb3c (TIMER_MESSAGE 0x48..0x4e 用 [0..6])
+        struct
+        {
+            int m_timerKeySlots[7];
+            stMapMonsterKillChecker_t m_killChecker; // +0xb58
+        };
+    };
     // 布局修正（Layout_D 2026-08-30）：ORIG StaticPool<CDeathTower,600>::CNodeC1
     // 实证 bUse@0xb68 → sizeof(CDeathTower)=0xb64；原 m_pad_end[0x18] 尾垫多余。
 };                                                  // sizeof 0xb64

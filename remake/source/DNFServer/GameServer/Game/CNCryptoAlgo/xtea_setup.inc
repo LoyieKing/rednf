@@ -14,11 +14,12 @@ int xtea_setup(const unsigned char *key, int keylen, int num_rounds, symmetric_k
       return CRYPT_INVALID_ROUNDS;
    }
 
+   /* [DNF-FIX-XTEA 2026-09-22] ORIG df_game_r.qf uses LOAD32L/STORE32L (LE); was LOAD32H/STORE32H (BE). */
    /* load key */
-   LOAD32H(K[0], key+0);
-   LOAD32H(K[1], key+4);
-   LOAD32H(K[2], key+8);
-   LOAD32H(K[3], key+12);
+   LOAD32L(K[0], key+0);
+   LOAD32L(K[1], key+4);
+   LOAD32L(K[2], key+8);
+   LOAD32L(K[3], key+12);
 
    for (x = sum = 0; x < 32; x++) {
        skey->xtea.A[x] = (sum + K[sum&3]) & 0xFFFFFFFFUL;

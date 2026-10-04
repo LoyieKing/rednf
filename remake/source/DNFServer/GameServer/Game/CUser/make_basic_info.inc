@@ -1,9 +1,11 @@
 // b28d-lane5 N封顶: N97/P230 cmov; P11 符号扩展; P11 反向符号扩展; N18a/P200 拓宽中轉; P168a/P248 setcc 物化方向; N82/P112 槽号分配 | ORIG 0x0865a44e | _ZN5CUser15make_basic_infoEPcc
 bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串 bool）
 {
+#if !remake_verify
     LogManager::logFormat(1, "user.cpp", __PRETTY_FUNCTION__, 0x73a,
         "[DNF-DIAG MAKEBASIC] type=%d list=%u",
         (int)type, (unsigned)m_characList.size());
+#endif
     // 2026-09-10（G3CUser-B 负结论·余量登记）：栈槽集对照（报告 ORIG 汇编 vs 我方
     //   重建汇编）：ORIG 50 槽 / 我方 59 槽、整体平移 +0x28，平移后**仍多余 9 个
     //   具名槽**（-0x13c/-0x12c/-0x120/-0x11c/-0xb1/-0x65/-0x49/-0x3c/-0x31 等）。
@@ -31,7 +33,7 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             return 0;
         }
         lock();
-        pkt.put_short((int)m_field704a8);
+        pkt.put_short((int)m_uniqueId);
         int exp;
         if (G_GameWorld()->IsCharacterLevelRevisionChannel())
             exp = G_CDataManager()->get_level_exp(0x55);
@@ -317,9 +319,12 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
     }
     else if (type == 2)
     {
+        #define DIAG_CHARLIST_FIRST_ONLY 0  /* TEMP bisect; remove after test */
         // ORIG 0x0865be31：lock + 槽位/管理值 + 循环 vector[] 位移 + MakeEquipList(+0xda)
+        #if !remake_verify
         cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
             "[DNF-DIAG CHARLIST] ENTER type2 list=%u", (unsigned)m_characList.size());
+        #endif
         lock();
         pkt.put_byte((int)getCharacSlotLimit());
         pkt.put_byte((int)getSlotEffectCount());
@@ -341,39 +346,67 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             for (int k = 0; k < 32; ++k) name[k] = 0;
             for (int k = 0; k < 30; ++k) name[k] = ch.m_name[k];
             const int nlen = (int)strlen(name);
+            #if !remake_verify
             cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
                 "[DNF-DIAG CHARLIST] add i=%d nlen=%d job=%d lv=%d",
-                i, nlen, (int)(signed char)ch.m_field26, (int)ch.m_level);
+                i, nlen, (int)(signed char)ch.m_job, (int)ch.m_level);
+            #endif
             pkt.put_int(nlen);
             pkt.put_str(name, nlen);
-            pkt.put_byte(0);
-            pkt.put_byte((int)(signed char)ch.m_field26);
-            pkt.put_byte((int)(signed char)ch.m_field29.m_growthType);
+            // ORIG 0x0865c04c: checkSpecialChar || checkSpecialCharName → put_byte
+            {
+                char special = 0;
+                if (checkSpecialChar(name))
+                    special = 1;
+                else if (checkSpecialCharName(name))
+                    special = 1;
+                pkt.put_byte((int)(unsigned char)special);
+            }
+            pkt.put_byte((int)(signed char)ch.m_job);
+            pkt.put_byte((int)(signed char)ch.m_growthType.m_growthType);
             pkt.put_byte((int)ch.m_level);
             pkt.put_byte(0);
-            if (!(nowSec < ch.m_field12ad))
-                ch.m_fieldE66 = 0;
+            if (!(nowSec < ch.m_chaosResponTime))
+                ch.m_ghost = 0;
             else
-                ch.m_fieldE66 = 1;
+                ch.m_ghost = 1;
             if (ch.m_viewState == 0xff)
                 pkt.put_byte(8);
             else
-                pkt.put_byte(ch.m_fieldE66 != 0 ? 4 : 0);
+                pkt.put_byte(ch.m_ghost != 0 ? 4 : 0);
+            #if !remake_verify
             cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
                 "[DNF-DIAG CHARLIST] before equip i=%d", i);
+            #endif
             // 清风 ORIG 实证：type=2 会写出 slot10 itemId=27601 的紧凑装备段。
             // 空装备段(count=0)客户端不画槽。
             ch.m_curCharacInven.MakeEquipList(
                 &pg, false, (ENUM_USERINFO)2, (ENUM_EQUIPSLOT)0);
+            #if !remake_verify
             cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
                 "[DNF-DIAG CHARLIST] after equip i=%d", i);
+            #endif
             get_acc_id();
             pkt.put_byte(0);
             pkt.put_int(get_charac_guildkey());
             pkt.put_byte((int)IsPermissionPrivateStore());
             pkt.put_byte(isAffectedPremium((ENUM_PREMIUM_TYPE)0xc) ? 1 : 0);
             pkt.put_int(GetPCRoomNo());
-            pkt.put_byte(3); /* 清风 dump e+0xe40 == 3 */
+            #if !remake_verify
+
+            cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+
+                "[DNF-DIAG CHARLIST] e40/flag=%d pad1240=%d link=%d",
+
+                (int)(signed char)ch.m_tagVisibleFlags.m_flag,
+
+                (int)(unsigned char)ch.m_pad1240,
+
+                (int)(signed char)ch.m_characLinkType);
+
+            #endif
+
+            pkt.put_byte((int)(signed char)ch.m_tagVisibleFlags.m_flag);
             pkt.put_byte((int)(unsigned char)ch.m_pad1240);
             pkt.put_byte((int)(signed char)ch.m_characLinkType);
             if (ch.m_pad83 == 0)
@@ -385,15 +418,25 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
                 int days = ch.m_field84 / 0x15180;
                 pkt.put_int(days < 1 ? 1 : days);
             }
+            // DIAG_CHARLIST_FIRST_ONLY: temporary bisect — ORIG char0 body matches;
+            // if UI shows first char, char1 equip/trail is the client parse breaker.
+#if !remake_verify && defined(DIAG_CHARLIST_FIRST_ONLY) && DIAG_CHARLIST_FIRST_ONLY
+            if (written >= 1)
+            {
+                cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+                    "[DNF-DIAG CHARLIST] FIRST_ONLY stop after written=%d", written);
+                break;
+            }
+#endif
         }
         pkt.put_short(countIdx, written);
         {
             const int idx = pkt.get_index();
             const unsigned char* b =
                 (const unsigned char*)pkt.get_packet(0);
-            char hx[200];
+            char hx[1600];
             hx[0] = 0;
-            int n = idx < 64 ? idx : 64;
+            int n = idx < 512 ? idx : 512;
             for (int k = 0; k < n; ++k)
             {
                 char t[4];
@@ -404,9 +447,18 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
                 for (int j = 0; j < 3; ++j) hx[k * 3 + j] = t[j];
             }
             hx[n * 3] = 0;
+            {
+                FILE* df = fopen("/tmp/charlist_dump.bin", "wb");
+                if (df) {
+                    fwrite(b, 1, (size_t)idx, df);
+                    fclose(df);
+                }
+            }
+            #if !remake_verify
             cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
                 "[DNF-DIAG CHARLIST] LEAVE written=%d idx=%d err=%d hex=%s",
                 written, idx, (int)pkt.getLastError(), hx);
+            #endif
         }
         unlock();
     }
@@ -422,7 +474,7 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             return 0;
         }
         lock();
-        pkt.put_short((int)m_field704a8);
+        pkt.put_short((int)m_uniqueId);
         int exp;
         if (G_GameWorld()->IsCharacterLevelRevisionChannel())
             exp = G_CDataManager()->get_level_exp(0x55);

@@ -204,13 +204,11 @@ void SpecialItemHandler::respond_special_item_premium(int type,
             }
             user->m_historyLog.SkillSPInfoSave(user, (eSkillSPInfoSaveReason)0);
             user->m_historyLog.SkillSave(
-                reinterpret_cast<const _Mastered_skill*>(
-                    user->getCurCharacSkillR() + 0x46),
+                reinterpret_cast<const SkillSlot*>(user->getCurCharacSkillR())->m_skillSlot,
                 (unsigned int)user->get_charac_job(), SKILL_TREE_1,
                 (eSkillSaveReason)0);
             user->m_historyLog.SkillSave(
-                reinterpret_cast<const _Mastered_skill*>(
-                    user->getCurCharacSkillR() + 0x1de),
+                reinterpret_cast<const SkillSlot*>(user->getCurCharacSkillR())->m_skillSlot2,
                 (unsigned int)user->get_charac_job(), SKILL_TREE_2,
                 (eSkillSaveReason)0);
         }

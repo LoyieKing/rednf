@@ -16,7 +16,8 @@
 #include <cstddef>  // offsetof（SIG_AVATAR_INSERT 偏移断言）
 struct InformNoticeFlagData
 {
-    char m_pad[0x14];
+    unsigned int m_mId;            // +0x00
+    char m_informNotice[0x10];     // +0x04
 };
 
 // ORIG sizeof = 0x3f84（MSG_CHECK_MAIL_RECEIVER::set<1, MSG_BUY_CERASHOP_ITEM> @0x82378ee
@@ -421,11 +422,26 @@ static_assert(sizeof(SIG_AVATAR_CHANGE_OWNER) == 0xd,
 #pragma pack(push, 1)
 struct SIG_AVATAR_CHANGE_STAT
 {
-    int m_uiId;              // +0x00
-    int m_itId;              // +0x04
-    unsigned char m_slot;    // +0x08
-    int m_characNo;          // +0x09（ORIG 非对齐 movl）
-    char m_pad0d[0x44];      // +0x0d..0x50
+    int m_uiId;                // +0x00
+    int m_itId;                // +0x04
+    unsigned char m_slot;      // +0x08
+    union
+    {
+        int m_characNo;        // +0x09
+        struct
+        {
+            unsigned char m_abilityNo; // +0x09
+            int m_regDate;             // +0x0a
+            int m_expireDate;          // +0x0e
+            char m_ipgAgencyNo[0x18];  // +0x12
+            char m_pad2a;              // +0x2a
+            short m_hiddenOption;      // +0x2b
+            short m_field2d;           // +0x2d
+            char m_jewelSocket[0x1e];  // +0x2f
+            short m_field4d;           // +0x4d
+            short m_emblemEndurance;   // +0x4f
+        };
+    };
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_AVATAR_CHANGE_STAT) == 0x51,
@@ -445,8 +461,8 @@ struct SIG_AVATAR_COLOR_CHANGE
 {
     int m_characNo;      // +0x00
     int m_uiId;          // +0x04
-    short m_field8;      // +0x08
-    short m_fieldA;      // +0x0a
+    union { short m_field8; unsigned short m_color1; };
+    union { short m_fieldA; unsigned short m_color2; };
 };
 
 // 字段化（CInv 批次 2026-09-04，裸偏移清理）。写侧证据 = SIG_AVATAR_INSERT::set
@@ -498,15 +514,15 @@ static_assert(offsetof(SIG_AVATAR_INSERT, m_expansion) == 0x4f,
 struct SIG_AVATAR_OPTION_CHANGE
 {
     int m_uiId;          // +0x00
-    char m_field4;       // +0x04
-    int m_characNo;      // +0x08
+    union { char m_field4; unsigned char m_characNoB; };
+    union { int m_characNo; unsigned int m_abilityNo; };
 };
 
 // ORIG W ctor 0x0848fb02：2×movl(+0/+4) 清零 + 循环 1000 次 SIG_BEST_CLEAR_TIME_DATA
 // ctor（+0x8 起步进 0x18；循环初值 0x3e7=999，P151 口径 1000 次）；sizeof 0x5dc8。
 struct SIG_BEST_CLEAR_TIME
 {
-    int m_field0;                  // +0x00（ctor 清零）
+    union { int m_field0; unsigned int m_characNo; };  // +0x00
     int m_field4;                  // +0x04（ctor 清零）
     SIG_BEST_CLEAR_TIME_DATA m_data[1000];  // +0x08（ctor 隐式构造循环）
     SIG_BEST_CLEAR_TIME() : m_field0(0), m_field4(0) {}
@@ -646,7 +662,11 @@ static_assert(sizeof(SIG_CHARACTER_OPTION) == 0x204,
 // +0x00..0x03 与 +0x23 无 ORIG 出线证据，保留同尺寸字节域（sizeof 0x24 不变）。）
 struct SIG_CHECK_ADD_FRIEND
 {
-    char m_pad0[4];            // +0x00..0x03（未建模）
+    union
+    {
+        char m_pad0[4];        // +0x00..0x03
+        int  m_result;         // +0x00 回包 outCode
+    };
     char m_notGmFlag;          // +0x04（非 GM 账号标志，1B）
     char m_characName[0x1e];   // +0x05..0x22（申请方角色名）
     char m_pad23[1];           // +0x23（保持 sizeof 0x24）
@@ -709,15 +729,16 @@ static_assert(sizeof(SIG_CHECK_JOIN_GUILD) == 0x1c, "SIG_CHECK_JOIN_GUILD ABI dr
 
 // 具名化（证据：DB_CheckJoinGuild::dispatch ORIG 0x0843cc06 族，MySQL 逐列填充：
 // +0 int result(0/0x15) / +4 get_str(col1,0x1e) / +0x22 get_str(col0,0x17) /
-// +0x3c get_int(col2) / +0x40 get_int(col3)）。0x39..0x3c 无证据保留 pad。
+// +0x3c get_int(col2=lev) / +0x40 get_int(col3=member_count)）。0x39..0x3c 无证据保留 pad。
 struct SIG_CHECK_JOIN_GUILD_DB_REPLY
 {
     int m_result;                 // +0x00（0=成功；0x15=无行）
     char m_name[0x1e];            // +0x04（get_str col1，0x1e）
     char m_guildName[0x17];       // +0x22（get_str col0，0x17）【推断：公会名】
     char m_pad39[3];              // +0x39（0x17 对齐尾，ORIG memset 覆盖）
-    int m_arg3c;                  // +0x3c（get_int col2）
-    int m_arg40;                  // +0x40（get_int col3）
+    int m_lev;                    // +0x3c（get_int col2=lev，DB_CheckJoinGuild SQL 列序
+                                  //        guild_name,master_name,lev,member_count）
+    int m_memberCount;            // +0x40（get_int col3=member_count）
 };
 static_assert(sizeof(SIG_CHECK_JOIN_GUILD_DB_REPLY) == 0x44, "SIG_CHECK_JOIN_GUILD_DB_REPLY ABI drift");
 

@@ -22,7 +22,8 @@ public:
     //   pack(1) 下 int@+0x0a 非对齐，与 ORIG 直存形态一致；sizeof 仍 0x31。
     int m_uid;                 // +0x0a
     int m_characNo;            // +0x0e
-    char m_data[0x31 - 0x12];  // +0x12 起（+0x12 pad；名区自 +0x13）
+    char m_pad12;              // +0x12
+    char m_name[0x1e];         // +0x13
 };
 
 #pragma pack(pop)

@@ -5,7 +5,7 @@ bool DB_SaveCharacSlotExtend::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
-    SaveCharacSlotView* sig = reinterpret_cast<SaveCharacSlotView*>(
+    SIG_EXTEND_CHARAC_SLOT* sig = (
         stream->GetOutBuffer<SIG_EXTEND_CHARAC_SLOT>());
     db->set_query(
         "upDate charac_view set slot_effect_count=%u, charac_slot_limit=%u where m_id=%s",

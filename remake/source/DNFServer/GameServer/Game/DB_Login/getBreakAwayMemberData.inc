@@ -69,7 +69,7 @@ bool DB_Login::getBreakAwayMemberData(SIG_LOGIN_DATA* sig)
     // [SGBC 实验 b28d-h9] ORIG 0x084104e0 为 `mov 0xc(%ebp),%eax; add $0x3f1c,%eax;
     // movzbl (%eax),%eax`（指针算术 + 解引用，3 条）；成员数组直访问 `m_...Info[0]`
     // 被 4.4 折成 disp 单读（2 条）⇒ 改用 SGBC(sig,0x3f1c)[0] 的指针形复现 add。
-    if (SGBC(sig, 0x3f1c)[0] == '\0')
+    if (reinterpret_cast<char*>(sig->m_breakAwayPlayInfo)[0] == '\0')
     {
         LogManager::logFormat(1, "DBThread.cpp",
                               __PRETTY_FUNCTION__, 0x30ab,

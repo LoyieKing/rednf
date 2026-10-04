@@ -26,12 +26,7 @@ int DisPatcher_GetItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     // 实测 `movzbl 0x17(%eax),%eax; xor $0x1,%eax; test %al,%al; je` 与 ORIG 逐条同形，
     // 且 disp 折叠）。语义与 ORIG 一致：字节 != 1 时计 hack。
     {
-        struct GetItemFlagView
-        {
-            unsigned char m_pad[0x17];
-            bool m_flag;
-        };
-        if (!reinterpret_cast<const GetItemFlagView*>(&req)->m_flag)
+        if (!req.m_17)
         {
             user->getHackAnalyzer()->addServerHackCnt(user, (WongWork::ENUM_HACKTYPE)0x3bb, 1, 0, 0);
         }

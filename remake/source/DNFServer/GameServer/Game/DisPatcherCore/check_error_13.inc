@@ -18,6 +18,20 @@ int DisPatcher_BuyItem::check_error(CUser* user, MSG_BASE& msg)
     if (!G_CDataManager()->checkValidShopItem((unsigned int)req.m_deliveryType,
                                               (unsigned long)req.m_itemIdx))
     {
+        {
+            FILE* _sf = fopen("/tmp/shop_diag.log", "a");
+            if (_sf) {
+                fprintf(_sf,
+                    "[SHOP_DIAG] checkValid FAIL shopId=%u itemIdx=%lu buyCount=%u state=%d mapSize=%zu\n",
+                    (unsigned)req.m_deliveryType,
+                    (unsigned long)req.m_itemIdx,
+                    (unsigned)req.m_buyCount,
+                    (int)user->get_state(),
+                    G_CDataManager()->m_itemShop->m_shopMap.size());
+                fflush(_sf);
+                fclose(_sf);
+            }
+        }
         // [Lane5] P47/P194 正极性：ORIG 0x081be4b6 `call; test %al,%al; je <hack块>`
         // + fall `mov $0x11` ⇒ 原码 `if (f()) return 0x11;`（负极性 ==0 生 xor $1）。
         if (G_CDataManager()->m_itemShop->IsOneADayShop(req.m_deliveryType))

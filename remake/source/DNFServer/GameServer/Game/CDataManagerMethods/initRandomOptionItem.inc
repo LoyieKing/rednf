@@ -19,9 +19,9 @@ bool CDataManager::initRandomOptionItem()
     //   ORIG 0x083580e9 单条 lea 为 4.1 独有形 ⇒ 封 N18a。
     int count = 0;
     for (std::map<int, std::map<int, BaseItemValue> >::iterator outerIt =
-             ((CDataManagerBaseItemView*)this)->m_baseItemInfo.begin();
+             m_randomOption.m_baseItems60.begin();
          outerIt !=
-             ((CDataManagerBaseItemView*)this)->m_baseItemInfo.end();
+             m_randomOption.m_baseItems60.end();
          ++outerIt)
     {
         count = 0;
@@ -30,8 +30,7 @@ bool CDataManager::initRandomOptionItem()
                  outerIt->second.begin();
              innerIt != outerIt->second.end(); ++innerIt, ++count)
         {
-            if (!((CDataManagerBaseItemView*)this)
-                     ->m_lookupIndex.insert(
+            if (!m_randomOption.m_map78.insert(
                          std::make_pair(
                              (unsigned long&)innerIt->second.m_field0,
                              count)).second)

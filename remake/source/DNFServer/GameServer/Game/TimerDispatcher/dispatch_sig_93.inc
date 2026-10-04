@@ -38,12 +38,6 @@ bool TimerFinishItemEffect::dispatch_sig(int p1, int p2, memberIdentificationNum
     // **unsigned**（4.4 对 int 字段 + int 形参恒折单段内存直比 `cmp 0x10(%ebp),%eax`）。
     // 探针 /tmp/lea_probe2.cpp f_m 实证：`reinterpret_cast<const ContU*>(&v[i])->m_itemIdx
     // == (unsigned)p2` 逐条复现 ORIG 形、零额外指令；m_itemIdx 偏移 +0x00（头定义不变）。
-    struct ContinuousItemIdxView
-    {
-        unsigned int m_itemIdx;     // +0x00（ContinuousItemInfo::m_itemIdx 的 unsigned 视角）
-        unsigned int m_expireTime;  // +0x04
-    };
-
     // 循环条件每次迭代重新取 size()（ORIG +0x290 seta 无符号比较）。
     // [b28d-solo-TimerDispatcher] P157：p167 差集 MISSING = const operator[] ×2
     // （ORIG 对 m_itemIdx/m_expireTime 每次重发 `(*items)[i]`，无 entry 引用缓存）。
@@ -54,7 +48,7 @@ bool TimerFinishItemEffect::dispatch_sig(int p1, int p2, memberIdentificationNum
         // **正向包裹**原形（Ghidra C 同形：`if (*piVar4 == param_2) {…}`）。旧码
         // `if (idx != p2) continue;` 产 `setne; jne` + 单段内存直比（ndiff 5 行）。
         // 探针 /tmp/td_p4.cpp：a1(`!=` 早返)⇒setne/jne；a2(`==` 正向包裹)⇒sete/je。
-        if (reinterpret_cast<const ContinuousItemIdxView*>(&(*items)[i])->m_itemIdx ==
+        if (static_cast<unsigned int>((*items)[i].m_itemIdx) ==
             static_cast<unsigned int>(p2))
         {
             PacketGuard packet;              // ORIG try 区 0x8637bb1..0x8637cfd

@@ -128,8 +128,7 @@ int CItemUpgrade::ProcUpgradeChronicle(CUser* user, short slotA, unsigned int,
             {
                 // stAmplifyOption_t::assign W：item.m_amp(+0x11) 选项写入
                 // （ORIG 0x08549578 直接 lea+add 传址，无引用局部槽）
-                ((stAmplifyOption_t*)((char*)&newItem + 0x11))
-                    ->assign(cond.m_amplifyType, cond.m_amplifyValue);
+                newItem.m_amp.assign(cond.m_amplifyType, cond.m_amplifyValue);
             }
             // ORIG 0x08549589：newItem.m_fieldd(+0x0d) ← cond.m_fieldd(+0x08)
             newItem.m_fieldd = cond.m_fieldd;

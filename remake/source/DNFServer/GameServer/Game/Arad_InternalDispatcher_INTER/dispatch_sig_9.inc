@@ -61,7 +61,7 @@ int Arad_INTER_kAvatarRoulette::dispatch_sig(CUser* user, char* body, int len)
     // P48：ORIG 每次使用均重调 getCurCharacInvenRefW()+0x658，不许提升到局部。
     // [b28d-solo] 真 bug 修复：getCurCharacInvenRefW() 返回 CInventory*（巨类），
     // 裸 `+0x658` 按元素缩放成 +0x30f740；ORIG 0x08198ca2 为字节偏移 add $0x658。
-    if (!((AvatarCoin*)((char*)user->getCurCharacInvenRefW() + 0x658))->IsUsable())
+    if (!user->getCurCharacInvenRefW()->m_avatarCoin.IsUsable())
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x3f9, "[kAvatarRoulette] need avatarCoin. (%u - %u)",
@@ -102,7 +102,7 @@ int Arad_INTER_kAvatarRoulette::dispatch_sig(CUser* user, char* body, int len)
 
     user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)1, slot);
 
-    if (!((AvatarCoin*)((char*)user->getCurCharacInvenRefW() + 0x658))->Use())
+    if (!user->getCurCharacInvenRefW()->m_avatarCoin.Use())
     {
         LogManager::logFormat(1, "localjapan/Arad_InterDispatcher.cpp", __PRETTY_FUNCTION__,
                               0x410, "[kAvatarRoulette] need avatarCoin. (%u - %u)",

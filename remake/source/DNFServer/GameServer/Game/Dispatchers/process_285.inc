@@ -29,15 +29,11 @@ int Dispatcher_GrowthWeaponEventUseMaterial::process(CUser* user, MSG_BASE& msgB
         param.m_4 = 0x11;
         return 0;
     }
-    short* timepiece = reinterpret_cast<short*>(reinterpret_cast<char*>(user->getGrowthWeaponEventdata()) + 0x10);
-    // [G5-285 2026-09-11 · N 封顶] ORIG 0x081e82xx 段为 `movzwl (%eax),%eax;
-    //   lea 0x1(%eax),%edx; mov -0xc(%ebp),%eax; mov %dx,(%eax)`；4.4.7 对
-    //   `*p = (short)(*p + 1)` 四源形（`*p+1` / `1+*p` / 具名 short / 具名 int，
-    //   探针 /tmp/n7d/probe/p285.cpp）恒产 `add $1,%eax; mov %eax,%edx`（+1 条）
-    //   ⇒ 跨版本常量加法 lowering 差，判 N（本件余此 1 块，其余已与 ORIG 对齐）。
-    *timepiece = static_cast<short>(*timepiece + 1);
-    DB_EventUpdateGrowthWeaponTimepiece::makeRequest(user->get_acc_id(), *timepiece, 0);
-    param.m_10 = *timepiece;
+    GrowthWeaponEvent* gwe =
+        static_cast<GrowthWeaponEvent*>(user->getGrowthWeaponEventdata());
+    gwe->m_field10 = static_cast<short>(gwe->m_field10 + 1);
+    DB_EventUpdateGrowthWeaponTimepiece::makeRequest(user->get_acc_id(), gwe->m_field10, 0);
+    param.m_10 = gwe->m_field10;
     param.m_8 = msg.m_0d;
     param.m_c = msg.m_11;
     return 0;

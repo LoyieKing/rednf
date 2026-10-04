@@ -125,13 +125,11 @@ void CUser::UpdateData()
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1e4e), true);
         guard.operator*()->operator<<((int)0x27);              // SIG_SAVE_DUNGEON_CLEAR
         guard.operator*()->operator<<((int)GetUID());
-        char* sig = (char*)guard.operator->()->GetInBuffer<SIG_SAVE_DUNGEON_CLEAR>();
-        memset(sig, 0, 0x180c);
-        *(unsigned int*)(sig + 0) = (unsigned int)getCurCharacNo();
-        *(unsigned int*)(sig + 4) = get_acc_id();
-        // ORIG +0x77b：CDungeonClear::toString(sig+0xc, 0x1800) 序列化；
-        // 返回负值（shr 31）走 "Quest buffer overflow" 报错 trace。
-        if (getDungeonClearRefR()->toString(sig + 0xc, 0x1800) < 0)
+        SIG_SAVE_DUNGEON_CLEAR* sig = guard.operator->()->GetInBuffer<SIG_SAVE_DUNGEON_CLEAR>();
+        memset(sig, 0, sizeof(SIG_SAVE_DUNGEON_CLEAR));
+        sig->m_unused0 = (int)getCurCharacNo();
+        sig->m_mId = (int)get_acc_id();
+        if (getDungeonClearRefR()->toString(sig->m_dungeon, 0x1800) < 0)
         {
             cMyTrace(__PRETTY_FUNCTION__, 0x1e5e, 5)
                 ("Quest buffer overflow (m_id: %s, charac_no: %d",
@@ -196,12 +194,11 @@ void CUser::UpdateData()
         CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x1f2b), true);
         guard.operator*()->operator<<((int)0x2f5);             // InformNoticeFlagData
         guard.operator*()->operator<<((int)-1);
-        char* sig = (char*)guard.operator->()->GetInBuffer<InformNoticeFlagData>();
-        memset(sig, 0, 0x14);
-        *(unsigned int*)(sig + 0) = get_acc_id();
-        // ORIG +0xc05：i∈[0,0x10) 逐位 getInformNoticeFlag(i) 填 +4..+0x13。
+        InformNoticeFlagData* sig = guard.operator->()->GetInBuffer<InformNoticeFlagData>();
+        memset(sig, 0, sizeof(InformNoticeFlagData));
+        sig->m_mId = get_acc_id();
         for (int i = 0; i < 0x10; ++i)
-            *(sig + 4 + i) = (char)getInformNoticeFlag(i);
+            sig->m_informNotice[i] = (char)getInformNoticeFlag(i);
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
         disableSaveInformNoticeFlag();
     }

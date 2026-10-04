@@ -20,18 +20,14 @@ int DisPatcher_EnterPVP::dispatch_sig(CUser* user, PacketBuf& packet)
     // H5 同法落于 SetPVPMapIndex/IncreStatusSigView）：取址走「基址 + 0xd」绕过
     // 「紧实字段不能绑定 short&」，读取走成员值语义（packed 成员读取合法）。
     // 视图占 [-0x1b,-0xd] 后，flag(-0x1c)/seat(-0x20)/buf(-0x29..-0x21) 槽位随之下移对齐。
-#pragma pack(push, 1)
-    struct EnterPVPMsgView
+    MSG_ENTER_PVP sig;
     {
-        char m_hdr[0xd];
-        short m_pvpIdx;
-    };
-#pragma pack(pop)
-    EnterPVPMsgView sig;
-    if (!packet.get_short(*reinterpret_cast<short*>(
-            reinterpret_cast<char*>(&sig) + 0xd)))
-    {
-        return LineFunc(0x6fc7, __PRETTY_FUNCTION__, 0, 0);
+        short pvpIdx = 0;
+        if (!packet.get_short(pvpIdx))
+        {
+            return LineFunc(0x6fc7, __PRETTY_FUNCTION__, 0, 0);
+        }
+        sig.m_pvpIdx = pvpIdx;
     }
     char flag = 0;              // ORIG movb $0x0,-0x1c
     int seat = 0;               // ORIG movl $0x0,-0x20

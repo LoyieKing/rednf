@@ -64,8 +64,12 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
             return;
         }
         const int total =
-            AtoiAt(resData, 0x99) + AtoiAt(resData, 0xa5) + AtoiAt(resData, 0x81) +
-            AtoiAt(resData, 0x75) + AtoiAt(resData, 0x8d) + AtoiAt(resData, 0x69);
+            atoi(resData->m_cmd.m_query.m_ceraValues[4]) +
+            atoi(resData->m_cmd.m_query.m_ceraValues[5]) +
+            atoi(resData->m_cmd.m_query.m_ceraValues[2]) +
+            atoi(resData->m_cmd.m_query.m_ceraValues[1]) +
+            atoi(resData->m_cmd.m_query.m_ceraValues[3]) +
+            atoi(resData->m_cmd.m_query.m_ceraValues[0]);
         user->SetCera(static_cast<unsigned int>(total));
 
         outPkt.put_header( 0, 0x35);
@@ -75,7 +79,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
 
     if (resData->m_type == 0)
     {
-        if (atoi(BufAt(resData, 0x26e)) == 1)
+        if (atoi(resData->m_cmd.m_input.m_pad26E) == 1)
         {
             int a = 0;
             int b = 0;
@@ -159,7 +163,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                 &q->m_optEntries[o][0]));
         }
 
-        int restrictCode = atoi(BufAt(resData, 0x173));   // local_108
+        int restrictCode = atoi(resData->m_cmd.m_output.m_resultCode);   // local_108
         // [R20a15 §26.3 多余物化移除] ORIG 全函数**无 bool 槽**（movb $0x0 仅 1 处、
         // movb $0x1 0 处；退出路径为 0x08322232 `mov $0x0,%ebx` + `jmp <尾 0x083237dc>`）
         // ⇒ 原码各失败分支直接 `return;`，没有 `success` 具名 bool + 末尾 `if(!success)`。
@@ -196,7 +200,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                     _processAvatarGift(user, itemIdx, avatarFieldReq,
                                        static_cast<char>(avatarSelB),
                                        static_cast<char>(avatarSelA),
-                                       BufAt(reqData, 0x7d), accIdReq, characNoReq);
+                                       reqData->m_cmd.m_output.m_arg7D, accIdReq, characNoReq);
                 }
                 else
                 {
@@ -204,7 +208,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                     insertSlot = invW->AddAvatarItem(
                         itemIdx, avatarFieldReq, false,
                         static_cast<char>(avatarSelB),
-                        static_cast<char>(avatarSelA), BufAt(reqData, 0x7d),
+                        static_cast<char>(avatarSelA), reqData->m_cmd.m_output.m_arg7D,
                         eAvatarItemAddReason(0), false, 0);
                     if (insertSlot >= 0)
                     {
@@ -235,7 +239,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                             user, user->getCurCharacNo(),
                             itemIdx, featuredIdxReq,
                             static_cast<char>(avatarSelB),
-                            static_cast<char>(avatarSelA), BufAt(reqData, 0x7d),
+                            static_cast<char>(avatarSelA), reqData->m_cmd.m_output.m_arg7D,
                             errMsg, static_cast<int>(strlen(errMsg)));
                     }
                 }

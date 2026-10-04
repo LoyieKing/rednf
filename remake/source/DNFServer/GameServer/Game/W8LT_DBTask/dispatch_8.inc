@@ -21,15 +21,15 @@ bool DB_RequestJoinGuild::dispatch(int userIdx, int slot, Stream* stream)
     db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_8, E_SERVER_GROUP_NONE);
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x9129), true);
-    DB_RequestJoinGuildReplyView* reply;
-    DB_RequestJoinGuildInView* sig;
+    SIG_REQUEST_JOIN_GUILD_DB_REPLY* reply;
+    SIG_REQUEST_JOIN_GUILD* sig;
     char escBuf[53];
 
     guard.operator*()->operator<<((int)0x217);
     guard.operator*()->operator<<(slot);
-    reply = reinterpret_cast<DB_RequestJoinGuildReplyView*>(
+    reply = /*SIG_REQUEST_JOIN_GUILD_DB_REPLY*/(
         guard.operator->()->GetInBuffer<SIG_REQUEST_JOIN_GUILD_DB_REPLY>());
-    sig = reinterpret_cast<DB_RequestJoinGuildInView*>(
+    sig = /*SIG_REQUEST_JOIN_GUILD*/(
         stream->GetOutBuffer<SIG_REQUEST_JOIN_GUILD>());
     // [Q5W8LT 2026-09-11 落地] ORIG 0x0843ccf2：死局部 `result`（全函数零引用）的
     // `movl $0x0,-0x1c(%ebp)` 发在 ORIG 第 45 条（GetOutBuffer 之后），而声明区版本

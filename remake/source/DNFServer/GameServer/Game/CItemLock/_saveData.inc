@@ -18,8 +18,8 @@ bool CItemLock::_saveData(CUser* user)
     // +4 起 100×8）复现 ORIG scaled 直存 0x4(%ecx,%ebx,8)；②m_characNo unsigned
     // 化（与 int 返回值异型）复现 ORIG RHS-first + %edx 中转；③POD 视图赋值复现
     // ORIG 先读全再写全块拷贝（同 getData）。
-    SIG_ITEM_LOCK_UPDATEView* sig =
-        (SIG_ITEM_LOCK_UPDATEView*)guard->GetInBuffer<SIG_ITEM_LOCK_UPDATE>();
+    SIG_ITEM_LOCK_UPDATE* sig =
+        guard->GetInBuffer<SIG_ITEM_LOCK_UPDATE>();
     memset(sig, 0, 0x324);
     sig->m_characNo = user->get_charac_no(-1);
 
@@ -36,8 +36,9 @@ bool CItemLock::_saveData(CUser* user)
                 0x59, "itemlock error index %d", idx);
             continue;
         }
-        sig->m_locks[idx] =
-            ((const stItemLockInfoPairPod*)it.operator->())->m_second;
+        memcpy(&sig->m_locks[idx],
+               &((const stItemLockInfoPairPod*)it.operator->())->m_second,
+               sizeof(sig->m_locks[idx]));
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);

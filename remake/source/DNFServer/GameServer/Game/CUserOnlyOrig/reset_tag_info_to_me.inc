@@ -12,10 +12,10 @@ void CUser::reset_tag_info_to_me(unsigned int tagAccId)
         // [b28d-solo-CUserOnlyOrig P167] ORIG 0x0864f95x 段 4 处命中
         // `__normal_iterator<...>::operator->()`；旧写法 `(*it).m` 生 operator*() ⇒
         // 按 ORIG 改 `it->m`（MISSING operator-> ×4 / EXTRA operator* ×4 归零）。
-        if (it->m_field14b8 == tagAccId) {                                   // +0x14b8
-            it->m_field14b8 = 0;
-            it->m_field14b7 = 0;                                    // +0x14b7
-            it->m_field14BC = 0;                                    // +0x14bc viewDirty（2026-09-04 已具名）
+        if (it->m_tagCharacNo == tagAccId) {                                   // +0x14b8
+            it->m_tagCharacNo = 0;
+            it->m_strikerSkillIndex = 0;                                    // +0x14b7
+            it->m_tagCharacInfoSent = 0;                                    // +0x14bc viewDirty（2026-09-04 已具名）
             touched = true;
         }
     }

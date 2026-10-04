@@ -6,8 +6,8 @@ bool DB_InsertTicket::InsertTicket(SIG_INSERT_TICKET* sig)
     static const int handleIdx = 3;  // ORIG _ZZN15DB_InsertTicket12InsertTicket…E9handleIdx
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx, E_SERVER_GROUP_NONE);
     db->set_query("inSert village_ticket values(%u,%d)",
-                  ((DB_InsertTicketView*)sig)->m_village,
-                  ((DB_InsertTicketView*)sig)->m_field4);
+                  sig->m_village,
+                  sig->m_field4);
     r = db->exec(true);
     if (!r)
         return 0;

@@ -54,13 +54,13 @@
 // 38. CUser::GetChangedGiftFatigueQuantity() const W 0x086975ee【报告缺失】
 // unsigned char CUser::GetChangedGiftFatigueQuantity() const
 // {
-//     return (unsigned char)m_field8ebb0;                          // movzbl 直返（P9）
+//     return (unsigned char)m_changedGiftFatigue;                          // movzbl 直返（P9）
 // }
 //
 // 39. CUser::getCharacAntibotSerialNum() const W 0x0823089c【报告缺失】
 // int CUser::getCharacAntibotSerialNum() const
 // {
-//     return m_field8ec24;                                         // movl 直返
+//     return m_antibotSerialNum;                                         // movl 直返
 // }
 //
 // 40. CUser::getCharacSlotCountDefaultInfo() T 0x0868b4fc

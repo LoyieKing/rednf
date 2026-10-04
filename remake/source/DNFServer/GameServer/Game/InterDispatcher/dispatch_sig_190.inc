@@ -18,16 +18,14 @@ int Inter_ItemLimitEdition_Update::dispatch_sig(CUser* /*user*/, char* data, int
         CDataManager* mgrData = G_CDataManager();
         CItemLimitEditionMgr* mgr = mgrData->getItemLimitEditionMgr();
         CItemLimitEdition* info =
-            mgr->getItemInfo(*reinterpret_cast<unsigned int*>(data + i * 9 + 0x12));
+            mgr->getItemInfo(pPkt->m_entries[i].m_itemIdx);
         if (info == 0 || info->isSellComplete())
             continue;                                // ORIG mov $1/mov $0 归并 true
 
         // 二旋钮实验留痕：mgrData/mgr/count/itemIdx/mgr2 全内联实测 **our 130（ORIG 138，gap 2→−8）
         // 反劣** ⇒ 原码确有这些具名槽（每点重算反而少 8 条）；维持 P0 保留具名形。
-        const unsigned int count =
-            *reinterpret_cast<unsigned int*>(data + i * 9 + 0x16);
-        const unsigned int itemIdx =
-            *reinterpret_cast<unsigned int*>(data + i * 9 + 0x12);
+        const unsigned int count = pPkt->m_entries[i].m_count;
+        const unsigned int itemIdx = pPkt->m_entries[i].m_itemIdx;
         CItemLimitEditionMgr* mgr2 = G_CDataManager()->getItemLimitEditionMgr();
         // ORIG xor $0x1,%eax; test %al（bool 取反语义）
         if (mgr2->updateItem(itemIdx, count))

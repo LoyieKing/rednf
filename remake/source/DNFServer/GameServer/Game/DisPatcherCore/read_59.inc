@@ -1,8 +1,8 @@
 int DisPatcher_AddFriend::read(PacketBuf& packet, MSG_BASE& msg)
 
 {
-    STFriendReqView* pMsg =
-        reinterpret_cast<STFriendReqView*>(&msg);   // ORIG -0xc(%ebp)
+    MSG_ADD_FRIEND* pMsg =
+        reinterpret_cast<MSG_ADD_FRIEND*>(&msg);   // ORIG -0xc(%ebp)
     if (!packet.get_int(pMsg->m_nameLen))           // +0x0d
     {
         return LineFunc(0x207b,

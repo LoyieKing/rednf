@@ -11,11 +11,13 @@
 // owner：W8_CU_G.cpp 建立；其余 TU 引用请 include 本头，勿重复建模。
 // ============================================================================
 #include "CLevelDungeonPlayStatistic.h"
+#include "CDungeonExpStatistic.h"
 
 class CStatisticMgr
 {
 public:
     CLevelDungeonPlayStatistic m_levelDungeonPlay;   // +0x00
+    CDungeonExpStatistic m_dungeonExp;              // +0x18
 };
 
 #endif  // GAME_CSTATISTICMGR_H

@@ -103,14 +103,8 @@ public:
     guard.operator*()->operator<<(0x117);          // SIG_INSERT_ACHIEVE_EVENT
     guard.operator*()->operator<<(-1);
 
-    struct View
-    {
-        unsigned int m_accId;                      // +0x00
-        unsigned int m_characNo;                   // +0x04
-        SIG_INSERT_ACHIEVE_EVENT::ENUM_ACHIEVE_TYPE m_type;  // +0x08（原枚举存储）
-    };
-    View* v =
-        reinterpret_cast<View*>(guard.operator->()->GetInBuffer<SIG_INSERT_ACHIEVE_EVENT>());
+    SIG_INSERT_ACHIEVE_EVENT* v =
+        guard.operator->()->GetInBuffer<SIG_INSERT_ACHIEVE_EVENT>();
     v->m_accId = accId;
     v->m_characNo = characNo;
     v->m_type = type;
@@ -128,20 +122,12 @@ public:
     guard.operator*()->operator<<(0x122);          // SIG_INSERT_UNLIMIT_SUPPORT_LOG
     guard.operator*()->operator<<(-1);
 
-    struct View
-    {
-        unsigned int m_accId;                      // +0x00
-        unsigned int m_serverGroup;                // +0x04
-        unsigned int m_characNo;                   // +0x08
-        char m_name[0x1d];                         // +0x0c
-    };
-    View* v =
-        reinterpret_cast<View*>(guard.operator->()->GetInBuffer<SIG_INSERT_UNLIMIT_SUPPORT_LOG>());
+    SIG_INSERT_UNLIMIT_SUPPORT_LOG* v =
+        guard.operator->()->GetInBuffer<SIG_INSERT_UNLIMIT_SUPPORT_LOG>();
     v->m_accId = uid;
-    v->m_characNo = characNo;
-    // 报告语句序：先写 +8，再调 G_CEnvironment 回填 +4（serverGroup）。
-    v->m_serverGroup =
-        static_cast<unsigned int>(G_CEnvironment()->m_serverEnvir.m_serverGroup);
+    v->m_characNo = (int)characNo;
+    v->m_serverId =
+        G_CEnvironment()->m_serverEnvir.m_serverGroup;
     std::strncpy(v->m_name, name, 0x1d);
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
@@ -164,10 +150,10 @@ public:
         int m_type;                                // +0x04
         char m_ip[0x10];                           // +0x08
     };
-    View* v =
-        reinterpret_cast<View*>(guard.operator->()->GetInBuffer<SIG_SAVE_HACK_USER_PUNISH>());
+    SIG_SAVE_HACK_USER_PUNISH* v =
+        guard.operator->()->GetInBuffer<SIG_SAVE_HACK_USER_PUNISH>();
     v->m_accId = uid;
-    v->m_type = type;
+    v->m_punish = type;
     if (ip == 0)
         std::memcpy(v->m_ip, "000.000.000.000", 0x10);
     else

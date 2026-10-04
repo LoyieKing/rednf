@@ -147,7 +147,7 @@ int CUser::InitOnAccept(int socketFd)
     m_mcap.m_secuUserAction->Init();
 
     m_multiMailFlag = 0;
-    m_field8e3ed = true;                               // +0x8e3ed
+    m_sendMailCertified = true;                               // +0x8e3ed
     memset(m_mailMsgData, 0, sizeof(m_mailMsgData));
     memset(m_multiMailMsgData, 0, sizeof(m_multiMailMsgData));
     m_mcap.reset();                                    // WongWork::CMCAPManager::reset W 0x08694fa0

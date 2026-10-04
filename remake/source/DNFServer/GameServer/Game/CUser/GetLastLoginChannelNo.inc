@@ -1,4 +1,4 @@
 int CUser::GetLastLoginChannelNo()
 {
-    return m_field8d0f8;
+    return m_lastLoginChannelNo;
 }

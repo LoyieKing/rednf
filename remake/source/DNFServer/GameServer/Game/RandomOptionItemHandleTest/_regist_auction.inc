@@ -16,8 +16,8 @@ int CRandomOptionItemHandleTest::_regist_auction(Inven_Item& item, long long auc
     //   实测反劣 124→**125**（首个结果仍落槽 -0x24，且位置变 -0x24 vs ORIG -0x1c）
     //   ⇒ 4.4 -O0 下 register 不改变该变量的栈分配（探针里有效的简化上下文不成立）。
     //   按 N 封顶，保持具名形（124/123，残差 1 条 + 帧 0xac/0xbc）。
-    char* randomOptionStr = db->blob_to_str(1, (char*)&item + 0x25, 0xe);
-    char* guidStr = db->blob_to_str(0, (char*)&item + 0x15, 10);
+    char* randomOptionStr = db->blob_to_str(1, reinterpret_cast<char*>(&item.m_random.m_random), 0xe);
+    char* guidStr = db->blob_to_str(0, reinterpret_cast<char*>(&item.m_amp.m_guid), 10);
     // unsigned char：ORIG getAbilityType 后 movzbl 零扩展（P11；char 会 movsbl）。
     // [b28e-S4] ORIG 0x085f3e47 先调 +0xa7（getAbilityValue，`movzwl %ax` → -0x48）
     //   再调 +0x67（getAbilityType，`movzbl %al` → -0x44）⇒ 声明序 value 先 type 后

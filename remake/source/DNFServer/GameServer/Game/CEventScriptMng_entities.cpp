@@ -188,7 +188,7 @@ typedef char dnf_mail_layout_assert_[
         serverGroup = (unsigned char)user->GetServerGroup();
     else
         serverGroup = (unsigned char)
-            ((CEnvironment378View*)G_CEnvironment())->m_serverGroup378;
+            G_CEnvironment()->m_serverEnvir.m_serverGroup;
 
     DB_InsertAccountFirstLoginFlag::makeRequest(
         (int)user->GetUID(), user->get_acc_id(), serverGroup,

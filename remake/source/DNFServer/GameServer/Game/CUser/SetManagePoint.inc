@@ -16,5 +16,5 @@ void CUser::SetManagePoint(int point)
                       ->GetLevelUpRequirePoint(lvmax);
     if (point > require)
         point = require;
-    m_field8ebd4 = point;
+    m_managePoint = point;
 }

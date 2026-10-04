@@ -29,7 +29,7 @@ void CUser::_SaveCharacData()
 
     sig->m_dungeonGainGold = getDungeonGainedGold()->getGainedGold();
     sig->m_ssoId = (unsigned int)get_acc_id();
-    sig->m_reportCnt = m_field8d110;   /* ORIG this+0x8d110 实证 */
+    sig->m_reportCnt = m_reportMannerlessUserCount;   /* ORIG this+0x8d110 实证 */
     sig->m_ssoTradeGoldDaily = GetOverTradeGoldCount();
     sig->m_rating = GetRating();              // ORIG fstps 0xf6（4B float 实证）
     sig->m_tutorialSkipable = GetTutorialSkipable();

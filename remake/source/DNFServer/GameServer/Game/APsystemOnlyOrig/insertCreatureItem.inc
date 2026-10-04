@@ -58,12 +58,12 @@ bool DB_InsertCreatureItem::insertCreatureItem(MySQL* db,
     db->set_query(
         "inSert into creature_items(charac_no,slot,it_id,expire_date,delete_date,reg_date,name,stomach,exp,endurance,no_charge,stat,creature_type)values(%d,%d,%d,%s,%s,NOW(),'%s',%d,%d,%d,0,%d,%d)",
         sig->m_characNo, sig->m_slot,
-        ((DB_CreatureItemInserView*)sig)->m_itId,
+        sig->m_itemView.m_itemIdx,
         expireDate, deleteDate,
         sig->m_name,
         sig->m_stomachValue,
-        ((DB_CreatureItemInserView*)sig)->m_exp,
-        (unsigned int)((DB_CreatureItemInserView*)sig)->m_endurance,
+        sig->m_exp,
+        (unsigned int)sig->m_itemView.m_endurance,
         (int)(signed char)sig->m_field53, (int)(signed char)sig->m_flag50);
     return db->exec(true);
 }

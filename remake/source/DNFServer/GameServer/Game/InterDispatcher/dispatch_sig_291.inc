@@ -1,7 +1,7 @@
 int Inter_CeraShopPurchaseCount::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_CeraShopPurchaseCountPktView* pPkt = reinterpret_cast<Inter_CeraShopPurchaseCountPktView*>(data);
-    if (pPkt == 0)
+    SIG_CERASHOP_PURCHASE_COUNT* cnt = reinterpret_cast<SIG_CERASHOP_PURCHASE_COUNT*>(data);
+    if (cnt == 0)
     {
         cMyTrace(__PRETTY_FUNCTION__,
             0x6a96, 5)("[PURCAHSE BONUS] internal data is null.");
@@ -9,8 +9,8 @@ int Inter_CeraShopPurchaseCount::dispatch_sig(CUser* user, char* data, int /*len
     }
     GlobalData::s_pItemVendingMachine->ProcessPurcahseBonusItem(
         user,
-        pPkt->m_4,
-        pPkt->m_c,
-        pPkt->m_8);
+        cnt->m_itemUid,
+        cnt->m_count,
+        cnt->m_purchaseCnt);
     return 0;
 }

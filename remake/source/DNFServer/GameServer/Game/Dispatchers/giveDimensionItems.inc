@@ -20,8 +20,7 @@ void Dispatcher_PcRoomRentItem::giveDimensionItems(CUser* user,
     // rewardData->getRewardGiveItems(selectionIdx, job, growType)（P183 全表达式内联），
     // 非空则逐项组装 RentInElem 入 input.m_elems（m_type=1 GiveList 标记）
     std::vector<EventRewardItemInfo>* items =
-        reinterpret_cast<DimensionActivationRewardData*>(
-            reinterpret_cast<char*>(G_CDataManager()) + 0x4b34)
+        (&G_CDataManager()->m_dimensionAct.m_rewardData)
             ->getRewardGiveItems(selectionIdx, user->get_charac_job(),
                                  static_cast<int>(user->getCurCharFirstGrowType()));
     // [G6-giveDim] ORIG 0x081e5920 循环退出点 `jmp 0x081e592c`（epilogue）为独立尾岛

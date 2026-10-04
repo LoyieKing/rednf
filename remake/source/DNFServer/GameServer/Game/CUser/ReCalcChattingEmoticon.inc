@@ -19,8 +19,9 @@ void CUser::ReCalcChattingEmoticon()
         //   且 cfg 用结构整体赋值（我方 memcpy EXTRA ×1，P83/P132）。
         guard.operator*()->operator<<((int)0x2d7);
         guard.operator*()->operator<<((int)GetUID());
-        char* sig = (char*)guard.operator->()->GetInBuffer<SIG_SAVE_CHATTING_EMOTICON>();
-        *(unsigned int*)(sig + 0) = get_acc_id();
+        SIG_SAVE_CHATTING_EMOTICON* sig =
+            guard.operator->()->GetInBuffer<SIG_SAVE_CHATTING_EMOTICON>();
+        sig->m_mId = get_acc_id();
         // 2026-09-11（Lane2，等宽 align-4 视图 = N78 慢路解药）：ORIG 0x08689b2b 对
         //   +4 的 0x210 字节块走**纯** `lea 0x4(%eax),%ebx; mov $0x84,%eax; mov %ebx,%edi;
         //   mov %edx,%esi; mov %eax,%ecx; rep movsl`（8 条，无对齐剥离前导/尾部）。
@@ -30,11 +31,7 @@ void CUser::ReCalcChattingEmoticon()
         //   （历史 H3「aligned typedef 别名」失败正因别名仍以 align-1 类型为基）。
         //   等宽 align-4 局部视图后 4.4 逐条复现 ORIG 8 条（探针
         //   /tmp/lane2/probe_align3.cpp g2）。视图为纯局部类型：零符号发射、零语义变更。
-        struct EmoticonCfgA4View
-        {
-            unsigned int m_dw[0x210 / 4];   // 0x210 字节，align 4
-        };
-        *(EmoticonCfgA4View*)(sig + 4) = *(const EmoticonCfgA4View*)&cfg;
+        sig->m_cfg = cfg;
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     }
 }

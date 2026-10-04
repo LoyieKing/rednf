@@ -102,7 +102,7 @@ namespace village_attacked
         char m_head[0x14];
         int  m_state;
     };
-    ((CVMonsterStateView*)this)->m_state = state;
+    m_state = state;
     PacketGuard pg;
     pg.clear();
     pg.put_header(0, 0xf0);
@@ -139,5 +139,5 @@ namespace village_attacked
         char m_head[0x20];
         int  m_field20;
     };
-    ((CVMgrRewardView*)this)->m_field20 = reward;
+    m_field20 = reward;
 }

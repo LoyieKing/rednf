@@ -172,10 +172,13 @@ namespace APSystem
         // packed 字段不能直接绑定到 unsigned int&（GCC 报错，且 reinterpret_cast
         // 自 &sig.m_apSum 仍被追踪）⇒ 经 char* 基址 + offsetof 转写；codegen 仍为
         // ORIG 的 `lea 0x4(%eax),%edx`。
-        if (!db->get_uint(col++, *reinterpret_cast<unsigned int*>(
-                                     reinterpret_cast<char*>(&sig) + 4)))
         {
-            return false;
+            unsigned int apSum = 0;
+            if (!db->get_uint(col++, apSum))
+            {
+                return false;
+            }
+            sig.m_apSum = apSum;
         }
         unsigned char flag = 0;
         if (!db->get_ubyte(col++, flag)) return false;
@@ -384,10 +387,13 @@ namespace APSystem
         }
         // [b28d-solo-APSystemOnlyOrig] ORIG 0x08124b4d：`mov 0xc(%ebp),%eax;
         // add $0x4,%eax` 直传 &sig.m_apSum（packed 字段经 char* 基址转写）。
-        if (!db->get_uint(1, *reinterpret_cast<unsigned int*>(
-                                 reinterpret_cast<char*>(&sig) + 4)))
         {
-            return false;
+            unsigned int apSum = 0;
+            if (!db->get_uint(1, apSum))
+            {
+                return false;
+            }
+            sig.m_apSum = apSum;
         }
         return true;
     }

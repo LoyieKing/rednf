@@ -2,7 +2,7 @@ bool CUserCharacInfo::getContractOfCubePremiumInfo(unsigned char& active, unsign
 {
     if (!m_selected)
         return false;
-    *(&active) = m_selected->m_field14CE != 0 ? 1 : 0;
-    *(&count) = m_selected->m_field14CF;
+    *(&active) = m_selected->m_cubePremiumActive != 0 ? 1 : 0;
+    *(&count) = m_selected->m_cubePremiumCount;
     return true;
 }

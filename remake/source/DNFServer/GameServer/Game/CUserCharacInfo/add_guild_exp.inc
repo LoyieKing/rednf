@@ -4,5 +4,5 @@ void CUserCharacInfo::add_guild_exp(int exp)
 {
     if (m_selected && m_selected->m_guildId != 0)
         // P274 异型视角（同 add_guild_today_exp）。
-        m_selected->m_fieldDE9 = m_selected->m_fieldDE9 + exp;
+        m_selected->m_guildExp = m_selected->m_guildExp + exp;
 }

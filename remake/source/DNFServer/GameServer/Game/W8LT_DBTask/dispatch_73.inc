@@ -8,8 +8,8 @@
 // 补 inSert；inSert exec 失败返 0；全绿返 1。
 bool DB_SaveTitleBook::dispatch(int userIdx, int slot, Stream* stream)
 {
-    DB_TitleBookSaveView* sig =
-        (DB_TitleBookSaveView*)stream->GetOutBuffer<stTitleBook_Save>();
+    stTitleBook_Save* sig =
+        stream->GetOutBuffer<stTitleBook_Save>();
     char general[0x1410] = { 0 };
     unsigned int generalLen = 0x1410;
     if (!compress_zip(general, generalLen, sig->m_data, 0x10ae))

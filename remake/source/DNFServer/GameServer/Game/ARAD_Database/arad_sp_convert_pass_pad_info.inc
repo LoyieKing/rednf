@@ -82,7 +82,7 @@ int LOGIN_QUERY::arad_sp_convert_pass_pad_info(SIG_LOGIN_DATA* data)
             0x2db, "%s", "PassPad Cancel Count Parsing error");
         return -1;
     }
-    if (!db->get_byte(3, *reinterpret_cast<char*>(&data->m_passPadVersion)))   // version_info（+0x390c）
+    if (!db->get_byte(3, data->m_passPadVersion))
     {
         LogManager::logFormat(
             1, "localjapan/Arad_DB_Query.cpp",

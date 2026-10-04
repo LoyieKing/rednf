@@ -13,9 +13,9 @@ void SpecialItemHandler::respond_special_item_cargo(int type,
     // 判定 `xor $1,%eax; test %al,%al; je <成功>`（4.1 对 x==1 的 xor 展开）。
     // 4.4 的 if/else 恒 then-first（je 落 else）⇒ 条件取反成 `!= 1` 使失败块直落；
     // 残余 xor vs cmp 为 4.4 折叠差异（N18a 同族，见判词）。
-    if (!CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoW()->UpgradeCargo(
-            CERA_PARAM_TYPED(param)->m_value))
+    if (!static_cast<CUser*>(param.m_user)->getCurCharacCargoW()->UpgradeCargo(
+            param.m_value))
         result.m_value = 0x17;
     else
-        m_owner->_sendCargoUpgradePacket(CERA_PARAM_TYPED(param)->m_user, type);
+        m_owner->_sendCargoUpgradePacket(static_cast<CUser*>(param.m_user), type);
 }

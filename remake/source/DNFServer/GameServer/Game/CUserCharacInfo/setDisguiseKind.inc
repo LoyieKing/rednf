@@ -2,6 +2,6 @@ void CUserCharacInfo::setDisguiseKind(unsigned char kind)
 {
     if (m_selected)
     {
-    m_selected->m_fieldEEA = kind;
+    m_selected->m_disguiseKind = kind;
     }
 }

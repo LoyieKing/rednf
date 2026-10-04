@@ -3,9 +3,9 @@ int Inter_NoticePowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*le
 {
     Inter_NoticePowerWarInfoPktView* pPkt = reinterpret_cast<Inter_NoticePowerWarInfoPktView*>(data);
     GlobalData::s_power_manager->SetPowerInfo(
-        (char)pPkt->m_12,
-        pPkt->m_a,
-        pPkt->m_e);
+        (char)pPkt->m_side,
+        pPkt->m_point,
+        pPkt->m_channelPoint);
 
     // [b28c-31] ORIG 0x084d4e70/0x084d4e90：两守卫均为正向早退
     // （`test %al,%al; je <继续>` / `cmp $1;je <true>; cmp $2;jne <false>`），
@@ -18,7 +18,7 @@ int Inter_NoticePowerWarInfo::dispatch_sig(CUser* /*user*/, char* data, int /*le
         return 0;
     PacketGuard packet;
     packet.put_header(0, 0xbc);
-    packet.put_byte((int)pPkt->m_12);
+    packet.put_byte((int)pPkt->m_side);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;

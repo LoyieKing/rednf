@@ -30,9 +30,7 @@ float CParty::calDeadUserDungeonPenalty(int slot)
     {
         // P0/P183：ORIG 无 deadCnt 具名槽（0x085ad9eb 直接 fildl 临时槽）——
         // 表达式内联进 float 转换，禁具名 int 局部。
-        rate = static_cast<float>(
-                   reinterpret_cast<const KcDeadCountView*>(this)
-                       ->m_deadCounts[slot + 0xe0])
+        rate = static_cast<float>(m_battleData.m_arr64[slot])
              / static_cast<float>(memberCount - 1);
         // [M1Free76to90 2026-09-11] 语义轴真修：ORIG x87 序列 `flds rate; flds 0.3f;
         // fucompp; fnstsw %ax; test $0x45,%ah; sete %al; test; je`：ST0=0.3 vs ST1=rate，

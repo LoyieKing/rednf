@@ -35,8 +35,7 @@ bool CUser::SaveInventoryOnly()
 
     memcpy(inv->m_invenType0,  getCurCharacInvenR()->GetInvenStart(0), 0x53e);
     memcpy(inv->m_invenType1,    getCurCharacInvenR()->GetInvenStart(1), 0x4a58);
-    *(unsigned int*)&inv->m_cargoCapacity =
-        getCurCharacCargoR()->GetCapacity();
+    inv->m_cargoCapacity = (unsigned int)getCurCharacCargoR()->GetCapacity();
     memcpy(inv->m_cargo,
            getCurCharacCargoR()->get_cargo_start(), 0x2438);
     memcpy(inv->m_invenType3 /*invenRewardZone*/,

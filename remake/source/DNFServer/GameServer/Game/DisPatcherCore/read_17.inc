@@ -8,19 +8,19 @@ int DisPatcher_SelectDungeon::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_dungeonType)))
+    if (!packet.get_byte(req.m_dungeonType))
     {
         return LineFunc(0x18db,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_field10)))
+    if (!packet.get_byte(req.m_field10))
     {
         return LineFunc(0x18e2,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_field11)))
+    if (!packet.get_byte(req.m_field11))
     {
         return LineFunc(0x18e4,
                         __PRETTY_FUNCTION__,

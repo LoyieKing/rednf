@@ -8,8 +8,7 @@ void CUser::send_clear_quest_list()
     // 槽膨胀主因，pg 基址 -0x1c 应回 -0x14）。
     {
         const WongWork::STClearedQuest* cq =
-            reinterpret_cast<WongWork::CQuestClear*>(
-                (char*)getCurCharacQuestR() + 4)->getClearedQuest();
+            getCurCharacQuestR()->m_cleared.getClearedQuest();
         int nz = 0;
         int first = -1;
         for (int i = 0; i < 0x7530; ++i) {

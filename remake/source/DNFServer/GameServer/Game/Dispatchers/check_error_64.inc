@@ -31,13 +31,8 @@ int Dispatcher_Enchant_3rdChronicleItem::check_error(CUser* user, MSG_BASE& msg)
     // [b28d-solo-Dispatchers] P211 档③/P254：ORIG 0x081d34e2 `mov 0x15(%eax),%eax;
     //   mov %eax,%ebx`（两段）为「视图字段 unsigned + find_item(int) 形参异型」
     //   的转换中转形；改用 unsigned 视图字段内联实参（探针 /tmp/probe_disp.cpp t3）。
-    struct __attribute__((packed)) EnchantReqView
-    {
-        char m_head15[0x15];
-        unsigned int m_itemIdx;       // +0x15
-    };
     CItem* itemScript = G_CDataManager()->find_item(
-        reinterpret_cast<const EnchantReqView&>(req).m_itemIdx);
+        static_cast<unsigned int>(req.m_15));
     if (itemScript == 0)
     {
         return 4;

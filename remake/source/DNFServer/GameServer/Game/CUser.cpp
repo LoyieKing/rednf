@@ -250,7 +250,7 @@
 //        （实测本函数 212→50 条 = 真损坏），必须 `switch((int)cmd)` + int 常量 case；
 //      · gainCurCharacFatigue（P222/P214①）：`if (remain >= 0)` 分支极性（ORIG 0x0864f871
 //        `js` 且正块 fall-through）⇒ DIFF→NEAR；
-//      · getCharacInfoDetail（P171 照抄）：补 ORIG 重复赋值 `m_field114 ← m_field1225`
+//      · getCharacInfoDetail（P171 照抄）：补 ORIG 重复赋值 `m_field114 ← m_powerWarAssaultVictoryCount`
 //        （0x0864c58b/0x0864c5b2 两段逐条同形 + Ghidra 连续两条 param_3+0x114）；
 //      · FatigueUp（语义轴）：hack 判定乘数 -0x2a(42)→-0x32(50)（ORIG 0x08655dd0-0x08655e02
 //        尾 `add %eax,%eax` ⇒ 判定式 = `fat % 50 == 0`；旧形 fat=50k 漏报、fat=42 误报）；
@@ -292,7 +292,7 @@
 //         生产端像 uchar）vs 消费点 0x08179e56 `call; xor $0x1,%eax; test %al,%al; je`（消费端像 bool）
 //         ⇒ P321 T3 「两端矛盾 ⇒ 记 N」；且探针（/tmp/pu_probe.cpp，c6root 4.4.7）证明 bool 化后
 //         4.4 在 `return <uchar 字段>` 处插 `testb %al,%al; setne %al` ⇒ 本体 +2 条、本 TU
-//         identical→DIFF；字段 `m_field796d8` 亦不可 bool 化（InterDispatcher.cpp:18163 包读可 >1、
+//         identical→DIFF；字段 `m_puUser` 亦不可 bool 化（InterDispatcher.cpp:18163 包读可 >1、
 //         CUserOnlyOrig.cpp:7163 store 形依赖 uchar=bool 异型、W8_CU_G.cpp:278/282 按 !=0 消费）。
 //   逐件 TSV：/tmp/CuA..CuE/patch.diff + result.tsv、/tmp/cuser_scan.tsv、/tmp/p167_summary.txt。
 // ---------------------------------------------------------------------------
@@ -2561,13 +2561,6 @@ struct FindRentalInfoByItemIndex
     int m_itemIndex;
 };
 
-struct SigUpdateCharacViewRecord
-{
-    int m_headField;                    // +0x00（rec[0]=acc_id；rec[i>0]←前一角色 expireSec）
-    CHARAC_LOGIN_DATA m_data;           // +0x04（0x90）
-};
-typedef char sig_charac_view_rec_size_ok[(sizeof(SigUpdateCharacViewRecord) == 0x94) ? 1 : -1];
-
 #include "CUser/checkRentedItem.inc"
 
 struct ExpansionPair
@@ -2759,8 +2752,7 @@ struct ExpansionPair
                     if (count < 1)
                         mult = 1.0f;
                     else
-                        mult = *(float*)((char*)G_CDataManager() + 0x10 +
-                                         (count + 0xf7) * 4);
+                        mult = G_CDataManager()->m_serverParameter.m_expGroup388[count - 1];
                     rate = (int)((float)rate * mult);
                 }
             }

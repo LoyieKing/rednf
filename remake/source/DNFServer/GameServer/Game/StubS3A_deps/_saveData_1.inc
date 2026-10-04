@@ -24,9 +24,8 @@ bool CItemMakingSkill::_saveData(CUser* pUser)
     // [b28d-63 本 TU] 具名局部用视图指针类型：ORIG 0x0854533a 在 call 之后才载基址
     //   （`mov %eax,%edx; mov -0x10(%ebp),%eax; mov %edx,(%eax)`），char* 形 4.4 恒
     //   LHS-first 并把基址提前缓存进 %ebx。
-    ItemMakingSkillReqView* sigBuf =
-        reinterpret_cast<ItemMakingSkillReqView*>(
-            guard.operator->()->GetInBuffer<SIG_ITEM_MAKING_SKILL>());
+    SIG_ITEM_MAKING_SKILL* sigBuf =
+            guard.operator->()->GetInBuffer<SIG_ITEM_MAKING_SKILL>();
     memset(sigBuf, 0, 0x1c);
     // [M2S2 2026-09-11 · N76 判词作废] 旧判词「三形均不翻 ⇒ N76」已推翻：正解是
     //   **字段侧异型化**（P211 反形异型化）—— 视图 `ItemMakingSkillReqView::m_characNo`
@@ -38,7 +37,7 @@ bool CItemMakingSkill::_saveData(CUser* pUser)
     //   零 ABI 风险：视图结构仅本 TU 内使用，宽/偏移/pack 不变。
     sigBuf->m_characNo = pUser->get_charac_no(-1);
     for (int i = 0; i <= 0xa; ++i)
-        sigBuf->m_skills[i] = m_skillLevels[i];
+        sigBuf->m_skillLevels[i] = m_skillLevels[i];
     // ORIG：MsgQueueMgr::put(DB_Q=2, guard) 提交 DB 队列（0x08545381）。
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     return true;

@@ -8,7 +8,7 @@ int Inter_MonitorNoticeGuildMarkChange::dispatch_sig(CUser* user, char* data, in
     Inter_MonitorNoticeGuildMarkChangePktViewI* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildMarkChangePktViewI*>(data);
 
 
-    if (user->get_charac_no(-1) != pPkt->m_e)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {   // m_uCharID 不匹配 → 日志后退出
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -16,14 +16,14 @@ int Inter_MonitorNoticeGuildMarkChange::dispatch_sig(CUser* user, char* data, in
             0x244a,
             "Inter_MonitorNoticeGuildMarkChange::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            pPkt->m_e);
+            pPkt->m_characNo);
         return 0;
     }
 
     cMyTrace(__PRETTY_FUNCTION__,
         0x244f, 0)("[GUILD MARK CHANGE] Send to client. (channel:%d, character:%u, guildkey:%u)",
-          pPkt->m_a,
-          pPkt->m_e,
+          pPkt->m_guildKey,
+          pPkt->m_characNo,
           pPkt->m_12);
 
     PacketGuard packet;

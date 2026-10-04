@@ -26,11 +26,7 @@ unsigned int Dispatcher_GuildCargoPopItem::check_error(CUser* user, MSG_BASE& ms
         return secu;
 
     // msg +0x0f（packed 具名视图，ORIG 单级 disp `mov 0xf(%eax),%ebx`）
-    struct __attribute__((packed)) CargoPopParamView {
-        char m_head[0xf];
-        int m_itemIdx;                   // +0x0f
-    };
-    CargoPopParamView* pv = reinterpret_cast<CargoPopParamView*>(&msg);  // ORIG -0x10
+    MSG_GUILD_CARGO_POP_ITEM* pv = reinterpret_cast<MSG_GUILD_CARGO_POP_ITEM*>(&msg);
     // [L7DispG4 2026-09-11 · P52 链式 receiver] ORIG 0x081d155a/0x081d1569：
     //   `mov 0xc(%ebp),%eax; mov %eax,(%esp); call getCurCharacInvenR;
     //    mov %ebx,0x4(%esp); mov %eax,(%esp); call possible_to_insert`

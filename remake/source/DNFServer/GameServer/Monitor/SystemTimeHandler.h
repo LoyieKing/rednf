@@ -237,17 +237,7 @@ struct stServerInfo;
 struct stTowerRankElement_t;
 struct stUserHuntingPoint;
 
-class CommonTime
-{
-public:
-    void SetCurTime();
-    char m_year;   // +0（tm_year-100）
-    char m_month;  // +1（tm_mon+1）
-    unsigned char m_day;    // +2（tm_mday）
-    unsigned char m_hour;   // +3（tm_hour）
-    unsigned char m_minute; // +4（tm_min）
-    unsigned char m_wday;   // +5（tm_wday）
-};
+#include "../CommonTime.h"
 
 class CSystemTime
 {

@@ -32,8 +32,8 @@ bool DB_SelectCharacMid::dispatch(int userIdx, int slot, Stream* stream)
             GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0xae30), true);
         guard.operator*()->operator<<(userIdx);
         guard.operator*()->operator<<(slot);
-        DB_SelectCharacMidResultView* out =
-            (DB_SelectCharacMidResultView*)guard->GetInBuffer<SIG_CHECK_CHAR_MID_RESULT>();
+        SIG_CHECK_CHAR_MID_RESULT* out =
+            guard->GetInBuffer<SIG_CHECK_CHAR_MID_RESULT>();
         out->m_mId = mId;
         out->m_field04 = sig->m_field04;
         out->m_field08 = sig->m_field08;

@@ -135,7 +135,7 @@ void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
         // ORIG 0x0866b4b4：if/else 之后两分支共用一次 getCurCharacSkillR()+get_skill_level()
         // 再 WriteLearnSkill（原实现误置于 !isGuildSkill 内，公会技能分支漏记日志）。
         int learnLevel = ((SkillSlot*)getCurCharacSkillR())->get_skill_level(ret);
-        HistoryLog::WriteLearnSkill((FILE*)m_field796f8, (int)skillIdx, learnLevel);
+        HistoryLog::WriteLearnSkill((FILE*)m_historyLogFp, (int)skillIdx, learnLevel);
     }
     pkt->finalize(true);
     Send(packet);

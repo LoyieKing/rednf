@@ -119,6 +119,7 @@ typedef char AddInfoMove2_off_3a[(__builtin_offsetof(AddInfoMove2, m_field3a) ==
 typedef char AddInfoMove2_off_42[(__builtin_offsetof(AddInfoMove2, m_field42) == 0x42) ? 1 : -1];
 typedef char AddInfoMove2_off_4e[(__builtin_offsetof(AddInfoMove2, m_field4e) == 0x4e) ? 1 : -1];
 
+#include "SkillSlot.h"
 #include "UserCoreDepsB2/MakeTagCharacInfo.inc"
 
 

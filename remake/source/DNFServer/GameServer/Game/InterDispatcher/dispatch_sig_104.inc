@@ -16,9 +16,9 @@ int Inter_GMRequestMid::dispatch_sig(CUser* user, char* data, int /*len*/)
     packet.put_header(0, 0x7e);
     packet.put_int(pPkt->m_e);
     packet.put_int(pPkt->m_12);
-    int nameLen = strlen(pPkt->m_16);
+    int nameLen = strlen(pPkt->m_name);
     packet.put_int(nameLen);
-    packet.put_str(pPkt->m_16, nameLen);
+    packet.put_str(pPkt->m_name, nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;

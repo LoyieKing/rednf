@@ -8,9 +8,9 @@ void CUserCharacInfo::DecreasePowerWarPoint(short point)
     {
     enableSaveCharacStat();
     // P254 packed enum 视角（同 IncreasePowerWarPoint）。
-    m_selected->m_field121f =
-        (EPowerWarPointValue)((int)m_selected->m_field121f - point);
-    if ((short)m_selected->m_field121f < 0)
-        m_selected->m_field121f = 0;
+    m_selected->m_powerWarPoint =
+        (EPowerWarPointValue)((int)m_selected->m_powerWarPoint - point);
+    if ((short)m_selected->m_powerWarPoint < 0)
+        m_selected->m_powerWarPoint = 0;
     }
 }

@@ -11,8 +11,8 @@ bool DB_RemoveEventItem::dispatch(int userIdx, int slot, Stream* stream)
                                                   (ENUM_SERVER_GROUP)0);
     // view 类型局部（ORIG 循环体「先载下标再载基址」形态；证据 dispatch.md
     // 0x841ab6d：mov -0xc,%edx / mov -0x10,%eax / mov 0x4(%eax,%edx,4),%eax）。
-    DB_RemoveEventItemView* raw =
-        (DB_RemoveEventItemView*)stream->GetOutBuffer<SIG_REMOVE_EVENTITEM>();
+    SIG_REMOVE_EVENTITEM* raw =
+        stream->GetOutBuffer<SIG_REMOVE_EVENTITEM>();
     int i;
     for (i = 0; i < raw->m_count; ++i)
     {

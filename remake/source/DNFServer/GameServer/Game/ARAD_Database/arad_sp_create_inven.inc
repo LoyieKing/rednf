@@ -26,7 +26,7 @@ int CREATE_QUERY::arad_sp_create_inven(MySQL* db, SIG_CREATE_CHARAC* sig)
     char zipBuf[0x4152];
     memset(zipBuf, 0, sizeof(zipBuf));
     unsigned int zipLen = 0x4152;
-    char* invenSrc = (char*)sig->m_pad3a9;
+    char* invenSrc = (char*)&sig->m_giftInven;
 
     if (sig->m_giftFindOk != 0)
     {

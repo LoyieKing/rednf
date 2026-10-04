@@ -17,7 +17,7 @@ int ItemVendingMachine::GetFinalProbability(int goodsIdx)
     CCeraShopGoods* goods;
     goods = reinterpret_cast<CCeraShopGoods*>(G_CDataManager()->FindGoods(goodsIdx));
     weight = goods->GetBonusWeight();
-    rate = reinterpret_cast<VendingItemListView*>(G_CDataManager())->m_list->GetVendingBonusRate();
+    rate = G_CDataManager()->m_itemList->GetVendingBonusRate();
     rate = (int)((float)rate * weight);
     return rate;
 }

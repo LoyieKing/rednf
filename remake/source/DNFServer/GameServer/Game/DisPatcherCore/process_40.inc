@@ -76,7 +76,7 @@ int DisPatcher_DieCharacInDungeon::process(CUser* user, MSG_BASE& msg, ParamBase
         // `cmpl $0x0,-0xc(%ebp); setne %al; test %al,%al; je`（4 条，
         // OURS +0x128 段实测）；ORIG 0x081c2b52 是 `cmpl $0x0,-0xc(%ebp); je`（2 条）
         // ⇒ 赋值必须拆成**独立语句**（P0：ORIG 有 -0xc 值槽 = 原码本就两条语句）。
-        myDungeon = reinterpret_cast<CPartyDungeonView*>(myParty)->m_dungeon;
+        myDungeon = myParty->m_battleField.m_pDungeon;
         if (myDungeon != 0)
         {
             // ORIG 0x081c2b5e `test %al,%al` + 0x081c2b60 `jle +0x173`：

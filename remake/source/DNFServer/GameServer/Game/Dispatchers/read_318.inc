@@ -32,27 +32,17 @@ int Dispatcher_PcRoomRentItem::read(PacketBuf& packet, MSG_BASE& msg)
         //   `2i + msg` 基址 + **单级 disp**（第二元素 `add $0x10,%eax`，
         //   我方 `req.m_0f[i*2+1]` 产 `add $0x1; add %eax; add $0xf` 多 1 条）。
         //   元素对 @+0x0f+2i/+0x10+2i（RentInElem sectionIdx/itemIdx）⇒ packed 视图成员。
-        struct __attribute__((packed)) RentElemView
-        {
-            unsigned char m_section;      // +0x0f + 2i
-            unsigned char m_item;         // +0x10 + 2i
-        };
-        struct __attribute__((packed)) RentItemView
-        {
-            char m_head[0xf];
-            RentElemView m_elems[1];
-        };
         // [G6·read_318 负结论 2026-09-11] 视图引用形（`RentItemView& rv = …` 两使用点）
         //   实测 ndiff 8→15（条数 96/98 不变）⇒ 劣化 ⇒ 保持裸 cast 表达式形。
         if (!packet.get_byte(reinterpret_cast<char&>(
-                reinterpret_cast<RentItemView*>(&req)->m_elems[i].m_section)))
+                req.m_pairs[i].m_sectionIdx)))
         {
             return LineFunc(24136,
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
         if (!packet.get_byte(reinterpret_cast<char&>(
-                reinterpret_cast<RentItemView*>(&req)->m_elems[i].m_item)))
+                req.m_pairs[i].m_itemIdx)))
         {
             return LineFunc(24138,
                             __PRETTY_FUNCTION__,

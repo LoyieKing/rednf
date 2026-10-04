@@ -16,7 +16,7 @@ bool DB_SaveInformNotice::dispatch(int /*userIdx*/, int /*slot*/, Stream* stream
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9,
                                                   E_SERVER_GROUP_NONE);
     // P89：单一视图表达式，避免 raw/sig 双局部槽（ORIG 仅一个 sig 槽 -0xc）。
-    DB_InformNoticeView* sig = reinterpret_cast<DB_InformNoticeView*>(
+    InformNoticeFlagData* sig = (
         stream->GetOutBuffer<InformNoticeFlagData>());
     char buf[256] = { '\0' };   // -0x110（ORIG rep stos 清零，P4）
     db->escape_string(buf, sig->m_informNotice);

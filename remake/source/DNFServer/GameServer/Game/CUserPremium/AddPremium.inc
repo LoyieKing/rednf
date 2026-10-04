@@ -9,6 +9,6 @@ void CUserPremium::AddPremium(int type, int start, int end, int flag)
     m_entries[type].m_end = end;
     m_entries[type].m_flag = flag;
     if (g_SPremiumInfo[type].m_applyDayMask[0] != -1)
-        m_field862 = 1;
+        m_needCheckEveryday = 1;
     startPremium(type, true);
 }

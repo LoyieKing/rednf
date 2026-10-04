@@ -44,7 +44,7 @@ void CStackableItem::make_item(Inven_Item& item) const
     }
     item.ResetItemAttr();
     item.m_fieldd = 0;
-    ((itemGloballyUniqueIdentifier_t*)((char*)&item + 0x15))->reset();
+    reinterpret_cast<itemGloballyUniqueIdentifier_t*>(&item.m_amp.m_guid)->reset();
     item.m_amp.reset();
     if (GetAttachType() == 7)
     {

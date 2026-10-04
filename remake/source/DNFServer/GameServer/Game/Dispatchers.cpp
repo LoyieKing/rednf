@@ -1012,14 +1012,9 @@ struct BingoCheckView { char m_pad[4]; char m_b4; bool m_b5; unsigned char m_b6;
 {
     // G_CDataManager() 返回对象 +0x14 处为组合技列表基址 char*
     // （成员访问形态 mov 0x14(%eax),%eax 与 ORIG 一致；镜像视图同 ComboSkill.cpp）
-    struct DataManagerComboListView
-    {
-        char m_pad[0x14];
-        char* m_pComboList;  // +0x14
-    };
     std::vector<std::pair<int, int> >* comboList =
         (std::vector<std::pair<int, int> >*)(
-            ((DataManagerComboListView*)G_CDataManager())->m_pComboList + 0x48fc);
+            reinterpret_cast<char*>(G_CDataManager()->m_characList) + 0x48fc);
     for (int i = 0; i <= 5; ++i)
     {
         // ORIG 0x0825f2b9：循环体首 `movswl -0x1c(%ebp),%ebx`（idx 符号扩展
@@ -2162,10 +2157,9 @@ public:
     //   具名局部（旧码 -0x10 槽 + 帧 0x30）。
     PacketGuard guard;
     guard.put_header(1, 0x1b9);
-    guard.put_byte(reinterpret_cast<MercRetMapView*>(&result)->m_4 ? 1 : 0);   // +0x04 bool（ORIG mov$1/jmp/mov$0 岛）
-    guard.put_byte(static_cast<unsigned int>(
-        reinterpret_cast<MercRetMapView*>(&result)->m_5));                     // +0x05 char 回显
-    guard.put_int(reinterpret_cast<MercRetMapView*>(&result)->m_8);            // +0x08 int
+    guard.put_byte(result.m_04 ? 1 : 0);
+    guard.put_byte(static_cast<unsigned int>(result.m_05));
+    guard.put_int(result.m_08);
     guard.put_int(result.m_result.m_0);                                     // +0x0c
     guard.put_int(result.m_result.m_4);                                     // +0x10
     guard.put_byte(static_cast<unsigned int>(
@@ -3710,16 +3704,6 @@ struct DTChkView {
 // [G6-243] P161/P311 组件视图：ORIG 0x081e4e75/0x081e4e89/0x081e4e8c 为单 disp 具名成员
 //   （movzbl 0x10(%eax),%eax / movzwl 0xe(%eax),%eax / movzbl 0xd(%eax),%eax），
 //   指针算术写法恒产 add 链 ⇒ 用 pack(1) 视图对齐 +0x0d..+0x11。
-#pragma pack(push, 1)
-struct LogIngameAdView
-{
-    char m_pad[0x0d];
-    unsigned char m_c0d;      // +0x0d（ORIG movzbl 0xd(%eax),%eax + movsbl %al,%ebx）
-    unsigned short m_s0e;     // +0x0e（ORIG movzwl 0xe(%eax),%eax + movswl %ax,%esi）
-    unsigned char m_c10;      // +0x10（ORIG movzbl 0x10(%eax),%eax + movsbl %al,%edi）
-    unsigned int m_u11;       // +0x11（ORIG mov 0x11(%eax),%eax）
-};
-#pragma pack(pop)
 #include "Dispatchers/process_243.inc"
 
 #include "Dispatchers/read_246.inc"

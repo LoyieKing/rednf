@@ -3,11 +3,11 @@ void CUserCharacInfo::resetCharGuildInfo()
     if (m_selected)
     {
     m_selected->m_guildId = 0;
-    m_selected->m_fieldDED = 0;
-    m_selected->m_fieldDE9 = 0;
-    m_selected->m_fieldDF3 = 0;
-    m_selected->m_fielddc2 = 0;
-    m_selected->m_fieldDC3 = 0;
-    m_selected->m_fieldDEF = 0;
+    m_selected->m_guildTempExp = 0;
+    m_selected->m_guildExp = 0;
+    m_selected->m_guildMemberGrade = 0;
+    m_selected->m_guildCreateRight = 0;
+    m_selected->m_guildCreateFlag = 0;
+    m_selected->m_guildTodayExp = 0;
     }
 }

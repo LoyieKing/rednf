@@ -26,7 +26,16 @@ public:
     char m_field1f;              // +0x1f
     short m_field20;             // +0x20
     short m_field22;             // +0x22
-    unsigned char m_body[0x162]; // +0x24..+0x185 逐行帧统计/tail 区
+    struct BodyTail {
+        unsigned char m_bodyHead[0x14c];
+        unsigned char m_tailFlag[6];
+        short m_tailShort[6];
+        unsigned char m_tailPad[4];
+    };
+    union {
+        unsigned char m_body[0x162];
+        BodyTail m_tail;
+    };
 };                               // sizeof = 0x186（ctor 参数 size）
 #pragma pack(pop)
 

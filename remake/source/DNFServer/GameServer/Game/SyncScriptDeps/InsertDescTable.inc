@@ -55,8 +55,7 @@ bool APSystem::CSyncScript::InsertDescTable()
     int row = 0;
     for (; it != refs.end(); it++, ++row)
     {
-        const ActionPointExDescView* ex =
-            reinterpret_cast<const ActionPointExDescView*>(it->second);
+        const APSystem::CActionPointEx* ex = it->second;
         if (ex == 0)
         {
             continue;
@@ -72,12 +71,12 @@ bool APSystem::CSyncScript::InsertDescTable()
         // getItemValueStirng `char conv[0x100] = {0}` 产同款 rep stos；
         // 显式 memset 会退化成 memset@plt call）。
         char idx[68];
-        sprintf(idx, "%u", (unsigned int)ex->m_actionIndex);
+        sprintf(idx, "%u", (unsigned int)ex->m_ap.m_actionNo);
         char grp[68];
-        sprintf(grp, "%u", (unsigned int)ex->m_groupIndex);
+        sprintf(grp, "%u", (unsigned int)ex->m_ap.m_groupIndex);
         char name[1024] = { 0 };
         if (!CodePage::script2Database(
-                const_cast<char*>(ex->m_name.c_str()), name))
+                const_cast<char*>(ex->m_str24.c_str()), name))
         {
             // ORIG 0x081227b1..0x08122821：c_str/database/script 三实参先求值
             // （%edi/%esi/%ebx），其后才 cMyTrace C1 ⇒ 原码是单语句临时对象调用。
@@ -86,7 +85,7 @@ bool APSystem::CSyncScript::InsertDescTable()
             cMyTrace(__PRETTY_FUNCTION__, 0x409, 5)(
                 "Error!!! %s->%s [%s][%s][%d]",
                 CodePage::script(), CodePage::database(),
-                ex->m_name.c_str(),
+                ex->m_str24.c_str(),
                 "static bool APSystem::CSyncScript::InsertDescTable()",
                 0x409);
             return false;

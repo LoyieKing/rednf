@@ -44,9 +44,9 @@ void CUser::send_skill_info()
         }
     }
 
-    STGuildDBInfoPacketView* guild =
-        reinterpret_cast<STGuildDBInfoPacketView*>(GetGuildDBInfo());
-    int guildCount = (unsigned char)guild->m_skillSection.m_skillLearnCnt;
+    STGuildDBInfoOnly* guild =
+        static_cast<STGuildDBInfoOnly*>(GetGuildDBInfo());
+    int guildCount = (unsigned char)guild->m_skillLearnCnt;
     if (G_GameWorld()->IsPvPSkilTreeChannel())
     {
         guildCount = 0;
@@ -55,11 +55,11 @@ void CUser::send_skill_info()
     for (int i = 0; i < guildCount; ++i)
     {
         if (getGuildMemberGrade() && getGuildMemberGrade() &&
-            guild->m_skillSection.m_skills[i].m_field0 > 0xc7)
+            guild->m_skills[i].m_field0 > 0xc7)
         {
             packet.put_byte(i + 0x8a);
-            packet.put_byte(guild->m_skillSection.m_skills[i].m_field0);
-            packet.put_byte((signed char)guild->m_skillSection.m_skills[i].m_field4);
+            packet.put_byte(guild->m_skills[i].m_field0);
+            packet.put_byte((signed char)guild->m_skills[i].m_field4);
             totalCount0++;
             packet.put_byte(0);
         }
@@ -102,11 +102,11 @@ void CUser::send_skill_info()
     for (int i = 0; i < guildCount; ++i)
     {
         if (getGuildMemberGrade() && getGuildMemberGrade() &&
-            guild->m_skillSection.m_skills[i].m_field0 > 0xc7)
+            guild->m_skills[i].m_field0 > 0xc7)
         {
             packet.put_byte(i + 0x8a);
-            packet.put_byte(guild->m_skillSection.m_skills[i].m_field0);
-            packet.put_byte((signed char)guild->m_skillSection.m_skills[i].m_field4);
+            packet.put_byte(guild->m_skills[i].m_field0);
+            packet.put_byte((signed char)guild->m_skills[i].m_field4);
             totalCount0++;
             packet.put_byte(0);
         }

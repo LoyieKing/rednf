@@ -19,11 +19,10 @@ unsigned int PISenderManager::MakeHashForSending(unsigned char* data,
                                                  bool bNewKey)
 {
     if (bNewKey)
-        reinterpret_cast<PISenderPadView*>(this)->m_pad[0] = 0x27;
-    unsigned char key =
-        reinterpret_cast<PISenderPadView*>(this)->m_pad[0];
+        m_pad[0] = 0x27;
+    unsigned char key = m_pad[0];
     unsigned char rnd = static_cast<unsigned char>(rand());
-    reinterpret_cast<PISenderPadView*>(this)->m_pad[0] = rnd;
+    m_pad[0] = rnd;
 
     unsigned int nHash = 0;
     unsigned int ret = 0;

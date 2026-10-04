@@ -16,37 +16,37 @@ int Inter_LoadDimensionInout::dispatch_sig(CUser* user, char* data, int /*len*/)
     // [G2A-PC 手法3/P324 语句顺序=物理序] ORIG 084d83f5 返回 0x3ef3 后才在 084d83ff 发
     //   `mov 0x10(%ebp),%eax; mov %eax,-0x14(%ebp)`（pPkt 物化）；本方原在函数首行物化
     //   ⇒ 本 diff `insert OURS[4:6]` / `delete ORIG[15:17]`。守卫前移 pPkt 声明即可。
-    Inter_LoadDimensionInoutSrcWinView* pPkt =
-        reinterpret_cast<Inter_LoadDimensionInoutSrcWinView*>(data);
+    SIG_LOAD_DIMENSION* load =
+        reinterpret_cast<SIG_LOAD_DIMENSION*>(data);
 
-    // §P0：ORIG 对 pPkt->m_0 全程寄存器直传（无槽往返）⇒ 原码无 characNo 具名局部，三处内联。
-    const int idx = user->get_charac_idx(pPkt->m_0);
+    // §P0：ORIG 对 load->m_field00 全程寄存器直传（无槽往返）⇒ 原码无 characNo 具名局部，三处内联。
+    const int idx = user->get_charac_idx(load->m_field00);
     if (idx < 0)                                       // jns
         return 0x3ef9;
 
-    if (user->m_characList[idx].m_characNo != pPkt->m_0)
+    if (user->m_characList[idx].m_characNo != load->m_field00)
         return 0x3efb;
 
     // §P183：ORIG 每处字段访问重发 vector<_Charac_info>::operator[]（8 处 out-of-line call，
     //   我方 recBase 缓存只发 2 处）⇒ 逐点重物化 `&user->m_characList[idx]`，不缓存基址。
-    user->m_characList[idx].m_characNo = pPkt->m_0;
+    user->m_characList[idx].m_characNo = load->m_field00;
 
     for (int i = 0; i <= 5; ++i)                       // cmpl $5; setle
     {
         user->m_characList[idx].m_demensionInout[i] =  // +0xeb9 数组成员直存
-            pPkt->m_demension[i];                      // 源 +0x4 stride-1
+            static_cast<unsigned char>(load->m_dimensionInout[i]);                      // 源 +0x4 stride-1
         // §P0：ORIG got 值留 %ebx 跨 G_CDataManager call 保活（无槽）⇒ 内联比较表达式。
         if (user->m_characList[idx].m_demensionInout[i] !=
             (unsigned char)G_CDataManager()->get_dimensionInout(i))   // [H2·laneD] ORIG `cmp %al,%bl`（8 位）⇒ 无符号
             changed = true;
     }
 
-    user->m_characList[idx].m_ultimateInout[2] = pPkt->m_c;   // +0xec0+2 ⇒ ORIG `mov %dl,0xec2(%eax)`
+    user->m_characList[idx].m_ultimateInout[2] = static_cast<unsigned char>(load->m_limitInoutCount);   // +0xec0+2 ⇒ ORIG `mov %dl,0xec2(%eax)`
     if (user->m_characList[idx].m_ultimateInout[2] !=
         (unsigned char)G_CDataManager()->get_limit_inout_count(ENUM_BLOOD_TYPE_2))   // [H2·laneD] 同上
         ultimateChanged = true;
-    user->m_characList[idx].m_fieldEB8 = 0;            // +0xeb8 ⇒ ORIG `movb $0x0,0xeb8(%eax)`
-    user->m_characList[idx].m_fieldEBF = 0;            // +0xebf ⇒ ORIG `movb $0x0,0xebf(%eax)`
+    user->m_characList[idx].m_saveDemensionInoutValue = 0;            // +0xeb8 ⇒ ORIG `movb $0x0,0xeb8(%eax)`
+    user->m_characList[idx].m_saveBloodInoutValue = 0;            // +0xebf ⇒ ORIG `movb $0x0,0xebf(%eax)`
 
     // [LaneE 2026-09-11 P225 试形] ORIG 084d85b5/084d85d8 两处各发 `setne/setg %al;
     //   test %al,%al; je <共享出口>`（bool 物化后测试，无具名 bool 槽）⇒ 原码条件

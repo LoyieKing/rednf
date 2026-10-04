@@ -7,7 +7,7 @@ void Dispatcher_TournamentRewardSelect::send(CUser* user, ParamBase& param)
     PacketGuard guard;
     guard.clear();
     guard.put_header(1, 0x1cb);
-    if (*reinterpret_cast<const int*>(reinterpret_cast<const char*>(&param) + 4) == 0)
+    if (static_cast<const stTournamentRewardSelect&>(param).m_err == 0)
     {
         guard.put_byte(1);
         CParty* party = G_CGameManager()->GetParty(user->GetPartyIndex());

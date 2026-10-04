@@ -23,7 +23,7 @@ bool DB_UpdateQuest::_updateQuests(SIG_UPDATE_QUEST* sig)
     (void)maxSrcLen;
     (void)origZipLen;
     if (!compress_zip(zipBuf, zipLen,
-                      reinterpret_cast<const char*>(((DB_UpdateQuestView*)sig)->m_clearData),
+                      reinterpret_cast<const char*>(sig->m_clearedQuest),
                       30000))
     {
         LogManager::logFormat(
@@ -38,7 +38,7 @@ bool DB_UpdateQuest::_updateQuests(SIG_UPDATE_QUEST* sig)
     // 逐点内联；原 `DB_UpdateQuestView* v` 局部会多占 -0x1c 槽并挤出 Y 死槽。
     // ORIG 0x8418cf6 `test %al,%al; je <flag==0 块>`（0x8419132 在函数后段）
     // ⇒ 源码块序 = flag!=0 块在前、flag==0 块在后（4.4 对 then 恒前置）。
-    if (((DB_UpdateQuestView*)sig)->m_clearFlag != 0)
+    if (sig->m_clearedFlag != 0)
     {
         db->set_query(
             "upDate new_charac_quest set clear_quest='%s', play_1=%d, play_1_trigger=%d, play_2=%d, play_2_trigger=%d, "
@@ -50,19 +50,19 @@ bool DB_UpdateQuest::_updateQuests(SIG_UPDATE_QUEST* sig)
             "play_18=%d, play_18_trigger=%d, play_19=%d, play_19_trigger=%d, play_20=%d, play_20_trigger=%d,"
             "urgentQuestIndex=%d,quest_notify='%s' where charac_no=%u",
             db->blob_to_str(0, zipBuf, zipLen),
-            ((DB_UpdateQuestView*)sig)->m_play[0], ((DB_UpdateQuestView*)sig)->m_playTrigger[0], ((DB_UpdateQuestView*)sig)->m_play[1], ((DB_UpdateQuestView*)sig)->m_playTrigger[1],
-            ((DB_UpdateQuestView*)sig)->m_play[2], ((DB_UpdateQuestView*)sig)->m_playTrigger[2], ((DB_UpdateQuestView*)sig)->m_play[3], ((DB_UpdateQuestView*)sig)->m_playTrigger[3],
-            ((DB_UpdateQuestView*)sig)->m_play[4], ((DB_UpdateQuestView*)sig)->m_playTrigger[4], ((DB_UpdateQuestView*)sig)->m_play[5], ((DB_UpdateQuestView*)sig)->m_playTrigger[5],
-            ((DB_UpdateQuestView*)sig)->m_play[6], ((DB_UpdateQuestView*)sig)->m_playTrigger[6], ((DB_UpdateQuestView*)sig)->m_play[7], ((DB_UpdateQuestView*)sig)->m_playTrigger[7],
-            ((DB_UpdateQuestView*)sig)->m_play[8], ((DB_UpdateQuestView*)sig)->m_playTrigger[8], ((DB_UpdateQuestView*)sig)->m_play[9], ((DB_UpdateQuestView*)sig)->m_playTrigger[9],
-            ((DB_UpdateQuestView*)sig)->m_play[10], ((DB_UpdateQuestView*)sig)->m_playTrigger[10], ((DB_UpdateQuestView*)sig)->m_play[11], ((DB_UpdateQuestView*)sig)->m_playTrigger[11],
-            ((DB_UpdateQuestView*)sig)->m_play[12], ((DB_UpdateQuestView*)sig)->m_playTrigger[12], ((DB_UpdateQuestView*)sig)->m_play[13], ((DB_UpdateQuestView*)sig)->m_playTrigger[13],
-            ((DB_UpdateQuestView*)sig)->m_play[14], ((DB_UpdateQuestView*)sig)->m_playTrigger[14], ((DB_UpdateQuestView*)sig)->m_play[15], ((DB_UpdateQuestView*)sig)->m_playTrigger[15],
-            ((DB_UpdateQuestView*)sig)->m_play[16], ((DB_UpdateQuestView*)sig)->m_playTrigger[16], ((DB_UpdateQuestView*)sig)->m_play[17], ((DB_UpdateQuestView*)sig)->m_playTrigger[17],
-            ((DB_UpdateQuestView*)sig)->m_play[18], ((DB_UpdateQuestView*)sig)->m_playTrigger[18], ((DB_UpdateQuestView*)sig)->m_play[19], ((DB_UpdateQuestView*)sig)->m_playTrigger[19],
-            ((DB_UpdateQuestView*)sig)->m_urgentIndex,
-            db->blob_to_str(1, ((DB_UpdateQuestView*)sig)->m_questNotify, 0x28),
-            ((DB_UpdateQuestView*)sig)->m_characNo);
+            sig->m_quest[0], sig->m_trigger[0], sig->m_quest[1], sig->m_trigger[1],
+            sig->m_quest[2], sig->m_trigger[2], sig->m_quest[3], sig->m_trigger[3],
+            sig->m_quest[4], sig->m_trigger[4], sig->m_quest[5], sig->m_trigger[5],
+            sig->m_quest[6], sig->m_trigger[6], sig->m_quest[7], sig->m_trigger[7],
+            sig->m_quest[8], sig->m_trigger[8], sig->m_quest[9], sig->m_trigger[9],
+            sig->m_quest[10], sig->m_trigger[10], sig->m_quest[11], sig->m_trigger[11],
+            sig->m_quest[12], sig->m_trigger[12], sig->m_quest[13], sig->m_trigger[13],
+            sig->m_quest[14], sig->m_trigger[14], sig->m_quest[15], sig->m_trigger[15],
+            sig->m_quest[16], sig->m_trigger[16], sig->m_quest[17], sig->m_trigger[17],
+            sig->m_quest[18], sig->m_trigger[18], sig->m_quest[19], sig->m_trigger[19],
+            sig->m_urgentQuest,
+            db->blob_to_str(1, sig->m_authen, 0x28),
+            sig->m_characNo);
     }
     else
     {
@@ -75,19 +75,19 @@ bool DB_UpdateQuest::_updateQuests(SIG_UPDATE_QUEST* sig)
             "play_15=%d, play_15_trigger=%d,play_16=%d, play_16_trigger=%d, play_17=%d, play_17_trigger=%d, "
             "play_18=%d, play_18_trigger=%d, play_19=%d, play_19_trigger=%d, play_20=%d, play_20_trigger=%d,"
             "urgentQuestIndex=%d,quest_notify='%s' where charac_no=%u",
-            ((DB_UpdateQuestView*)sig)->m_play[0], ((DB_UpdateQuestView*)sig)->m_playTrigger[0], ((DB_UpdateQuestView*)sig)->m_play[1], ((DB_UpdateQuestView*)sig)->m_playTrigger[1],
-            ((DB_UpdateQuestView*)sig)->m_play[2], ((DB_UpdateQuestView*)sig)->m_playTrigger[2], ((DB_UpdateQuestView*)sig)->m_play[3], ((DB_UpdateQuestView*)sig)->m_playTrigger[3],
-            ((DB_UpdateQuestView*)sig)->m_play[4], ((DB_UpdateQuestView*)sig)->m_playTrigger[4], ((DB_UpdateQuestView*)sig)->m_play[5], ((DB_UpdateQuestView*)sig)->m_playTrigger[5],
-            ((DB_UpdateQuestView*)sig)->m_play[6], ((DB_UpdateQuestView*)sig)->m_playTrigger[6], ((DB_UpdateQuestView*)sig)->m_play[7], ((DB_UpdateQuestView*)sig)->m_playTrigger[7],
-            ((DB_UpdateQuestView*)sig)->m_play[8], ((DB_UpdateQuestView*)sig)->m_playTrigger[8], ((DB_UpdateQuestView*)sig)->m_play[9], ((DB_UpdateQuestView*)sig)->m_playTrigger[9],
-            ((DB_UpdateQuestView*)sig)->m_play[10], ((DB_UpdateQuestView*)sig)->m_playTrigger[10], ((DB_UpdateQuestView*)sig)->m_play[11], ((DB_UpdateQuestView*)sig)->m_playTrigger[11],
-            ((DB_UpdateQuestView*)sig)->m_play[12], ((DB_UpdateQuestView*)sig)->m_playTrigger[12], ((DB_UpdateQuestView*)sig)->m_play[13], ((DB_UpdateQuestView*)sig)->m_playTrigger[13],
-            ((DB_UpdateQuestView*)sig)->m_play[14], ((DB_UpdateQuestView*)sig)->m_playTrigger[14], ((DB_UpdateQuestView*)sig)->m_play[15], ((DB_UpdateQuestView*)sig)->m_playTrigger[15],
-            ((DB_UpdateQuestView*)sig)->m_play[16], ((DB_UpdateQuestView*)sig)->m_playTrigger[16], ((DB_UpdateQuestView*)sig)->m_play[17], ((DB_UpdateQuestView*)sig)->m_playTrigger[17],
-            ((DB_UpdateQuestView*)sig)->m_play[18], ((DB_UpdateQuestView*)sig)->m_playTrigger[18], ((DB_UpdateQuestView*)sig)->m_play[19], ((DB_UpdateQuestView*)sig)->m_playTrigger[19],
-            ((DB_UpdateQuestView*)sig)->m_urgentIndex,
-            db->blob_to_str(1, ((DB_UpdateQuestView*)sig)->m_questNotify, 0x28),
-            ((DB_UpdateQuestView*)sig)->m_characNo);
+            sig->m_quest[0], sig->m_trigger[0], sig->m_quest[1], sig->m_trigger[1],
+            sig->m_quest[2], sig->m_trigger[2], sig->m_quest[3], sig->m_trigger[3],
+            sig->m_quest[4], sig->m_trigger[4], sig->m_quest[5], sig->m_trigger[5],
+            sig->m_quest[6], sig->m_trigger[6], sig->m_quest[7], sig->m_trigger[7],
+            sig->m_quest[8], sig->m_trigger[8], sig->m_quest[9], sig->m_trigger[9],
+            sig->m_quest[10], sig->m_trigger[10], sig->m_quest[11], sig->m_trigger[11],
+            sig->m_quest[12], sig->m_trigger[12], sig->m_quest[13], sig->m_trigger[13],
+            sig->m_quest[14], sig->m_trigger[14], sig->m_quest[15], sig->m_trigger[15],
+            sig->m_quest[16], sig->m_trigger[16], sig->m_quest[17], sig->m_trigger[17],
+            sig->m_quest[18], sig->m_trigger[18], sig->m_quest[19], sig->m_trigger[19],
+            sig->m_urgentQuest,
+            db->blob_to_str(1, sig->m_authen, 0x28),
+            sig->m_characNo);
     }
     if (db->exec(true) != 1 || db->getAffectedRowCount() == 0)
         return false;

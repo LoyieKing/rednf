@@ -30,6 +30,8 @@ public:
     // 0/1 规范化）⇒ 成员本身 bool；调用点 0x08535b08 `call;test %al,%al;je` 无
     // setne ⇒ 返回类型 bool（P292）。mangled 不含返回类型，零符号影响。
     bool IsHellMonster() const;
+    int getIndependentDropCount() const { return m_independentDropCount; }
+    int getCatchItemCount() const { return m_catchItemCount; }
     void drop_item_index(unsigned int index) const;
     // ORIG 0x0834f7e4：两分支均 tail-jmp 保留 eax = _drop_item_index 返回值
     // （调用点 WongWorkDrop_A.cpp 取回判 != -2）⇒ 返回类型 int；返回类型不入

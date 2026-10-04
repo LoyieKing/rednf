@@ -6,9 +6,9 @@ int Inter_WebNoticeSingle::dispatch_sig(CUser* /*user*/, char* data, int /*len*/
     packet.put_byte(0);
     packet.put_short(0);
     packet.put_byte(0);
-    packet.put_int((unsigned int)pPkt->m_a);
-    packet.put_str(pPkt->m_b,
-                   (unsigned int)pPkt->m_a);
+    packet.put_int((unsigned int)pPkt->m_len);
+    packet.put_str(pPkt->m_msg,
+                   (unsigned int)pPkt->m_len);
     packet.finalize(true);
     G_GameWorld()->send_all(packet);
     return 0;

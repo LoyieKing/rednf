@@ -7,8 +7,7 @@ int Dispatcher_Exchange_Random_Item_Reward::read(PacketBuf& packet, MSG_BASE& ms
     // ORIG `movb $0,-0x15` 在第一 LineFunc 后、`movw $0,-0x18` 在循环前。
     MSG_EXCHANGE_RANDOM_ITEM_REWARD* data =
         reinterpret_cast<MSG_EXCHANGE_RANDOM_ITEM_REWARD*>(&msg);
-    if (!packet.get_short(*reinterpret_cast<unsigned short*>(
-            reinterpret_cast<char*>(data) + 0xe)))
+    if (!packet.get_short(data->m_field0e))
     {
         return LineFunc(0x4fc8,
                         __PRETTY_FUNCTION__,

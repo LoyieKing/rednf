@@ -6,7 +6,7 @@ int Inter_MonitorNoticeGuildCreate::dispatch_sig(CUser* user, char* data, int /*
     Inter_MonitorNoticeGuildCreatePktView* pPkt = reinterpret_cast<Inter_MonitorNoticeGuildCreatePktView*>(data);
 
 
-    if (user->get_charac_no(-1) != pPkt->m_e)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {   // m_uCharID 不匹配 → 日志后返回 0
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -14,18 +14,18 @@ int Inter_MonitorNoticeGuildCreate::dispatch_sig(CUser* user, char* data, int /*
             0x2682,
             "Packet_Monitor_Notice_Guild_Create_ToUser::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            pPkt->m_e);
+            pPkt->m_characNo);
         return 0;
     }
 
-    user->set_charac_guildkey(pPkt->m_a);
+    user->set_charac_guildkey(pPkt->m_guildKey);
 
     PacketGuard packet;
     packet.put_header(0, 0x47);
-    packet.put_int(pPkt->m_a);
-    const int nameLen = strlen(pPkt->m_12);
+    packet.put_int(pPkt->m_guildKey);
+    const int nameLen = strlen(pPkt->m_guildName);
     packet.put_int(nameLen);
-    packet.put_str(pPkt->m_12, nameLen);
+    packet.put_str(pPkt->m_guildName, nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;

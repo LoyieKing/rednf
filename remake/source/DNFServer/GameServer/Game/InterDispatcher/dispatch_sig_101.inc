@@ -17,12 +17,12 @@ int Inter_ReqQueryCharacInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     // local_10 = param_3 在 state 守卫后才赋值（ORIG +0x027 mov 0x10(%ebp),-0xc）
     Inter_ReqQueryCharacInfoPktView* pPkt = reinterpret_cast<Inter_ReqQueryCharacInfoPktView*>(data);
-    if (pPkt->m_20 != 0)                             // asm +0x033 test je 主块（错误分支落盘）
+    if (pPkt->m_errCode != 0)                             // asm +0x033 test je 主块（错误分支落盘）
     {
         user->SendCmdErrorPacket(
             (ENUM_CMDPACKET)0x8b,
             static_cast<unsigned char>(
-                pPkt->m_20 & 0xff));
+                pPkt->m_errCode & 0xff));
         return 0;
     }
 

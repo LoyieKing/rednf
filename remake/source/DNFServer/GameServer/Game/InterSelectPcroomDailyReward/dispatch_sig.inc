@@ -3,7 +3,7 @@
 // Ghidra C 的 param_3 标注为反编译器参数索引偏差，以汇编为准）。
 // 流程：
 //   data==0 → 日志 "[Taiwan, pcroom] interMsg is null."，返回 0x19b；
-//   user->m_field8ec32 = msg->m_remainCount（movzbl 0x4 → mov %dl,0x8ec32）；
+//   user->m_pcroomDailyRemain = msg->m_remainCount（movzbl 0x4 → mov %dl,0x8ec32）；
 //   remain = movsbl msg->m_remainCount；idStr = NumberToString(msg->m_id, 0)；
 //   cMyTrace(trace, 0x19f, 0) 日志 "[Taiwan, pcroom] m_id:%s, remain_reward_count:%d"；
 //   SendPacket(user)，返回 0。
@@ -16,7 +16,7 @@ int InterSelectPcroomDailyReward::dispatch_sig(CUser* user, char* data, int /*le
                               __PRETTY_FUNCTION__, 0x19a, "[Taiwan, pcroom] interMsg is null.");
         return 0x19b;
     }
-    user->m_field8ec32 = msg->m_remainCount;
+    user->m_pcroomDailyRemain = msg->m_remainCount;
     register int remain = (signed char)msg->m_remainCount;  // ORIG movsbl → esi
     register char* idStr = NumberToString(msg->m_id, 0);    // ORIG ebx 缓存
     cMyTrace trace("virtual int InterSelectPcroomDailyReward::dispatch_sig(CUser*, char*, int)",

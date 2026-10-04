@@ -36,7 +36,7 @@ bool DB_MailBox_Req_List::dispatch(int userIdx, int slot, Stream* stream)
     if (!DBDispatcher::dispatch(userIdx, slot, stream))
         return 0;
 
-    MailBoxListReqView* req = (MailBoxListReqView*)stream->GetOutBuffer<SIG_MAILBOX_LIST>();
+    SIG_MAILBOX_LIST_REQ* req = &stream->GetOutBuffer<SIG_MAILBOX_LIST>()->m_req;
     SIG_MAILBOX_LIST localSig;
     memset(&localSig, 0, sizeof(localSig));
     SIG_MAILBOX_LIST* sig = &localSig;

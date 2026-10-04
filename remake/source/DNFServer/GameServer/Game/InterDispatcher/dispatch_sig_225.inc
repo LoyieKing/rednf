@@ -3,22 +3,22 @@
 int Inter_SetARSInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
     Inter_SetARSInfoListView* pPkt = reinterpret_cast<Inter_SetARSInfoListView*>(data);
-    if (pPkt->m_e == 0)
+    if (pPkt->m_state == 0)
     {
         GlobalData::g_autoPunishRuleHackTypeMgr->reset();
         cMyTrace(__PRETTY_FUNCTION__, 0x4f5e, 0)("[ARS_INFO] Reset");
     }
 
     cMyTrace(__PRETTY_FUNCTION__, 0x4f64, 0)("[ARS_INFO] Cnt : %d, State : %d",
-          (int)pPkt->m_a, (int)(signed char)pPkt->m_e);
+          (int)pPkt->m_count, (int)(signed char)pPkt->m_state);
 
-    if ((int)pPkt->m_a > 100)
+    if ((int)pPkt->m_count > 100)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x4f6b, 0)("[ARS_INFO] Cnt OverFlag(100)");
         return 0;
     }
 
-    for (int i = 0; i < (int)pPkt->m_a; ++i)
+    for (int i = 0; i < (int)pPkt->m_count; ++i)
     {
         if (pPkt->m_entries[i].m_f == 0)
         {   // 交易总量条目：type=+0x11，total(u64)=+0x19

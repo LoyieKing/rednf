@@ -17,8 +17,8 @@ bool DB_WriteGeoReject::dispatch(int userIdx, int slot, Stream* stream)
             // mov -0xc,%eax; mov %edx,0xc(%esp); mov %eax,0x8(%esp)` —— 两实参
             // 均取视图数组 decay（+0 decay 零额外指令）；首实参传裸指针时 4.4
             // 对第二实参产 `add $0x10,%eax` 覆写形（探针 /tmp/w8lt_lea.o::g）。
-            ((DB_GeoRejectView*)sig)->m_rejIp,
-            ((DB_GeoRejectView*)sig)->m_rejCCode);
+            sig->m_rejIp,
+            sig->m_rejCCode);
         db->exec(true);
     }
     return 1;

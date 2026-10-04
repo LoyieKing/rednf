@@ -22,7 +22,7 @@ void DBUpdatePcroomDailyReward::makeRequest(CUser* user)
     else
     {
         msg->m_id = user->get_acc_id();
-        msg->m_remain = user->m_field8ec32;
+        msg->m_remain = user->m_pcroomDailyRemain;
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
 }

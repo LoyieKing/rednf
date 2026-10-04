@@ -7,7 +7,7 @@ bool DB_CheckCharacName::dispatch(int userIdx, int slot, Stream* stream)
                                                   E_SERVER_GROUP_NONE);
     db->set_query(
         "seLect m_id from charac_info where charac_name='%s' limit 1",
-        reinterpret_cast<DB_CheckCharacNameView*>(sig)->m_charName);
+        sig->m_charName);
     unsigned char flag = 0;
     if (!db->exec(true))
         return 0;
@@ -17,7 +17,7 @@ bool DB_CheckCharacName::dispatch(int userIdx, int slot, Stream* stream)
             return 0;
         if (!db->get_int(0, mId))
             return 0;
-        if (reinterpret_cast<DB_CheckCharacNameView*>(sig)->m_mId == mId)
+        if (sig->m_mId == mId)
             flag = 1;
     }
     CStreamGuard guard(
@@ -29,12 +29,11 @@ bool DB_CheckCharacName::dispatch(int userIdx, int slot, Stream* stream)
     // mov %dl,0x1(%eax)`（RHS 先载）。4.4 中 LHS 表达式带 reinterpret_cast 恒
     // 翻转为 LHS 地址先载（探针 /tmp/w8lt_ord3.o::f5），LHS 用 view 类型直存
     // 则保 RHS 先（探针 /tmp/w8lt_ord4.o::f6）⇒ 单 view 指针直存。
-    DB_ExceptionMidView* out =
-        reinterpret_cast<DB_ExceptionMidView*>(
-            guard.operator->()->GetInBuffer<SIG_GOLD_CONTROL_EXCEPTION_MID>());
+    SIG_GOLD_CONTROL_EXCEPTION_MID* out =
+        guard.operator->()->GetInBuffer<SIG_GOLD_CONTROL_EXCEPTION_MID>();
     out->m_flag = flag;
     out->m_char =
-        reinterpret_cast<DB_CheckCharacNameView*>(sig)->m_byte22;
+        sig->m_byte22;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;
 }

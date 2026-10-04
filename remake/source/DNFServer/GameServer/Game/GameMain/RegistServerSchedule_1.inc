@@ -57,8 +57,7 @@ int RegistServerSchedule()
         // P183：ORIG 0x82a0798/0x82a07a1 每轮迭代重新 `call G_CDataManager;
         // add $0xa4`（无地址具名缓存槽 -0x1c）⇒ 全表达式置于循环条件。
         for (unsigned int i = 0;
-             i < reinterpret_cast<std::vector<stLightServerNotice_t>*>(
-                     reinterpret_cast<char*>(G_CDataManager()) + 0xa4)->size();
+             i < G_CDataManager()->m_serverParameter.m_light3c.size();
              ++i)
             G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
                                         (TIMER_MESSAGE)0x68, 0, (int)i, 0);

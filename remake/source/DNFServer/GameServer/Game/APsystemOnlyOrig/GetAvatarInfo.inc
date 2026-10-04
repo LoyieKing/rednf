@@ -54,7 +54,7 @@ bool DB_LoadPowerWarStatueInfo::GetAvatarInfo(
     }
     SIG_LOAD_POWER_WAR_STATUE_INFO* v = sig;
     v->m_field7c =
-        reinterpret_cast<DB_EquipslotBlobView*>(&items[10])->m_dword2;
+        items[10].m_addInfo;
     db->set_query(
         "seLect slot,it_id,clear_avatar_id from user_items where charac_no=%u and expire_date>now() and stat=0 limit %d",
         characNo, 115);

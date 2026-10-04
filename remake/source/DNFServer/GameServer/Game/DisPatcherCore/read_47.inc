@@ -14,7 +14,7 @@ int DisPatcher_DropItem::read(PacketBuf& packet, MSG_BASE& msg)
     {
         return LineFunc(0xd0d, __PRETTY_FUNCTION__, 0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_11)))
+    if (!packet.get_byte(req.m_11))
     {
         return LineFunc(0xd0e, __PRETTY_FUNCTION__, 0, 0);
     }

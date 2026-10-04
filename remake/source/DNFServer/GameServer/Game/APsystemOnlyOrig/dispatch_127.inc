@@ -15,7 +15,7 @@
 //   ⇒ 语义完成；余 N-JMP label-stub fall-through jmp 封顶。
 bool DB_ForbidUserToPlay::dispatch(int userIdx, int slot, Stream* stream)
 {
-    DB_ForbidUserToPlayView* sig = reinterpret_cast<DB_ForbidUserToPlayView*>(
+    SIG_FORBID_USER_TO_PLAY* sig = /*SIG_FORBID_USER_TO_PLAY*/(
         stream->GetOutBuffer<SIG_FORBID_USER_TO_PLAY>());
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);

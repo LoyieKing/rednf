@@ -3,7 +3,7 @@
 void CPcroomRewardReset::execute()
 {
     CUser* user = GetUser();
-    user->m_field8ec32 = 4;
+    user->m_pcroomDailyRemain = 4;
     DBUpdatePcroomDailyReward::makeRequest(user);   // 真 static 调用（桥已删）
     InterSelectPcroomDailyReward::SendPacket(user);
     register char* idStr = NumberToString(user->get_acc_id(), 0);

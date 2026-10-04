@@ -102,8 +102,8 @@ bool CUser::_check_level_up(int expAdd, int& sp, int& sfp,
             _update_charac_stat(true);                        // 重算角色属性
             leveledUp = true;                                 // +0x30d
 
-            // 升级日志（FILE* 句柄存于 m_field796f8，int 位宽与 ORIG 一致）。
-            HistoryLog::WriteLevelUp(reinterpret_cast<FILE*>(m_field796f8),
+            // 升级日志（FILE* 句柄存于 m_historyLogFp，int 位宽与 ORIG 一致）。
+            HistoryLog::WriteLevelUp(reinterpret_cast<FILE*>(m_historyLogFp),
                                      getCurCharacExp());
 
             // 金币加成：GetGoldBonus(level)!=0 时入账并刷新物品列表。

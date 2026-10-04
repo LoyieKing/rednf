@@ -11,7 +11,7 @@
 // logFormat(0xb2a6) 返 0；全绿返 1。
 bool DB_SaveBestClearTime::dispatch(int userIdx, int slot, Stream* stream)
 {
-    DB_BestClearTimeView* sig = reinterpret_cast<DB_BestClearTimeView*>(
+    SIG_BEST_CLEAR_TIME* sig = (
         stream->GetOutBuffer<SIG_BEST_CLEAR_TIME>());
     if (sig == 0)
         return 0;
@@ -22,7 +22,7 @@ bool DB_SaveBestClearTime::dispatch(int userIdx, int slot, Stream* stream)
     bool zipOk = false;
     char* outBuf = 0;
     zipOk = put_compressed_blob_data(
-        db, 0, (char*)((unsigned long)sig + 8UL), 0x5dc0, &outBuf);
+        db, 0, reinterpret_cast<char*>(sig->m_data), 0x5dc0, &outBuf);
     if (!zipOk)
     {
         LogManager::logFormat(

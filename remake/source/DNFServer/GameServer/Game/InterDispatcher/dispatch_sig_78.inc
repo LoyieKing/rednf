@@ -2,7 +2,7 @@ int Inter_Monitor_Notify_New_Mail::dispatch_sig(CUser* user, char* data, int /*l
 {
     Inter_Monitor_Notify_New_MailPktView* pPkt = reinterpret_cast<Inter_Monitor_Notify_New_MailPktView*>(data);
     if (user->getCurCharacR() == 0 ||
-        user->getCurCharacNo() != pPkt->m_a)
+        user->getCurCharacNo() != pPkt->m_characNo)
         return 0;
 
     reinterpret_cast<WongWork::CMailBox*>(user->GetMailBox())

@@ -356,8 +356,7 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
         memset(sk, 0, 0x414);
         sk->m_characNo = static_cast<unsigned int>(getCurCharacNo());  // +0x00（ORIG 0x867003b）
         sk->m_flag410 = 1;
-        sk->m_field411 = *reinterpret_cast<unsigned char*>(   // CDataManager+0xa850 表区未建模（CDataManager 域）
-            reinterpret_cast<char*>(G_CDataManager()) + 0xa850);
+        sk->m_field411 = G_CDataManager()->m_pvpSkillTree.m_field50;
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, sig);
     }
     else if (q->m_fieldB8 /*Quest 对象内 rewardType 实测读 +0xb8（quest_reward.md）*/ == 2) {                             // 一转

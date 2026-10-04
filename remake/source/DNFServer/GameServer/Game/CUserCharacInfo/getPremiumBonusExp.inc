@@ -1,4 +1,4 @@
 int CUserCharacInfo::getPremiumBonusExp() const
 {
-    return m_selected ? m_selected->m_field128D : 0;
+    return m_selected ? m_selected->m_premiumBonusExp : 0;
 }

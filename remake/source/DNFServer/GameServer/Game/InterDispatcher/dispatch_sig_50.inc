@@ -15,8 +15,8 @@ int Inter_MonitorSetGuildKey::dispatch_sig(CUser* user, char* data, int len)
     if (user->get_state() == 2)                        // test eax,eax; sete
     {
         user->set_charac_guildkey_in_login(            // msg+0x12, msg+0xe
-            pPkt->m_12,
-            pPkt->m_e);
+            pPkt->m_guildKey,
+            pPkt->m_characNo);
         return 0;
     }
 
@@ -28,7 +28,7 @@ int Inter_MonitorSetGuildKey::dispatch_sig(CUser* user, char* data, int len)
     if (user->get_state() <= 2)                        // cmp $2; setg → !(state>2)
         return 0x26d4;
 
-    if (user->get_charac_no(-1) != pPkt->m_e)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -36,11 +36,11 @@ int Inter_MonitorSetGuildKey::dispatch_sig(CUser* user, char* data, int len)
             0x26a7,
             "Inter_MonitorSetGuildKey::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            pPkt->m_e);
+            pPkt->m_characNo);
         return 0;
     }
 
-    if (pPkt->m_12 == 0)
+    if (pPkt->m_guildKey == 0)
     {
         user->resetGuildDBInfo();
         PacketGuard packet;
@@ -61,7 +61,7 @@ int Inter_MonitorSetGuildKey::dispatch_sig(CUser* user, char* data, int len)
     else
     {
         user->set_charac_guildkey(                     // CUserCharacInfo::set_charac_guildkey
-            pPkt->m_12);
+            pPkt->m_guildKey);
     }
 
     {

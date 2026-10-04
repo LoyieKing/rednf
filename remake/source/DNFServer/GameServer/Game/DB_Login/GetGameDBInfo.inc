@@ -38,9 +38,9 @@ int DB_Login::GetGameDBInfo(SIG_LOGIN_DATA* sig)
             {
                 memmove(&sig->m_characView.m_slots[0],
                         &sig->m_characView.m_slots[i], 0x94);
-                if (SGFC(char, sig, 0x39b0) != 0)       // charac_name 非空才覆写（SigTypes_D 隐式区）
+                if (sig->m_broadcastCharacName[0] != 0)       // charac_name 非空才覆写（SigTypes_D 隐式区）
                 {
-                    strncpy(sig->m_characData + 4, SGBC(sig, 0x39b0), 0x1e);
+                    strncpy(sig->m_characData + 4, sig->m_broadcastCharacName, 0x1e);
                 }
                 sig->m_characCount = 1;
                 break;

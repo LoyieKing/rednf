@@ -9,8 +9,8 @@ bool DB_SaveAccountInfo::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   E_SERVER_GROUP_NONE);
-    DB_SaveAccountInfoView* sig =
-        (DB_SaveAccountInfoView*)stream->GetOutBuffer<SIG_SAVE_ACCOUNT_INFO>();
+    SIG_SAVE_ACCOUNT_INFO* sig =
+        stream->GetOutBuffer<SIG_SAVE_ACCOUNT_INFO>();
     db->set_query(
         "upDate member_play_info set ip=\"%s\", last_play_time=%u, pcbang_flag=%d, end_ip=\"%s\", mac_addr=\"%s\" where occ_date=now() and m_id=%s",
         sig->m_ip, (unsigned int)sig->m_lastPlayTime, (int)sig->m_pcbangFlag,

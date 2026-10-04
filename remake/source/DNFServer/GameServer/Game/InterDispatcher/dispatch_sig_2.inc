@@ -252,7 +252,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
             "[DNF-DIAG LOGINCHAR] acc=%d characCount=%d slot0_no=%d",
             pInfo->m_accId, pInfo->m_characCount,
-            pInfo->m_characCount > 0 ? *(int*)pInfo->m_characData : 0);
+            pInfo->m_characCount > 0 ? reinterpret_cast<CHARAC_DATA*>(pInfo->m_characData)->m_characNo : 0);
         if (0 < pInfo->m_characCount)
         {
             user->SetCharacInfo(pInfo->m_characCount, pInfo->m_characData);
@@ -420,7 +420,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         CommonTime commonTime;
         commonTime.SetCurTime();
         user->SetAge(static_cast<unsigned int>(
-            static_cast<int>(*reinterpret_cast<char*>(commonTime.m_pad)) -
+            static_cast<int>(commonTime.m_year) -
             pInfo->m_birthYear + 0x7d1));
         user->setSecuReward(pInfo->m_secuReward != false);
         user->setSecuType(pInfo->m_secuType);
@@ -515,7 +515,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
             pInfo->m_joinedSchoolPointEventFlag != false);
         // [R10a07 ④#13] ORIG 0x084c724a `call setJoinedSchoolPointEvent` 之后紧接
         //   0x084c7252 `movb $0x0,0x8e47c(%eax)`（= m_mcap.m_blackIpTradeLockFlag 清零，
-        //   与 0x084c7452 的同字段 `= true` 写点同址）；旧稿误写 m_field8ec32（+0x8ec32）
+        //   与 0x084c7452 的同字段 `= true` 写点同址）；旧稿误写 m_pcroomDailyRemain（+0x8ec32）
         //   ⇒ 封锁标志残留。0x8ec32 的清零点在 ORIG 另有其位（0x084c7a55，本文件 693 行）保持不动。
         user->m_mcap.m_blackIpTradeLockFlag = false;
 
@@ -708,7 +708,7 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->sendEventInfo();
         user->SetEventCreateDnfReward(false);
         DBSelectCreateDnfUserInfo::makeRequest(user->GetUID(), user->get_acc_id());
-        user->m_field8ec32 = 0;
+        user->m_pcroomDailyRemain = 0;
 
         if (Taiwan::GarenaCyberCafe(
                 reinterpret_cast<Taiwan::GarenaAuthData*>(

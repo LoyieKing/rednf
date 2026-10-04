@@ -8,7 +8,7 @@ int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (user->get_state() <= 2)                        // cmp $0x2,setle
         return 0;
     if (user->get_charac_no(-1) !=
-        pPkt->m_13)
+        pPkt->m_characNo)
         return 0;
 
     PacketGuard packet;                                // -0x44
@@ -16,64 +16,61 @@ int Inter_GuildBoardData::dispatch_sig(CUser* user, char* data, int /*len*/)
     // §P0/P251：ORIG 对 msg+0xc 无槽往返（比较与 cMyTrace 实参各自重读 movzwl 双段）⇒ 不缓存 code。
     // ORIG 0x84deed4 为 `movzwl; movzwl %ax,%eax; cmp $0x232a,%eax`，4.4 恒折 `cmp $0x232a,%ax`
     // （显式 (unsigned int) 提升实测无效，已回退，P162/N7 封顶）。
-    if (pPkt->m_c == 0x232a)
+    if (pPkt->m_boardType == 0x232a)
         packet.put_header(1, 0x155);
-    else if (pPkt->m_c == 0x232e)
+    else if (pPkt->m_boardType == 0x232e)
         packet.put_header(1, 0x156);
 
-    if (pPkt->m_a == 0)
+    if (pPkt->m_result == 0)
     {   // 正常数据分支
         packet.put_byte(1);
         packet.put_byte((int)pPkt->m_e);
-        packet.put_byte((int)pPkt->m_17);
+        packet.put_byte((int)pPkt->m_rowCount);
         // ORIG 全程以 -0x28 具名槽（pInfo）作基址（084df088 `add -0x28(%ebp),%edx` 等 9 处）
         // ⇒ 循环体基址走 pPkt 槽，不用形参 data。
-#define pData (reinterpret_cast<char*>(pPkt))
-        for (int i = 0;                                // -0x24
-             i < (int)pPkt->m_17; ++i)
+        for (int i = 0;
+             i < (int)pPkt->m_rowCount; ++i)
         {
-            char flag = 0;                             // -0x1d
-            if (*reinterpret_cast<unsigned char*>(pData + i * 0xa5 + 0x9e) == 1)
+            char flag = 0;
+            if (pPkt->m_rows[i].m_flag == 1)
                 flag = 1;
             packet.put_byte((int)(unsigned char)flag);
-            packet.put_byte((int)*reinterpret_cast<signed char*>(pData + i * 0xa5 + 0x9c));
-            if (user->get_charac_no(-1) ==
-                *reinterpret_cast<int*>(pData + i * 0xa5 + 0x98))
+            packet.put_byte((int)pPkt->m_rows[i].m_kind);
+            if (user->get_charac_no(-1) == pPkt->m_rows[i].m_characNo)
                 packet.put_byte(1);
             else
                 packet.put_byte(0);
 
-            packet.put_int((int)strlen(pData + i * 0xa5 + 0x9f));  // +0x9f 留言文本
-            packet.put_str(pData + i * 0xa5 + 0x9f,
-                           (int)strlen(pData + i * 0xa5 + 0x9f));
-            packet.put_int(*reinterpret_cast<int*>(pData + i * 0xa5 + 0x94));
+            packet.put_int((int)strlen(pPkt->m_rows[i].m_text));
+            packet.put_str(pPkt->m_rows[i].m_text,
+                           (int)strlen(pPkt->m_rows[i].m_text));
+            packet.put_int(pPkt->m_rows[i].m_id);
 
-            int remainSec =                            // -0x1c
+            int remainSec =
                 GlobalData::s_systemTime_.getCurSec() -
-                *reinterpret_cast<int*>(pData + i * 0xa5 + 0x90);
+                pPkt->m_rows[i].m_time;
             if (remainSec < 0)
                 remainSec = 0;
             packet.put_int(remainSec);
 
-            packet.put_int((int)strlen(pData + i * 0xa5 + 0x18));  // +0x18 标题
-            packet.put_str(pData + i * 0xa5 + 0x18,
-                           (int)strlen(pData + i * 0xa5 + 0x18));
+            packet.put_int((int)strlen(pPkt->m_rows[i].m_title));
+            packet.put_str(pPkt->m_rows[i].m_title,
+                           (int)strlen(pPkt->m_rows[i].m_title));
         }
-#undef pData
 
         // P328⑩/P227：ORIG 0x84df1a2..0x84df20a 先求 4 个实参（m_17→-0x4c、m_e→%edi、
         // m_c→%esi、get_charac_no→%ebx），其后才 cMyTrace ctor ⇒ 全表达式临时链。
         cMyTrace(__PRETTY_FUNCTION__, 0x4b51, 0)(
             "GUILD_BOARD : CHARAC NO : %u, CODE : %u, TOTAL CNT : %u, CNT : %u : BOARD DATA SEND!!",
-            user->get_charac_no(-1), (unsigned int)pPkt->m_c,
+            user->get_charac_no(-1), (unsigned int)pPkt->m_boardType,
             (unsigned int)pPkt->m_e,
-            (int)pPkt->m_17);
+            (int)pPkt->m_rowCount);
     }
     else
     {   // 错误码分支
         packet.put_byte(0);
         packet.put_short((int)(unsigned int)
-                         pPkt->m_a);
+                         pPkt->m_result);
     }
     packet.finalize(true);
     user->Send(packet);

@@ -7,7 +7,7 @@ unsigned int DisPatcher_AddFriend::check_error(CUser* user, MSG_BASE& msg)
 {
     // ORIG 0x081... 入口 `mov 0x10(%ebp),%eax; mov %eax,-0xc(%ebp)`：view 指针局部在入口声明，
     // 后续 `mov -0xc(%ebp),%eax/%edx; add $0x11` 均从该槽重定位。
-    STFriendReqView* req = reinterpret_cast<STFriendReqView*>(&msg);
+    MSG_ADD_FRIEND* req = reinterpret_cast<MSG_ADD_FRIEND*>(&msg);
     if (user->get_state() <= 2)
     {
         return 0x7fffffff;

@@ -44,7 +44,7 @@ void SpecialItemHandler::respond_special_item_package(
         // ORIG 0x0827c2f5/0x0827c30e 为 `mov -0x2c(%ebp),%edx; mov %eax,0x5(%edx)`
         // 具名结构字段写（裸指针 buf+5 会退化成 lea+间接 store）⇒ 用已有
         // SaveCrazyLevelupPayloadView 具名成员（P82/P211）。
-        SaveCrazyLevelupPayloadView* buf = reinterpret_cast<SaveCrazyLevelupPayloadView*>(
+        SIG_SAVE_CRAZY_LEVELUP_EVENT* buf = (
             guard->GetInBuffer<SIG_SAVE_CRAZY_LEVELUP_EVENT>());
         memcpy(buf, "0612\0", 5);                       // DAT_08c07e5a
         buf->m_accId = user->get_acc_id();

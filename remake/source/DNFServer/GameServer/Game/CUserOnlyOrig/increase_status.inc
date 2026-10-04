@@ -317,15 +317,14 @@ void CUser::increase_status(short slotNo)
             // 0x08979648 尾为 `lea 0x5c(%edx,%eax,1),%eax`（返回 m_levelUpCost+(n-1)*8
             // 的地址）或 0。旧形 `int needFund` 直接比指针值(低 32 位)，运行时错误路径
             // 与 ORIG 不同（同 TU CheckGuildLevelUp.inc 已用 (unsigned int*)+视图口径）。
-            struct GuildLevelUpParamView { unsigned int m_head; unsigned int m_value; };
-            GuildLevelUpParamView* needFund = (GuildLevelUpParamView*)
+            int* needFund =
                 G_CDataManager()->m_guildParameter.getGuildLevelUpParam(guildDB->m_fundLevel + 1);
             if (needFund == 0)
         {
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd2, packet);
             return;
         }
-            if (guildDB->m_fundExp >= needFund->m_value)  // ORIG +0x29 vs *(p+4)，无符号
+            if (guildDB->m_fundExp >= (unsigned int)needFund[1])
         {
                 SendCmdErrorPacket((ENUM_CMDPACKET)0x20, 0xd2, packet);
             return;

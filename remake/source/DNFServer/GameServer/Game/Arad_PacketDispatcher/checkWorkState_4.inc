@@ -16,7 +16,7 @@ bool Dispatcher_AvartarRoulette::checkWorkState(CUser* user,
     // Arad_InternalDispatcher_INTER.cpp kAvatarRoulette 段惯例）。
     // 注意：ORIG 0x0819eec9 `add $0x658,%eax`（char* 字节偏移、无具名 this 槽，
     //   技巧37）；0x0819eed6 `xor$1;test;je` = !boolcall 直出（技巧1）。
-    if (!((const AvatarCoin*)((char*)user->getCurCharacInvenR() + 0x658))->IsUsable())
+    if (!user->getCurCharacInvenR()->m_avatarCoin.IsUsable())
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24a, 0x16);
         return false;

@@ -3,11 +3,11 @@ int Inter_SetFactoryHubUserNotConn::dispatch_sig(CUser* user, char* data, int /*
     if (user != 0)
     {
     // ORIG：包基址槽在 user 非空门之后物化。
-    Inter_SetFactoryHubUserNotConnPktView* pPkt = reinterpret_cast<Inter_SetFactoryHubUserNotConnPktView*>(data);
+    SIG_FIND_FACTORY_HUB_USER_NO_CONN* hub = reinterpret_cast<SIG_FIND_FACTORY_HUB_USER_NO_CONN*>(data);
         user->getHackAnalyzer()->ReqDBSaveHackInfo(
-            pPkt->m_0,
-            pPkt->m_4,
-            pPkt->m_8,
+            hub->m_mId,
+            hub->m_characNo,
+            hub->m_flag,
             (int)user->get_acc_id(), 1);
     }
     return 0;

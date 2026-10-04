@@ -13,12 +13,11 @@ int Dispatcher_Compound_ExtreamItem::_read_packet(PacketBuf& packet)
     _reset();
 
     // +0x04：目标槽
-    packet.get_short(*reinterpret_cast<unsigned short*>(&m_field4));
+    packet.get_short(m_field4);
 
     for (int i = 0; i < 2; ++i) {
         // +0x08 + i*2：材料槽位
-        packet.get_short(
-            *reinterpret_cast<unsigned short*>(&m_slots[i]));
+        packet.get_short(m_slots[i]);
         // [b28d-solo-DispLinkA1 P0] ORIG 无具名 slot 槽（值留 %edi 跨
         // GetInvenSlot 调用），实参内联直传 m_slots[i]。
         m_materials[i] =
@@ -32,7 +31,7 @@ int Dispatcher_Compound_ExtreamItem::_read_packet(PacketBuf& packet)
     }
 
     // +0xcd：选择字节（≤2 合法）
-    packet.get_byte(*reinterpret_cast<char*>(&m_select));
+    packet.get_byte(m_select);
     if (m_select > 2)
         return 0;
 

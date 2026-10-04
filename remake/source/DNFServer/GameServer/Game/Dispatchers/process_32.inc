@@ -31,8 +31,8 @@ int Dispatcher_BingoReward::process(CUser* user, MSG_BASE& msg, ParamBase& param
     // [b28c-30] P82 具名视图：ORIG 0x0825e772/0x0825e787 为 `movb $0x1,0x6(%eax)`
     // /`movb $0x1,0x5(%eax)` disp 直写；reinterpret_cast<uchar*>[k] 下标形反产
     // `add $k,%eax; movb $1,(%eax)`（各 +1 条）。P48 无 CSE：两次独立 getBingoData。
-    static_cast<BingoCheckView*>(user->getBingoData())->m_b6 = 1;
-    static_cast<BingoCheckView*>(user->getBingoData())->m_b5 = 1;
+    user->m_bingo.m_needSave = 1;
+    user->m_bingo.m_isWin = 1;
     BingoEvent* event =
         reinterpret_cast<BingoEvent*>(GlobalData::s_event_manager->GetRepeatEvent(0x6a));
     if (event != 0)

@@ -38,7 +38,7 @@ int Dispatcher_RequestCharacSkillInfo::process(CUser* user, MSG_BASE& msg, Param
         // ORIG 0x081e3a8e..0x081e3af7：实参序 kind(call#2)→characIdx→receiver(call#3)；
         // ORIG -0xc 为 kind 具名局部槽（P0 槽往返）。
         int skillTreeKind = (int)(char)
-            user->m_characList[(int)(char)mref.m_0d].m_field1239;
+            user->m_characList[(int)(char)mref.m_0d].m_skillTreeIndex;
         user->m_characList[(int)(char)mref.m_0d].m_skillSlot.SendSkillInfo(
             (int)(char)mref.m_0d, (ENUM_SKILL_TREE_KIND)skillTreeKind);
     }
@@ -53,7 +53,7 @@ int Dispatcher_RequestCharacSkillInfo::process(CUser* user, MSG_BASE& msg, Param
         SIG_REQUEST_CHARAC_SKILL_INFO* req =
             guard->GetInBuffer<SIG_REQUEST_CHARAC_SKILL_INFO>();
         // ORIG 0x081e3ba9 第 4 次 operator[] 后读 +0x00（m_characNo）。
-        *(int*)req = (int)user->m_characList[(int)(char)mref.m_0d].m_characNo;
+        req->m_characNo = (unsigned int)user->m_characList[(int)(char)mref.m_0d].m_characNo;
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
     }
     return 0;

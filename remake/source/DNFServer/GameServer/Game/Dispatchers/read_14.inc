@@ -13,13 +13,13 @@ int Dispatcher_Teleport::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_field14)))
+    if (!packet.get_byte(req.m_field14))
     {
         return LineFunc(0x2b3c,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_field15)))
+    if (!packet.get_byte(req.m_field15))
     {
         return LineFunc(0x2b3f,
                         __PRETTY_FUNCTION__,

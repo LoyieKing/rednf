@@ -129,10 +129,10 @@ bool CTradeSpace::proceed_trade()
             m_nMoney[trader] = 0;
             // ORIG 0x853087a：WriteTradeUp/Down 第三参在清零后读成员（恒 0）
             HistoryLog::WriteTradeUp(
-                (FILE*)m_pTraders[trader]->m_field796f8, 0,
+                (FILE*)m_pTraders[trader]->m_historyLogFp, 0,
                 m_nMoney[trader]);
             HistoryLog::WriteTradeDown(
-                (FILE*)m_pTraders[1 - trader]->m_field796f8, 0,
+                (FILE*)m_pTraders[1 - trader]->m_historyLogFp, 0,
                 m_nMoney[trader]);
         }
         else
@@ -270,11 +270,11 @@ bool CTradeSpace::proceed_trade()
                     return false;
                 }
                 HistoryLog::WriteTradeUp(
-                    (FILE*)m_pTraders[trader]->m_field796f8,
+                    (FILE*)m_pTraders[trader]->m_historyLogFp,
                     m_slotsData[trader][slot].m_item.m_addInfo,
                     m_slotsData[trader][slot].m_item.get_add_info());
                 HistoryLog::WriteTradeDown(
-                    (FILE*)m_pTraders[1 - trader]->m_field796f8,
+                    (FILE*)m_pTraders[1 - trader]->m_historyLogFp,
                     m_slotsData[trader][slot].m_item.m_addInfo,
                     m_slotsData[trader][slot].m_item.get_add_info());
                 m_slotsData[trader][slot].m_item.reset();

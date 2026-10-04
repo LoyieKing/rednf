@@ -50,7 +50,7 @@ int CParty::ReviveUser(CUser* actor, unsigned short targetUid)
                 return 1;
             }
             HistoryLog::WriteUseCoin(
-                reinterpret_cast<_IO_FILE*>(actor->m_field796f8),
+                reinterpret_cast<_IO_FILE*>(actor->m_historyLogFp),
                 reinterpret_cast<CUserCharacInfo*>(dead)->getCurCharacName());
             --m_battleData.m_arr7e8[j];
         coin_skip:;

@@ -47,8 +47,8 @@ bool CUser::SetInventory(SIG_LOAD_INVENTORY* sig)
         // 实测**无效**（227/238→227/239、delta 268→267），且本处两侧均非具名局部
         // （元素字段 vs 镜像字段）⇒ 命中 Main 转发的 C05② 边界（仅「两个具名局部比较」命中）⇒ 回退。
         const CInventory* invenR = getCurCharacInvenR();
-        if (*reinterpret_cast<const int*>(reinterpret_cast<const char*>(invenR) + i * 0x3d + 0x1e) !=
-            *reinterpret_cast<int*>(equipLoop + i * 0x3d + 2)) {
+        if (invenR->m_invenItem[i].m_addInfo !=
+            reinterpret_cast<Inven_Item*>(equipLoop)[i].m_addInfo) {
             m_characterView.enableSaveCharacView();
             break;
         }
@@ -63,14 +63,14 @@ bool CUser::SetInventory(SIG_LOAD_INVENTORY* sig)
     getCurCharacInvenW()->SetEventCoin(eventCoin);
     getCurCharacInvenW()->SetInvenData(1, inven1, inven1Size);
     getCurCharacInvenW()->SetInvenData(2, inven2, inven2Size);
-    memcpy(reinterpret_cast<char*>(getCurCharacInvenW()) + 0x1c, equipMirror,
+    memcpy(getCurCharacInvenW()->m_invenItem, equipMirror,
            equipMirrorSize);
-    memcpy(reinterpret_cast<char*>(getCurCharacInvenW()) + 0x55a, inven3 + 0x38b6, 0xf4);
+    memcpy(&getCurCharacInvenW()->m_invenItem[22], inven3 + 0x38b6, 0xf4);
     for (int i = 0x17; i < 0x1a; ++i) {
         // ORIG 0x0864d3f7 `lea 0xc(%eax),%ebx`：LoadArtifact 第三实参（元素指针）先物化
         // %ebx 并跨两次 receiver 调用保活 ⇒ 单表达式链式（P52），禁具名 invenW/mgr（旧稿两槽）。
         getCurCharacInvenW()->GetCreatureMgrW()->LoadArtifact(i,
-            reinterpret_cast<Inven_Item*>(reinterpret_cast<char*>(getCurCharacInvenW()) + i * 0x3d + 0x1c));
+            &getCurCharacInvenW()->m_invenItem[i]);
     }
     getCurCharacInvenW()->SetInvenData(3, inven3, inven3Size);
     if (cargoCapacity == 0) {

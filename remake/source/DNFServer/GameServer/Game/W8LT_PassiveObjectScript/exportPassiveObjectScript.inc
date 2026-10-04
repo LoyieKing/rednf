@@ -343,10 +343,10 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
                 // ORIG 08a2b446-08a2b48a：每轮重新 operator[]（P183 禁指针缓存），
                 // 再以对象首地址 + int 索引 (k+4) 访问 +0x10..+0x18；k 为 unsigned
                 // （尾测 setbe，P321-T2）。
-                for (unsigned int k = 0; k <= 2; ++k)
-                    fprintf(file, "%d ",
-                            ((const STPassiveObjectAdditionalParticleInfoIntView*)
-                             script->m_particles[i])->m_ints[k + 4]);
+                fprintf(file, "%d %d %d ",
+                        script->m_particles[i]->m_i10,
+                        script->m_particles[i]->m_i14,
+                        script->m_particles[i]->m_i18);
                 fputc(10, file);
             }
             // ORIG 0x08a2b4a9：直测单字节（无 setne 物化）⇒ 隐式转 bool。

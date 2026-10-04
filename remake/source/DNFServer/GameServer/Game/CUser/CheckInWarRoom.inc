@@ -1,4 +1,4 @@
 bool CUser::CheckInWarRoom()
 {
-    return (~(unsigned short)m_field8d008 & 0x8000) != 0;
+    return (~(unsigned short)m_warRoomIndex & 0x8000) != 0;
 }

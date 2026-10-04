@@ -10,23 +10,23 @@ int Inter_NoticeServerMessageInfo::dispatch_sig(CUser* /*user*/, char* data, int
     if (local_20 != 0)
     {
         // P183：ORIG 无 sourceChannel 具名 byte 槽（`movzbl %al,%ebx` 直取）⇒ 内联表达式。
-        if (pPkt->m_a != G_CEnvironment()->get_channel_no())
+        if (pPkt->m_channelNo != G_CEnvironment()->get_channel_no())
         {
             local_20->UpdateServerMessageByBroadcast(
                 (int)pPkt->m_c,
-                const_cast<char*>(reinterpret_cast<char*>(pPkt) + 0x11),
-                const_cast<char*>(reinterpret_cast<char*>(pPkt) + 0x47),
+                const_cast<char*>(pPkt->m_title),
+                const_cast<char*>(pPkt->m_body),
                 pPkt->m_5b);
         }
         cMyTrace(__PRETTY_FUNCTION__,
             0x42be, 0)("SERVER_MESSAGE : Recv ServerMessage from monitor server(source_channel:%d, kind:%d, index:%d, msg_len:%d, msg:%s, name_len:%d, name:%s, time:%d",
-              (unsigned int)pPkt->m_a,
+              (unsigned int)pPkt->m_channelNo,
               (unsigned int)pPkt->m_b,
               (unsigned int)pPkt->m_c,
-              pPkt->m_d,
-              reinterpret_cast<char*>(pPkt) + 0x11,
-              pPkt->m_43,
-              reinterpret_cast<char*>(pPkt) + 0x47,
+              pPkt->m_titleLen,
+              pPkt->m_title,
+              pPkt->m_bodyLen,
+              pPkt->m_body,
               pPkt->m_5b);
     }
 
@@ -36,10 +36,10 @@ int Inter_NoticeServerMessageInfo::dispatch_sig(CUser* /*user*/, char* data, int
     packet.put_byte(1);
     packet.put_byte(
         (unsigned int)pPkt->m_c);
-    packet.put_int(pPkt->m_d);
-    packet.put_str(pPkt->m_11, pPkt->m_d);
-    packet.put_int(pPkt->m_43);
-    packet.put_str(pPkt->m_47, pPkt->m_43);
+    packet.put_int(pPkt->m_titleLen);
+    packet.put_str(pPkt->m_title, pPkt->m_titleLen);
+    packet.put_int(pPkt->m_bodyLen);
+    packet.put_str(pPkt->m_body, pPkt->m_bodyLen);
     packet.finalize(true);
     G_GameWorld()->send_all_with_state(packet, 3);
     return 0;

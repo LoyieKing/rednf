@@ -38,8 +38,8 @@ int Dispatcher_CheckJoinGuild::process(CUser* user, MSG_BASE& msg, ParamBase& pa
         // ⇒ 4.4 折单条 `mov 0x378(%eax),%eax`（裸 char* +0x378 恒发 add+mov 两条）。
         sig.m_serverId = G_CEnvironment()->m_serverEnvir.m_serverGroup;
     }
-    strncpy(reinterpret_cast<char*>(&sig),
-            reinterpret_cast<char*>(pMsg) + 0x11, 0x16);
+    strncpy(sig.m_guildName,
+            reinterpret_cast<MSG_CHECK_GUILD_JOIN*>(pMsg)->m_11, 0x16);
     DB_CheckJoinGuild::makeRequest(user->GetUID(), &sig);
     return 0;
 }

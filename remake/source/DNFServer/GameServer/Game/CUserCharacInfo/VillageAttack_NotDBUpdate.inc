@@ -2,6 +2,6 @@ void CUserCharacInfo::VillageAttack_NotDBUpdate()
 {
     if (m_selected)
     {
-    m_selected->m_field1244 = 0;
+    m_selected->m_villageAttackDBUpdate = 0;
     }
 }

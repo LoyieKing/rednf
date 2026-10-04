@@ -45,8 +45,7 @@ void CParty::DungeonPermission(int param)
         case 1:
             // P226：ORIG 0x085b1403 `cmp; setle %al; test %al,%al; je 岛` 物化。
             if (({ (static_cast<int>(
-                        reinterpret_cast<const KcDataMgrDailyLimitView*>(
-                            G_CDataManager())->m_limitDiff1) <= param); }))
+                        G_CDataManager()->m_rankSystem.m_dungeonRank.m_rankLevel[2]) <= param); }))
                 granted = m_member[i].m_pUser->AddDungeonClear(
                     m_battleField.m_dungeonIndex, 2);
             break;

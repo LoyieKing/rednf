@@ -147,10 +147,9 @@ CCreatureMgr& CCreatureMgr::operator=(const CCreatureMgr& src)
     // [b28d-solo-CCreatureMgr P247/P206] ORIG 0x869d644 三条 artifact store 共享
     // %eax(dest)/%edx(src)、value 走 %ecx（12B 块拷贝形）；逐元素赋值 4.4 恒
     // 每条重载双基址。改用 12B 视图结构整体赋值复现块拷贝（布局/mangled 不变）。
-    struct ArtifactTriple { int m_w0, m_w1, m_w2; };
-    struct ArtifactTailView { char m_pre[0x20]; ArtifactTriple m_art; };
-    reinterpret_cast<ArtifactTailView*>(this)->m_art =
-        reinterpret_cast<const ArtifactTailView*>(&src)->m_art;
+    m_artifacts[0] = src.m_artifacts[0];
+    m_artifacts[1] = src.m_artifacts[1];
+    m_artifacts[2] = src.m_artifacts[2];
     m_tempExpireDelta = src.m_tempExpireDelta;
     m_field30 = src.m_field30;
     m_isMaxLevelGrowCreature = src.m_isMaxLevelGrowCreature;

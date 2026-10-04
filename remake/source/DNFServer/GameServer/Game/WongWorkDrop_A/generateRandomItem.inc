@@ -32,20 +32,18 @@ void CWorldDrop::generateRandomItem(stGenerateRefData_t const& ref,
     //（-0x20 槽），ctx[0]/ctx[1] 多次直读；threshold 直接 prod/100（无负数
     // 特判分支，ORIG 无 js）；pick 复用 roll 槽；push 展开为内联体。
     // ctx 基址取具名字段 m_field34（§4.3/P82；+0x35 = m_field35 字节视图）。
-    StRefCtxView const* ctx =
-        reinterpret_cast<StRefCtxView const*>(&ref.m_field34);
     int roll = m_random.generateNumber(0, 100000);     // CGenerateRandomNumber(this+8)
 
-    if (ctx->m_level > 199)                            // ORIG movzbl cmp $0xc7 ja
+    if ((unsigned char)ref.m_field35 > 199)            // ORIG movzbl cmp $0xc7 ja
     {
     }
     else
     {
         WorldDropInfo* slot = 0;                       // ORIG 预清 movl $0,-0x18
-        if (ctx->m_type == 1)                          // warArea 分支
-            slot = &m_warAreaDrop[ctx->m_level];
+        if ((unsigned char)ref.m_field34 == 1)         // warArea 分支
+            slot = &m_warAreaDrop[(unsigned char)ref.m_field35];
         else
-            slot = &m_worldDrop[ctx->m_level];
+            slot = &m_worldDrop[(unsigned char)ref.m_field35];
         // threshold = first × dropRate / 100（ORIG imul 0x51eb851f 魔数除法）
         int threshold = (slot->m_first * ref.m_dropRate) / 100;
         if (roll > threshold)                          // jg 退出

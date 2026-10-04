@@ -12,8 +12,8 @@ bool DBUpdateExitTime::dispatch(int code, int uid, Stream* stream)
         if (sig == 0)
             throw "handle null";
         if (GlobalData::s_psimpleSSO->updateSSOExpireTime(
-                reinterpret_cast<DBUpdateExitTimeView*>(sig)->m_timeA,
-                reinterpret_cast<DBUpdateExitTimeView*>(sig)->m_timeB) != 1)
+                sig->m_timeA,
+                sig->m_timeB) != 1)
             throw "exec";
         return 1;
     }

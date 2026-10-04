@@ -17,5 +17,5 @@ unsigned int CDataManager::GetSpAtLevelUp(int level) const
     // ⇒ 名义基址 this+8、两步下标 0x36a2+level（P205 拆形族）。
     // 残差 1 条：4.4 恒先载 this 地址再求下标（N76 load 侧地址先物化，
     // register 钉 edx/交换加数均无效），ORIG 为 edx=level+0x36a2 先行。
-    return ((const CDataManagerRewardSpView*)this)->m_sp8[level + 0x36a2];
+    return this->m_spTableTail[level];
 }

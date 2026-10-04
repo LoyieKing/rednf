@@ -11,9 +11,7 @@ int DisPatcher_DeleteCharac::process(CUser* user, MSG_BASE& msg, ParamBase& para
     stDeleteCharac& out = static_cast<stDeleteCharac&>(param);
     out.m_errNo = check_error(user, msg);
     if (out.m_errNo > 0)
-    {
         return 0;
-    }
     if (out.m_errNo < 0)
     {
         return LineFunc(0xa41,

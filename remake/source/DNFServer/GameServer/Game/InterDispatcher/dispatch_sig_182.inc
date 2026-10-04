@@ -4,7 +4,7 @@ int Inter_NoticeCreateGuildAgit::dispatch_sig(CUser* user, char* data, int /*len
     user->SetGuildAgitFlag(true);
 
     // ORIG 0x084daa2a：pPkt 槽 -0xc 入口即物化；m_12 比较。
-    if (pPkt->m_12 == user->get_charac_no(-1))
+    if (pPkt->m_characNo == user->get_charac_no(-1))
     {   // 目标即本人 → 成功回执
         PacketGuard packet;
         packet.put_header(1, 0xe7);

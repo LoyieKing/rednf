@@ -14,13 +14,13 @@ int Dispatcher_PartyTeleport::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<short*>(&req.m_field0f)))   // +0x0f posx
+    if (!packet.get_short(req.m_field0f))   // +0x0f posx
     {
         return LineFunc(19233,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<short*>(&req.m_field11)))   // +0x11 posy
+    if (!packet.get_short(req.m_field11))   // +0x11 posy
     {
         return LineFunc(19234,
                         __PRETTY_FUNCTION__,

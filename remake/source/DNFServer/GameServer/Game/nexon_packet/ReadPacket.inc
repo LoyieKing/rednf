@@ -34,14 +34,15 @@ void stLoginPacket::ReadPacket(const char* packet, stLogin& out)
     stLoginPacket* self = this;
     CPacketHelper helper(self->m_body, MaxBodySize, 0);
 
-    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)), 1);
-    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 1, 1);
-    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 2,
-                static_cast<int>(static_cast<unsigned char>(packet[1])));
-    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x101, 1);
-    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x102,
-                static_cast<int>(static_cast<unsigned char>(packet[0x101])));
-    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x201, 4);
-    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x205, 1);
-    helper.scan(reinterpret_cast<unsigned char*>(const_cast<char*>(packet)) + 0x206, 8);
+    stLogin* login = reinterpret_cast<stLogin*>(const_cast<char*>(packet));
+    helper.scan(reinterpret_cast<unsigned char*>(&login->m_type), 1);
+    helper.scan(reinterpret_cast<unsigned char*>(&login->m_accLen), 1);
+    helper.scan(reinterpret_cast<unsigned char*>(login->m_account),
+                static_cast<int>(static_cast<unsigned char>(login->m_accLen)));
+    helper.scan(reinterpret_cast<unsigned char*>(&login->m_charLen), 1);
+    helper.scan(reinterpret_cast<unsigned char*>(login->m_characName),
+                static_cast<int>(static_cast<unsigned char>(login->m_charLen)));
+    helper.scan(reinterpret_cast<unsigned char*>(&login->m_ip), 4);
+    helper.scan(reinterpret_cast<unsigned char*>(&login->m_canTry), 1);
+    helper.scan(reinterpret_cast<unsigned char*>(&login->m_userIdx), 8);
 }

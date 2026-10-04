@@ -36,6 +36,7 @@
 #include "DNFFunctionLib.h"  // CodePage::script2Database/script/database
 #include "GameTypes.h"       // cMyTrace
 #include "SyncScriptDeps.h"
+#include "APSystemTypes.h"
 
 // ==================== 全局工具 ====================
 // ==================== 全局工具 ====================

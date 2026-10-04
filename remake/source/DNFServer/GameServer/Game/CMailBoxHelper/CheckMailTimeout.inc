@@ -45,7 +45,7 @@ unsigned int CMailBoxHelper::CheckMailTimeout(CUser* user, PacketGuard* packet)
                 }
             }
             mail->ResetPackage();
-            reinterpret_cast<CMailBoxView*>(box)->m_mailPool.Free(mail); // +0x10
+            box->m_mailPool.Free(mail); // +0x10
         }
         else
         {

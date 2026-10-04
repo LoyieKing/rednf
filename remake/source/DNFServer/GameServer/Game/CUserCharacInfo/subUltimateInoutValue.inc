@@ -2,6 +2,6 @@
 // 视图直读（文件头）后复现 ORIG 单段装载，本函数 AE。
 void CUserCharacInfo::subUltimateInoutValue(char index)
 {
-    m_selected->m_fieldEBF = 1;
+    m_selected->m_saveBloodInoutValue = 1;
     --m_selected->m_ultimateInout[index];
 }

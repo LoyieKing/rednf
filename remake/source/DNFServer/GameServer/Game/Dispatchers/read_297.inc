@@ -11,12 +11,14 @@ int Dispatcher_SaveGameOption_ChattingEmoticon::read(PacketBuf& packet, MSG_BASE
     for (int i = 0; i < static_cast<int>(data.m_count); ++i)
     {
         MSG_SAVE_GAME_OPTION_CHATTING_EMOTICON::_slot_String slot;
-        if (!packet.get_short(*reinterpret_cast<short*>(&slot.m_slot)))
+        unsigned short slotNo = 0;
+        if (!packet.get_short(slotNo))
         {
             return LineFunc(0x293a,
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
+        slot.m_slot = slotNo;
         // ORIG 0x081cf409：strLen@-0x30（远槽、无预清零 dead store）、
         // strBuf@-0x2a 紧贴 slot(-0x16) 下方；get_int 实参 `lea -0x30` 直落。
         // 声明序翻转（技巧21 实验律）：strBuf 先声明、strLen 最后→分配最远。

@@ -7,7 +7,7 @@ int Dispatcher_MemberSecede::read(PacketBuf& packet, MSG_BASE& msg)
     MSG_MEMBER_SECEDE* v = reinterpret_cast<MSG_MEMBER_SECEDE*>(&msg);
     if (!packet.get_int(v->m_nameLen))
         return LineFunc(0x2209, __PRETTY_FUNCTION__, 0, 0);
-    if (!packet.get_str(reinterpret_cast<char*>(v) + 0x14, 0x1e, v->m_nameLen))
+    if (!packet.get_str(v->m_characName, 0x1e, v->m_nameLen))
         return LineFunc(0x220c, __PRETTY_FUNCTION__, 0, 0);
     return 0;
 }

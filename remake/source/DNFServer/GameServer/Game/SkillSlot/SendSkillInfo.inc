@@ -10,7 +10,7 @@ void SkillSlot::SendSkillInfo(int characIdx, ENUM_SKILL_TREE_KIND kind)
     guard.put_byte(1);
     guard.put_byte(characIdx);
     guard.put_byte(
-        (int)(char)m_parent->m_characList[characIdx].m_field26);
+        (int)(char)m_parent->m_characList[characIdx].m_job);
     guard.put_byte(
         (int)((const _Charac_info_nibble_field*)&m_parent->m_characList[characIdx])
             ->m_specialNibble);

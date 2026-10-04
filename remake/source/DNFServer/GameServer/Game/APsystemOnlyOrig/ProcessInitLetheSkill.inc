@@ -10,7 +10,7 @@ bool DB_UpdateOneDayLetheSkill::ProcessInitLetheSkill(
                                                   (ENUM_SERVER_GROUP)0);
     char* blob = 0;
     if (!put_compressed_blob_data(
-            db, 0, (char*)((unsigned long)sig + 0xdUL), 0x198, &blob))
+            db, 0, sig->m_skills, 0x198, &blob))
     {
         return false;
     }

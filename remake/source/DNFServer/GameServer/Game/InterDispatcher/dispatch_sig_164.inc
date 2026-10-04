@@ -22,21 +22,19 @@ int Inter_BlackIPMonitor::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
     if (pPkt->m_c84 != '\0')
         GlobalData::g_blackIPMonitor->reset();
 
-    for (i = 0; i < pPkt->m_0; ++i)
+    for (i = 0; i < pPkt->m_count; ++i)
     {
-#define pData (reinterpret_cast<char*>(pPkt))
-#define pRec ((Inter_BlackIPMonitorRecWinView*)(pData + (i * 2 + 1) * 0x10))
+        Inter_BlackIPMonitorRec* recs =
+            reinterpret_cast<Inter_BlackIPMonitorRec*>(pPkt);
         GlobalData::g_blackIPMonitor->insertNewIP(
-            inet_addr(pData + (i << 5) + 4),
-            (WongWork::ENUM_BLACKIPMONITOR_PUNISH_TYPE)pRec->m_4,
-            pRec->m_8, pRec->m_c, pRec->m_10);
-#undef pRec
-#undef pData
+            inet_addr(recs[i].m_ip),
+            (WongWork::ENUM_BLACKIPMONITOR_PUNISH_TYPE)recs[i].m_punishType,
+            recs[i].m_start, recs[i].m_c,
+            *reinterpret_cast<long*>(&recs[i + 1]));
     }
 
     GlobalData::g_IPMonitorLastDBAccessTime =
-        ((Inter_BlackIPMonitorRecWinView*)(reinterpret_cast<char*>(pPkt) +
-                                           ((i - 1) * 2 + 1) * 0x10))->m_c;
+        reinterpret_cast<Inter_BlackIPMonitorRec*>(pPkt)[i - 1].m_c;
     cMyTrace(__PRETTY_FUNCTION__, 0x3f5b, 0)(
         "IPMonitorPunish LAST LOAD TIME : %d",
         GlobalData::g_IPMonitorLastDBAccessTime);

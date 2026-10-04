@@ -1,4 +1,4 @@
 long CUser::getBeforeAreaTime() const
 {
-    return m_field79670;
+    return m_beforeAreaTime;
 }

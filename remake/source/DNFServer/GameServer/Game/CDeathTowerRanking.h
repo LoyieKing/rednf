@@ -24,7 +24,16 @@ class PacketGuard;   // makeMyBestRecordPacket/makeTopRankerRecordPacket 参数�
 
 // W6_RankMailDeps 需要（registRanker/registBestRecord 参数；真实布局仅按
 // ORIG 字节序引用，见 W6_RankMailDeps.cpp 注释）：
-struct stDeathTowerRecordMemberInfo_t;
+#pragma pack(push, 1)
+struct stDeathTowerRecordMemberInfo_t
+{
+    char m_name[0x14];          // +0x00
+    unsigned char m_b14;        // +0x14
+    unsigned char m_b15;        // +0x15
+    unsigned char m_b16;        // +0x16
+};
+#pragma pack(pop)
+
 
 namespace WongWork
 {

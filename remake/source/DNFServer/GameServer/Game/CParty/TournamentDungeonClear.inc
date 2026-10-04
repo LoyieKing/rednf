@@ -59,7 +59,7 @@ void CParty::TournamentDungeonClear(bool flag)
                     _putItemIntoUser(m_member[slot].m_pUser, items, packet);
                 }
                 HistoryLog::WriteDunClear(
-                    (FILE*)m_member[slot].m_pUser->m_field796f8);
+                    (FILE*)m_member[slot].m_pUser->m_historyLogFp);
                 OnSuccessedDungeonClear(m_member[slot].m_pUser);
                 if (m_member[slot].m_pUser != 0 &&
                     m_member[slot].m_pUser->IsProperLevelDungeonUser())

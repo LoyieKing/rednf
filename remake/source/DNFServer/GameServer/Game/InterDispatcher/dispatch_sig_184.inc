@@ -5,7 +5,7 @@ int Inter_NoticeLoadGuildAgit::dispatch_sig(CUser* user, char* data, int /*len*/
         pPkt->m_agit);
     PacketGuard packet;
     packet.put_header(0, 0xbf);
-    packet.put_byte(pPkt->m_16);
+    packet.put_byte(static_cast<unsigned char>(pPkt->m_agit.m_pad[0]));
     packet.finalize(true);
     user->Send(packet);
     return 0;

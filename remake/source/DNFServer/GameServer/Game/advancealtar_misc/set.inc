@@ -51,28 +51,21 @@ void AdvanceAltarData::set(const _AdvanceAltarDbData& db)
         // [L13-group6 判据⑩/P0 实验] ORIG 槽表无 rec/slotType/slotKey/slotValue 任何
         // 具名槽（我方曾多 -0x40..-0x34 四槽）；`*reinterpret_cast<const T*>` 本身
         // 即左值 ⇒ make_pair 仍实例化 const 引用形（p167 不变），全部内联重算。
-        if (*reinterpret_cast<const int*>(                            // [objdump 0x88993d1 +2]
-                reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 2) == 0)
+        if (db.m_slots[i].m_int1i == 0)
         {
-            continue;                                              // [objdump 0x88993d6 je]
+            continue;
         }
-        if (*reinterpret_cast<const int*>(                            // [objdump 0x88993f6]
-                reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 2) == 1)
+        if (db.m_slots[i].m_int1i == 1)
         {
-            m_slots1.insert(std::make_pair(                        // [objdump 0x8899461 target +0x84]
-                *reinterpret_cast<const unsigned char*>(           // key=rec+1
-                    reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 1),
-                *reinterpret_cast<const _Slot*>(                   // +6
-                    reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 6)));
+            m_slots1.insert(std::make_pair(
+                static_cast<unsigned char>(db.m_slots[i].m_byte0),
+                *reinterpret_cast<const _Slot*>(&db.m_slots[i].m_byte5)));
         }
-        else if (*reinterpret_cast<const int*>(                       // [objdump 0x88994a5]
-                     reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 2) == 2)
+        else if (db.m_slots[i].m_int1i == 2)
         {
-            m_slots2.insert(std::make_pair(                        // [objdump 0x8899503 target +0x9c]
-                *reinterpret_cast<const unsigned char*>(
-                    reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 1),
-                *reinterpret_cast<const _Slot*>(
-                    reinterpret_cast<const char*>(&db) + 0x1b0 + i * 10 + 6)));
+            m_slots2.insert(std::make_pair(
+                static_cast<unsigned char>(db.m_slots[i].m_byte0),
+                *reinterpret_cast<const _Slot*>(&db.m_slots[i].m_byte5)));
         }
     }
 
@@ -83,39 +76,31 @@ void AdvanceAltarData::set(const _AdvanceAltarDbData& db)
         // [L13-group6 判词⑩/P0 实验·续] 同 slots 段：ORIG 无 rec/count/itemKey/
         // itemValue 具名槽（仅保留 target = getBuyItemMap 单次调用结果，见 p167
         // CLEAR 的调用次数约束），逐处内联重算。
-        if (*reinterpret_cast<const int*>(                         // [objdump 0x889955e +0xd→abs 0x22d]
-                reinterpret_cast<const char*>(&db.m_buyItems) + i * 0xc + 4) <= 0)
+        if (db.m_buyItems[i].m_field4 <= 0)
         {
-            continue;                                              // [objdump 0x8899563 jle]
+            continue;
         }
         std::map<int, _BuyItem>* target =
-            getBuyItemMap((AdvanceAltarShopType::T)                // [objdump 0x889958d, +0x9→abs 0x229]
-                          *reinterpret_cast<const int*>(
-                              reinterpret_cast<const char*>(&db.m_buyItems) + i * 0xc));
+            getBuyItemMap((AdvanceAltarShopType::T)db.m_buyItems[i].m_field0);
         if (target == 0)
         {
-            continue;                                              // [objdump 0x8899599 je]
+            continue;
         }
-        target->insert(std::make_pair(                             // [objdump 0x88995c6 value=+0xd]
-            *reinterpret_cast<const int*>(
-                reinterpret_cast<const char*>(&db.m_buyItems) + i * 0xc),
-            *reinterpret_cast<const _BuyItem*>(
-                reinterpret_cast<const char*>(&db.m_buyItems) + i * 0xc + 4)));
+        target->insert(std::make_pair(
+            db.m_buyItems[i].m_field0,
+            *reinterpret_cast<const _BuyItem*>(&db.m_buyItems[i].m_field4)));
     }
 
     // rewards：i<=0x1d（数组 29 项 + 第 30 次读取落入尾部 pad，忠实 ORIG 上限）；
     // key/value 同址取 m_rewards[i].m_field0。
     for (int i = 0; i <= 0x1d; ++i)                                // [objdump 0x88996c6]
     {
-        if (*reinterpret_cast<const int*>(                         // [objdump 0x8899644 +1→abs 0x481]
-                reinterpret_cast<const char*>(&db) + 0x480 + i * 5 + 1) <= 0)
+        if (db.m_rewards[i].m_field0 <= 0)
         {
-            continue;                                              // [objdump 0x8899649 jle]
+            continue;
         }
-        m_rewards.insert(std::make_pair(                           // [objdump 0x889683]
-            *reinterpret_cast<const int*>(
-                reinterpret_cast<const char*>(&db) + 0x480 + i * 5 + 1),
-            *reinterpret_cast<const _Reward*>(
-                reinterpret_cast<const char*>(&db) + 0x480 + i * 5 + 1)));
+        m_rewards.insert(std::make_pair(
+            db.m_rewards[i].m_field0,
+            db.m_rewards[i]));
     }
 }

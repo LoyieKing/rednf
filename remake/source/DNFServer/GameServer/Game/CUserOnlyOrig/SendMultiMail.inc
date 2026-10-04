@@ -58,13 +58,13 @@ void CUser::SendMultiMail(bool certified)
                 // ⇒ 原码是**短路合条件** `if (!IsAvatarItem() && get_rarity() <= 1)`。
                 // 旧三层 if/else 赋 `skip` 产 4.4 无 xor 形 + 额外 skip 槽（-0x15）。
                 CItem* item = G_CDataManager()->find_item(
-                    *reinterpret_cast<int*>(&mm->m_body34[3 + i * 0xb]));
+                    mm->m_attach[i].m_itemIdx);
                 if (item != 0) {
                     if (!item->IsAvatarItem() && item->get_rarity() <= 1) {
                         fatigueGift = true;
                     }
                 }
-                if (*reinterpret_cast<int*>(&mm->m_body34[3 + i * 0xb]) == 0) {
+                if (mm->m_attach[i].m_itemIdx == 0) {
                     fatigueGift = true;
                 }
                 IncrementTradeGold(

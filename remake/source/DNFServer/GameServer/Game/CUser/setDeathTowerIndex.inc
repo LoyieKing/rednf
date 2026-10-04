@@ -1,4 +1,4 @@
 void CUser::setDeathTowerIndex(short idx)
 {
-    m_field8d00e = (unsigned short)idx;
+    m_deathTowerIndex = (unsigned short)idx;
 }

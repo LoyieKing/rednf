@@ -36,7 +36,7 @@ LOOP_END:
         return 0x15;
     if (user->GetUsedCoinCount() >= m_pDungeon->m_87c)
         return 0x16;
-    HistoryLog::WriteUseCoin((_IO_FILE*)user->m_field796f8,
+    HistoryLog::WriteUseCoin((_IO_FILE*)user->m_historyLogFp,
                              target->getCurCharacName());
     SetCharacterLive(slot, target, true, true, 0, 0xff);
     return 0;

@@ -10,7 +10,7 @@ void CUserPremium::InitPremium()
     m_overEquipFlag = false;                        // overEquipFlag
     m_overSkillLevel = 0;              // overSkillLevel
     m_ceraDiscountRate = 0;                  // +0x860（field860）
-    m_field862 = 0;                          // +0x862（field862）
+    m_needCheckEveryday = 0;                          // +0x862（field862）
     // ORIG 0x86ad9e8 序：memset(+0x864,0x58) → +0x8bc → clear(0x8bd) →
     // clear(0x90f) → map.clear；_Additioal_info 走 **clear() 调用**（W 符号），
     // 非 memset（后者使 4.4 展开/直调 memset，与 ORIG call 形不符）

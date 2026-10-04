@@ -25,11 +25,11 @@ int Inter_ReqGameServerInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len
         //   movzbl %al,%eax; test %eax,%eax; je case0; cmp $0x1,%eax; je case1; jmp 尾`
         //   = 值只读一次 + int 提升后 cmp 链 ⇒ 源形是 switch（P251/P261，同 MONITOR
         //   RegistGameServerAck 先例）；if/else-if 链恒退化为逐次重读 + 8 位 test/jne。
-        switch ((int)(unsigned char)pPkt->m_a)
+        switch ((int)(unsigned char)pPkt->m_cmd)
         {
         case 0:
             GlobalData::s_monitor_proxy_mgr
-                ->GetServerProxy((ENUM_SERVER_GROUP)pPkt->m_b)
+                ->GetServerProxy((ENUM_SERVER_GROUP)pPkt->m_serverGroup)
                 ->SendGameServerInfo(
                     G_CEnvironment()->get_server_ip(),
                     (unsigned short)G_CEnvironment()->get_udp_port(),
@@ -38,7 +38,7 @@ int Inter_ReqGameServerInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len
             break;
         case 1:
             GlobalData::s_guild_proxy_mgr
-                ->GetServerProxy((ENUM_SERVER_GROUP)pPkt->m_b)
+                ->GetServerProxy((ENUM_SERVER_GROUP)pPkt->m_serverGroup)
                 ->SendGameServerInfo(
                     G_CEnvironment()->get_server_ip(),
                     (unsigned short)G_CEnvironment()->get_udp_port(),
@@ -50,7 +50,7 @@ int Inter_ReqGameServerInfo::dispatch_sig(CUser* /*user*/, char* data, int /*len
     else
     {
         // [L9-C PATCH#2] 同上（else 分支同型，ORIG 084e2d45..084e2d6a 一段）。
-        switch ((int)(unsigned char)pPkt->m_a)
+        switch ((int)(unsigned char)pPkt->m_cmd)
         {
         case 0:
             GlobalData::s_monitor_proxy_mgr

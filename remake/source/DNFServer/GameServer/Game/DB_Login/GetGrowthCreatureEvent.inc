@@ -76,7 +76,7 @@ bool DB_Login::GetGrowthCreatureEvent(SIG_LOGIN_DATA* sig)
     }
     else
     {
-        memset(SGBC(sig, OFF_GROWTH_CREATURE), 0, 0x1e4);
+        memset(reinterpret_cast<char*>(&sig->m_growthCreatureEvent), 0, 0x1e4);
     }
     return 1;
 }

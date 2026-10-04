@@ -34,15 +34,9 @@ int DisPatcher_RepairEquip::process(CUser* user, MSG_BASE& msg, ParamBase& param
         // 中间临时（`movzwl …,%eax; mov %eax,%edx`），ORIG 0x081c60xx 为单步
         // `movzwl 0xe(%eax),%edx`。改用 pack(1) 同址视图把源读成 unsigned short（同型
         // ⇒ 无转换临时），位型/偏移不变。
-        #pragma pack(push, 1)
-        struct RepairEquipReqView {
-            char m_head[0xe];
-            unsigned short m_0e;   // +0x0e 原位型
-        };
-        #pragma pack(pop)
         // 取址走 `req`（ORIG 用其槽 -0x20），非形参 `msg`（0x10(%ebp)）：
         // ORIG `mov -0x20(%ebp),%eax; movzwl 0xe(%eax),%edx`。
-        out.m_a = reinterpret_cast<const RepairEquipReqView*>(&req)->m_0e;
+        out.m_a = static_cast<unsigned short>(req.m_0e);
     }
     return 0;
 }

@@ -299,7 +299,7 @@ void CUser::quest_action(int cmd, int questId, int triggerVal, int opt)
     L_fine_quest:
         packet.finalize(true);
         Send(packet);
-        HistoryLog::WriteFineQuest((FILE*)m_field796f8, questId);
+        HistoryLog::WriteFineQuest((FILE*)m_historyLogFp, questId);
     L_case24_done:
         break;
     }

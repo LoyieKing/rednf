@@ -20,17 +20,17 @@ void SpecialItemHandler::respond_special_item_cargo_abs(int type,
     // b28d-D42 P0/P52：ORIG 0x0827bee6 无 user/value 具名槽——param.m_value
     // 从载荷直读入 %edx 与 capacity 相加后存 %ebx 跨 call 保活；user 逐点重读
     // `mov 0x10(%ebp),%eax; mov (%eax),%eax`（P48 无 CSE）。
-    if (!CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoR()->isUpgradable(
-            ({ CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoR()->GetCapacity() +
-               CERA_PARAM_TYPED(param)->m_value; })))
+    if (!static_cast<CUser*>(param.m_user)->getCurCharacCargoR()->isUpgradable(
+            ({ static_cast<CUser*>(param.m_user)->getCurCharacCargoR()->GetCapacity() +
+               param.m_value; })))
     {
         result.m_value = 0x12;
     }
     else
     {
-        CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoW()->UpgradeCargo(
-            ({ CERA_PARAM_TYPED(param)->m_user->getCurCharacCargoR()->GetCapacity() +
-               CERA_PARAM_TYPED(param)->m_value; }));
-        m_owner->_sendCargoUpgradePacket(CERA_PARAM_TYPED(param)->m_user, type);
+        static_cast<CUser*>(param.m_user)->getCurCharacCargoW()->UpgradeCargo(
+            ({ static_cast<CUser*>(param.m_user)->getCurCharacCargoR()->GetCapacity() +
+               param.m_value; }));
+        m_owner->_sendCargoUpgradePacket(static_cast<CUser*>(param.m_user), type);
     }
 }

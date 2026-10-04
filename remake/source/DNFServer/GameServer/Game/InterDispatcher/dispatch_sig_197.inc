@@ -3,18 +3,18 @@ int Inter_ApplyTempPowerSide::dispatch_sig(CUser* user, char* data, int /*len*/)
     Inter_ApplyTempPowerSidePktView* pPkt = reinterpret_cast<Inter_ApplyTempPowerSidePktView*>(data);
     // [b28d-lane2] ORIG 084dccec 段为「字段先读」序（`mov -0x10(%ebp),%eax;
     // mov 0xe(%eax),%ebx; movl $0xffffffff,0x4(%esp); call get_charac_no; cmp %eax,%ebx`）
-    // ⇒ 原码字段在比较左（`pPkt->m_e != user->get_charac_no(-1)`）；旧 call-first 序
+    // ⇒ 原码字段在比较左（`pPkt->m_characNo != user->get_charac_no(-1)`）；旧 call-first 序
     //   产 `mov %eax,%edx; mov 0xe(%eax),%eax; cmp %eax,%edx`（+3 条）。
-    if (pPkt->m_e != user->get_charac_no(-1))
+    if (pPkt->m_characNo != user->get_charac_no(-1))
         return 0;
 
     {   // STGuildProxy(GetGuildDBInfo(), 名随写字节+0x1b, msg+0x16)
         // ORIG 单次调用 + 槽往返 ⇒ 具名局部（p167 E=GetGuildDBInfo×1）。
-        const char* guildDbInfo = static_cast<const char*>(user->GetGuildDBInfo());
+        const STGuildDBInfoOnly* guildDbInfo =
+            static_cast<const STGuildDBInfoOnly*>(user->GetGuildDBInfo());
         STGuildProxy proxy(
-            guildDbInfo,
-            // P248 同型化：ORIG 084dcd33 `movzbl 0x1b(%eax),%eax` 单段 disp 读。
-            ((const Inter_ApplyTempPowerSideGuildDbByteViewI*)guildDbInfo)->m_c,
+            guildDbInfo->m_guildName,
+            guildDbInfo->m_fundLevel,
             pPkt->m_16);
         // [G2A-PC 手法2/P324] ORIG 084dcd33 后段：get_charac_guildkey 结果入 callee-saved
         //   （无栈槽）→ 084dcd66/084dcd79 receiver 链（GetServerGroup → GetServerProxy）

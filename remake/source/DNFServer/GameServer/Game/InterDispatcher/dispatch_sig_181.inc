@@ -2,7 +2,7 @@ int Inter_PowerWarEndInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_PowerWarEndInfoPktView* pPkt = reinterpret_cast<Inter_PowerWarEndInfoPktView*>(data);
 
-    if (pPkt->m_e != user->get_charac_no(-1))
+    if (pPkt->m_characNo != user->get_charac_no(-1))
         return 0;
 
     PacketGuard packet;

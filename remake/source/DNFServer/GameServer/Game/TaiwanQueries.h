@@ -347,7 +347,7 @@ public:
     void init();                          // ORIG W 0x0815df38
     void set(unsigned int a, unsigned int b);  // ORIG W 0x0815df50
 
-private:
+public:
     unsigned int m_timeA;                 // +0x00（字段语义未建模【推断】）
     unsigned int m_timeB;                 // +0x04
 };
@@ -418,8 +418,7 @@ public:
     SigSaveHeroMissionData();             // ORIG W 0x081639ac：调 init()
     void init();                          // ORIG W 0x081639c0
 
-private:
-    unsigned int m_field0;                // +0x00
+    unsigned int m_characNo;              // +0x00
     unsigned char m_data[0x100];          // +0x04
 };
 

@@ -4,6 +4,6 @@ void CUserCharacInfo::setWeekendBonusExp(unsigned int exp, int percent)
 {
     if (m_selected)
     {
-        m_selected->m_field1291 = (int)((double)exp * (percent / 100.0f));
+        m_selected->m_weekendBonusExp = (int)((double)exp * (percent / 100.0f));
     }
 }

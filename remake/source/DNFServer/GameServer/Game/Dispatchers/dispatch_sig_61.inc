@@ -16,13 +16,13 @@ int Dispatcher_Compound_Avatar::dispatch_sig(CUser* user, PacketBuf& packet)
     // get_short(short&)/get_int(unsigned long&)/get_byte(char&) 需同宽指针转换
     //（字段类型按消费侧 _MakeCompoundInfo 的 movzwl/movzbl 读取口径取 unsigned）。
     MSG_COMPOUND_AVATAR msg;
-    if (!packet.get_short(*reinterpret_cast<short*>(&msg.m_avatarSlot)))
+    if (!packet.get_short(msg.m_avatarSlot))
     {
         return LineFunc(0x6c89,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<short*>(&msg.m_materialSlotA)))
+    if (!packet.get_short(msg.m_materialSlotA))
     {
         return LineFunc(0x6c8a,
                         __PRETTY_FUNCTION__,
@@ -34,7 +34,7 @@ int Dispatcher_Compound_Avatar::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<short*>(&msg.m_materialSlotB)))
+    if (!packet.get_short(msg.m_materialSlotB))
     {
         return LineFunc(0x6c8c,
                         __PRETTY_FUNCTION__,
@@ -52,7 +52,7 @@ int Dispatcher_Compound_Avatar::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_short(*reinterpret_cast<short*>(&msg.m_slot)))
+    if (!packet.get_short(msg.m_slot))
     {
         return LineFunc(0x6c8f,
                         __PRETTY_FUNCTION__,
@@ -64,7 +64,7 @@ int Dispatcher_Compound_Avatar::dispatch_sig(CUser* user, PacketBuf& packet)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&msg.m_type)))
+    if (!packet.get_byte(msg.m_type))
     {
         return LineFunc(0x6c92,
                         __PRETTY_FUNCTION__,

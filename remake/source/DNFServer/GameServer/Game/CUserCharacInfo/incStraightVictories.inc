@@ -2,6 +2,6 @@ void CUserCharacInfo::incStraightVictories()
 {
     if (m_selected)
     {
-    ++m_selected->m_field1229;
+    ++m_selected->m_straightVictories;
     }
 }

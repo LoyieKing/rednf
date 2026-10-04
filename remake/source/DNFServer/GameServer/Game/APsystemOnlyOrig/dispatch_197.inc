@@ -12,16 +12,15 @@ bool DB_PassPadUpdateFailCnt::dispatch(int /*userIdx*/, int /*slot*/,
     // mov (%eax),%eax`（重读 sig 槽再解引用，无独立视图槽），且帧
     // ORIG `push %ebx; sub $0x94` vs 我方 `push %edi; sub $0xa0` ⇒ 每点内联
     // 视图表达式（P89 单一视图表达式）。
-#define PSIG ((DB_PassPadUpdateFailCntView*)sig)
     db->set_query(
         "upDate member_mousepass set fail_cnt=%d where m_id=%s and enable_flag = '1'",
-        PSIG->m_failCnt, NumberToString(PSIG->m_mId, 0));
+        sig->m_cnt, NumberToString(sig->m_mId, 0));
     db->exec(true);
-    if (PSIG->m_failCnt != 0)
+    if (sig->m_cnt != 0)
     {
         db->set_query(
             "seLect mousepass from member_mousepass where m_id=%s",
-            NumberToString(PSIG->m_mId, 0));
+            NumberToString(sig->m_mId, 0));
         // [H4 2026-09-11] ORIG 0x08423c92..0x08423cc8 实证：bool 值**不落栈槽** ——
         // `xor $1,%eax; test %al,%al; jne <fail>` + `test %eax,%eax; je <fail>` +
         // `xor $1,%eax; test %al,%al; je <succ>` 短路链，`fail: mov $1,%eax` /
@@ -43,24 +42,23 @@ bool DB_PassPadUpdateFailCnt::dispatch(int /*userIdx*/, int /*slot*/,
         strftime(ym, 10, "%Y%m", &tmBuf);
         db->set_query(
             "inSert into member_mousepass_history_%s (occ_time, m_id, pre_mousepass, modify_type, ip_info, port_info) values (now(),%s,'%s',%d,'%s','')",
-            ym, NumberToString(PSIG->m_mId, 0), mousepass, 0x11, PSIG->m_ipInfo);
+            ym, NumberToString(sig->m_mId, 0), mousepass, 0x11, sig->m_webAddr);
         db->exec(true);
     }
     MySQL* dbGrade = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_1,
                                                        E_SERVER_GROUP_NONE);
     dbGrade->set_query(
         "upDate member_security_grade set goblin_fail_cnt=%d where m_id=%s",
-        PSIG->m_failCnt, NumberToString(PSIG->m_mId, 0));
+        sig->m_cnt, NumberToString(sig->m_mId, 0));
     // [H4 2026-09-11] 同上（P0）：ORIG 下部 bool 同走 `mov $1/$0,%eax` 寄存器物化
     // ⇒ 无具名局部，直接判复合条件。
     if (!(dbGrade->exec(true) == 1 && dbGrade->getAffectedRowCount() != 0))
     {
         dbGrade->set_query(
             "inSert into member_security_grade(m_id, goblin_fail_cnt) values(%s, %d)",
-            NumberToString(PSIG->m_mId, 0), PSIG->m_failCnt);
+            NumberToString(sig->m_mId, 0), sig->m_cnt);
         if (dbGrade->exec(true) != 1)
             return 0;
     }
-#undef PSIG
     return 1;
 }

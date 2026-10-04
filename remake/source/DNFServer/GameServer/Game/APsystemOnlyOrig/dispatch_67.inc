@@ -25,9 +25,9 @@ bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
         SIG_LOAD_GAME_OPTION* out =
             guard.operator->()->GetInBuffer<SIG_LOAD_GAME_OPTION>();
         ((CETCOption*)out)->clear();
-        ((DB_GameOptionSigView*)out)->m_quick[0].clear();
-        ((DB_GameOptionSigView*)out)->m_quick[1].clear();
-        ((DB_GameOptionSigView*)out)->m_emoticon.clear();
+        out->m_quick[0].clear();
+        out->m_quick[1].clear();
+        out->m_emoticon.clear();
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
         return 1;
     }
@@ -53,9 +53,9 @@ bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
     SIG_LOAD_GAME_OPTION* out =
         guard.operator->()->GetInBuffer<SIG_LOAD_GAME_OPTION>();
     ((CETCOption*)out)->clear();
-    ((DB_GameOptionSigView*)out)->m_quick[0].clear();
-    ((DB_GameOptionSigView*)out)->m_quick[1].clear();
-    ((DB_GameOptionSigView*)out)->m_emoticon.clear();
+    out->m_quick[0].clear();
+    out->m_quick[1].clear();
+    out->m_emoticon.clear();
     {
         static const int compressedBufferSize = 0x62;  // ORIG _ZZ…DB_LoadGameOption…E20compressedBufferSize
         // [SweepIntervalSet] ORIG 0x0842fad1 把 0x62 清零内联为
@@ -93,12 +93,12 @@ bool DB_LoadGameOption::dispatch(int userIdx, int slot, Stream* stream)
         }
         unsigned int len1 = db->get_binary_length(1);
         unsigned int cap1 = 600;
-        if (!uncompress_zip((char*)&((DB_GameOptionSigView*)out)->m_quick[0],
+        if (!uncompress_zip((char*)&out->m_quick[0],
                             cap1, buf, len1))
             return 0;
     }
     if (!get_compressed_blob_data(
-            db, 2, (char*)&((DB_GameOptionSigView*)out)->m_emoticon, 0x210, 0x16))
+            db, 2, (char*)&out->m_emoticon, 0x210, 0x16))
         return 0;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
     return 1;

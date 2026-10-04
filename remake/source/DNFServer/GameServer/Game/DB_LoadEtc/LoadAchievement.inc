@@ -60,20 +60,9 @@ bool DB_LoadEtc::LoadAchievement(SIG_LOAD_ETC* sig)
     int count = 0;
     // ORIG 0x0840658c：`mov sig,%ecx; i*12; lea (%ecx,%eax,1),%eax; add $0xb1a0,%eax;
     //   mov 0x4(%eax),%eax`——基址偏移 0xb1a0 非 12 倍数 ⇒ 4.4 保留独立 add（不折 disp）。
-    struct AchievementEntry
-    {
-        int m_field0;
-        int m_flag;      // +4（ORIG 读点）
-        int m_field8;
-    };
-    struct AchievementView
-    {
-        char m_pad[0xb1a0];
-        AchievementEntry m_entries[0x200];
-    };
     for (int i = 0; i <= 0x1ff; ++i)                       // i <= 0x1ff（cmpl 0x1ff setle）
     {
-        if (((AchievementView*)sig)->m_entries[i].m_flag == 0)
+        if (sig->m_achievement.m_entries[i].m_id == 0)
         {
             break;                                          // 计数停在首个零条目
         }

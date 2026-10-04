@@ -1,4 +1,4 @@
-// ORIG T 0x0868f472 sz0x158：i=0..min(6,m_field796c8) 发 0x1e 字节 MoneyLogPacket；
+// ORIG T 0x0868f472 sz0x158：i=0..min(6,m_maxPremiumFatigue6c8) 发 0x1e 字节 MoneyLogPacket；
 // 最后 resetMoneyLog()。对象布局为全局 MoneyLogPacket（PacketHeader 10B +
 // 5 int @+0xa..+0x1d；ORIG 字段偏移实证），ctor 写 0x2723/0x1e 头并清零。
 void CUser::SendMoenyLog()

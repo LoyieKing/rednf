@@ -18,9 +18,9 @@ bool DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
     char* dot = 0;
     char curIp[16] = {0};
     char oldIp[16] = {0};
-    strcpy(curIp, SGBC(sig, OFF_LOGIN_IP));
+    strcpy(curIp, sig->m_blackIpCheckBuf);
     // ORIG：双 16 字节缓冲，当前 ip 与旧登录 ip(+0x4114)
-    strcpy(oldIp, SGBC(sig, 0x4114));
+    strcpy(oldIp, reinterpret_cast<char*>(&sig->m_ingameEventHistory.m_data[0x168]));
 
     // 单 dot 变量两次复用（ORIG 两 strrchr 结果同写 -0x10 槽）。
     // [b28d-38] P167：ORIG 调 `_ZSt7strrchrPci`（std::strrchr）非 C 库 strrchr。
@@ -37,13 +37,13 @@ bool DB_Login::CheckLoginIP(SIG_LOGIN_DATA* sig)
     }
     if (strcmp(curIp, oldIp) != 0)
     {
-        if (SGBC(sig, 0x4114)[0])
+        if (reinterpret_cast<char*>(&sig->m_ingameEventHistory.m_data[0x168])[0])
         {
             sig->m_ingameHackItemFlag = true;
         }
         MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_9, E_SERVER_GROUP_NONE);
         db->set_query("upDate login_common set login_ip='%s' where m_id=%u",
-                      SGBC(sig, OFF_LOGIN_IP),
+                      sig->m_blackIpCheckBuf,
                       sig->m_accId);
         if (!db->exec(true))
         {

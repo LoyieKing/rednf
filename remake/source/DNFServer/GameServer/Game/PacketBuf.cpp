@@ -92,6 +92,9 @@
 #include "PacketBuf/get_byte_1.inc"
 
 
+#include "PacketBuf/get_byte_2.inc"
+
+
 #include "PacketBuf/get_short.inc"
 
 

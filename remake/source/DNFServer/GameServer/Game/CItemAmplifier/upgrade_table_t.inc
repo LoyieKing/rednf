@@ -38,7 +38,7 @@ upgrade_table_t::upgrade_table_t()
     }
     for (i4 = 0; i4 <= 0x63; ++i4)        // +0xa4..：整数 1
         UPG_TBL_I32(this, i4 + 0x26) = 1;
-    UPG_TBL_I32(this, 0x8a) = 0;              // +0x234 公告阈值
+    m_bodyView.m_named.m_noticeUpgradeLevel = 0;
     // [b28d-solo-CItemAmplifier] 语义修复：ORIG 0x0890022d `lea 0x9c(%edx),%ecx
     // + mov %edx,0x4(%eax,%ecx,4)` = this+0x274+4i；旧 k=i+0x9b 落 +0x278+4i。
     for (i5 = 0; i5 <= 0x63; ++i5)        // +0x274..：1.0f
@@ -48,18 +48,18 @@ upgrade_table_t::upgrade_table_t()
         UPG_TBL_I32(this, i6 + 0xfe) = -1;    // +0x404..
         UPG_TBL_I32(this, i6 + 0x104) = -1;   // +0x41c..
     }
-    UPG_TBL_I32(this, 0x8b) = -1;             // +0x238 附加分解物 item
-    UPG_TBL_I32(this, 0x8c) = 0;              // +0x23c 等级差阈值
+    m_bodyView.m_named.m_additionalItemId = -1;
+    m_bodyView.m_named.m_additionalGradeGap = 0;
     for (i7 = 0; i7 <= 5; ++i7)
     {
         // [b28d-solo-CItemAmplifier2] P238：ORIG 0x089002ba/0x089002bf 对 +0x240
         // 权重区发 `mov $0x0,%edx; mov %edx,(%eax,%ecx,4)`（edx 中转），而紧随的
         // +0x25c 基准等级区是直写 `movl $0x0,0xc(%eax,%edx,4)`。两区字段真型不同
         // （float 权重 / int 基准），故权重区走 float 视图 + 0.0f。
-        UPG_TBL_F32(this, i7 + 0x8d) = 0.0f;   // +0x240.. 权重区（float）
-        UPG_TBL_I32(this, i7 + 0x94) = 0;      // +0x25c.. 基准等级区（int）
+        m_bodyView.m_named.m_additionalWeight[i7] = 0.0f;
+        m_bodyView.m_named.m_baseGrade[i7] = 0;
     }
-    UPG_TBL_I32(this, 0x93) = 0;              // +0x258 强化等级下限
+    m_bodyView.m_named.m_additionalMinUpgrade = 0;
     m_floatMap.clear();
     // [b28d-solo-CItemAmplifier] ORIG 0x0890030d `lea 0x4c4(%eax),%eax; call
     // _Hashtable::clear` 实证：构造后**照抄**清空 m_machineFrames（旧版漏此调用，

@@ -14,7 +14,7 @@ int CUserCharacInfo::getCurCharacEscaladeTutorialFlag(unsigned int flag)
             // [b28d-L14 实证] ORIG 0x0864751e 无 mask 槽：`1<<flag` 以表达式内联
             // （mov $1,%ebx; mov %ebx,%esi; shl %cl,%esi），P0 禁具名局部缓存。
             // [b28d-solo-CUserCharacInfo N6 翻案] `1 << flag` 保 shl（探针 p12 f4）。
-            if ((m_selected->m_field51 & (1 << flag)) != 0)
+            if ((m_selected->m_tutorialFlag & (1 << flag)) != 0)
                 return 1;
         }
         else if (flag < 0x80)

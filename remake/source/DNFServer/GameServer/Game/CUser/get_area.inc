@@ -12,14 +12,14 @@ int CUser::get_area(bool param)
     //   0x084715b5 = 第二段的 cmpb）。
     if (param && G_GameWorld()->IsSchoolPvPChannel() &&
         getCurCharacVill() == 2 &&
-        m_field8cfc0 == 4) {
-        return m_field8cfc0;
+        m_trickArea == 4) {
+        return m_trickArea;
     }
     if (param && getCurCharacVill() == 8) {
-        if (m_field8cfc0 == 0 || m_field8cfc0 == 1 ||
-            m_field8cfc0 == 2 || m_field8cfc0 == 3) {
-            return m_field8cfc0;
+        if (m_trickArea == 0 || m_trickArea == 1 ||
+            m_trickArea == 2 || m_trickArea == 3) {
+            return m_trickArea;
         }
     }
-    return m_field8cfbc;
+    return m_area;
 }

@@ -68,7 +68,7 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
     {
         cMyTrace(__PRETTY_FUNCTION__, 0x937, 0)
             ("from (%d) m_id[%s] uid[%d], send(%d:%d), recv(%d), ip(%s), dungeon(%d)",
-              (int)sig, NumberToString(m_accId, 0), (int)m_field704a8,
+              (int)sig, NumberToString(m_accId, 0), (int)m_uniqueId,
               (int)m_pad8cf0c[1],
               (int)m_pad8cf0c[0], m_lastPacketID, ip,
               getPlayingDungeonIndex());
@@ -78,7 +78,7 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
         cMyTrace(__PRETTY_FUNCTION__, 0x939, 0)
             ("from (%d) m_id[%s] uid[%d], send(%d:%d), recv(%d), "
               "ip(GetPeerIP:NONE), dungeon(%d)",
-              (int)sig, NumberToString(m_accId, 0), (int)m_field704a8,
+              (int)sig, NumberToString(m_accId, 0), (int)m_uniqueId,
               (int)m_pad8cf0c[1],
               (int)m_pad8cf0c[0], m_lastPacketID,
               getPlayingDungeonIndex());
@@ -117,7 +117,7 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
     // (0,0x2a31) → 组 Ting 时段统计包发统计服务器（组 0，0x12 字节）。
     CommonTime nowTime;
     nowTime.SetCurTime();
-    char hour = *((char*)&nowTime + 3);   // +0x03 m_hour（CommonTime.cpp 权威布局）
+    char hour = nowTime.m_hour;
     if (0x12 < hour && hour < 0x17)
     {
         Packet_User_Ting_TimeCheck_Statistic_Add ting;

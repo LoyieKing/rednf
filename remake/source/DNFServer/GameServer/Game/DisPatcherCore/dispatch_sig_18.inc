@@ -91,11 +91,11 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
     GameResultType* gameResult = &party->m_gameResultSet;   // +0x17f4
     gameResult->Clear();
 
-    if (!packet.get_byte(*reinterpret_cast<char*>(&gameResult->m_field9)))  // +0x17fd
+    if (!packet.get_byte(gameResult->m_field9))  // +0x17fd
         return LineFunc(0x816d,
                         __PRETTY_FUNCTION__,
                         0, 0);
-    if (!packet.get_byte(*reinterpret_cast<char*>(&gameResult->m_fielda))) // +0x17fe
+    if (!packet.get_byte(gameResult->m_fielda)) // +0x17fe
         return LineFunc(0x8172,
                         __PRETTY_FUNCTION__,
                         0, 0);

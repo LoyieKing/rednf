@@ -47,11 +47,9 @@ bool check_argv(int argc, char** argv)
     int ncl_check_key(char* key);  // NclKeyTools.cpp（ORIG 0x8572cb5）
     bool keyOk;   // 声明/赋值分离：goto L_RET0 不得跨初始化（C++ 规则）
     // P0：ORIG 无 shellsKey 具名局部（实参表达式直用 `mov %eax,(%esp)`）。
-    keyOk = ncl_check_key(
-        reinterpret_cast<char*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x318)) != 0;
-    // ORIG printf 再独立 G_CEnvironment()+0x318（P183 重物化，勿缓存 shellsKey）。
+    keyOk = ncl_check_key(G_CEnvironment()->m_serverEnvir.m_llsKey) != 0;
     std::printf("lls_key :: %s\n",
-                reinterpret_cast<char*>(reinterpret_cast<char*>(G_CEnvironment()) + 0x318));
+                G_CEnvironment()->m_serverEnvir.m_llsKey);
     // [SemA01 2026-09-12 · Main 裁决：跟随 ORIG 运行时可观察行为]
     // ORIG 0x829eb66-0x829eb6f：`movzbl -0x15(%ebp),%eax; xor $1,%eax; test %al,%al;`
     // 后为**无条件 `jmp 0x829eb87`**，且 FAIL 块（0x829eb71 `puts("[!] Server key

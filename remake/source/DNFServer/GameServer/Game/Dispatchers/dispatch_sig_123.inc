@@ -85,7 +85,7 @@ int Dispatcher_AuctionBuyItemApiece::dispatch_sig(CUser* user, PacketBuf& packet
         memset(sig, 0, 0x28);
         sig->m_arg04 = pck.m_body.m_price;
 
-        strncpy(reinterpret_cast<char*>(sig) + 8, itemKey, 13);
+        strncpy(sig->m_name, itemKey, 13);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(2), guard);
     }
 

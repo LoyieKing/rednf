@@ -3,7 +3,15 @@ bool CItemShop::checkValidShopItem(unsigned int shopId, unsigned long itemIdx)
 {
     std::map<int, ItemShopScript>::iterator it = m_shopMap.find((int)shopId);
     if (it == m_shopMap.end())
+    {
+        FILE* _sf = fopen("/tmp/shop_diag.log", "a");
+        if (_sf) {
+            fprintf(_sf, "[SHOP_DIAG] shopId=%u NOT IN MAP mapSize=%zu\n",
+                (unsigned)shopId, m_shopMap.size());
+            fflush(_sf); fclose(_sf);
+        }
         return false;
+    }
     // [b28d-38b] ORIG 0x08512cda 形态：bool 标志预清 + 空 then/else 守卫（4.4 对
     // if(!b) 会多 movzbl+xor 归一化，空 then 形才复现 ORIG 的 cmpb/jne 尾跳布局）
     // + 外层条件处 xorb（P168a④ 栈槽物化）+ 内层 while(bFlag) 单次体。
@@ -25,6 +33,14 @@ bool CItemShop::checkValidShopItem(unsigned int shopId, unsigned long itemIdx)
                 bFlag = false;
             }
             vit++;
+        }
+    }
+    {
+        FILE* _sf = fopen("/tmp/shop_diag.log", "a");
+        if (_sf) {
+            fprintf(_sf, "[SHOP_DIAG] shopId=%u itemIdx=%lu NOT IN LIST listSize=%zu\n",
+                (unsigned)shopId, (unsigned long)itemIdx, it->second.m_curItemList.size());
+            fflush(_sf); fclose(_sf);
         }
     }
     return false;

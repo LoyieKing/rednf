@@ -1,16 +1,16 @@
 int Inter_NoticeDeleteGuildAgit::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     Inter_NoticeDeleteGuildAgitPktView* pPkt = reinterpret_cast<Inter_NoticeDeleteGuildAgitPktView*>(data);
-    if (pPkt->m_16 != 0)   // msg+0x16 错误码
+    if (pPkt->m_errCode != 0)   // msg+0x16 错误码
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xe8,
-                                 pPkt->m_16);
+                                 pPkt->m_errCode);
         return 0;
     }
 
     user->SetGuildAgitFlag(false);
 
-    if (pPkt->m_12 ==               // msg+0x12 == 本人
+    if (pPkt->m_characNo ==               // msg+0x12 == 本人
         user->get_charac_no(-1))
     {
         PacketGuard packet;                                   // asm local_28

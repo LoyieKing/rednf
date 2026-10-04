@@ -17,22 +17,17 @@ int Dispatcher_LimitNpcBuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& p
     //   typed 视图成员，disp 折叠为 `mov %eax,0x4(%edx)` / `mov 0x4(%eax),%eax`
     //   （probe b_form/c_form 实证）。残余 1×保活 mov 属 N7 后端（4.4 跨 call 用
     //   callee-saved，ORIG 4.1 回读槽），不可由源码消除。
-    struct LnbiParamView
-    {
-        int m_pad0;     // +0x00（ParamBase vptr）
-        int m_4;        // +0x04 check_error 结果直存
-    };
-    ParamBase& outBase = param;
-    reinterpret_cast<LnbiParamView*>(&outBase)->m_4 = check_error(user, msg);
-    if (reinterpret_cast<LnbiParamView*>(&outBase)->m_4 >= 1)
+    LimitNpcBuyItem& outBase = static_cast<LimitNpcBuyItem&>(param);
+    outBase.m_4 = check_error(user, msg);
+    if (outBase.m_4 >= 1)
     {
         return 0;
     }
-    if (reinterpret_cast<LnbiParamView*>(&outBase)->m_4 < 0)
+    if (outBase.m_4 < 0)
     {
         return LineFunc(0x55ae,
                         __PRETTY_FUNCTION__,
-                        reinterpret_cast<LnbiParamView*>(&outBase)->m_4, 0);
+                        outBase.m_4, 0);
     }
     LimitNpcBuyItemInfo info;   // local_3a（栈对象 0x26）
     info.m_itemIdReq = user->GetUID();             // local_30（+0xa）

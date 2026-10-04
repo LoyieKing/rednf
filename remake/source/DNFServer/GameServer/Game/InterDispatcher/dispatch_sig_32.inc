@@ -14,7 +14,7 @@ int Inter_MonitorEventItemUpdate::dispatch_sig(CUser* /*user*/, char* data, int 
     v16 = pPkt->m_16;
     register unsigned int v0e = pPkt->m_e;
     register unsigned int v12 = pPkt->m_12;
-    register char* mid = NumberToString(pPkt->m_a, 0);
+    register char* mid = NumberToString(pPkt->m_accId, 0);
     cMyTrace(__PRETTY_FUNCTION__,
         // [H2·2026-09-11] §6.5 语义轴：ORIG 实字节为 EUC-KR
         //   （`\xc0\xcc\xba\xa5\xc6\xae \xc0\xaf\xc0\xfa DB ID : ...`），旧写 UTF-8 ⇒ 发射字节不同。
@@ -27,7 +27,7 @@ int Inter_MonitorEventItemUpdate::dispatch_sig(CUser* /*user*/, char* data, int 
           v16,
           v1a);
     WongWork::CWebEvent::RecvInfoFromWeb(
-        pPkt->m_a,
+        pPkt->m_accId,
         pPkt->m_e,
         pPkt->m_16,
         pPkt->m_1a,

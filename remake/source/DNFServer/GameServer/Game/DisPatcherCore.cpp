@@ -1,4 +1,5 @@
 // ============================================================================
+#include <stdio.h>
 // [Main·2026-09-10 round5 拆分 · ① 部件包含式] 本文件是**聚合器**：
 //   每个完整函数块已移入 DisPatcherCore/<Func>.inc（不参与编译、内部不含 #include）。
 //   本文件逐行保留原文的一切 TU 级实体（顶部注释 / #include / 数据定义 /
@@ -176,18 +177,6 @@ struct MSG_RES_PVP_RANK : MSG_BASE
 // +0x0d char 门类型（<0 失败）、+0x0e char 房名[0x1e]、+0x2c short、+0x2e byte 模式门、
 // +0x2f int 密码长（<=8）、+0x33 char 密码/校验缓冲、+0x3c byte battleMode。
 // （int m_field2f 需 pack(1) 才落在 +0x2f；ORIG ExtractPacket 0x081f81ba 实证。）
-#pragma pack(push, 1)
-struct MSG_MAKE_PVP_ROOM : MSG_BASE
-{
-    char m_field0d;          // +0x0d
-    char m_name[0x1e];       // +0x0e..0x2b
-    short m_field2c;         // +0x2c
-    char m_field2e;          // +0x2e
-    int m_field2f;           // +0x2f
-    char m_field33[9];       // +0x33..0x3b
-    char m_battleMode;       // +0x3c
-};                          // sizeof = 0x3d
-#pragma pack(pop)
 
 // CParty +0xb24 内嵌 CBattle_Field 子对象局部视图（CParty.h 以
 // m_battleField[0x158] 等 pad 占位、未引入 CBattle_Field 类型；Main 裁定
@@ -1172,7 +1161,16 @@ public:
     char m_field1f;              // +0x1f
     short m_field20;             // +0x20
     short m_field22;             // +0x22
-    unsigned char m_body[0x162]; // +0x24..+0x185 逐行帧统计/tail 区（别名寻址见 dispatch_sig）
+    struct BodyTail {
+        unsigned char m_bodyHead[0x14c];
+        unsigned char m_tailFlag[6];
+        short m_tailShort[6];
+        unsigned char m_tailPad[4];
+    };
+    union {
+        unsigned char m_body[0x162];
+        BodyTail m_tail;
+    };
 };                               // sizeof = 0x186（静态断言随 ctor 定义）
 #pragma pack(pop)
 static_assert(sizeof(Packet_Frame_Lag_Statistic_Add) == 0x186,

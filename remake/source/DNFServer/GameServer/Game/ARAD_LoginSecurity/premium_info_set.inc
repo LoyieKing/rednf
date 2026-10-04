@@ -22,7 +22,7 @@ int Arad_Dispatcher_Login_Impl::premium_info_set(
 
     data->m_premiumCount = 0;
     data->m_restrictedGoodsCount = 0;
-    ((SigPad394cView*)data)->m_field = 0;
+    data->m_field394c = 0;
 
     std::vector<int> vecA;                       // select_member_premium 目标 A
     std::vector<int> vecB;                       // 每次 copy 为临时实参 B

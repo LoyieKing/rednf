@@ -7,7 +7,8 @@
 
 struct PCK_AUCTION_MY_REGISTED_ITEM_INFO_GA : public nsl::PACKET_HEADER
 {
-    char m_data[0x1a - 0x12];
+    unsigned int m_uid;       // +0x12
+    unsigned int m_characNo;  // +0x16
 
     PCK_AUCTION_MY_REGISTED_ITEM_INFO_GA()
     {

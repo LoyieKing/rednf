@@ -32,8 +32,7 @@ void CUser::setInitQuestPoint()
         // ORIG 0x0868ae8b..0x0868aeb5：先 `call operator->; mov 0x4(%eax),%ebx`
         //   取 it->second，再 `call getCurCharacQuestR; add $0x4,%eax` 直内联 receiver
         //   （无具名 cleared 指针槽）⇒ 删具名 cleared（P183 地址重物化铁律）。
-        if (((WongWork::CQuestClear*)((char*)getCurCharacQuestR() + 4))
-                ->isClearedQuest((unsigned int)it->second))
+        if (getCurCharacQuestR()->m_cleared.isClearedQuest((unsigned int)it->second))
         {
             incInitQuestPoint(quest->m_field138);
             incQuestPiece(quest->m_field13a, quest->m_index, true);

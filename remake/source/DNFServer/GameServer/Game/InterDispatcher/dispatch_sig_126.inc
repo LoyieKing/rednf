@@ -5,7 +5,7 @@ int Inter_SecurityCardRetransfer::dispatch_sig(CUser* user, char* data, int /*le
 
     // ORIG 0x084d44xx：包基址在 get_state 检查后物化入 -0x1c(%ebp)
     Inter_SecurityCardRetransferPktView* pPkt = reinterpret_cast<Inter_SecurityCardRetransferPktView*>(data);
-    if (pPkt->m_88 == 0)
+    if (pPkt->m_result == 0)
     {
         char encSerial[0x42] = { '\0' };               // 密文 serial
         char idStr[0x30] = { '\0' };                   // 账号串
@@ -14,11 +14,11 @@ int Inter_SecurityCardRetransfer::dispatch_sig(CUser* user, char* data, int /*le
         OS_API::snprintf(idStr, 0x30, "%s",
                          NumberToString((unsigned int)user->get_acc_id(), 0));
         GlobalData::s_securityCardCenter->encryptString(
-            reinterpret_cast<char*>(pPkt) + 4, encSerial);   // ORIG 经 -0x1c 槽
+            pPkt->m_serial, encSerial);   // ORIG 经 -0x1c 槽
         GlobalData::s_securityCardCenter->encryptString(idStr, idStr);
         memset(encAnswers, 0, 0x42);
         GlobalData::s_securityCardCenter->encryptString(
-            reinterpret_cast<char*>(pPkt) + 0x52, encAnswers);  // ORIG 经 -0x1c 槽
+            pPkt->m_answers, encAnswers);  // ORIG 经 -0x1c 槽
 
         PacketGuard packet;
         packet.put_header(1, 0xca);
@@ -34,13 +34,13 @@ int Inter_SecurityCardRetransfer::dispatch_sig(CUser* user, char* data, int /*le
 
         user->getSecurityCard()->init();
         user->getSecurityCard()->setSecurityCardInfo(
-            reinterpret_cast<char*>(pPkt) + 0x2b, true, false, 0, 0, 0,
+            pPkt->m_info, true, false, 0, 0, 0,
             (char*)0);                                   // ORIG 经 -0x1c 槽
     }
     else
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xca,
-                                 (unsigned char)pPkt->m_88);
+                                 (unsigned char)pPkt->m_result);
     }
     return 0;
 }

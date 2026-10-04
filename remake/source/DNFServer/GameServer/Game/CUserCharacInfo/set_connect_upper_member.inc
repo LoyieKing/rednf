@@ -2,6 +2,6 @@ void CUserCharacInfo::set_connect_upper_member(unsigned int member)
 {
     if (m_selected)
     {
-    m_selected->m_fieldE26 = member;
+    m_selected->m_connectUpperMember = member;
     }
 }

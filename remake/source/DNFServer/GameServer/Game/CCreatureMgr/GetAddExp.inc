@@ -9,9 +9,8 @@ float CCreature::GetAddExp(int artifactSlot, CUser* user)
     if (IsAvailableArtifact(artifactSlot))
     {
         (void)inven;
-        CArtifact* artifact = reinterpret_cast<CInventoryCreatureMgrView*>(
-                                  user->getCurCharacInvenW())
-                                  ->m_creatureMgr.GetArtifact(artifactSlot);
+        CArtifact* artifact =
+            user->getCurCharacInvenW()->GetCreatureMgrW()->GetArtifact(artifactSlot);
         if (artifact != 0)
         {
             int minLevel = artifact->GetCreatureMinimumLevel();

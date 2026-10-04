@@ -8,13 +8,13 @@ int DisPatcher_SetArea::read(PacketBuf& packet, MSG_BASE& msg)
     //   get_shortERt @+0xf/+0x11/+0x14/+0x16 → unsigned short 字段直引；
     //   081c934b movw $0x0,0x14(%eax) / 081c9354 movw $0x0,0x16(%eax) 两处清零）
     MSG_SET_USER_AREA& req = *reinterpret_cast<MSG_SET_USER_AREA*>(&msg);
-    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_0d)))
+    if (!packet.get_byte(req.m_0d))
     {
         return LineFunc(0x1c16,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_0e)))
+    if (!packet.get_byte(req.m_0e))
     {
         return LineFunc(0x1c17,
                         __PRETTY_FUNCTION__,
@@ -32,7 +32,7 @@ int DisPatcher_SetArea::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_13)))
+    if (!packet.get_byte(req.m_13))
     {
         return LineFunc(0x1c1a,
                         __PRETTY_FUNCTION__,

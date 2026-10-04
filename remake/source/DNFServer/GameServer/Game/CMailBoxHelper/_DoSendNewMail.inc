@@ -24,7 +24,7 @@ int CMailBoxHelper::_DoSendNewMail(CUser* user, Inven_Item const& item,
     msg->m_serverGroup = user->GetServerGroup();
     if (!bA)
     {
-        reinterpret_cast<CMailBoxView*>(user->GetMailBox())->m_streamList.push_back(guard.Get()); // +0x58
+        static_cast<CMailBox*>(user->GetMailBox())->m_streamList.push_back(guard.Get()); // +0x58
         return 0;
     }
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);

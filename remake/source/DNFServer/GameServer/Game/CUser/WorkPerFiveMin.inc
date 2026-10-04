@@ -29,14 +29,14 @@ void CUser::WorkPerFiveMin()
         // 2026-09-11 L9GrpF（P211/P324 store 序）：ORIG `movb $0x0,-0x2d` 在
         //   `movzbl 0x796d9(%eax),%eax` **之前** ⇒ 常量 store 语句在字段读之前。
         packet.m_expType = 0;
-        packet.m_notify = m_field796d9;
+        packet.m_notify = m_guildExpReportLoad;
         m_historyLog.GuildAddExp(get_charac_guildkey(),
                                  static_cast<const char*>(GetGuildDBInfo()),
                                  getCurCharacNo(), get_guild_exp());
         GlobalData::s_guild_proxy_mgr
             ->GetServerProxy(GetServerGroup())
             ->SendPacket(reinterpret_cast<char*>(&packet), 0x1c);
-        m_field796d9 = 0;
+        m_guildExpReportLoad = 0;
         reset_guild_exp();
     }
     if (get_guild_today_exp() != 0)
@@ -47,14 +47,14 @@ void CUser::WorkPerFiveMin()
         packet.m_addExp = get_guild_today_exp();
         // 同 #3a（ORIG 第二段 `movb $0x2,-0x49` 亦在字段读之前）。
         packet.m_expType = 2;
-        packet.m_notify = m_field796d9;
+        packet.m_notify = m_guildExpReportLoad;
         m_historyLog.GuildAddExp(get_charac_guildkey(),
                                  static_cast<const char*>(GetGuildDBInfo()),
                                  getCurCharacNo(), get_guild_today_exp());
         GlobalData::s_guild_proxy_mgr
             ->GetServerProxy(GetServerGroup())
             ->SendPacket(reinterpret_cast<char*>(&packet), 0x1c);
-        m_field796d9 = 0;
+        m_guildExpReportLoad = 0;
         reset_guild_today_exp();
     }
 }

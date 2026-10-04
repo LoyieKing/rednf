@@ -26,18 +26,18 @@ void CPowerManager::SetPowerWarUserStatueInfo(SIG_LOAD_POWER_WAR_STATUE_INFO* in
     // `if (匹配) { body; break; }`（原 `if (!=) continue;` 产反向 je 块布局）。
     for (int i = 0; (unsigned int)i < 3; ++i)
     {
-        if (m_rankings[i].m_characNo == ((const PowerWarStatueView*)info)->m_characNo)
+        if (m_rankings[i].m_characNo == info->m_characNo)
         {
-            m_rankings[i].m_job = ((const PowerWarStatueView*)info)->m_job;
-            m_rankings[i].m_level = ((const PowerWarStatueView*)info)->m_level;
-            m_rankings[i].m_grow = ((const PowerWarStatueView*)info)->m_grow;
-            m_rankings[i].m_guildId = ((const PowerWarStatueView*)info)->m_guildId;
+            m_rankings[i].m_job = info->m_lev;
+            m_rankings[i].m_level = info->m_job;
+            m_rankings[i].m_grow = info->m_growType;
+            m_rankings[i].m_guildId = info->m_guildId;
             strncpy(m_rankings[i].m_name,
-                    ((const PowerWarStatueView*)info)->m_name, 0x1e);
+                    info->m_name, 0x1e);
             strncpy(m_rankings[i].m_guildName,
-                    ((const PowerWarStatueView*)info)->m_guildName, 0x28);
+                    info->m_guildName, 0x28);
             memcpy(m_rankings[i].m_equipment,
-                   ((const PowerWarStatueView*)info)->m_equipment, 0x2c);
+                   info->m_equipment, 0x2c);
             // [b28d-solo] 真语义缺口修复：ORIG 0x0847f0xx `movb $0x1,0x8(%eax)`
             // （this+i*0x84+0x28 = 元素 +0x00 m_flag）在 memcpy 之后、cMyTrace 之前。
             m_rankings[i].m_flag = 1;

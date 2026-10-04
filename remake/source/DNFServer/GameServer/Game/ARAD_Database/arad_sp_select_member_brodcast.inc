@@ -56,7 +56,7 @@ int LOGIN_QUERY::arad_sp_select_member_brodcast(
     {
         return -1;
     }
-    if (!db->get_str(4, reinterpret_cast<char*>(data) + 0x39b0, 0x1e))
+    if (!db->get_str(4, data->m_broadcastCharacName, 0x1e))
     {
         return -1;
     }

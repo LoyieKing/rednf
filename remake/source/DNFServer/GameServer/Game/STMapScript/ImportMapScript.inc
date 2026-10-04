@@ -564,7 +564,7 @@ bool ImportMapScript(STMapScript* script, const char* path)
         {
             for (int i = 0; i < 4; ++i)                 // -0xfc/-0xf8 双层 setle 循环
                 for (int j = 0; j < 2; ++j)
-                    reinterpret_cast<STMapScriptWordView*>(script)->m_words[i * 2 + j + 0x40] =
+                    script->m_pathgatePos[i * 2 + j] =
                         ScanInt(static_cast<bool*>(0));
             continue;
         }
@@ -572,7 +572,7 @@ bool ImportMapScript(STMapScript* script, const char* path)
         {
             for (int i = 0; i < 4; ++i)                 // -0xf4/-0xf0
                 for (int j = 0; j < 2; ++j)
-                    reinterpret_cast<STMapScriptWordView*>(script)->m_words[i * 2 + j + 0x48] =
+                    script->m_pathgateRange[i * 2 + j] =
                         ScanInt(static_cast<bool*>(0));
             continue;
         }

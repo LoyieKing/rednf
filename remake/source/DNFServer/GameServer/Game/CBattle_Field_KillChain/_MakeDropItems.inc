@@ -239,10 +239,11 @@ void CBattle_Field::_MakeDropItems(std::list<map_item>& itemList,
                 {
                     if (mi.m_item.m_addInfo == 0)
                     {
-                        const float f1 = reinterpret_cast<BfkcBlueMarbleScriptView*>(
-                            G_CDataManager()->getBlueMarbleScript())->m_f1;
-                        const float f2 = reinterpret_cast<BfkcBlueMarbleScriptView*>(
-                            G_CDataManager()->getBlueMarbleScript())->m_f2;
+                        BlueMarbleScriptManager* bm =
+                            static_cast<BlueMarbleScriptManager*>(
+                                G_CDataManager()->getBlueMarbleScript());
+                        const float f1 = bm->m_info.m_goldBase;
+                        const float f2 = bm->m_info.m_goldMulti;
                         // [b28d-20] ORIG 直接改写 blueBuff1 槽（无独立 buff 局部），且公式为
                         // 纯 (int) 截断（fistpl+RC=11，无 fadds 0.5）⇒ 原 BFKC_ROUND 的
                         // +0.5f 多出 flds 0.5/faddp 且语义不同（四舍五入 vs 截断）=真 bug。

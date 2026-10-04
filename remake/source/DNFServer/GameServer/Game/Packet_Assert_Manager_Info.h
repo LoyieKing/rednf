@@ -15,7 +15,11 @@ class Packet_Assert_Manager_Info : public PacketHeader
 public:
     Packet_Assert_Manager_Info();   // ORIG W @0x0822bd18
 
-    char m_data[0x214 - 0xa];   // +0x0a 起
+    int m_category;             // +0x0a
+    char m_desc[0x100];           // +0x0e
+    unsigned short m_f10e;        // +0x10e
+    int m_f110;                   // +0x110
+    char m_detail[0x100];         // +0x114
 };
 
 #pragma pack(pop)

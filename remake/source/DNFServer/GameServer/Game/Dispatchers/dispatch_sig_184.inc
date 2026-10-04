@@ -16,7 +16,7 @@ int Dispatcher_RequestPrcoomDayilyReward::dispatch_sig(CUser* user, PacketBuf& p
     {
         return 0;
     }
-    if (user->m_field8ec32 < 1)
+    if (user->m_pcroomDailyRemain < 1)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x259, 0x16);
         return 0;
@@ -50,7 +50,7 @@ int Dispatcher_RequestPrcoomDayilyReward::dispatch_sig(CUser* user, PacketBuf& p
     {
         user->SendCmdOkPacket((ENUM_CMDPACKET)0x259);
         user->SendUpdateItem(CUser::eSendTarget_1, ENUM_ITEMSPACE_0, slot);
-        user->m_field8ec32 = (char)(user->m_field8ec32 - 1);
+        user->m_pcroomDailyRemain = (char)(user->m_pcroomDailyRemain - 1);
         InterSelectPcroomDailyReward::SendPacket(user);
         DBUpdatePcroomDailyReward::makeRequest(user);   // ORIG static（无 ctor/dtor）
     }

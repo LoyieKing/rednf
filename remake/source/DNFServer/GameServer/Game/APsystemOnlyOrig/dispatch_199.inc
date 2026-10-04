@@ -11,10 +11,10 @@ bool DB_SaveCharacInfo4Guild::dispatch(int /*userIdx*/, int /*slot*/,
                                                        E_SERVER_GROUP_NONE);
     db->set_query(
         "upDate guild_member set grow_type=%d,lev=%d where guild_id=%d and charac_no=%d",
-        ((DB_SaveCharacInfo4GuildView*)sig)->m_growType,
-        ((DB_SaveCharacInfo4GuildView*)sig)->m_lev,
-        ((DB_SaveCharacInfo4GuildView*)sig)->m_guildId,
-        ((DB_SaveCharacInfo4GuildView*)sig)->m_characNo);
+        sig->m_growType,
+        sig->m_lev,
+        sig->m_guildId,
+        sig->m_characNo);
     (void)dbGuild;
     if (!db->exec(true))
         return 0;

@@ -1,11 +1,7 @@
 #ifndef DNF_GAME_PACKET_Packet_Loading_Time_Report_Statistics_H_
 #define DNF_GAME_PACKET_Packet_Loading_Time_Report_Statistics_H_
 
-// LinkHelper 核销批次（/tmp/undef_r21.txt）：ORIG ctor W @0x0822c040
-// _ZN37Packet_Loading_Time_Report_StatisticsC1Ev，objdump 逐指令转写。
-// 布局：PacketHeader(0xa) + m_data，sizeof=0x806。
 #include <string.h>
-
 #include "PacketHeader.h"
 
 #pragma pack(push, 1)
@@ -13,13 +9,43 @@
 class Packet_Loading_Time_Report_Statistics : public PacketHeader
 {
 public:
-    Packet_Loading_Time_Report_Statistics();   // ORIG W @0x0822c040
+    Packet_Loading_Time_Report_Statistics();
 
-    char m_data[0x806 - 0xa];   // +0x0a 起
+    struct Slot9 {
+        unsigned short m_link0;
+        unsigned short m_link1;
+        unsigned short m_a;
+        unsigned char m_b;
+        unsigned short m_c;
+    };
+    struct SlotB {
+        unsigned short m_a;
+        unsigned char m_b;
+        unsigned int m_c;
+        unsigned int m_d;
+    };
+
+    unsigned int m_times[9];    // +0x0a
+    union {
+        struct {
+            unsigned int m_accId;       // +0x2e
+            short m_countA;             // +0x32
+            char m_data[0x806 - 0x34];  // +0x34
+        };
+        struct {
+            char m_pad30[2];            // +0x2e
+            Slot9 m_rowsA[100];         // +0x30
+        };
+        struct {
+            char m_padB[0x3b8 - 0x2e];  // +0x2e
+            short m_countB;             // +0x3b8
+            SlotB m_rowsB[100];         // +0x3ba
+        };
+    };
 };
 
 #pragma pack(pop)
 
 static_assert(sizeof(Packet_Loading_Time_Report_Statistics) == 0x806, "Packet_Loading_Time_Report_Statistics layout");
 
-#endif  // DNF_GAME_PACKET_Packet_Loading_Time_Report_Statistics_H_
+#endif

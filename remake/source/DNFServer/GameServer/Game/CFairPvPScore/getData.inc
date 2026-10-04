@@ -2,7 +2,7 @@
 // [L6S4 round5b] 判词更新：ORIG 183 vs 我方 **184**（gap −1；改前 215）。
 // 本轮修法（两处，均为 P291/P183 族）：
 //   ① 条目写侧：cast 指针算术（`((Pair*)(sig+(idx+2)*0x10))->m_e1`）⇒ 4.4 把 sig
-//      折进基址、每字段 6 条重算；改权威成员数组下标 `sig->m_jobScore[idx]`（同址）
+//      折进基址、每字段 6 条重算；改权威成员数组下标 `sig->m_jobScoreEntries[idx]`（同址）
 //      ⇒ 复现 ORIG「索引寄存器 + 基址寄存器 + disp」形（仅常量拆分差：4.4
 //      `lea 0x3/disp 0` vs ORIG `lea 0x2/disp 0x10`）。
 //   ② 模式统计段：逐字段写（+27 条）改成员整体赋值
@@ -41,9 +41,9 @@ void CFairPvPScore::getData(char* pData) const
         // 唯一残差 = 常量拆分习惯差（4.4 `lea 0x3/disp 0` vs ORIG `lea 0x2/disp 0x10`，
         // 4.1 把 +0x30 拆成 2*0x10+0x10）；「+0x10 起 100 元素」视图试形反而劣化
         // 到 191（4.4 产 `lea 0x2; lea 0x1` 两段）⇒ 回滚。
-        sig->m_jobScore[idx].m_job = (unsigned char)(unsigned int)it->first.m_job;
-        sig->m_jobScore[idx].m_sub = (unsigned char)(unsigned int)it->first.m_sub;
-        *(FAIR_PVP_SCORE_MODE_COUNT*)&sig->m_jobScore[idx].m_cnt0 = it->second;
+        sig->m_jobScoreEntries[idx].m_job = (unsigned char)(unsigned int)it->first.m_job;
+        sig->m_jobScoreEntries[idx].m_sub = (unsigned char)(unsigned int)it->first.m_sub;
+        *(FAIR_PVP_SCORE_MODE_COUNT*)&sig->m_jobScoreEntries[idx].m_cnt0 = it->second;
         ++sig->m_jobScoreCount;                          // 字节自增（ORIG movzbl/lea/movb）
     }
 

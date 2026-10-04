@@ -17,20 +17,15 @@ int DisPatcher_SetPVPTeam::dispatch_sig(CUser* user, PacketBuf& packet)
     // -0x1e、成员 @+0xd = -0x11、sizeof 0xe；帧 0x40）与读取处单条
     // `movzbl -0x11(%ebp),%eax`。旧试形（未调声明序）实测 137→145 劣化 ⇒ 本次连带
     // 声明序一起对齐。⚠不可用 `__attribute__((packed))`（4.4 拒绝绑定紧实字段到引用）。
-#pragma pack(push, 1)
-    struct SetPVPTeamMsgView : MSG_BASE
-    {
-        char m_team;
-    };
-#pragma pack(pop)
-    SetPVPTeamMsgView sig;
+    MSG_SET_PVP_TEAM sig;
     PacketGuard guard;
-    if (!packet.get_byte(
-            *reinterpret_cast<char*>(reinterpret_cast<char*>(&sig) + 0xd)))
     {
-        return LineFunc(0x82be,
-                        __PRETTY_FUNCTION__,
-                        0, 0);
+        char team = 0;
+        if (!packet.get_byte(team))
+        {
+            return LineFunc(0x82be, __PRETTY_FUNCTION__, 0, 0);
+        }
+        sig.m_team = team;
     }
     PvP_Room* room = static_cast<PvP_Room*>(user->GetPVPRoom());
     if (room == 0)

@@ -22,8 +22,7 @@ int Inter_ReloadIngameAdvertisement::dispatch_sig(CUser* /*user*/, char* data, i
         // [N 判词·2026-09-11 复核] 残 1 块 = `imul $0x84c,%eax,%eax`（ORIG 就地 + base 后装载）
         //   vs 4.4 `imul $0x84c,%eax,%edx` + `mov base,%eax`（N18a/N101 寄存器选择）。
         //   试形：交换加法操作数（`count*0x84c + (int)cond`）实测 **零变化**（仍 51/51、ndiff 1）⇒ 封 N。
-        if (*reinterpret_cast<int*>(
-                (reinterpret_cast<int>(cond) + count * 0x84c) + 0x210) == -1)
+        if (cond[count].m_sentinel == -1)
             break;                                       // ORIG +0x3c je（顶部门槛）
         InGameADManagerInstance()->InsertADExposeInfo(
             cond[count]);

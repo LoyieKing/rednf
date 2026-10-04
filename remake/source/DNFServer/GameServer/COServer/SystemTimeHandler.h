@@ -3,13 +3,7 @@
 
 #include <sys/time.h>
 
-// CommonTime：6 字节（y-100/m/d/h/m/w）
-class CommonTime
-{
-public:
-    void SetCurTime();
-    char m_time[6];
-};
+#include "../CommonTime.h"
 
 // CSystemTime / CSystemTimeHandler（0x14）
 class CSystemTime

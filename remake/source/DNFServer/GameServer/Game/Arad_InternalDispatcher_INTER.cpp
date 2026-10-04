@@ -60,11 +60,11 @@ namespace
 // ORIG INTER 包体字节视图（包字段布局归 OnlyOrig_ARAD 批的 Sig 结构化，
 // 此处仅为指令级位移寻址形态保持：packet+offset 直读）。
 #pragma pack(push, 1)
-struct PktSaveServerStateView
+struct Packet_Arad_SaveServerState : PacketHeader
 {
-    char m_padE[0xe];        // +0x00..0x0d
-    int m_effect;            // +0x0e ENUM_GLOBAL_EFFECT_ARAD
-    unsigned int m_endSec;   // +0x12
+    char m_afterHdr[4];          // +0x0a..0x0d
+    int m_effect;                // +0x0e ENUM_GLOBAL_EFFECT_ARAD
+    unsigned int m_endSec;       // +0x12
 };
 #pragma pack(pop)
 

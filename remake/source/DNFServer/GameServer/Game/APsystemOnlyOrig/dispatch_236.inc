@@ -5,7 +5,7 @@ bool DB_SecurityCardRetransfer::dispatch(int userIdx, int slot,
     if (!DBDispatcher::dispatch(userIdx, slot, stream))
         return 0;
 
-    SecuRetransferReqView* sig = reinterpret_cast<SecuRetransferReqView*>(
+    SIG_SECURITY_CARD_RETRANSFER* sig = (
         stream->GetOutBuffer<SIG_SECURITY_CARD_RETRANSFER>());
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   E_SERVER_GROUP_NONE);

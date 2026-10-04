@@ -8,10 +8,10 @@ bool DB_GatheringParyStatus::save_dnf_party_ping_history(SIG_PARTY_STATUS* sig)
     int i;
     for (i = 0; i <= 3; ++i)
         sprintf(buf[i], "%d.%d.%d.%d",
-                (unsigned char)sig->m_partyEntries[i][9],
-                (unsigned char)sig->m_partyEntries[i][10],
-                (unsigned char)sig->m_partyEntries[i][11],
-                (unsigned char)sig->m_partyEntries[i][12]);
+                (unsigned char)sig->m_partyEntries[i].m_ip[0],
+                (unsigned char)sig->m_partyEntries[i].m_ip[1],
+                (unsigned char)sig->m_partyEntries[i].m_ip[2],
+                (unsigned char)sig->m_partyEntries[i].m_ip[3]);
     db->set_query(
         "inSert into dnf_party_ping_history(str_ip,m_id,nat_type_1,ping1,mtu_1,"
         "nat_type_2,ping2,mtu_2,nat_type_3,ping3,mtu_3,nat_type_4,ping4,mtu_4,"
@@ -19,18 +19,18 @@ bool DB_GatheringParyStatus::save_dnf_party_ping_history(SIG_PARTY_STATUS* sig)
         "%s,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,now(),%d,%d,'%s','%s','%s','%s',%d)",
         sig->m_ip,
         NumberToString(sig->m_accId, 0),
-        ((DB_PartyEntriesView*)sig)->m_nat0,
-        ((DB_PartyEntriesView*)sig)->m_ping0,
-        ((DB_PartyEntriesView*)sig)->m_mtu0,
-        ((DB_PartyEntriesView*)sig)->m_nat1,
-        ((DB_PartyEntriesView*)sig)->m_ping1,
-        ((DB_PartyEntriesView*)sig)->m_mtu1,
-        ((DB_PartyEntriesView*)sig)->m_nat2,
-        ((DB_PartyEntriesView*)sig)->m_ping2,
-        ((DB_PartyEntriesView*)sig)->m_mtu2,
-        ((DB_PartyEntriesView*)sig)->m_nat3,
-        ((DB_PartyEntriesView*)sig)->m_ping3,
-        ((DB_PartyEntriesView*)sig)->m_mtu3,
+        sig->m_partyEntries[0].m_nat,
+        sig->m_partyEntries[0].m_ping,
+        sig->m_partyEntries[0].m_mtu,
+        sig->m_partyEntries[1].m_nat,
+        sig->m_partyEntries[1].m_ping,
+        sig->m_partyEntries[1].m_mtu,
+        sig->m_partyEntries[2].m_nat,
+        sig->m_partyEntries[2].m_ping,
+        sig->m_partyEntries[2].m_mtu,
+        sig->m_partyEntries[3].m_nat,
+        sig->m_partyEntries[3].m_ping,
+        sig->m_partyEntries[3].m_mtu,
         sig->m_field18,
         sig->m_field1c,
         buf[0], buf[1], buf[2], buf[3],

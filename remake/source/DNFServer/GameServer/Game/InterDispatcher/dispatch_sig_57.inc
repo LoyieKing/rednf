@@ -16,7 +16,7 @@ int Inter_MonitorNoticeMemberLoginOut::dispatch_sig(CUser* user, char* data, int
 
     // ORIG：包基址在两道 guard 之后物化入 -0x10(%ebp)
     Inter_MonitorNoticeMemberLoginOutPktView* pPkt = reinterpret_cast<Inter_MonitorNoticeMemberLoginOutPktView*>(data);
-    if (user->get_charac_no(-1) != pPkt->m_f)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -24,19 +24,19 @@ int Inter_MonitorNoticeMemberLoginOut::dispatch_sig(CUser* user, char* data, int
             0x27bc,
             "MEMBER : Inter_MonitorNoticeMemberLoginOut::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            pPkt->m_f);
+            pPkt->m_characNo);
         return 0;
     }
 
-    if (pPkt->m_a == '\x01' &&
+    if (pPkt->m_loginFlag == '\x01' &&
         pPkt->m_14 == '\x01')
     {
         user->set_connect_upper_member(
-            pPkt->m_34);
+            pPkt->m_connectUpperMember);
         user->set_uppermember_exp_level(
-            pPkt->m_33);
+            pPkt->m_uppermemberExpLevel);
     }
-    else if (pPkt->m_a == '\0' &&
+    else if (pPkt->m_loginFlag == '\0' &&
              pPkt->m_14 == '\x01')
     {
         user->set_connect_upper_member(0);
@@ -46,15 +46,15 @@ int Inter_MonitorNoticeMemberLoginOut::dispatch_sig(CUser* user, char* data, int
     PacketGuard packet;
     packet.put_header(0, 0x48);
     packet.put_byte(
-        (unsigned int)pPkt->m_a);
+        (unsigned int)pPkt->m_loginFlag);
     packet.put_byte(
         (unsigned int)pPkt->m_13);
     packet.put_byte(
         (unsigned int)pPkt->m_14);
     // len 槽 int 精确匹配 put_str(char*,int)（size_t 致 decay 参数降级 add+反序）
-    const int local_10 = (int)strlen(pPkt->m_15);
+    const int local_10 = (int)strlen(pPkt->m_name);
     packet.put_int(local_10);
-    packet.put_str(pPkt->m_15, local_10);
+    packet.put_str(pPkt->m_name, local_10);
     packet.finalize(true);
     user->Send(packet);
     return 0;

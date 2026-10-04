@@ -14,7 +14,7 @@ int Inter_SecurityCardActivate::dispatch_sig(CUser* user, char* data, int /*len*
     //   **函数尾部**（fall-through 是正例分支）；且 084d3e6b `mov $0x0,%eax` 在 ~PacketGuard
     //   之后（域外）。旧写「提前 return 0 + PacketGuard 在 packet 作用域内」使 4.4 用
     //   %ebx 跨清理（mov $0x0,%ebx + mov %ebx,%eax ⇒ n 81 vs ORIG 78）。
-    if (pPkt->m_a != '\0')
+    if (pPkt->m_flag != '\0')
     {
         user->getSecurityCard()->setActivate(true);
         user->getSecurityCard()->setCertFlag('\x01');

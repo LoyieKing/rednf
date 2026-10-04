@@ -26,5 +26,5 @@ void SpecialItemHandler::respond_special_item_inventory_upgrade(
         user->GetServerGroup(), user->GetUID(),
         user->getCurCharacNo(),
         user->getCurCharacInvenR()->get_inventory_capacity());
-    m_owner->_sendInventoryUpgradePacket(CERA_PARAM_TYPED(param)->m_user, type);
+    m_owner->_sendInventoryUpgradePacket(static_cast<CUser*>(param.m_user), type);
 }

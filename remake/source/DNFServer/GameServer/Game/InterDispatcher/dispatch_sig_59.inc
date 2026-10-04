@@ -4,7 +4,7 @@ int Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig(CUser* user, 
         return 0;
 
     Inter_MonitorNoticeRequestMemberEnterToResponserPktViewI* pPkt = reinterpret_cast<Inter_MonitorNoticeRequestMemberEnterToResponserPktViewI*>(data);
-    if (user->get_charac_no(-1) != pPkt->m_e)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
     {
         LogManager::logFormat(
             1, "InterDispatcher.cpp",
@@ -12,7 +12,7 @@ int Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig(CUser* user, 
             0x280c,
             "MEMBER : Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig() : pUser->get_charac_no(%d) != recv->m_uCharID(%d)",
             user->get_charac_no(-1),
-            pPkt->m_e);
+            pPkt->m_characNo);
         return 0;
     }
 
@@ -43,9 +43,9 @@ int Inter_MonitorNoticeRequestMemberEnterToResponser::dispatch_sig(CUser* user, 
     PacketGuard packet;
     packet.put_header(0, 0x49);
     packet.put_short((int)pPkt->m_12);
-    const int local_10 = (int)strlen(pPkt->m_14);
+    const int local_10 = (int)strlen(pPkt->m_name);
     packet.put_int(local_10);
-    packet.put_str(pPkt->m_14, local_10);
+    packet.put_str(pPkt->m_name, local_10);
     packet.finalize(true);
     user->Send(packet);
     return 0;

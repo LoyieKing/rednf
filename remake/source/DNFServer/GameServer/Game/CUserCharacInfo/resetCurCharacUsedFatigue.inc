@@ -3,6 +3,6 @@ void CUserCharacInfo::resetCurCharacUsedFatigue()
     if (m_selected)
     {
     enableSaveCharacStat();
-    m_selected->m_field4d = 0;
+    m_selected->m_usedFatigue = 0;
     }
 }

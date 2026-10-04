@@ -22,8 +22,7 @@ int Dispatcher_SaveGameOption_ChattingEmoticon::process(CUser* user, MSG_BASE& m
         //   mov %edx,(%esp); call vector<…_slot_String>::ixEj`；c_str 结果只经
         //   0x081cf58b `mov %eax,%ebx` 跨第二次 operator[] 保活，**无 elem/str/slot 具名槽**。
         //   slot 读法照抄（0x081cf5a2 `movzwl (%eax),%eax; cwtl`）。
-        strncpy(reinterpret_cast<char*>(&config) +
-                    static_cast<int>(*reinterpret_cast<short*>(&msg.m_slots[i])) * 0x16,
+        strncpy(config.m_Row[static_cast<int>(static_cast<short>(msg.m_slots[i].m_slot))].m_data,
                 msg.m_slots[i].m_str.c_str(), 0x14);
     }
     if (!gameOption->isEqualEmoticon(config))
@@ -48,7 +47,7 @@ int Dispatcher_SaveGameOption_ChattingEmoticon::process(CUser* user, MSG_BASE& m
         //   实测本件 our 138→**143**（gap +1→−4）劣化、TU 四数不变 ⇒ 回退。
         //   与 CUser 场景的差别：此处源 `config` 是 pack(1) 的局部量（align 1），
         //   4.4 需先做对齐剥离，赚不到单级 rep movsl。
-        memcpy(reinterpret_cast<char*>(sig) + 4, reinterpret_cast<const char*>(&config), 0x210);
+        memcpy(&sig->m_cfg, &config, 0x210);
         GlobalData::s_msgq_mgr->put(static_cast<MsgQueueMgr::QUEUE_IDX>(2), guard);
     }
     return 0;

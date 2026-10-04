@@ -1,4 +1,4 @@
 int CUser::getRecipeProbability()
 {
-    return m_field8ec2c;
+    return m_recipeProbability;
 }

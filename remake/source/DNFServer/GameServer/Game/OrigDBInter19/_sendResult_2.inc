@@ -8,8 +8,8 @@ void DB_SecurityCardRetransfer::_sendResult(int param_1, char* param_2,
     guard.operator*()->operator<<(0x138);
     guard.operator*()->operator<<(param_1);
 
-    SecuRetransferView* view = reinterpret_cast<SecuRetransferView*>(
-        guard->GetInBuffer<SIG_SECURITY_CARD_RETRANSFER>());
+    SIG_SECURITY_CARD_RETRANSFER* view =
+        guard->GetInBuffer<SIG_SECURITY_CARD_RETRANSFER>();
     view->m_error = error;
     if (param_3 != 0)
     {

@@ -8,7 +8,7 @@ void DB_HadesPunish::makeRequest(unsigned int a, unsigned int b,
     guard.operator*()->operator<<((int)-1);
     // ORIG 0x08432fe2 单槽：call GetInBuffer 后 `mov %eax,-0xc(%ebp)` 一次
     // 落栈（无 sig 中转槽双 spill 形）⇒ view cast 直落声明初始化（技巧14）。
-    DB_HadesPunishView* v = reinterpret_cast<DB_HadesPunishView*>(
+    SIG_HADES_PUNISH* v = /*SIG_HADES_PUNISH*/(
         guard->GetInBuffer<SIG_HADES_PUNISH>());
     v->m_mId = a;
     v->m_punishType = b;

@@ -24,7 +24,7 @@ void DB_UpdateCreatureItem::GetField(MySQL* db, char* out, SIG_CREATURE_ITEM* si
                    sig->m_characNo);
     AddFieldString(isFirst, out, sig->m_hdr, 0x20, "slot=%d", sig->m_slot);
     AddFieldString(isFirst, out, sig->m_hdr, 0x40, "it_id=%d",
-                   ((DB_CreatureItemInserView*)sig)->m_itId);
+                   sig->m_itemView.m_itemIdx);
     AddFieldString(isFirst, out, sig->m_hdr, 0x80, "no_charge=%d",
                    (signed char)sig->m_keepRight);
     AddFieldString(isFirst, out, sig->m_hdr, 0x100, "stat=%d",

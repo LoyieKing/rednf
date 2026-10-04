@@ -1,7 +1,7 @@
 // ==== Dispatcher_SecurityCardAuthRpy::check_error (ORIG 0x0826314c) ====
 int Dispatcher_SecurityCardAuthRpy::check_error(CUser* user, MSG_BASE& msg)
 {
-    ScrMsgView& m = *reinterpret_cast<ScrMsgView*>(&msg);
+    MSG_SECU_RPY& m = *reinterpret_cast<MSG_SECU_RPY*>(&msg);
     if (m.m_cryptoType == 0 || m.m_cryptoType > 0xd || m.m_cryptoType == 5)
     {
         // ORIG 0x082631?: 本分支 trace 落 -0x2c（远槽）、state 分支 -0x1c。

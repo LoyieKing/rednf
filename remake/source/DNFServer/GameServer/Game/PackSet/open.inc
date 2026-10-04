@@ -60,6 +60,12 @@ pack_ret_t PackSet::open(char const* name, char const* tag, pack_load_type_t typ
     fread(&idxHdrSize, 4, 1, fp);
     fread(&idxHdrCrc, 4, 1, fp);
     fread(&idxHdrKey, 4, 1, fp);
+    fprintf(stdout,
+            "[PVF] decrypt key file=%s idxHdrKey=0x%08lx idxHdrCrc=0x%08lx "
+            "XOR_KEY=0x%08x g_AdditionalKey=0x%08x effective=0x%08lx\n",
+            name, idxHdrKey, idxHdrCrc, XOR_KEY, g_AdditionalKey,
+            idxHdrKey ^ XOR_KEY);
+    fflush(stdout);
 
     unsigned char* idxHdrData = new unsigned char[idxHdrSize];   // -0x1c
     fread(idxHdrData, idxHdrSize, 1, fp);

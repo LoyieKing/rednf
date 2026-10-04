@@ -1,4 +1,4 @@
 unsigned char CUserCharacInfo::isBloodBestRecordUpdate()
 {
-    return m_selected->m_fieldEC3;
+    return m_selected->m_bloodBestRecordUpdate;
 }

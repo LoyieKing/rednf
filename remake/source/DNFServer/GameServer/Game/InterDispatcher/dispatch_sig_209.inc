@@ -7,7 +7,7 @@ int Inter_GuildCargoPopItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 // [G2A-PC 本轮负结论 N，ndiff=106] 残留与 208 同族：
 //   (a) ORIG `mov 0x17(%eax),%eax; mov %eax,%ebx` / `mov 0x22(%eax),%eax; mov %eax,%esi`
 //       （两条）vs 本方单条 `…,%ebx` / `…,%esi` —— gcc 伪寄存器分派差；
-//   (b) `get_charac_no` 结果与 pPkt->m_e 的取用次序两侧一致，仅 %ebx/%esi/%edx 分派不同；
+//   (b) `get_charac_no` 结果与 pPkt->m_characNo 的取用次序两侧一致，仅 %ebx/%esi/%edx 分派不同；
 //   (c) 局部结构体 3 字段的赋值：ORIG 逐字段槽往返 `mov 0x33(%eax),%edx; mov %edx,<S>`，
 //       本方为 `lea <S>,%eax; lea 0x25(%eax),%edx; mov (%eax),%eax; mov %eax,(%edx)` 直写。
 //   均无源码级单点直证，留 N。
@@ -19,52 +19,52 @@ Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemP
     // +0x4c logIdx。
     if (user->get_state() <= 2)
         return 0;
-    if (user->get_charac_no(-1) != pPkt->m_e)
+    if (user->get_charac_no(-1) != pPkt->m_characNo)
         return 0;
 
     user->m_historyLog.GuildCargoPopItemResult(
         (ENUM_GUILD_CARGO_HISTORY_REASON)0xb,
-        pPkt->m_4b,
+        pPkt->m_result,
         pPkt->m_4c,
-        pPkt->m_17,
-        pPkt->m_1c,
-        pPkt->m_20,
-        pPkt->m_22);
+        pPkt->m_addInfo,
+        pPkt->m_addInfo2,
+        pPkt->m_endurance,
+        pPkt->m_itemExtra);
 
-    if (pPkt->m_4b != 0xc1)
+    if (pPkt->m_result != 0xc1)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfc,
-                                 pPkt->m_4b);
+                                 pPkt->m_result);
         return 0;
     }
 
     CInventory* inven = user->getCurCharacInvenW();
     CDataManager* dm = G_CDataManager();
     Inven_Item item;                       // ORIG 局部 Inven_Item C1 @ebp-0x85
-    CItem* ci = dm->find_item(pPkt->m_17);
+    CItem* ci = dm->find_item(pPkt->m_addInfo);
     if (ci == 0)
     {
         cMyTrace(__PRETTY_FUNCTION__,
             0x4a6e, 0)("ERROR OCCURRED! GUILD CARGO POP ITEM - fail find item(%d), User(%d)",
-              pPkt->m_17, user->getCurCharacNo());
+              pPkt->m_addInfo, user->getCurCharacNo());
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfc, 0xc5);
         return 0;
     }
 
     ci->make_item(item);                   // vtable 槽 +0x08（make_item 出参）
-    item.m_addInfo = pPkt->m_17;
-    item.m_addInfo2 = pPkt->m_1c;
-    item.m_fieldb = pPkt->m_20;
-    item.m_fieldd = pPkt->m_22;
-    item.SetItemAttr(pPkt->m_1b);
-    item.m_amp.assign(pPkt->m_26,
-                      pPkt->m_27);
+    item.m_addInfo = pPkt->m_addInfo;
+    item.m_addInfo2 = pPkt->m_addInfo2;
+    item.m_fieldb = pPkt->m_endurance;
+    item.m_fieldd = pPkt->m_itemExtra;
+    item.SetItemAttr(pPkt->m_itemAttr);
+    item.m_amp.assign(pPkt->m_ampType,
+                      pPkt->m_ampValue);
     // [c3] ORIG 0x084de580..0x084de596：msg+0x33..0x40（14B，视图成员 m_33）→
     // item+0x25..0x32（= m_random.m_random，sizeof 0x0e）整块赋值（4/4/4/2 段展开、
     // 末段 movzwl+movw）。旧形按 RandomOptionField（stride 3）逐成员 cast 4B 写 ⇒
     // 写侧偏移 0x25/0x28/0x2b/0x2e 与 ORIG 0x25/0x29/0x2d/0x31 错位 1..3 字节（真错位）。
-    item.m_random.m_random = pPkt->m_33;
-    item.m_upgradeSep.m_field = pPkt->m_41;
+    item.m_random.m_random = pPkt->m_random;
+    item.m_upgradeSep.m_field = pPkt->m_upgradeSep;
 
     int firstResult = 0;                   // 试占位结果（包内回发槽号）
     if (ci->IsCreatureItem())              // vtable 槽 +0x14
@@ -80,17 +80,17 @@ Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemP
             g_scriptStringManager_.findString(4, "game_server_msg_114",
                                               reinterpret_cast<bool*>(0));
         WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
-            title, item, 0u, static_cast<unsigned int>(pPkt->m_e),
+            title, item, 0u, static_cast<unsigned int>(pPkt->m_characNo),
             reinterpret_cast<const char*>(0), 0, 0u, user->GetServerGroup(),
             false, false);
         user->m_historyLog.GuildCargoItemRecovery(
             (ENUM_GUILD_CARGO_HISTORY_REASON)0xc,
-            pPkt->m_17,
-            pPkt->m_1c,
-            pPkt->m_20,
-            pPkt->m_22,
-            pPkt->m_1b,
-            (*reinterpret_cast<UpgradeSeparateInfo*>(&pPkt->m_41))   // §4.3 具名字段取址替代裸偏移 data+0x41
+            pPkt->m_addInfo,
+            pPkt->m_addInfo2,
+            pPkt->m_endurance,
+            pPkt->m_itemExtra,
+            pPkt->m_itemAttr,
+            (*reinterpret_cast<UpgradeSeparateInfo*>(&pPkt->m_upgradeSep))   // §4.3 具名字段取址替代裸偏移 data+0x41
                 .GetUpgradeSeparate());
     }
     else
@@ -115,17 +115,17 @@ Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemP
                                                   reinterpret_cast<bool*>(0));
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 title, item, 0u,
-                static_cast<unsigned int>(pPkt->m_e),
+                static_cast<unsigned int>(pPkt->m_characNo),
                 reinterpret_cast<const char*>(0), 0, 0u, user->GetServerGroup(),
                 false, false);
             user->m_historyLog.GuildCargoItemRecovery(
                 (ENUM_GUILD_CARGO_HISTORY_REASON)0xc,
-                pPkt->m_17,
-                pPkt->m_1c,
-                pPkt->m_20,
-                pPkt->m_22,
-                pPkt->m_1b,
-                (*reinterpret_cast<UpgradeSeparateInfo*>(&pPkt->m_41))   // §4.3 具名字段取址替代裸偏移 data+0x41
+                pPkt->m_addInfo,
+                pPkt->m_addInfo2,
+                pPkt->m_endurance,
+                pPkt->m_itemExtra,
+                pPkt->m_itemAttr,
+                (*reinterpret_cast<UpgradeSeparateInfo*>(&pPkt->m_upgradeSep))   // §4.3 具名字段取址替代裸偏移 data+0x41
                     .GetUpgradeSeparate());
         }
     }
@@ -136,7 +136,7 @@ Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemP
     packet.put_short(pPkt->m_4c);
     packet.put_byte(pPkt->m_12);
     packet.put_short(firstResult);
-    packet.put_int(pPkt->m_1c);
+    packet.put_int(pPkt->m_addInfo2);
     packet.finalize(true);
     user->Send(packet);
     return 0;

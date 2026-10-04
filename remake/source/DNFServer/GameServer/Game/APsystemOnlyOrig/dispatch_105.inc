@@ -9,16 +9,15 @@ bool DB_LoadDnfHackLog::dispatch(int userIdx, int slot, Stream* stream)
                                                   E_SERVER_GROUP_NONE);
     unsigned int mId = 0;
     // ORIG 槽序：out(-0x10) 高于 inSig(-0x14) 高于 mId(-0x18) ⇒ inSig 先声明。
-    DB_DnfHackLogView* inSig;
+    SIG_LOAD_DNF_HACK_LOG* inSig;
     SIG_LOAD_DNF_HACK_LOG* outSig =
         stream->GetOutBuffer<SIG_LOAD_DNF_HACK_LOG>();
-    mId = reinterpret_cast<DB_DnfHackLogView*>(outSig)->m_mId;
+    mId = outSig->m_mId;
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("DBThread.cpp", 0x5a8e), true);
     guard.operator*()->operator<<(0x106);
     guard.operator*()->operator<<(slot);
-    inSig = reinterpret_cast<DB_DnfHackLogView*>(
-        guard.operator->()->GetInBuffer<SIG_LOAD_DNF_HACK_LOG>());
+    inSig = guard.operator->()->GetInBuffer<SIG_LOAD_DNF_HACK_LOG>();
     memset(inSig, 0, 0x3cf4);
     inSig->m_mId = mId;
     db->set_query(

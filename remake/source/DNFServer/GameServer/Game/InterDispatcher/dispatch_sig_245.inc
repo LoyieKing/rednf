@@ -3,7 +3,7 @@
 // （cMyTrace(...)(...)，vararg 跨 ctor 保活）+ pPkt 槽取址 ⇒ 本波归零。
 int Inter_LoadAccountCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_LoadAccountCargoPktView* pPkt = reinterpret_cast<Inter_LoadAccountCargoPktView*>(data);
+    SIG_ACCOUNT_CARGO_DATA* cargo = reinterpret_cast<SIG_ACCOUNT_CARGO_DATA*>(data);
     if (user->get_state() <= 1)
         return 0;
     if (user->IsExistAccountCargo())
@@ -18,8 +18,8 @@ int Inter_LoadAccountCargo::dispatch_sig(CUser* user, char* data, int /*len*/)
         return 0;
     }
     user->SetAccountCargoDBData(
-        reinterpret_cast<Inven_Item*>(reinterpret_cast<char*>(pPkt) + 0x8),  // ORIG 从 pPkt 槽 -0xc 取址
-        pPkt->m_4,
-        pPkt->m_0);
+        reinterpret_cast<Inven_Item*>(cargo->m_cargo),  // ORIG 从 pPkt 槽 -0xc 取址
+        cargo->m_money,
+        cargo->m_capacity);
     return 0;
 }

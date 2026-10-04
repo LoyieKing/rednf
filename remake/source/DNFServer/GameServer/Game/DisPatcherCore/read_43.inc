@@ -19,13 +19,13 @@ int DisPatcher_GetItem::read(PacketBuf& packet, MSG_BASE& msg)
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_0f)))
+    if (!packet.get_byte(req.m_0f))
     {
         return LineFunc(0xe2f,
                         __PRETTY_FUNCTION__,
                         0, 0);
     }
-    if (!packet.get_byte(*reinterpret_cast<char*>(&req.m_10)))
+    if (!packet.get_byte(req.m_10))
     {
         return LineFunc(0xe30,
                         __PRETTY_FUNCTION__,

@@ -22,39 +22,38 @@ int Inter_ItemLimitEdition_Sell_Start::dispatch_sig(CUser* /*user*/, char* data,
         G_CDataManager()->getItemLimitEditionMgr()->clear();
     }
 
-    for (unsigned int i = 0; i < pPkt->m_b; ++i)
+    for (unsigned int i = 0; i < pPkt->m_count; ++i)
     {
         // [K3 2026-09-11] P0：ORIG 8 组访问各发 `mov %edx,%eax; shl $0x3,%eax; add %edx,%eax;
         //   shl $0x3,%eax`（= i*0x48 逐处重算，共 4 条/处），无 offset 具名槽 ⇒ 去槽内联
         //   （旧稿具名槽每处仅 `mov -0x20(%ebp),%eax` 1 条，正是 gap +24 的来源）。
         CItem* found = G_CDataManager()->find_item(
-            *reinterpret_cast<int*>(data + i * 0x48 + 0x13));
+            static_cast<int>(pPkt->m_items[i].m_itemIdx));
         if (found == 0)
         {
-            if (*reinterpret_cast<int*>(data + i * 0x48 + 0x13) == 1)   // cmp $1 je（P15）
+            if (static_cast<int>(pPkt->m_items[i].m_itemIdx) == 1)
             {
                 goto regist;
             }
         }
         else
         {
-            if (found->IsAvatarItem() != 0)            // ORIG vptr+0x10 槽（P5/P62）正极性 `test; jne`
+            if (found->IsAvatarItem() != 0)
                 goto next_item;
 regist:
-            G_CDataManager()->getItemLimitEditionMgr()->registItem(
-                *reinterpret_cast<stItemLimitEditionItemInfo_t*>(data + i * 0x48 + 0xf));
+            G_CDataManager()->getItemLimitEditionMgr()->registItem(pPkt->m_items[i]);
             cMyTrace(__PRETTY_FUNCTION__, 0x4638, 0)(
                 "ipg: %d, itemIdx: %d, totalCnt: %d/%d, sellEndTime: %d",
-                *reinterpret_cast<int*>(data + i * 0x48 + 0xf),
-                *reinterpret_cast<int*>(data + i * 0x48 + 0x13),
-                *reinterpret_cast<unsigned int*>(data + i * 0x48 + 0x27),
-                *reinterpret_cast<unsigned int*>(data + i * 0x48 + 0x2b),
-                *reinterpret_cast<unsigned int*>(data + i * 0x48 + 0x37));
+                static_cast<int>(pPkt->m_items[i].m_ipgNo),
+                static_cast<int>(pPkt->m_items[i].m_itemIdx),
+                pPkt->m_items[i].m_initSellNum,
+                static_cast<unsigned int>(pPkt->m_items[i].m_totalSellNum),
+                static_cast<unsigned int>(pPkt->m_items[i].m_sellEndTime));
         }
 next_item:;
     }
 
-    if (pPkt->m_b != 0)
+    if (pPkt->m_count != 0)
     {   // 广播新限购信息
         PacketGuard packet;
         packet.put_header(0, 0xe1);

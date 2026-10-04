@@ -3,8 +3,7 @@ bool DB_ChangeLetterStat::dispatch(int userIdx, int slot, Stream* stream)
     static const int handleIdx = 3;
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)handleIdx,
                                                   E_SERVER_GROUP_NONE);
-    DB_LetterStatView* sig = reinterpret_cast<DB_LetterStatView*>(
-        stream->GetOutBuffer<SIG_LETTER_STAT>());
+    SIG_LETTER_STAT* sig = stream->GetOutBuffer<SIG_LETTER_STAT>();
     // ORIG 0x084260xx switch 下探链形：`movzwl; cwtl; test; je DEL;
     // test; js DEF; sub $2; cmp $1; ja DEF; [fall UPD]` —— 4.1 switch
     // {0,2,3}+default 专属；4.4 的 if/else-if 链反产三次重装载。

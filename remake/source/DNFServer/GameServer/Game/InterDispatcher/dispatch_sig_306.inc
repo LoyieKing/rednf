@@ -10,10 +10,10 @@ int Inter_LoadCerashopAddRestrictType::dispatch_sig(CUser* user, char* data, int
         return 0x201;
     }
 
-    Inter_LoadCerashopAddRestrictTypePktView* pPkt = reinterpret_cast<Inter_LoadCerashopAddRestrictTypePktView*>(data);
+    SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE* load = reinterpret_cast<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE*>(data);
 
     // [H2·2026-09-11 laneD P0] ORIG 080e2164 `cmpl $0x0,-0x10(%ebp)` ⇒ 判空用局部 pPkt（非形参）。
-    if (pPkt == 0)
+    if (load == 0)
     {
         cMyTrace(__PRETTY_FUNCTION__,
             0x207, 5)("[%s] internal data is null.",
@@ -29,17 +29,17 @@ int Inter_LoadCerashopAddRestrictType::dispatch_sig(CUser* user, char* data, int
     //   cmp $0x1,%eax; je B; jmp C`（值只读一次 + 32 位 cmp 链）⇒ 源形是 switch（P251/P261；
     //   同 TU MonitorRegistGameServerAck 先例 + /tmp/L9/C/p_switch.cpp 探针直证）；if/else-if
     //   链在 4.4 恒退化为逐次重读（`mov -0x10(%ebp),%eax; mov 0x4(%eax),%eax; cmp $1,%al`）。
-    switch (pPkt->m_4)
+    switch (load->m_type)
     {
     case 0:
         CerashopAddRestrict::Manager::LoadProcess(
             info.m_field30, info.m_accountDaily,
-            reinterpret_cast<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE*>(pPkt));
+            load);
         break;
     case 1:
         CerashopAddRestrict::Manager::LoadProcess(
             info.m_field48, info.m_characDaily,
-            reinterpret_cast<SIG_LOAD_CERASHOP_ADD_RESTRICT_TYPE*>(pPkt));
+            load);
         break;
     }
     CerashopAddRestrict::Manager::SendSyncPacket(user);

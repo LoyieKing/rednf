@@ -24,12 +24,6 @@ public:
     bool Save_pid(const std::string& name);
 };
 
-// ---- CommonTime：6 字节（y-100/m/d/h/m/w）----
-class CommonTime
-{
-public:
-    void SetCurTime();
-    char m_time[6];
-};
+#include "../CommonTime.h"
 
 #endif // DNF_APP_START_INIT_H_

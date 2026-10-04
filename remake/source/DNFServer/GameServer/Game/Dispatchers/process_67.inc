@@ -25,8 +25,7 @@ int Dispatcher_GuildJoinList::process(CUser* user, MSG_BASE& msg, ParamBase& par
     else
     {
         // ORIG 0x081d534f `mov 0x378(%eax),%eax`（disp 折叠，非 add 形）
-        struct EnvView { char m_pad[0x378]; unsigned int m_group; };
-        serverGroup = reinterpret_cast<EnvView*>(G_CEnvironment())->m_group;
+        serverGroup = G_CEnvironment()->m_serverEnvir.m_serverGroup;
     }
 
     // ORIG 0x081d5363 `mov %eax,%ebx`（guildkey 先算、跨 GetUID call 保活）+ 0x081d5370

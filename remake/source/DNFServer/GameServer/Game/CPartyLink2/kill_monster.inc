@@ -177,7 +177,7 @@ bool CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             (ENUM_QUEST_ENEMY_TYPE)questEnemyType);
     }
 
-    // ---- 击杀者金币历史（m_field796f8 为 _IO_FILE* 位模式） ----
+    // ---- 击杀者金币历史（m_historyLogFp 为 _IO_FILE* 位模式） ----
     for (int i = 0; i < 4; ++i)
     {
         // ORIG 0x085a31d9/0x085a31e5 两条件各自 jne 跳统一失败出口（P133）：
@@ -186,7 +186,7 @@ bool CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             continue;
         if (m_member[i].m_pUser == user)
             HistoryLog::WriteKillMob(
-                reinterpret_cast<FILE*>(user->m_field796f8), (int)reward);
+                reinterpret_cast<FILE*>(user->m_historyLogFp), (int)reward);
     }
 
     // ---- 总经验计算（成员数倍率 + 队伍经验加成事件） ----

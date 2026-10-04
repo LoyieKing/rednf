@@ -18,8 +18,8 @@ int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* dat
     packet.put_short(
         (int)(unsigned short)MPKT->m_c);
     // ORIG 0x84e5cae/0x84e5ccb：strlen 双调（put_int/put_str 各算一次，O0 不 CSE）
-    packet.put_int((int)strlen(MPKT->m_f));
-    packet.put_str(MPKT->m_f, (int)strlen(MPKT->m_f));
+    packet.put_int((int)strlen(MPKT->m_name));
+    packet.put_str(MPKT->m_name, (int)strlen(MPKT->m_name));
     // [K3 2026-09-11] P0：ORIG 两处 `movzbl 0x166(%eax),%eax; movzbl %al,%eax` 重读
     //   （无 linkLen 具名槽）⇒ 内联。
     packet.put_int((int)(unsigned int)MPKT->m_166);
@@ -36,7 +36,7 @@ int Inter_Monitor_MegaphoneMsgHyperLink::dispatch_sig(CUser* /*user*/, char* dat
         //   旧形直接写形参 data（0x10(%ebp)）⇒ 4.4 前向替换成帧参直读（P358），
         //   与 ORIG 槽读不同形。改回经 pPktAddr（MPKT 同源）表达。
         packet.put_binary(
-            reinterpret_cast<char*>(pPktAddr) + i * 0x68 + 0x2e, 0x68);
+            MPKT->m_items[i].m_data, 0x68);
     }
     packet.finalize(true);
 

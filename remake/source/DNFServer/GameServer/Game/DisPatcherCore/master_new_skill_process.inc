@@ -9,7 +9,7 @@
 // SendBuyGuildSkill(get_charac_no(-1), get_charac_guildkey(), m_0, info.m_8,
 // needGSP, needGold)。
 // [b28d-29] N82 + P168a：帧 0x7c vs 0x9c + 取反物化方向（xor $1 位置），调用点全等  (ORIG 0x081bf952 insn 239->248)
-// 尾部（+0x2b3）：m_4>=0 时 HistoryLog::WriteLearnSkill(m_field796f8, m_0, 当前等级)。
+// 尾部（+0x2b3）：m_4>=0 时 HistoryLog::WriteLearnSkill(m_historyLogFp, m_0, 当前等级)。
 // [b28d-solo-DisPatcherCore] 复核 DIFF：ndiff 297（ORIG 234 / ours 243），残差=P168a④ bool 槽化/P211/N18a 中转/store 序/P30/N4 槽与寻址/N82 帧差；沿用上方 b28d-29 归因，封顶。
 void DisPatcher_BuySkill::master_new_skill_process(CUser* user, char treeKind,
 
@@ -126,7 +126,7 @@ void DisPatcher_BuySkill::master_new_skill_process(CUser* user, char treeKind,
         // / 0x081bfc27 `call get_skill_level`（结果直接 `mov %eax,0x8(%esp)`）——
         // 无 skillRT/curLevel 具名槽 ⇒ 内联链式。
         HistoryLog::WriteLearnSkill(
-            reinterpret_cast<FILE*>(user->m_field796f8),
+            reinterpret_cast<FILE*>(user->m_historyLogFp),
             static_cast<unsigned char>(info.m_0),
             ((SkillSlot*)(user->getCurCharacSkillR()))->get_skill_level(info.m_4));
     }

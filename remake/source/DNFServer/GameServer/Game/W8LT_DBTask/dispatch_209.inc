@@ -16,8 +16,8 @@ bool DB_InsertAutoPunishFirstUser::dispatch(int /*userIdx*/, int /*slot*/,
 {
     // ORIG 0x0842d6da 函数首句 movl $0x0,-0x30（P198① 预清：声明=0 + 独立赋值）
     int punishType = 0;                 // ORIG local_34 @ -0x30
-    DB_InsertAutoPunishFirstUserView* sig =
-        reinterpret_cast<DB_InsertAutoPunishFirstUserView*>(
+    SIG_INSERT_AUTO_PUNISH_FIRST_USER* sig =
+        /*SIG_INSERT_AUTO_PUNISH_FIRST_USER*/(
             stream->GetOutBuffer<SIG_INSERT_AUTO_PUNISH_FIRST_USER>());
     MySQL* db6 = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                    E_SERVER_GROUP_NONE);

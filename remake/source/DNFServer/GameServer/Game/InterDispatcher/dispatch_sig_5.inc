@@ -1,16 +1,16 @@
 int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
-    Inter_LoadCharacPktView* pPkt = reinterpret_cast<Inter_LoadCharacPktView*>(data);
+    SIG_LOAD_CHARAC* load = reinterpret_cast<SIG_LOAD_CHARAC*>(data);
     if (user->get_state() == 0)                        // state==0 → 0x13dd
         return 0x13dd;
-    if (pPkt->m_8 != 0)        // req field @+0x8 → 0x13e3
+    if (load->m_result != 0)        // req field @+0x8 → 0x13e3
         return 0x13e3;
 
     // [K3 负结论 2026-09-11] 试删 curAccId/reqAccId 两具名槽改内联重读：我方 680→681 条
     //   （+1）⇒ 4.4 下重读形比寄存器保活更贵，已回滚。
     const unsigned int curAccId = (unsigned int)user->get_acc_id();
     const unsigned int reqAccId =                      // msg+0x140
-        pPkt->m_140;
+        load->m_characData.m_unkB2.m_mId;
     if (curAccId != reqAccId)
     {   // 异号 MID 记账：SIG_SAVE_SAME_MID_OTHER_CHAR_LOGIN_HACK
         Stream* stream =
@@ -22,39 +22,35 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
             guard->GetInBuffer<SIG_SAVE_SAME_MID_OTHER_CHAR_LOGIN_HACK>();
         sig->m_curAccId = static_cast<unsigned int>(user->get_acc_id());
         sig->m_reqAccId = reqAccId;
-        sig->m_characNo = pPkt->m_c;
+        sig->m_characNo = load->m_characData.m_characNo;
         user->m_network.GetPeerIP2(sig->m_peerIp, 0x14);   // +0x0c
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)4, guard);
         return 0x1405;
     }
 
-    if (pPkt->m_2e == '\0')  // charac list 空检查
+    if (load->m_characData.m_village == '\0')  // charac list 空检查
         return 0x140b;
 
     const unsigned int reqCharacNo =                   // msg+0x04
-        pPkt->m_4;
+        load->m_characNo;
     const int slotIdx = user->get_charac_idx(reqCharacNo);
     if (slotIdx < 0 ||
         !user->setCharacInfoDetail(slotIdx, reqCharacNo,
-                                   // P248：ORIG 084c34b9 `lea 0xc(%eax),%edx`（disp 形）。
-                                   reinterpret_cast<CHARAC_DATA*>(
-                                       &((Inter_LoadCharacAt0cViewI*)data)->m_c)))
+                                   &reinterpret_cast<SIG_LOAD_CHARAC*>(data)->m_characData))
         return 0x1415;
 
     unsigned int tagCharacNo =                         // msg+0x686
-        pPkt->m_686;
+        load->m_tagCharacNo;
     int tagIdx = user->get_charac_idx(tagCharacNo);
     if (tagCharacNo != 0 && tagIdx != -1)
     {
         if (tagIdx < 0 ||
             !user->setTagCharacInfo(tagIdx, tagCharacNo,
-                                    // P248：ORIG 报告 +0x1cb `lea 0x68b(%eax),%edx`。
-                                    reinterpret_cast<TAG_CHARAC_DATA*>(
-                                        &((Inter_LoadCharacAt68bViewI*)data)->m_68b)))
+                                    &reinterpret_cast<SIG_LOAD_CHARAC*>(data)->m_tagCharacData))
             return 0x141f;
-        // +0x14b7 strikerSkillIndex（_Charac_info::m_field14b7，CUser.h:719 权威成员；
+        // +0x14b7 strikerSkillIndex（_Charac_info::m_strikerSkillIndex，CUser.h:719 权威成员；
         //   ORIG 084c364e `mov %dl,0x14b7(%eax)` 单条 disp 直证）。
-        user->m_characList[slotIdx].m_field14b7 = pPkt->m_68a;
+        user->m_characList[slotIdx].m_strikerSkillIndex = load->m_strikerSkillIndex;
     }
     user->SelectCharac(slotIdx, tagIdx);
 
@@ -70,9 +66,9 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     if (user->isCharacLinkBonusSetting((char)slotIdx))
         user->setCharacLinkBonusSetting(slotIdx, false);
     user->SetCurCharacEmotion(
-        pPkt->m_128);
+        load->m_characData.m_unkB2.m_emotion);
     {   // 扩展槽状态域 msg+0x12b：<0 或 >3 归零
-        const signed char exSlot = pPkt->m_12b;
+        const signed char exSlot = load->m_characData.m_unkB2.m_addSlotFlag;
         // ORIG 两个独立 SetCurExpEquipSlotStat 调用点（越界 → 0，否则 → 原值）。
         if (exSlot < 0 || exSlot > 3)
             user->SetCurExpEquipSlotStat(0);
@@ -186,20 +182,17 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
     {   // PowerWar 未连接天数扣点链（lastPlayTickPowerWar = curCharac +0x7b long）
         // ORIG 4 次 `_ZNK getCurCharacR`（门判 + 读 +0x7b + trace 两处）、
         // 2 次 getCurSec（扣点判定 + trace）。+0x7b 直接 long 读，非 memcpy。
-        if (*reinterpret_cast<const int*>(
-                reinterpret_cast<const char*>(user->getCurCharacR()) + 0x7b) != 0)
+        if (user->getCurCharacR()->m_lastPlayTick != 0)
         {
             const long cur = GlobalData::s_systemTime_.getCurSec();
             const long lastPlayTickPw =
-                *reinterpret_cast<const long*>(
-                    reinterpret_cast<const char*>(user->getCurCharacR()) + 0x7b);
+                static_cast<long>(user->getCurCharacR()->m_lastPlayTick);
             const int days = ComputeDaysScheduleTime(
                 G_CEnvironment()->m_serverEnvir.m_fatigueTime, lastPlayTickPw, cur);
             // ORIG 读 CDataManager +0xa6b4（powerwar point per day；
             // 暂无具名成员 [blocked: CDataManager 布局批补名]）
             const int perDayPoint =
-                *reinterpret_cast<const int*>(
-                    reinterpret_cast<const char*>(G_CDataManager()) + 0xa6b4);
+                G_CDataManager()->m_powerParameter.m_decreasePointPerDay;
             if (days > 0)
             {
                 user->DecreasePowerWarPoint((short)((short)perDayPoint * (short)days));
@@ -207,10 +200,8 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
                     0x14e4, 0)("POWERWAR POINT DECREASE : user:%d, last_play_tme:%d, "
                       "current_time:%d, Unconnected Days:%d, Per Day Point : %d, "
                       "Decrease powerwar point:%d",
-                      *reinterpret_cast<const int*>(
-                          reinterpret_cast<const char*>(user->getCurCharacR())),
-                      *reinterpret_cast<const int*>(
-                          reinterpret_cast<const char*>(user->getCurCharacR()) + 0x7b),
+                      static_cast<int>(user->getCurCharacR()->m_characNo),
+                      user->getCurCharacR()->m_lastPlayTick,
                       (int)GlobalData::s_systemTime_.getCurSec(),
                       days, perDayPoint, days * perDayPoint);
             }
@@ -230,11 +221,11 @@ int Inter_LoadCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         G_CDataManager()->get_event_script_mng());
     if (eventMng->is_eventing(0x19b))
     {
-        user->setCurUseBringUpMaterialTotal(pPkt->m_139);
-        user->setBringUpRewardFlag(pPkt->m_138 ? true : false);
+        user->setCurUseBringUpMaterialTotal(load->m_characData.m_unkB2.m_useMaterialCnt);
+        user->setBringUpRewardFlag(load->m_characData.m_unkB2.m_giveRewardFlag ? true : false);
         user->SendEventBringUpInfo();
     }
-    user->select_charac_set_visible_values(pPkt->m_13a);
+    user->select_charac_set_visible_values(load->m_characData.m_unkB2.m_b12e);
     user->decide_growth_power_reward_system();
     return 0;
 }

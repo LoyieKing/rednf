@@ -73,7 +73,7 @@ int CPrivateStore::SellItem(int /*slot*/, Inven_Item& item, int gold,
         m_pSeller->getCurCharacInvenW()->gain_money(
             netGold, (eMoneyAddReason)0xb, true, 0);
     }
-    HistoryLog::WriteSellItem((FILE*)m_pSeller->m_field796f8,
+    HistoryLog::WriteSellItem((FILE*)m_pSeller->m_historyLogFp,
                               (int)item.m_addInfo, (int)item.m_addInfo2);
     return 1;
 }

@@ -1,4 +1,4 @@
 char CUserCharacInfo::getCurExpandEquipslotSwitch()
 {
-    return m_selected ? (int)(unsigned char)m_selected->m_field1277 : -1;
+    return m_selected ? (int)(unsigned char)m_selected->m_expandEquipslotSwitch : -1;
 }

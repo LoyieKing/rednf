@@ -18,7 +18,7 @@ bool DB_UpdateBloodBestRecord::dispatch(int /*userIdx*/, int /*slot*/,
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
-    DB_BloodBestRecordView* sig = reinterpret_cast<DB_BloodBestRecordView*>(
+    SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD* sig = /*SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD*/(
         stream->GetOutBuffer<SIG_UPDATE_BLOOD_DUNGEON_BEST_RECORD>());
     db->set_query(
         "upDate charac_blood_best_record set best_round=%d, best_time=%u where charac_no=%u and dungeon_index=%d",

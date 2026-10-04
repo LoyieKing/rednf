@@ -2,6 +2,6 @@ void CUserCharacInfo::SetAssaultPlace(int place)
 {
     if (m_selected)
     {
-    m_selected->m_fieldE41 = place;
+    m_selected->m_assaultPlace = place;
     }
 }

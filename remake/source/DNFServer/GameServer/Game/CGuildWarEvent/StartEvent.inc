@@ -14,7 +14,7 @@ void CGuildWarEvent::StartEvent()
             GlobalData::s_guild_proxy_mgr
                 ->GetServerProxy((ENUM_SERVER_GROUP)0)
                 ->SendGuildWarStart(
-                    (unsigned char)((CEnvView*)G_CEnvironment())->m_gcNo);
+                    (unsigned char)G_CEnvironment()->m_serverEnvir.m_channelNo);
             cMyTrace(__PRETTY_FUNCTION__, 0x27, 0)(
                 "Guild War Event Start! time(%d)", 5);
         }

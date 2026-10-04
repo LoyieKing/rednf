@@ -5,8 +5,8 @@ int Inter_MonitorUserGetout::dispatch_sig(CUser* /*user*/, char* data, int /*len
 {
     Inter_MonitorUserGetoutPktView* pPkt = reinterpret_cast<Inter_MonitorUserGetoutPktView*>(data);
     // §P0/P48：ORIG 084c8b1d `mov 0xa(%eax),%ebx` 直传（无 accId 槽）、084c8bd8 第二处
-    //   独立重读 pPkt->m_a ⇒ 两处各写表达式，不设具名局部。
-    CUser* target = G_CGameManager()->GetUserByAccId(pPkt->m_a);
+    //   独立重读 pPkt->m_accId ⇒ 两处各写表达式，不设具名局部。
+    CUser* target = G_CGameManager()->GetUserByAccId(pPkt->m_accId);
     // P59 guard 极性：ORIG 084c8b38 `jne <if 体>` + 084c8b3a `mov $0,%ebx; jmp <共享尾>`。
     if (target == 0)
         return 0;
@@ -21,7 +21,7 @@ int Inter_MonitorUserGetout::dispatch_sig(CUser* /*user*/, char* data, int /*len
         // P227：ORIG 084c8bdb m_a 重读后留 %ebx 跨 ctor（084c8bfc）。
         cMyTrace(__PRETTY_FUNCTION__, 0x226c, 0)(
             // [H2·2026-09-11] §6.5 语义轴：ORIG 实字节为 EUC-KR（同上，ACCID: %d 变体）。
-            "\xb0\xad\xc1\xa6 \xc1\xbe\xb7\xe1\xbf\xe4\xc3\xbb ACCID: %d", pPkt->m_a);
+            "\xb0\xad\xc1\xa6 \xc1\xbe\xb7\xe1\xbf\xe4\xc3\xbb ACCID: %d", pPkt->m_accId);
         return 0;
     }
 }

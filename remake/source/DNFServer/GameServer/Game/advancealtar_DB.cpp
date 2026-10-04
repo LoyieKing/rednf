@@ -316,26 +316,26 @@ struct LayerView                                        // 0xe 有效 + 2 pad = 
         {
             // [b28d-solo-advancealtar_DB] P89：ORIG 单槽 -0x28（GetOutBuffer 结果
             //   即视图指针），旧 rawE+e 双局部多一槽并致全帧平移 8。
-            EntranceView* e = reinterpret_cast<EntranceView*>(
-                stream->GetOutBuffer<STAdvanceAltarEntranceData>());
+            STAdvanceAltarEntranceData* e =
+                stream->GetOutBuffer<STAdvanceAltarEntranceData>();
             if (e == 0)
                 throw 0x624;
             // P118/P139：ORIG 0x081412d5 `movl $<rodata>,0x4(%esp)` 直接传函数签名串
             //   （_ZZ…E19__PRETTY_FUNCTION__），非 static 指针变量（多一条装载）。
             cMyTrace(__PRETTY_FUNCTION__, 0x626, 0)("[AdvanceAltar] %u,%u,%u,%u",
-                                                     e->stageId, e->entranceCount, e->successCount, e->obtainStar);
+                                                     e->m_stageIndex, e->m_enterCount, e->m_successCount, e->m_obtainStar);
             mysql->set_query(
                              " upDate log_advance_alter_entrance  set entrance_count = entrance_count + %u"
                              "  , success_count = success_count + %u  , obtain_star = obtain_star + %u"
                              "  where occ_date = '%s' and stage_id = %u",
-                             e->entranceCount, e->successCount, e->obtainStar, date, e->stageId);
+                             e->m_enterCount, e->m_successCount, e->m_obtainStar, date, e->m_stageIndex);
             if (!(mysql->exec(true) && mysql->getAffectedRowCount() != 0))
             {
                 mysql->set_query(
                                  " inSert into log_advance_alter_entrance(occ_date,  stage_id,"
                                  " entrance_count, success_count, obtain_star)"
                                  "  values('%s', %u, %u, %u, %u) ",
-                                 date, e->stageId, e->entranceCount, e->successCount, e->obtainStar);
+                                 date, e->m_stageIndex, e->m_enterCount, e->m_successCount, e->m_obtainStar);
                 mysql->exec(true);
             }
         }
@@ -344,32 +344,32 @@ struct LayerView                                        // 0xe 有效 + 2 pad = 
         *stream >> layerCount;
         for (int i = 0; i < layerCount; ++i)
         {
-            LayerView* l = reinterpret_cast<LayerView*>(
-                stream->GetOutBuffer<STAdvanceAltarLayerStatData>());
+            STAdvanceAltarLayerStatData* l =
+                stream->GetOutBuffer<STAdvanceAltarLayerStatData>();
             if (l == 0)
                 throw 0x64d;
             cMyTrace(__PRETTY_FUNCTION__, 0x64f, 0)("[AdvanceAltar] %u,%u,%u,%u,%u",
-                                                     static_cast<unsigned>(l->itemType), l->itemId,
-                                                     static_cast<unsigned>(l->itemLevel),
-                                                     static_cast<unsigned>(l->useCount),
-                                                     static_cast<unsigned>(l->useStar));
+                                                     static_cast<unsigned>(l->m_itemType), l->m_itemIndex,
+                                                     static_cast<unsigned>(l->m_itemLevel),
+                                                     static_cast<unsigned>(l->m_useCount),
+                                                     static_cast<unsigned>(l->m_useStar));
             mysql->set_query(
                              " upDate log_advance_alter_layer_stat  set use_count = use_count + %u,"
                              " use_star = use_star + %u  where occ_date = '%s' and item_type = %u and"
                              " item_id = %u and item_level = %u",
-                             static_cast<unsigned>(l->useCount), static_cast<unsigned>(l->useStar),
-                             date, static_cast<unsigned>(l->itemType), l->itemId,
-                             static_cast<unsigned>(l->itemLevel));
+                             static_cast<unsigned>(l->m_useCount), static_cast<unsigned>(l->m_useStar),
+                             date, static_cast<unsigned>(l->m_itemType), l->m_itemIndex,
+                             static_cast<unsigned>(l->m_itemLevel));
             if (!(mysql->exec(true) && mysql->getAffectedRowCount() != 0))
             {
                 mysql->set_query(
                                  " inSert into log_advance_alter_layer_stat(occ_date,  item_type,"
                                  " item_id, item_level, use_count, use_star)"
                                  " values('%s', %u, %u, %u, %u, %u)",
-                                 date, static_cast<unsigned>(l->itemType), l->itemId,
-                                 static_cast<unsigned>(l->itemLevel),
-                                 static_cast<unsigned>(l->useCount),
-                                 static_cast<unsigned>(l->useStar));
+                                 date, static_cast<unsigned>(l->m_itemType), l->m_itemIndex,
+                                 static_cast<unsigned>(l->m_itemLevel),
+                                 static_cast<unsigned>(l->m_useCount),
+                                 static_cast<unsigned>(l->m_useStar));
                 mysql->exec(true);
             }
         }

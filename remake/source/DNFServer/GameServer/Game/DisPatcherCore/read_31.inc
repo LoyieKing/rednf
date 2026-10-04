@@ -6,7 +6,7 @@ int DisPatcher_BuySkill::read(PacketBuf& packet, MSG_BASE& msg)
 
 {
     MSG_BUY_SKILL& m = *reinterpret_cast<MSG_BUY_SKILL*>(&msg);
-    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_treeKind)))  // +0x0d（signed char→char& 适配）
+    if (!packet.get_byte(m.m_treeKind))  // +0x0d（signed char→char& 适配）
     {
         return LineFunc(0x37b,
                         __PRETTY_FUNCTION__,
@@ -14,7 +14,7 @@ int DisPatcher_BuySkill::read(PacketBuf& packet, MSG_BASE& msg)
     }
     // [b28d-solo-DisPatcherCore] P167 真 bug：ORIG 调用序列 [c,c,h,c,c] ⇒ m_count /
     // m_refundFlag / m_level 均绑 `get_byte(char&)`（ERc），仅 m_skillIdx 为 ERh。
-    if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_count)))   // +0x0e
+    if (!packet.get_byte(m.m_count))   // +0x0e
     {
         return LineFunc(0x37e,
                         __PRETTY_FUNCTION__,
@@ -42,7 +42,7 @@ int DisPatcher_BuySkill::read(PacketBuf& packet, MSG_BASE& msg)
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_entries[i].m_refundFlag)))  // +0x11+3i
+        if (!packet.get_byte(m.m_entries[i].m_refundFlag))  // +0x11+3i
         {
             return LineFunc(0x38a,
                             __PRETTY_FUNCTION__,
@@ -54,7 +54,7 @@ int DisPatcher_BuySkill::read(PacketBuf& packet, MSG_BASE& msg)
                             __PRETTY_FUNCTION__,
                             0, 0);
         }
-        if (!packet.get_byte(*reinterpret_cast<char*>(&m.m_entries[i].m_level)))  // +0x10+3i
+        if (!packet.get_byte(m.m_entries[i].m_level))  // +0x10+3i
         {
             return LineFunc(0x38f,
                             __PRETTY_FUNCTION__,

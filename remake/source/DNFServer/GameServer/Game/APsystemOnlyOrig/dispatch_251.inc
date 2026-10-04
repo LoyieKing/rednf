@@ -5,7 +5,7 @@ bool DB_UpdateNPCRelationship::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_2,
                                                   E_SERVER_GROUP_NONE);
-    UpdateNpcRelationView* sig = reinterpret_cast<UpdateNpcRelationView*>(
+    SIG_UPDATE_NPC_RELATIONSHIP* sig = (
         stream->GetOutBuffer<SIG_UPDATE_NPC_RELATIONSHIP>());
     // 残留（N 类）：ORIG 0x08435e1e `mov (%eax),%ebx` npcCnt 入 callee-saved
     // %ebx 跨 call 保活（push %ebx/sub $0x34 帧）；4.4 具名槽外推 4B、

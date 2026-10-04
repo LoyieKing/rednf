@@ -9,7 +9,10 @@
 
 struct PCK_AUCTION_ASK_AVERAGE_PRICE_GP : public nsl::PACKET_HEADER
 {
-    char m_data[0x1f - 0x12];   // +0x12 起（ORIG setSize(0x1f)）
+    unsigned int m_uid;         // +0x12
+    int m_characNo;             // +0x16
+    unsigned int m_itemIdx;     // +0x1a
+    char m_flag;                // +0x1e
 
     PCK_AUCTION_ASK_AVERAGE_PRICE_GP()
     {

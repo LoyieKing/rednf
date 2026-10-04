@@ -12,21 +12,9 @@ int DisPatcher_SetIP::dispatch_sig(CUser* user, PacketBuf& packet)
     // add $0xd/e/12/16/18/1c/20` 传址、`movzbl -0xe9` 等 disp 读）——单一 pack(1)
     // 视图结构体本地量复现连续落栈（技47/50 同址视图法；独立局部分散落槽为 4.4 常态、
     // 与 ORIG 差 20+ 行）。
-    #pragma pack(push, 1)
-    struct SetIPMsgView {
-        char m_head[13];                 // +0x00..0x0c
-        unsigned char m_natType;         // +0x0d（ORIG `movzbl -0xe9` 单步零延装载 ⇒ uchar）
-        unsigned int m_innerIp;          // +0x0e
-        unsigned int m_natIp;            // +0x12
-        unsigned short m_natPort;        // +0x16
-        unsigned int m_mtu;              // +0x18
-        unsigned int m_macLen;           // +0x1c（ORIG get_int(unsigned int&) 实证）
-        char m_macBuf[0x41];             // +0x20..0x60
-    };
-    #pragma pack(pop)
-    SetIPMsgView msg;                    // 技36：无具名引用中转（引用会多占 spill 槽）
+    MSG_SET_IP msg;                    // 技36：无具名引用中转（引用会多占 spill 槽）
     // [b28d-solo-DisPatcherCore] P167 真 bug：ORIG 调 get_byte(char&)（ERc）。
-    if (!packet.get_byte(*reinterpret_cast<char*>(&msg.m_natType)))
+    if (!packet.get_byte(msg.m_natType))
         return LineFunc(0x80e4, __PRETTY_FUNCTION__, 0, 0);
     if (!packet.get_int(msg.m_innerIp))
         return LineFunc(0x80e5, __PRETTY_FUNCTION__, 0, 0);

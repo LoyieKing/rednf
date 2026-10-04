@@ -5,7 +5,7 @@
 //   实参装载序（ORIG 先 receiver 后实参；4.4 恒先算实参，probe_ord2 f1..f10
 //   十形全同，4.4.6 后端读数逐字节一致）⇒ 跨版本装载时刻，封顶。
 // [b28e 复核] 117=117 不变；两处残差定位 = ①`GetQuestMazeScriptVector(questType)`
-//   调用（ORIG 先 receiver 后实参 vs 4.4 先实参）、②`CheckQuestConnection(maze->m_50,
+//   调用（ORIG 先 receiver 后实参 vs 4.4 先实参）、②`CheckQuestConnection(maze->m_questIdx,
 //   questType)`（ORIG arg1→receiver→arg2 vs 4.4 arg2→arg1→receiver）；均属 4.1/4.4
 //   实参装载时刻（P75），源形不可择 —— 维持封顶，无新增手法。
 void CBattle_Field::setQuestMazeInfo()
@@ -32,9 +32,9 @@ void CBattle_Field::setQuestMazeInfo()
                 }
                 if (m_party != NULL &&
                     m_party->CheckQuestConnection(
-                        maze->m_50, (ENUM_MAZE_QUEST_TYPE)questType))
+                        maze->m_questIdx, (ENUM_MAZE_QUEST_TYPE)questType))
                 {
-                    Quest* quest = G_CDataManager()->find_quest(maze->m_50);
+                    Quest* quest = G_CDataManager()->find_quest(maze->m_questIdx);
                     if (quest != NULL)
                     {
                         if (quest->m_field120 == 1)

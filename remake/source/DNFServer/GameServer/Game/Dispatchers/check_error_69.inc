@@ -40,22 +40,14 @@ int Dispatcher_UseRightOfChangeGrowType::check_error(CUser* user, MSG_BASE& msg)
     //   一律 `mov -0x14(%ebp),%eax` + disp（`movzbl 0xf(%eax)` / `movzwl 0xd(%eax)`；
     //   0x0825de5f 二次读同槽）⇒ 源码写具名 `pMsg = &msg` + pack(1) 视图成员，
     //   消我方 `add $0xf,%eax` 与 `cmpb $5,mem`/`jbe`（ORIG 为 `cmp $5,%al;jle`）。
-#pragma pack(push, 1)
-    struct GrowTypeMsgView
-    {
-        char m_pad00[0xd];
-        unsigned short m_slotIdx;   // +0x0d
-        signed char m_growCount;    // +0x0f
-    };
-#pragma pack(pop)
-    if (reinterpret_cast<const GrowTypeMsgView*>(pMsg)->m_growCount < 0 ||
-        reinterpret_cast<const GrowTypeMsgView*>(pMsg)->m_growCount > 5)
+    if (static_cast<signed char>(reinterpret_cast<const MSG_RIGHT_OF_CHANGE_GROW_TYPE*>(pMsg)->m_0f) < 0 ||
+        static_cast<signed char>(reinterpret_cast<const MSG_RIGHT_OF_CHANGE_GROW_TYPE*>(pMsg)->m_0f) > 5)
     {
         return 1;
     }
     const Inven_Item item = user->getCurCharacInvenR()->GetInvenSlot(
         1, static_cast<int>(static_cast<signed short>(
-               reinterpret_cast<const GrowTypeMsgView*>(pMsg)->m_slotIdx)));
+               reinterpret_cast<const MSG_RIGHT_OF_CHANGE_GROW_TYPE*>(pMsg)->m_0d)));
     CItem* citem = G_CDataManager()->find_item(item.m_addInfo);
     if (citem == 0)
     {

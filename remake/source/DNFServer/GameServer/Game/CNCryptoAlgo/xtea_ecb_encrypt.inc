@@ -7,8 +7,8 @@ int xtea_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *
    LTC_ARGCHK(ct   != NULL);
    LTC_ARGCHK(skey != NULL);
 
-   LOAD32H(y, &pt[0]);
-   LOAD32H(z, &pt[4]);
+   LOAD32L(y, &pt[0]);
+   LOAD32L(z, &pt[4]);
    for (r = 0; r < 32; r += 4) {
        y = (y + ((((z<<4)^(z>>5)) + z) ^ skey->xtea.A[r])) & 0xFFFFFFFFUL;
        z = (z + ((((y<<4)^(y>>5)) + y) ^ skey->xtea.B[r])) & 0xFFFFFFFFUL;
@@ -22,7 +22,7 @@ int xtea_ecb_encrypt(const unsigned char *pt, unsigned char *ct, symmetric_key *
        y = (y + ((((z<<4)^(z>>5)) + z) ^ skey->xtea.A[r+3])) & 0xFFFFFFFFUL;
        z = (z + ((((y<<4)^(y>>5)) + y) ^ skey->xtea.B[r+3])) & 0xFFFFFFFFUL;
    }
-   STORE32H(y, &ct[0]);
-   STORE32H(z, &ct[4]);
+   STORE32L(y, &ct[0]);
+   STORE32L(z, &ct[4]);
    return CRYPT_OK;
 }

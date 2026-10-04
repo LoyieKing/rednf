@@ -25,14 +25,14 @@ void CParty::clear_reward(int param)
     // `0x4(%esp)` 作 find_dungeon 实参（085ae0e6）；我方原 `int dungIdx` 落
     // -0x1a4 槽（多 1 槽 + 2 条往返）⇒ 内联回实参位。
     CDungeon* dungeon = dm->find_dungeon(
-        reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index());
+        m_battleField.get_dungeon_index());
     int memberCount = get_member_count();
 
     if (dungeon == 0)
     {
         LogManager::logFormat(1, "party.cpp", __PRETTY_FUNCTION__,
                               0x2a07, "Unknown Dungeon %d",
-                              reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index());
+                              m_battleField.get_dungeon_index());
         return;
     }
     if (memberCount < 1)
@@ -45,7 +45,7 @@ void CParty::clear_reward(int param)
     {
         LogManager::logFormat(1, "party.cpp", __PRETTY_FUNCTION__,
                               0x2a13, "TournamentDungeon(%d) can not call function",
-                              reinterpret_cast<CBattle_Field*>(&m_battleField)->get_dungeon_index());
+                              m_battleField.get_dungeon_index());
         return;
     }
 
@@ -53,7 +53,6 @@ void CParty::clear_reward(int param)
 // （add $0x390×9、$0xb24×12、$0x79d×6、$0x10×16）；引用缓存会省掉这些
 // 地址计算 ⇒ 宏化为「每次直取 this+off」，语义等价。
 #define bd m_battleData
-#define bfView (*reinterpret_cast<CBattle_Field*>(&m_battleField))
 
     // ORIG:local_ec(G_CDataManager 首调结果)复用于 find_dungeon/getRankBonusIndex/+0x68。
     int rankBonusIdx = dm->getRankBonusIndex(param);
@@ -73,11 +72,11 @@ void CParty::clear_reward(int param)
 
     int gridCount = 0;
     // ORIG：getMaze() 在两个循环条件与体内各调用一次（不提取缓存）。
-    for (int gy = 0; gy < bfView.getMaze()->m_width; ++gy)
+    for (int gy = 0; gy < m_battleField.getMaze()->m_width; ++gy)
     {
-        for (int gx = 0; gx < bfView.getMaze()->m_height; ++gx)
+        for (int gx = 0; gx < m_battleField.getMaze()->m_height; ++gx)
         {
-            const GridScript& grid = bfView.getMaze()->getGridR(gy, gx);
+            const GridScript& grid = m_battleField.getMaze()->getGridR(gy, gx);
             if (grid.m_gridValue != 0)
                 gridCount += 1;
         }
@@ -104,7 +103,7 @@ void CParty::clear_reward(int param)
     }
 
     WongWork::stGenerateRefData_t ref;
-    ref.m_field35 = static_cast<char>(bfView.get_dungeon_diff());
+    ref.m_field35 = static_cast<char>(m_battleField.get_dungeon_diff());
     ref.m_field34 = static_cast<char>(stdLevel);
     ref.m_rateSlot = static_cast<char>(memberCount);
     ref.m_rankBonusIndex = rankBonusIdx;
@@ -142,7 +141,7 @@ void CParty::clear_reward(int param)
     // 构造一次（iterator→const_iterator 转换调用），跨 slot 递进消费；end() 每轮重取。
     std::vector<Inven_Item>::const_iterator dropIt = result.m_dropItems.begin();
 
-    ref.m_field35 = static_cast<char>(bfView.get_dungeon_diff());
+    ref.m_field35 = static_cast<char>(m_battleField.get_dungeon_diff());
     ref.m_field34 = static_cast<char>(stdLevel);
     ref.m_rankBonusRate = mapRatio;                    // +0x38 float 视图（ORIG 0x085ae5fd）
     ref.m_dungeon = dungeon;
@@ -487,7 +486,7 @@ void CParty::clear_reward(int param)
         float baseExp = static_cast<float>(killCount) *
                         mw / 2.0f * partyBonusRate;
         float diffWeight =
-            spScript->m_monsterExpTable398[bfView.get_dungeon_diff()];
+            spScript->m_monsterExpTable398[m_battleField.get_dungeon_diff()];
         // [R28a07 ④-精度轴] ORIG 0x085af97d..0x085af99c：`flds 表项; flds -0x338(baseExp);
         //   fmulp; **fstps -0x334**; call get_exp_weight; fmuls -0x334` ⇒ 原码 weighted 是
         //   **float**（舍入点）；原写 `double weighted` 使 4.4 发 `fstpl`（double 舍入点），
@@ -519,7 +518,7 @@ void CParty::clear_reward(int param)
             float baseExp = static_cast<float>(killCount) *
                             mw / 2.0f * partyBonusRate;
             float diffWeight =
-                spScript->m_monsterExpTable398[bfView.get_dungeon_diff()];
+                spScript->m_monsterExpTable398[m_battleField.get_dungeon_diff()];
             // [R28a07 ④-精度轴] 同上（ORIG 0x085afaax 第二处同构，fstps -0x324）。
             float weighted = baseExp * diffWeight;
             totalMobExp = static_cast<unsigned int>(static_cast<long long>(
@@ -683,7 +682,7 @@ void CParty::clear_reward(int param)
             {
                 continue;
             }
-            if (!quest->check_clear_item(bfView.get_dungeon_index(),
+            if (!quest->check_clear_item(m_battleField.get_dungeon_index(),
                                          static_cast<int>(
                                              questRef->m_authenData.m_characClass)))
             {
@@ -697,7 +696,7 @@ void CParty::clear_reward(int param)
             // ORIG：默认构造 vector + pair，再由 get_clear_itemlist 返回值赋值。
             std::vector<std::pair<int, int> > clearItems;
             std::pair<int, int> entry;
-            clearItems = quest->get_clear_itemlist(bfView.get_dungeon_index());
+            clearItems = quest->get_clear_itemlist(m_battleField.get_dungeon_index());
             // [轴 B，地址自校 0x085b0907] ORIG `addl $1,-0x30; call <size>;
             // cmp -0x30,%eax; setg %al` = **有符号**比较（我方旧文 unsigned
             // 产 `seta`，符号性相反）⇒ 以 ORIG 为准改 int + (int)size()。
@@ -803,7 +802,7 @@ void CParty::clear_reward(int param)
         // fildl(int m_hellPartyRatio0) 后 fldcw RC=11 纯截断（无 +0.5f fadd）。
         int hellCoinValue = static_cast<int>(
             100.0f * bd.m_hellPartyValueTotal /
-                static_cast<float>(bfView.m_hellPartyRatio0));
+                static_cast<float>(m_battleField.m_hellPartyRatio0));
         pkReward.put_int(hellCoinValue);
 
         bool returnFlag = false;
@@ -889,7 +888,6 @@ void CParty::clear_reward(int param)
 #undef goldCardItems
 #undef pcRoomItems
 #undef bd
-#undef bfView
 
     if (IsPremiumGoldCardParty())
     {

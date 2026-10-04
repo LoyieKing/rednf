@@ -91,7 +91,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             if (0 < v && v < 10000)
             {
                 user->set_guild_exp(std::atoi(args[2].c_str()));
-                user->m_field796d9 = 1;                  // +0x796d9
+                user->m_guildExpReportLoad = 1;                  // +0x796d9
                 user->WorkPerFiveMin();
                 guard.put_header(1, 0xb3);
                 guard.put_byte(1);

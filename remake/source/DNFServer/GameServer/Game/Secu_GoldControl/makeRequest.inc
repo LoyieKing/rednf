@@ -6,13 +6,11 @@ void DB_CheckCharacName::makeRequest(int uid, unsigned int accId, const char* ch
     guard.operator*()->operator<<(uid);          // op*(guard)→op<<(int)
     SIG_CHECK_CHARAC_NAME* pkt =
         guard.operator->()->GetInBuffer<SIG_CHECK_CHARAC_NAME>();
-    reinterpret_cast<DB_CheckCharacNameReqView*>(pkt)->m_accId = accId;
+    pkt->m_mId = accId;
     if (charName != NULL && charName[0] != '\0')
     {
-        strncpy(reinterpret_cast<DB_CheckCharacNameReqView*>(pkt)->m_charName,
-                charName, 0x1e);
+        strncpy(pkt->m_charName, charName, 0x1e);
     }
-    reinterpret_cast<DB_CheckCharacNameReqView*>(pkt)->m_flag =
-        (unsigned char)flag;
+    pkt->m_byte22 = (unsigned char)flag;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }

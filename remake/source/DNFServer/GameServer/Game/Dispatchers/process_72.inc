@@ -8,7 +8,7 @@ int Dispatcher_SelectStriker::process(CUser* user, MSG_BASE& msg, ParamBase& par
     //   （ours 174→172）劣化 ⇒ 按 codegen 轴闸门回滚（同族第 3 例）。
     const MSG_SELECT_STRIKER& m = reinterpret_cast<const MSG_SELECT_STRIKER&>(msg);
     int err = check_error(user, msg);
-    *reinterpret_cast<int*>(reinterpret_cast<char*>(&param) + 0x4) = err;   // ParamBase+0x04
+    static_cast<stSelectStriker&>(param).m_err = err;
     if (err >= 1)
     {
         return 0;
@@ -23,7 +23,7 @@ int Dispatcher_SelectStriker::process(CUser* user, MSG_BASE& msg, ParamBase& par
     // [b28d-solo-Dispatchers] P183：ORIG 0x081e3e60/0x081e3e8e/0x081e3ee7/0x081e3ffd
     //   4 处各自完整重发 `user->m_characList[sel]`（p167 MISSING
     //   `_ZNSt6vectorI12_Charac_infoSaIS0_EEixEj` ×3 即此项）；旧码 entry 引用缓存 ⇒ 删。
-    if (user->m_characList[sel].m_field14BC == 0)               // +0x14bc（ORIG movzbl 判 0）
+    if (user->m_characList[sel].m_tagCharacInfoSent == 0)               // +0x14bc（ORIG movzbl 判 0）
     {
         // [DispA2 P0/P183] ORIG 0x081e3f3f..0x081e3f6e：Acquire 回值直接进
         //   CStreamGuard ctor 的 0x4(%esp)（无 stream 具名槽）。

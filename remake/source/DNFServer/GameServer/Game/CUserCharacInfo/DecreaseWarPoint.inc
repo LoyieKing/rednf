@@ -8,14 +8,14 @@ void CUserCharacInfo::DecreaseWarPoint(int point)
     }
     if (point < 1)
     {
-        m_selected->m_fieldE0A = 0;
+        m_selected->m_finishPointTotal = 0;
     }
     else
     {
-        m_selected->m_fieldE0A -= point;
-        if (m_selected->m_fieldE0A < 0)
-            m_selected->m_fieldE0A = 0;
+        m_selected->m_finishPointTotal -= point;
+        if (m_selected->m_finishPointTotal < 0)
+            m_selected->m_finishPointTotal = 0;
     }
     ((CUser*)this)->m_historyLog.FPSub(
-        point, m_selected->m_fieldE06, m_selected->m_fieldE0A, (eFPSubReason)3);
+        point, m_selected->m_finishPoint, m_selected->m_finishPointTotal, (eFPSubReason)3);
 }

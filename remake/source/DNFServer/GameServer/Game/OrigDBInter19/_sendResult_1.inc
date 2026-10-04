@@ -11,8 +11,8 @@ bool DB_ReqQueryCharacInfo::_sendResult(int errCode, int slot, char const* name,
     guard.operator*()->operator<<(0xc4);
     guard.operator*()->operator<<(slot);
 
-    QueryCharacInfoView* view = reinterpret_cast<QueryCharacInfoView*>(
-        guard->GetInBuffer<SIG_QUERY_CHARAC_INFO>());
+    SIG_QUERY_CHARAC_INFO* view =
+        guard->GetInBuffer<SIG_QUERY_CHARAC_INFO>();
     view->m_errCode = errCode;
     if (errCode == 0)
     {
@@ -22,7 +22,7 @@ bool DB_ReqQueryCharacInfo::_sendResult(int errCode, int slot, char const* name,
         view->m_lev = static_cast<short>(lev);
         view->m_growType = static_cast<unsigned char>(growType);
         view->m_sex = static_cast<unsigned char>(sex);
-        view->m_field2e = static_cast<unsigned char>(field2e);
+        view->m_pad2e[0] = static_cast<unsigned char>(field2e);
     }
 
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);

@@ -9,11 +9,11 @@ bool DB_PassPadUpdateCancelCnt::dispatch(int userIdx, int slot, Stream* stream)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(DB_HANDLE_6,
                                                   E_SERVER_GROUP_NONE);
-    DB_PassPadUpdateCancelCntView* sig = reinterpret_cast<DB_PassPadUpdateCancelCntView*>(
+    SIG_SECURITY_CARD_UPDATE_FAIL_CNT* sig = (
         stream->GetOutBuffer<SIG_SECURITY_CARD_UPDATE_FAIL_CNT>());
     db->set_query(
         "upDate member_mousepass set cancel_cnt=%d where m_id=%s and enable_flag = '1'",
-        sig->m_cancelCnt, NumberToString(sig->m_mId, 0));
+        sig->m_cnt, NumberToString(sig->m_mId, 0));
     db->exec(true);
     return 1;
 }

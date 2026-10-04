@@ -51,20 +51,6 @@ namespace
 {
 // stHellParty_t 的 +0x08 起 float 数组视角（0x8 + (i+4)*4 == m_levelDiffRates[i]，
 // 0x8 + (i+8)*4 == m_difficultyRates[i]）。
-struct stHellPartyRateSrcView8
-{
-    int m_maxBaseValue;                 // +0x00
-    int m_minBaseValue;                 // +0x04
-    float m_rates[0x24];                // +0x08（覆盖 +0x08..+0x97）
-};
-// stHellParty_t 的 +0x0c 起 float 数组视角（0xc + (i+0xc)*4 == m_partyRates[i]）。
-struct stHellPartyRateSrcViewC
-{
-    int m_maxBaseValue;                 // +0x00
-    int m_minBaseValue;                 // +0x04
-    int m_baseValue;                    // +0x08
-    float m_rates[0x23];                // +0x0c（覆盖 +0x0c..+0x97）
-};
 }
 
 #include "CBattle_Field_missing/CBattle_Field.inc"

@@ -5,7 +5,7 @@ int Inter_DBCheckDoubleGuildAddress::dispatch_sig(CUser* user, char* data, int /
     // ORIG：包基址槽在守卫之后物化。
     Inter_DBCheckDoubleGuildAddressPktView* pPkt = reinterpret_cast<Inter_DBCheckDoubleGuildAddressPktView*>(data);
 
-    if (pPkt->m_0 == '\x02')
+    if (pPkt->m_result == '\x02')
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xa0, 0x6f);
     }

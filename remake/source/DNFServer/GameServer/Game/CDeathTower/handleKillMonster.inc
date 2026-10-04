@@ -26,8 +26,8 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
     // ORIG 0x0846489b..0x084648eb：this+0xb58 每使用点重算（无 checker 具名槽，P183）；
     // 两条件经 && 物化于 %eax（无 bSkillMaterial 槽，P0）；tick 内联实参、
     // dieMonster 返回值直接无符号比较（jbe）。
-    if (((stMapMonsterKillChecker_t*)&m_timerKeys[7])->getUseSkillMaterialTime() == 0 &&
-        ((stMapMonsterKillChecker_t*)&m_timerKeys[7])->dieMonster(
+    if (m_killChecker.getUseSkillMaterialTime() == 0 &&
+        m_killChecker.dieMonster(
             GlobalData::s_systemTime_.getCurTickCount(), 1000) > 2)
     {
         bool isPremium = false;
@@ -61,7 +61,7 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
 
         if (isPremium)
         {
-            ((stMapMonsterKillChecker_t*)&m_timerKeys[7])->initMonsterInfo();
+            m_killChecker.initMonsterInfo();
             // [b28d-SCT] P140/P171：ORIG 0x08464aXX 无 getHackAnalyzer 判空，
             // 返回值直作 receiver（ORIG 无 -0x68 槽）；旧 `if (hackAnalyzer)` 多 1 je。
             user->getHackAnalyzer()->addServerHackCnt(

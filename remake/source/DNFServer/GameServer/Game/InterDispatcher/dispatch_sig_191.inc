@@ -20,7 +20,7 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
         if (!G_CDataManager()->getItemLimitEditionMgr()->updateItem(
                 pPkt->m_e, pPkt->m_12))
             throw static_cast<ENUM_ERROR>(0x16);
-        const unsigned char buyType = pPkt->m_16;
+        const unsigned char buyType = pPkt->m_buyType;
         if (buyType == '\x01')
             throw static_cast<ENUM_ERROR>(0x16);
         if (buyType == '\x02')
@@ -119,9 +119,8 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
             // 旧 `*reinterpret_cast<T*>(&rq.m_subEntries[i][0])=` 目的侧 cast 使 4.4 折
             // add+shl 普通 store；ORIG 为 stride-8 scaled 直存。源侧仍是 5 字节步长
             // 线格式缓冲读，保留 cast（P156 线格式豁免）。
-            rq.m_subItems[i].m_itemIdx =
-                *reinterpret_cast<int*>(data + 0x19 + i * 5);   // idx 槽 +0x00
-            rq.m_subItems[i].m_value = *(data + 0x1d + i * 5);  // val 槽 +0x04
+            rq.m_subItems[i].m_itemIdx = pPkt->m_subs[i].m_itemIdx;
+            rq.m_subItems[i].m_value = pPkt->m_subs[i].m_value;
         }
         const unsigned int avatarCnt =                                 // msg+200(0xc8)
             pPkt->m_c8;
@@ -129,12 +128,12 @@ int Inter_ItemLimitEdition_Reply::dispatch_sig(CUser* user, char* data, int /*le
         for (unsigned int j = 0; j < avatarCnt; ++j)                   // stride 8 选项@0x164
         {
             // 同上（ORIG stride-8 scaled 直存）：目的侧改具名视角 m_optItems。
+            Inter_ItemLimitEdition_ReplyOptView* optv =
+                reinterpret_cast<Inter_ItemLimitEdition_ReplyOptView*>(data);
             rq.m_optItems[j].m_itemUid =
-                static_cast<unsigned int>(*reinterpret_cast<int*>(data + 9 + j * 8));
-            rq.m_optItems[j].m_a =
-                *reinterpret_cast<unsigned short*>(data + 0xd + j * 8);
-            rq.m_optItems[j].m_b =
-                *reinterpret_cast<unsigned short*>(data + 0xf + j * 8);
+                static_cast<unsigned int>(optv->m_opts[j].m_itemUid);
+            rq.m_optItems[j].m_a = optv->m_opts[j].m_a;
+            rq.m_optItems[j].m_b = optv->m_opts[j].m_b;
         }
 
         char priceText[36] = { '\0' };                                 // ORIG memset(0x24)

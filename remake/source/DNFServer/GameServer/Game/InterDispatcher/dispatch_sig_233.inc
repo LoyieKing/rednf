@@ -5,7 +5,7 @@ int Inter_NoticePvPBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/
     if (user->get_state() <= 2)                        // setle：signed <= 2
         return 0;
 
-    register int characNoMsg = pPkt->m_a;
+    register int characNoMsg = pPkt->m_characNo;
     if (characNoMsg != user->getCurCharacNo())
         return 0;
 
@@ -20,9 +20,9 @@ int Inter_NoticePvPBuddyInOut::dispatch_sig(CUser* user, char* data, int /*len*/
         packet.put_header(0, 0x10e);
     }
     packet.put_byte((int)pPkt->m_14);
-    const int nameLen = strlen(pPkt->m_15);
+    const int nameLen = strlen(pPkt->m_name);
     packet.put_int(nameLen);
-    packet.put_str(pPkt->m_15, nameLen);
+    packet.put_str(pPkt->m_name, nameLen);
     packet.finalize(true);
     user->Send(packet);
     return 0;

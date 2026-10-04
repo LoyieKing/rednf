@@ -4,6 +4,6 @@ unsigned char CUserCharacInfo::getCurEquipslotFlag()
     // `mov $0xffffffff,%eax`（dword -1）。int 返回三元/if 形均反产二段 promote
     // （IsCurCharacGhost 同款教训）→ uchar 返回 + if 形，false 保留 dword -1。
     if (m_selected)
-        return m_selected->m_field1275;
+        return m_selected->m_equipslotFlag;
     return -1;
 }

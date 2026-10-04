@@ -16,7 +16,7 @@ bool TimerDungeonDataStatistic::dispatch_sig(int p1, int p2, memberIdentificatio
     SIG_DUNGEON_DATA_STATISTIC* stat =
         guard.operator->()->GetInBuffer<SIG_DUNGEON_DATA_STATISTIC>();
     memset(stat, 0, 0x80);
-    *(int*)stat = 3;
+    stat->m_type = 3;
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
     GetInstanceVendingMachineStatistic()->updateDataIntoDB();
     // ORIG 0x0863680a-0x08636824：Regist byte 槽 -0x9 物化 + `xor $0x1; test; je`

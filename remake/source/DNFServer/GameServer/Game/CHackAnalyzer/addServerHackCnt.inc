@@ -40,20 +40,20 @@ void CHackAnalyzer::addServerHackCnt(CUser* user, ENUM_HACKTYPE type,
             // 内嵌 CBattle_Field（§8.3 未建模子对象具名视图，P82/P301：视图
             // 成员访问保 disp 折叠 `mov 0xcac(%eax),%eax`；char* 加法会退化成
             // add $0xcac）。ORIG dungeon 不落槽、两臂各重读一次（P48/P183）。
-            if (((CPartyHackView*)party)->m_battleField.m_pDungeon != 0)
+            if (party->m_battleField.m_pDungeon != 0)
             {
                 // ORIG 三目形（test/js 直跳，P47；if/else 赋值会发 shr$31 物化）。
                 int lvDiff =
                     (((CUserCharacInfo*)user)->get_charac_level() -
-                         ((CPartyHackView*)party)->m_battleField.m_pDungeon->get_standard_level() <
+                         party->m_battleField.m_pDungeon->get_standard_level() <
                      0)
                         ? 0
                         : ((CUserCharacInfo*)user)->get_charac_level() -
-                              ((CPartyHackView*)party)->m_battleField.m_pDungeon
+                              party->m_battleField.m_pDungeon
                                   ->get_standard_level();
                 if (!CheckHackRateByDifficult(
                         type, lvDiff,
-                        ((CPartyHackView*)party)->m_battleField.get_dungeon_diff()))
+                        party->m_battleField.get_dungeon_diff()))
                     return;
             }
         }

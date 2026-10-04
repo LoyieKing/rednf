@@ -55,8 +55,17 @@ struct SIG_CHARAC_SLOT_VIEW
                                    //            m_level/m_rest 照抄，P171）
     unsigned short m_level;        // +0x1a 槽内等级（ORIG GetMercenarySystemInfo
                                    //            0x084156a5 `movzwl 0xa(%eax),%ebx`）
-    char m_rest[0x78];             // +0x1c..0x93（job 等，本视角不展开）
+    char m_restHead[0x0c];         // +0x1c..0x27
+    struct {
+        int m_itemId;              // +0x28
+        short m_vis4;              // +0x2c
+        short m_vis6;              // +0x2e
+    } m_vis[0xc];                  // +0x28..+0x87
+    int m_createTime;              // +0x88
+    int m_field8c;                 // +0x8c
+    int m_expireTime;              // +0x90
 };
+static_assert(sizeof(SIG_CHARAC_SLOT_VIEW) == 0x94, "SIG_CHARAC_SLOT_VIEW ABI drift");
 struct SIG_CHARAC_SLOTS_VIEW
 {
     SIG_CHARAC_SLOT_VIEW m_slots[0x24];   // 36 槽（blob 0x14d0 = 36×0x94）
@@ -103,7 +112,7 @@ struct SIG_LOGIN_DATA
     char           m_pad0c4[4];             // +0x00c4..0x00c7
     int            m_birthYear;             // +0x00c8 SetAge 计算基准（DB 出生年）
     unsigned int   m_regDate;               // +0x00cc setRegDate
-    char           m_pad0d0[4];             // +0x00d0
+    unsigned int   m_birthDate;             // +0x00d0
     unsigned int   m_regTime;               // +0x00d4 setRegTime（32 位 long）
     int            m_loginErrDetail;        // +0x00d8 err_code∈[9,0xc] 时 put_byte 输出
     int            m_characCount;           // +0x00dc SetCharacInfo 计数
@@ -137,7 +146,8 @@ struct SIG_LOGIN_DATA
     long           m_passPadCheckTime;      // +0x3910 setCheckTime（32 位 long，long& 直取地址 lea 形态）
     int            m_passPadFailCnt;        // +0x3914 setFailCnt / E_AUTH_MOUSE put_byte
     int            m_passPadCancelCnt;      // +0x3918 setCancelCnt
-    char           m_pad391c[0x3950 - 0x391c]; // +0x391c
+    char           m_pad391c[0x30];           // +0x391c
+    unsigned int   m_field394c;            // +0x394c GetPremiumInfo 清零槽
     int            m_accountFail;           // +0x3950 ARAD 登录复核写入（account_password_check）
     int            m_totalAccountFail;      // +0x3954 同上
     // [SweepARADLoginSecurity 类型直证 2026-09-10] int（非 unsigned）：
@@ -161,7 +171,8 @@ struct SIG_LOGIN_DATA
     char           m_pad39a3[5];            // +0x39a3
     unsigned int   m_tournamentServerGroup; // +0x39a8 渠道==7 时 SetServerGroup 数据源（ Tournament 账户判定之一）
     unsigned int   m_tournamentAccountFlag; // +0x39ac setTournamentAccount(m_39ac!=0 && m_39a8!=0)
-    char           m_pad39b0[0x39d0 - 0x39b0]; // +0x39b0
+    char           m_broadcastCharacName[0x1e]; // +0x39b0 member_broadcast.charac_name
+    char           m_pad39ce[2];              // +0x39ce
     unsigned int   m_onlinePrelimServerGroup;// +0x39d0 渠道==0xe 时 SetServerGroup / setOnlinePreliminaryServerGroup
     unsigned int   m_onlinePrelimCharacNo;  // +0x39d4 setOnlinePreliminaryCharacNo
     int            m_onlinePrelimPlayType;  // +0x39d8 setOnlinePreliminaryPlayType
@@ -173,7 +184,7 @@ struct SIG_LOGIN_DATA
     bool           m_secCardCertified;      // +0x39e1 certified
     char           m_pad39e2[2];            // +0x39e2
     int            m_secCardCertCnt;        // +0x39e4 certCnt
-    char           m_pad39e8[4];            // +0x39e8
+    unsigned int   m_secCardCertFlagU;      // +0x39e8 cert_flag uint
     char           m_secCardCertFlag;       // +0x39ec certFlag（char）
     char           m_secCardSerial[0x27];   // +0x39ed serial 串槽（至 +0x3a13）
     int            m_secCardCancelCnt;      // +0x3a14 setSecurityCardInfo cancelCnt
@@ -307,7 +318,13 @@ struct SIG_MAILBOX_CHECK_RECEIVER
     // 与 store 段（0x084cffc9 LHS-first）方向相反，共享头维持 unsigned int。
     // store 点同型化改由 InterDispatcher.cpp 源侧 int 引用视图承载。
     unsigned int m_senderCharacNo;    // +0x2d game 写 get_charac_no(-1)
-    char m_payload[0x3f88];           // +0x31 MSG_CHECK_MAIL_RECEIVER 载荷透传
+    union {
+        char m_payload[0x3f88];       // +0x31 MSG_CHECK_MAIL_RECEIVER 载荷透传
+        struct {
+            char m_payloadHdr[0xaa];  // +0x31
+            char m_title[0x3ede];     // +0xdb 标题串
+        };
+    };
     unsigned int m_resultFlag;        // +0x3fb9 DB 结果（0 ok / 0x4d 名称非法）
     // 2026-09-05 §4.3（DBCharac 批次）：类型 int——DB_Multi_MailBox_Req_Send::
     // dispatch 0x0843bb89 `lea 0x3fbd` 绑 InsertLetter 形参 `int&`
@@ -515,12 +532,22 @@ struct SIG_MAILBOX_USER_AREA
     unsigned char m_pad[0x7a0];
     SIG_MAILBOX_USER_ITEM m_items[0x80];    // +0x7a0（0x7a0+0x80*0x47=0x2b20 ≤ 0x3332）
 };
+struct SIG_MAILBOX_LIST_REQ
+{
+    unsigned int m_characNo;          // +0x00
+    unsigned int m_maxPostalId;       // +0x04
+    unsigned int m_maxLetter;         // +0x08
+    unsigned int m_letterIdx;         // +0x0c
+    unsigned int m_field10;           // +0x10
+    unsigned int m_postalExtra[20];   // +0x14
+};
 struct SIG_MAILBOX_LIST
 {
     // ORIG 尺寸 0x338a（ReqDBLoadMail memset 证据）
     union
     {
         unsigned char m_head[0x3332];   // +0x00 请求头/ postal 区（原字段，保留）
+        SIG_MAILBOX_LIST_REQ m_req;     // +0x00 出站请求头
         SIG_MAILBOX_LIST_BOX m_box;     // +0x00 postal 区具名视图（0x7a0，b28d 新增）
         SIG_MAILBOX_USER_AREA m_user;   // +0x7a0 user_items 视图（b28d 新增）
         SIG_MAILBOX_CREATURE_AREA m_creature;   // +0xd30 creature_items 视图（b28d 新增）
@@ -594,8 +621,20 @@ static_assert(offsetof(SIG_MAILBOX_POSTAL, m_tail.m_occ.m_field60) == 0x60,
 #pragma pack(push, 1)
 struct SIG_MAILBOX_SEND_NEW_MAIL
 {
-    char m_senderName[0x1d];         // +0x00（strncpy 0x1d）
-    char m_pad1d;                    // +0x1d
+    union
+    {
+        struct
+        {
+            char m_senderName[0x1d]; // +0x00（strncpy 0x1d）
+            char m_pad1d;            // +0x1d
+        };
+        struct
+        {
+            int m_result;            // +0x00 sendResult 写 0
+            unsigned int m_mailIdx;  // +0x04
+            int m_group;             // +0x08
+        } m_reply;
+    };
     unsigned int m_senderCharacNo;   // +0x1e（P211 异型化：ORIG 0x0855576x RHS-first）
     unsigned int m_amount;           // +0x22
     unsigned int m_destCharacNo;     // +0x26
@@ -634,8 +673,26 @@ static_assert(offsetof(SIG_MAILBOX_SEND_NEW_MAIL, m_title) == 0x5b,
 
 struct SIG_MAILBOX_SEND_NEW_MAIL_WITH_DBWORK
 {
-    // ORIG ≥0x1a4（CreatureMailCashShop 写 +0x1a2）
-    unsigned char m_data[0x1a4];
+    int m_type;                // +0x00
+    char m_sender[0x1d];       // +0x04
+    char m_pad21[3];           // +0x21
+    int m_field24;             // +0x24
+    int m_field28;             // +0x28
+    char m_attach[4];          // +0x2c
+    int m_field30;             // +0x30
+    union {
+        int m_field34;
+        struct { char m_pad34; unsigned char m_field35; char m_pad36b[2]; };
+    };
+    char m_pad38[8];
+    unsigned short m_field40;
+    char m_pad42[0x12];
+    int m_field54;
+    union { char m_pad58[0x48]; unsigned int m_seed; };
+    unsigned short m_titleLen;
+    char m_title[0x100];
+    unsigned char m_field1a2;
+    char m_pad1a3;
 };
 
 #pragma pack(push, 1)
@@ -724,7 +781,10 @@ struct SIG_MOUSE_REGISTER
     int m_pkgType;                     // +0x04 包内字节扩展（movzbl 后写 4 字节）
     char m_password1[7];               // +0x08 解密明文密码 1（strncpy 7）
     char m_password2[7];               // +0x0f 解密明文密码 2（strncpy 7）
-    char m_pad16[0xd];                 // +0x16..0x22 未建模填充（无读写证据）
+    char m_pad16[4];                   // +0x16..0x19
+    char m_regOk;                      // +0x1a ORIG 0x08422b50 movb $1
+    int  m_field1b;                    // +0x1b ORIG movl $0
+    int  m_field1f;                    // +0x1f ORIG movl $0
     char m_padPassword[0x24];          // +0x23 Sanicova::CPad::getPassword 快照（memcpy 0x24）
     char m_field47;                    // +0x47 ORIG 无读写证据（0x23+0x24 与 0x48 间的保留字节）
     char m_webAddress[0x10];           // +0x48 CUser::getWebAddress（strncpy 0x10）
@@ -871,10 +931,24 @@ struct SIG_PARTY_STATUS
     unsigned char m_field21;          // +0x021  客户端字段（byte）
     unsigned int m_field22;           // +0x022  客户端字段（4 字节，未对齐）
     unsigned short m_tryNum;          // +0x026  客户端尝试次数（<= 0x1e）
-    unsigned char m_tryEntries[0x1e][10];  // +0x028  每行 10 字节
+    struct TryEntry
+    {
+        unsigned char m_result;   // +0x00
+        unsigned char m_peerNat;  // +0x01
+        unsigned char m_peerIp[4];// +0x02
+        int           m_estTime;  // +0x06
+    };
+    TryEntry m_tryEntries[0x1e];          // +0x028  每行 10 字节
     char m_pad[0xa];                  // +0x154  未建模字段（0x154..0x15e）
     unsigned short m_partyNum;        // +0x15e  队伍人数（pvp<=8, 普通<=4）
-    unsigned char m_partyEntries[8][0xd];   // +0x160  每行 0xd 字节
+    struct PartyEntry
+    {
+        unsigned char m_nat;   // +0x00
+        int           m_ping;  // +0x01
+        int           m_mtu;   // +0x05
+        unsigned char m_ip[4]; // +0x09
+    };
+    PartyEntry m_partyEntries[8];           // +0x160  每行 0xd 字节
 };
 #pragma pack(pop)
 
@@ -1214,7 +1288,7 @@ static_assert(sizeof(SIG_SAVE_CHARAC_INFORM_NOTICE) == 0x14, "SIG_SAVE_CHARAC_IN
 struct SIG_SAVE_CHATTING_EMOTICON
 {
     unsigned int m_mId;
-    char m_data[0x210];
+    CChattingEmoticonConfig m_cfg;  // +0x04（0x210）
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_SAVE_CHATTING_EMOTICON) == 0x214, "SIG_SAVE_CHATTING_EMOTICON ABI drift");

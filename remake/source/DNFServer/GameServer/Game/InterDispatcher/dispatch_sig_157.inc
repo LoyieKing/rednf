@@ -31,11 +31,11 @@ int Inter_PvPChannelInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
     for (int i = 0; i < static_cast<int>(reinterpret_cast<Inter_PvPChannelInfoPktView*>(pPktAddr)->m_17); ++i)
     {
         // [L9-G PATCH#3] 循环内基址走具名槽（ORIG `mov -0x10(%ebp),%eax` + SIB `mov 0x8(%edx,%eax,1)`）。
-        packet.put_int(*reinterpret_cast<int*>(pPktAddr + (i + 1) * 0x10 + 0x8));
-        packet.put_int(*reinterpret_cast<int*>(pPktAddr + (i + 1) * 0x10 + 0xc));
-        if (*reinterpret_cast<int*>(pPktAddr + (i + 1) * 0x10 + 0x14) == 2)
-            *reinterpret_cast<int*>(pPktAddr + (i + 1) * 0x10 + 0x10) = 4;  // 写回 4
-        packet.put_int(*reinterpret_cast<int*>(pPktAddr + (i + 1) * 0x10 + 0x10));
+        packet.put_int(reinterpret_cast<Inter_PvPChannelInfoPktView*>(pPktAddr)->m_ch[i].m_a);
+        packet.put_int(reinterpret_cast<Inter_PvPChannelInfoPktView*>(pPktAddr)->m_ch[i].m_b);
+        if (reinterpret_cast<Inter_PvPChannelInfoPktView*>(pPktAddr)->m_ch[i].m_d == 2)
+            reinterpret_cast<Inter_PvPChannelInfoPktView*>(pPktAddr)->m_ch[i].m_c = 4;
+        packet.put_int(reinterpret_cast<Inter_PvPChannelInfoPktView*>(pPktAddr)->m_ch[i].m_c);
     }
     packet.finalize(true);
     user->Send(packet);

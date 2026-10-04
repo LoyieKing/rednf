@@ -55,7 +55,7 @@ bool DB_ReqBlackCount::dispatch(int userIdx, int slot, Stream* stream)
     {
         // G_CDataManager()+0x3b4：黑名单消减周期（秒/周参数）；+0x3b8：单次消减点数。
         passCntLimit =
-            ((DB_CDataManagerBlkView*)G_CDataManager())->m_3b4 * 0x15180;
+            G_CDataManager()->m_serverParameter.m_blackListHelpParameter0 * 0x15180;
         if (passCntLimit != 0 &&
             GlobalData::s_systemTime_.getCurSec() >
                 (int)(problemChildTime + passCntLimit))
@@ -66,7 +66,7 @@ bool DB_ReqBlackCount::dispatch(int userIdx, int slot, Stream* stream)
             if (blackPoint - offsetPoint > 0)
             {
                 computed = blackPoint - offsetPoint -
-                           ((DB_CDataManagerBlkView*)G_CDataManager())->m_3b8 *
+                           G_CDataManager()->m_serverParameter.m_blackListHelpParameter1 *
                                (int)passCnt;
                 // [L4-r1] P227 全表达式临时链（ORIG ctor 前取 varargs + 跨 ctor 保活）。
                 cMyTrace(__PRETTY_FUNCTION__, 0x6259, 0)(
@@ -89,12 +89,12 @@ bool DB_ReqBlackCount::dispatch(int userIdx, int slot, Stream* stream)
                 {
                     db->set_query(
                         "upDate charac_black_info set offset_point = offset_point  + %d, problem_child_time = from_unixtime(%d) where charac_no=%d",
-                        ((DB_CDataManagerBlkView*)G_CDataManager())->m_3b8 *
+                        G_CDataManager()->m_serverParameter.m_blackListHelpParameter1 *
                             (int)passCnt,
                         passCntLimit * passCnt + problemChildTime,
                         (int)sig->m_characNo);
                     offsetPoint =
-                        ((DB_CDataManagerBlkView*)G_CDataManager())->m_3b8 *
+                        G_CDataManager()->m_serverParameter.m_blackListHelpParameter1 *
                             (int)passCnt +
                         offsetPoint;
                     cMyTrace(__PRETTY_FUNCTION__, 0x6262, 0)(

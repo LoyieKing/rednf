@@ -297,6 +297,7 @@ __attribute__((weak)) TimerFatigueReset::~TimerFatigueReset() throw() {}
 #include "TimerDispatcher/updateAbnormalClientCount.inc"
 
 
+#include "CStatisticMgr.h"
 #include "TimerDispatcher/dispatch_sig_11.inc"
 
 

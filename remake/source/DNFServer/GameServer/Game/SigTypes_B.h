@@ -74,13 +74,40 @@ struct SIG_CREATE_CHARAC
     unsigned char m_field23;           // +0x023（← msg+0x2f）
     unsigned char m_eventCharacFlag;   // +0x024（CUserCharacInfo::getUserEventCharacterFlag）
     unsigned char m_pad25;
-    unsigned short m_field26;          // +0x026（角色创建表 job*0x7dc +0 字）
-    unsigned char m_jobData[80];       // +0x028（同表 +2..0x51 共 80 字节）
+    union
+    {
+        struct
+        {
+            unsigned short m_field26;          // +0x026（角色创建表 job*0x7dc +0 字）
+            unsigned char m_jobData[80];       // +0x028（同表 +2..0x51 共 80 字节）
+        };
+        struct
+        {
+            unsigned int  m_maxHp;             // +0x26
+            unsigned int  m_maxMp;             // +0x2a
+            unsigned short m_phyAttack;        // +0x2e
+            unsigned short m_phyDefense;       // +0x30
+            unsigned short m_magAttack;        // +0x32
+            unsigned short m_magDefense;       // +0x34
+            unsigned char m_elementResist[8];  // +0x36
+            unsigned char m_specProperty[0x22];// +0x3e
+            unsigned int  m_invenWeight;       // +0x60
+            short m_hpRegen;                   // +0x64
+            short m_mpRegen;                   // +0x66
+            unsigned int  m_moveSpeed;         // +0x68
+            unsigned short m_attackSpeed;      // +0x6c
+            unsigned short m_castSpeed;        // +0x6e
+            short m_hitRecovery;               // +0x70
+            short m_jump;                      // +0x72
+            unsigned int  m_expertJob;         // +0x74
+        } m_jobStats;
+    };
     unsigned char m_field78;           // +0x078（同表 +0x7d4 字节）
     unsigned char m_masteredSkillA[0x198]; // +0x079（addSkillOnCreateCharacter 树 A，
                                            //       元素=_Mastered_skill(2B)×204，定义见 SkillSlot.h）
     unsigned char m_masteredSkillB[0x198]; // +0x211（树 B）
-    unsigned char m_pad3a9[0x4e01 - 0x3a9]; // +0x3a9（未建模区）
+    Inven_Item m_giftInven;            // +0x3a9（CreateInventory 赠礼背包）
+    unsigned char m_pad3e6[0x4e01 - 0x3e6]; // +0x3e6
     Inven_Item m_giftItem;             // +0x4e01（makeGift @0x81c0a1a：职业赠礼道具，
                                        //       id=case(job) 映射，find_item 后 make_item 填充）
     unsigned char m_pad4e3e[0x4e7b - 0x4e3e]; // +0x4e3e
@@ -101,6 +128,7 @@ struct SIG_CREATE_CHARAC
 #pragma pack(pop)
 static_assert(sizeof(SIG_CREATE_CHARAC) == 0x5354, "SIG_CREATE_CHARAC ABI drift");
 
+static_assert(offsetof(SIG_CREATE_CHARAC, m_giftInven) == 0x3a9, "SIG_CREATE_CHARAC m_giftInven offset drift");
 static_assert(offsetof(SIG_CREATE_CHARAC, m_giftItem) == 0x4e01, "SIG_CREATE_CHARAC m_giftItem offset drift");
 static_assert(offsetof(SIG_CREATE_CHARAC, m_weaponItem) == 0x4e7b, "SIG_CREATE_CHARAC m_weaponItem offset drift");
 static_assert(offsetof(SIG_CREATE_CHARAC, m_clothesItem) == 0x4ef5, "SIG_CREATE_CHARAC m_clothesItem offset drift");
@@ -212,10 +240,21 @@ static_assert(offsetof(SIG_CREATURE_ITEM_LAYOUT_MIRROR, m_mapSize) == 0x68, "SIG
 // 首 int=条目数；+0x21a4 起行数组（步长 0x38，见 W8LT_DBTask.cpp
 // DB_CreatureItemListEntry），行区基址为运行期布局常量，非成员类型可
 // 内嵌（行类型定义于消费 TU），故仅具名 count 头）：
+struct SIG_CREATURE_ITEM_LIST_ROW
+{
+    int m_uiId;               // +0x00
+    char m_pad[0x10];         // +0x04
+    int m_stomach;            // +0x14
+    char m_pad1[4];           // +0x18
+    int m_exp;                // +0x1c
+    char m_pad2[0x18];        // +0x20
+};
 struct SIG_CREATURE_ITEM_LIST
 {
-    int m_count;              // +0x0000（条目数）
-    char m_blob[0x4074];      // +0x0004（头 + 行数组，行区 @+0x21a4）
+    int m_count;              // +0x0000
+    char m_preRows[0x21a0];   // +0x0004 .. +0x21a3
+    SIG_CREATURE_ITEM_LIST_ROW m_rows[1]; // +0x21a4 FAM
+    char m_tail[0x4078 - 0x21dc];
 };
 static_assert(sizeof(SIG_CREATURE_ITEM_LIST) == 0x4078,
               "SIG_CREATURE_ITEM_LIST ABI drift");
@@ -223,6 +262,44 @@ static_assert(sizeof(SIG_CREATURE_ITEM_LIST) == 0x4078,
 // [Lane31W8LTDBTaskView] 头部字段化 + 匿名 union 双视角：ORIG
 // DB_GetDeathTowerBestRecord::dispatch 0x08429c07 写 +0x00 count(get_n_rows)、
 // +0x04 charac_no；行区按显式偏移视图访问（消费 TU 保留 P82 视图）。
+#pragma pack(push, 1)
+struct SIG_DEATH_TOWER_BEST_ROW
+{
+    union
+    {
+        char m_pad0[0xc];              // +0x00
+        struct
+        {
+            unsigned int m_prevStage4;     // +0x00 上行 stage4 越界
+            unsigned int m_prevPlayTime4;  // +0x04 上行 playTime4 越界
+            char m_pad8[4];
+        };
+    };
+    unsigned short m_towerIndex;       // +0x0c
+    unsigned short m_type;             // +0x0e
+    char m_memberInfo1[0x17];          // +0x10
+    char m_pad27[0x45];                // +0x27
+    unsigned int m_stage1;             // +0x6c
+    unsigned int m_playTime1;          // +0x70
+    char m_pad74[0x6];                 // +0x74
+    unsigned short m_type2;            // +0x7a
+    char m_memberInfo2[0x2e];          // +0x7c
+    char m_padaa[0x2e];                // +0xaa
+    unsigned int m_stage2;             // +0xd8
+    unsigned int m_playTime2;          // +0xdc
+    char m_pade0[0x6];                 // +0xe0
+    unsigned short m_type3;            // +0xe6
+    char m_memberInfo3[0x45];          // +0xe8
+    char m_pad12d[0x17];               // +0x12d
+    unsigned int m_stage3;             // +0x144
+    unsigned int m_playTime3;          // +0x148
+    char m_pad14c[0x6];                // +0x14c
+    unsigned short m_type4;            // +0x152
+    char m_memberInfo4[0x5c];          // +0x154 → +0x1b0
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_DEATH_TOWER_BEST_ROW) == 0x1b0,
+              "SIG_DEATH_TOWER_BEST_ROW ABI drift");
 struct SIG_DEATH_TOWER_GET_BEST_RECORD
 {
     union
@@ -233,6 +310,12 @@ struct SIG_DEATH_TOWER_GET_BEST_RECORD
             unsigned int m_count;      // +0x00
             unsigned int m_characNo;   // +0x04
             char m_pad08[0x878 - 0x08];
+        };
+        struct
+        {
+            SIG_DEATH_TOWER_BEST_ROW m_rows[5]; // +0x00 5×0x1b0 → +0x870
+            unsigned int m_tailStage4;          // +0x870
+            unsigned int m_tailPlayTime4;       // +0x874
         };
     };
 };
@@ -318,10 +401,15 @@ static_assert(sizeof(SIG_DOUBLE_CHECK_GUILD_NAME) == 0x17, "SIG_DOUBLE_CHECK_GUI
 #pragma pack(push, 1)
 struct SIG_DUNGEON_DATA_STATISTIC
 {
-    int m_type;                 // +0x00（TimerDungeonDataStatistic 写 3；节点 map<int,..> 键）
-    int m_dungeonIndex;         // +0x04（DungeonKey.m_dungeonIndex，CDungeonNode.h:12）
-    int m_dungeonDiff;          // +0x08（DungeonKey.m_dungeonDiff，CDungeonNode.h:13）
-    char m_pad0c[4];            // +0x0c（无字段级证据）
+    int m_type;                 // +0x00
+    struct Key
+    {
+        int m_dungeonIndex;     // +0x04
+        int m_dungeonDiff;      // +0x08
+        short m_field8;         // +0x0c
+        unsigned char m_fieldA; // +0x0e
+        char m_padB;            // +0x0f
+    } m_key;                    // +0x04 sizeof 0xc（= DungeonKey）
     unsigned int m_job;         // +0x10（UpdateSkill map<int,CDungeonJobNode> 键；亦 JobKey.m_job，
                                 //   CDungeonSuccessNode::UpdateCharacter 以 param_1+0x10 作 JobKey*）
     unsigned char m_subJob;     // +0x14（JobKey.m_sub；CDungeonSuccessNode::UpdateCharacter JobKey 键）
@@ -373,8 +461,17 @@ static_assert(sizeof(SIG_EVENT_LEVEUP_SUPPORT_INFO) == 0x2c,
 #pragma pack(push, 1)
 struct SIG_EVENT_STAGE_LOG
 {
-    int m_field0[5];        // +0x000..+0x10（ctor 逐 int 清零）
-    char m_data[0x64];      // +0x014（ctor memset 清零）
+    union {
+        int m_field0[5];
+        struct {
+            int m_eventId;
+            unsigned int m_mId;
+            int m_characNo;
+            int m_serverInfo;
+            int m_stage;
+        };
+    };
+    union { char m_data[0x64]; char m_stageResult[0x64]; };
 
     SIG_EVENT_STAGE_LOG()   // ORIG W 0x081ba886（C1/C2 同址）
     {
@@ -464,16 +561,27 @@ struct SIG_FAIR_PVP_SCORE
     // 084a4ae3 的逐字段 store 均单段（无转换中转）⇒ 线格式镜像与容器字段同型；
     // 容器侧 m_modeStats/m_field40/m_field44/m_winStreak/m_bestWinStreak 已
     // unsigned 化（P274/ORIG put_int 两段实证），镜像同步为 unsigned。
-    unsigned int m_modeStats[2][3];            // +0x04..+0x18（modeA0..2 / modeB0..2）
-    unsigned int m_field1c;                    // +0x1c（↔ CFairPvPScore::m_field40）
-    unsigned int m_field20;                    // +0x20（↔ m_field44）
-    unsigned int m_winStreak;                  // +0x24
-    unsigned int m_bestWinStreak;              // +0x28
-    unsigned char m_jobScoreCount;             // +0x2c
-    char m_pad2d[3];                           // +0x2d..0x2f
-    SIG_FAIR_PVP_SCORE_ENTRY m_jobScore[100];  // +0x30..+0x66f
-    unsigned char m_recentResults[10];         // +0x670..0x679
-    char m_pad67a[2];                          // +0x67a..0x67b
+    union {
+        unsigned int m_modeStats[2][3];
+        struct {
+            unsigned int m_privateWin, m_privateLose, m_privateDraw;
+            unsigned int m_relayBattleWin, m_relayBattleLose, m_relayBattleDraw;
+        };
+    };
+    union { unsigned int m_field1c; unsigned int m_relayBattle2Kill; };
+    union { unsigned int m_field20; unsigned int m_relayBattle3Kill; };
+    union { unsigned int m_winStreak; unsigned int m_successiveWin; };
+    union { unsigned int m_bestWinStreak; unsigned int m_maxSuccessiveWin; };
+    union {
+        struct {
+            unsigned char m_jobScoreCount;             // +0x2c
+            char m_pad2d[3];
+            SIG_FAIR_PVP_SCORE_ENTRY m_jobScoreEntries[100];
+            unsigned char m_recentResults[10];
+            char m_pad67a[2];
+        };
+        char m_jobScore[0x650];                        // +0x2c blob
+    };
     int m_dailyPlayCount;                      // +0x67c
     int m_lastPlayTime;                        // +0x680（from_unixtime 时间戳；CFairPvPScore 写 getCurSec；
                                                // [b28] 改 int 复现 ORIG LHS-first store 形）
@@ -698,17 +806,16 @@ struct SIG_INSERT_0712_WINTER_EVENT_COUPON
 
 struct SIG_INSERT_ACHIEVE_EVENT
 {
-    char m_pad[0xc];
-
     // ORIG 嵌套枚举（_ZN24SIG_INSERT_ACHIEVE_EVENT17ENUM_ACHIEVE_TYPEE）。
-    // 调用点观察值：1=CUser::_onLevelUp level 0x12；2=_onLevelUp level 0x30；
-    // _onChangeGrowType/_onQuestClear 亦传小整数。ORIG 无成员名符号信息，取中性名。
     enum ENUM_ACHIEVE_TYPE
     {
         ENUM_ACHIEVE_TYPE_NONE = 0,
         ENUM_ACHIEVE_TYPE_1 = 1,
         ENUM_ACHIEVE_TYPE_2 = 2
     };
+    unsigned int m_accId;           // +0x00
+    unsigned int m_characNo;        // +0x04
+    ENUM_ACHIEVE_TYPE m_type;       // +0x08
 };
 
 struct SIG_INSERT_AUTO_PUNISH_FIRST_USER
@@ -729,8 +836,11 @@ struct SIG_INSERT_AUTO_PUNISH_SECOND_USER
 {
     unsigned int m_memberId;
     unsigned int m_hackMemberId;
-    unsigned int m_totalTradeGold;
-    unsigned int m_tradeGold;
+    union
+    {
+        struct { unsigned int m_totalTradeGold; unsigned int m_tradeGold; };
+        unsigned long long m_gold;
+    };
     bool m_punishFlag;
     char m_pad11[3];
 };
@@ -741,8 +851,15 @@ struct SIG_INSERT_RESPONSE_TIME_ENTRY
 {
     unsigned int m_id;
     unsigned int m_count;
-    unsigned int m_bytesLow;
-    unsigned int m_bytesHigh;
+    union
+    {
+        unsigned long long m_bytes;
+        struct
+        {
+            unsigned int m_bytesLow;
+            unsigned int m_bytesHigh;
+        };
+    };
     unsigned int m_avg;
 };
 struct SIG_INSERT_RESPONSE_TIME
@@ -860,10 +977,16 @@ struct SIG_ITEM_DICTIONARY_FLAG
 static_assert(sizeof(SIG_ITEM_DICTIONARY_FLAG) == 0x138c, "SIG_ITEM_DICTIONARY_FLAG ABI drift");
 
 #pragma pack(push, 1)
+struct SIG_ITEM_LOCK_ENTRY
+{
+    int m_unlockSec;          // +0x00
+    unsigned char m_state;    // +0x04
+    char m_pad5[3];           // +0x05
+};
 struct SIG_ITEM_LOCK_UPDATE
 {
-    int m_characNo;
-    char m_lockData[0x320];
+    unsigned int m_characNo;              // +0x00
+    SIG_ITEM_LOCK_ENTRY m_locks[0x64];    // +0x04（0x64×8 = 0x320）
 };
 #pragma pack(pop)
 static_assert(sizeof(SIG_ITEM_LOCK_UPDATE) == 0x324, "SIG_ITEM_LOCK_UPDATE ABI drift");
@@ -872,14 +995,14 @@ static_assert(sizeof(SIG_ITEM_LOCK_UPDATE) == 0x324, "SIG_ITEM_LOCK_UPDATE ABI d
 #pragma pack(push, 1)
 struct SIG_ITEM_MAKING_SKILL
 {
-    int m_field0;            // +0x00（ctor 清零）
-    unsigned char m_data[0x16];  // +0x04（ctor memset 清零）
-    char m_pad1a[2];         // +0x1a（尾部对齐）
+    unsigned int m_characNo;          // +0x00
+    unsigned short m_skillLevels[11]; // +0x04..+0x19
+    char m_pad1a[2];                  // +0x1a（尾部对齐）
 
     SIG_ITEM_MAKING_SKILL()  // ORIG W 0x0848fa82（C1/C2 同址）
     {
-        m_field0 = 0;
-        memset(m_data, 0, 0x16);
+        m_characNo = 0;
+        memset(m_skillLevels, 0, sizeof(m_skillLevels));
     }
 };
 #pragma pack(pop)

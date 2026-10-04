@@ -1,4 +1,4 @@
 void CUser::ResetUsedCoinInDungeon()
 {
-    m_field8eae0 = 0;
+    m_usedCoinInDungeon = 0;
 }

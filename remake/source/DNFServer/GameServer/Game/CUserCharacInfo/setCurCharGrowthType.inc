@@ -5,6 +5,6 @@ void CUserCharacInfo::setCurCharGrowthType(char first, char second)
     if (second > 2)
         return;
     enableSaveCharacInfo();
-    m_selected->m_field29.m_sub = first;
-    m_selected->m_field29.m_grow = second;
+    m_selected->m_growthType.m_sub = first;
+    m_selected->m_growthType.m_grow = second;
 }

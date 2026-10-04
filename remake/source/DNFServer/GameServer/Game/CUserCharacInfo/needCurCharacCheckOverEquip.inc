@@ -1,4 +1,4 @@
-bool CUserCharacInfo::needCurCharacCheckOverEquip()
+char CUserCharacInfo::needCurCharacCheckOverEquip()
 {
     if (!m_selected)
         return 0;

@@ -17,14 +17,14 @@ bool DB_UpdatePvPLastPlayTime::dispatch(int /*userIdx*/, int /*slot*/,
     Packet_PvPResult* sig = stream->GetOutBuffer<Packet_PvPResult>();
     // [L5 K5W8LTDBTask] P0：去 `v` 具名缓存（ORIG 0x084317b2 段无第二槽往返，
     // 全程 `((DB_PvPResultSchoolView*)sig)->...` 就地 cast 直读）。
-    for (int i = 0; (unsigned char)((DB_PvPResultSchoolView*)sig)->m_count > i; ++i)
+    for (int i = 0; (unsigned char)sig->m_playCount > i; ++i)
     {
         for (int j = 0; j <= 1; ++j)
         {
             db->set_query(
                 "upDate school_member set last_play_time=NOW()  where m_id=%s and school_id=%d",
-                NumberToString(((DB_PvPResultMIdView*)sig)->m_mId[j][i], 0),
-                ((DB_PvPResultSchoolView*)sig)->m_schoolId[j][i]);
+                NumberToString(sig->m_team[j].m_accId[i], 0),
+                sig->m_team[j].m_schoolNo[i]);
             if (db->exec(true) != 1)
                 return 0;
         }

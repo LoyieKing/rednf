@@ -1,8 +1,8 @@
 void CUser::ResetCurCharacUsedGiftFatigueQuantity()
 {
-    if (m_field8ebac != 0)
+    if (m_usedGiftFatigueQuantity != 0)
     {
-        m_field8ebac = 0;
+        m_usedGiftFatigueQuantity = 0;
         SetChangedGiftFatigueQuantity(true);
     }
 }

@@ -15,9 +15,9 @@ int Arad_INTER_kSaveServerState::dispatch_sig(CUser* /*user*/, char* body, int l
 
     AradServerStateMessage msg;                      // ORIG W ctor：全零
     msg.m_active = 1;                                // short @+0x00
-    msg.m_endSec = ((const PktSaveServerStateView*)packet)->m_endSec;
+    msg.m_endSec = ((const Packet_Arad_SaveServerState*)packet)->m_endSec;
 
     GlobalData::s_serverStateManager_->insertState(
-        (ENUM_GLOBAL_EFFECT_ARAD)((const PktSaveServerStateView*)packet)->m_effect, msg);
+        (ENUM_GLOBAL_EFFECT_ARAD)((const Packet_Arad_SaveServerState*)packet)->m_effect, msg);
     return 0;
 }

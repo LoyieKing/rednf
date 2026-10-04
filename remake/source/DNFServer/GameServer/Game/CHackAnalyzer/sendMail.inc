@@ -21,38 +21,6 @@ void Secu_AccountHacking::sendMail(char const* name, MSG_CHECK_MAIL_RECEIVER* ms
     //   set<2> 分支：@+0x0e3 `mov 0x33(%eax),%eax`（金额）/
     //                @+0x16f `movzbl 0x37(%eax),%eax`（条目数）/
     //                条目物品号 = base + i*0xb + 0x3b（ Ghidra C 段同形）
-#pragma pack(push, 1)
-    struct CheckMailReceiverSendView
-    {
-        int m_checkType;              // +0x00（set<> 写入的 TYPE）
-        char m_msgHead[0x32 - 4];     // +0x04..+0x31（本函数不读的消息前缀）
-        unsigned int m_money;         // +0x32
-        char m_pad36[0x3d - 0x36];    // +0x36..+0x3c
-        unsigned int m_avatarItemIdx; // +0x3d..+0x40
-    };
-    struct CheckMailReceiverListEntry
-    {
-        unsigned int m_itemIdx;       // 条目 +0x00（ORIG 步长 0xb）
-        char m_rest[0xb - 4];         // +0x04..+0x0a（本函数不读）
-    };
-    struct CheckMailReceiverListView
-    {
-        int m_checkType;              // +0x00
-        char m_msgHead[0x33 - 4];     // +0x04..+0x32（本函数不读的消息前缀）
-        unsigned int m_money;         // +0x33
-        unsigned char m_entryCount;   // +0x37
-        char m_pad38[0x3b - 0x38];    // +0x38..+0x3a
-        CheckMailReceiverListEntry m_entries[1];   // +0x3b
-    };
-#pragma pack(pop)
-    static_assert(sizeof(CheckMailReceiverSendView) == 0x41,
-                  "CheckMailReceiverSendView ABI drift");
-    static_assert(offsetof(CheckMailReceiverListView, m_money) == 0x33 &&
-                  offsetof(CheckMailReceiverListView, m_entryCount) == 0x37 &&
-                  offsetof(CheckMailReceiverListView, m_entries) == 0x3b,
-                  "CheckMailReceiverListView ABI drift");
-    static_assert(sizeof(CheckMailReceiverListEntry) == 0xb,
-                  "CheckMailReceiverListEntry stride drift");
 
     // ORIG T 0x08278b48（sendMail.md）：检查类型 0（金币+单 avatar）/2
     // （金币+avatar 列表）时取出金额与 avatar 物品号逐一 sendGold/sendAvatar。
@@ -61,23 +29,23 @@ void Secu_AccountHacking::sendMail(char const* name, MSG_CHECK_MAIL_RECEIVER* ms
     if (((CUser*)m_userP)->getCurCharacInvenR() == 0)
         return;
 
-    if (*(int*)msg == 0)
+    if (msg->m_type == 0)
     {
         // P0：ORIG getCurCharacInvenR 结果不经栈槽往返（`call; mov %eax,(%esp);
         // call get_money`）⇒ 内联实参，具名指针局部多 2 条 spill。
-        sendGold(name, 0, ((CheckMailReceiverSendView*)msg)->m_money,
+        sendGold(name, 0, reinterpret_cast<MSG_MAILBOX_SEND*>(msg->m_payload)->m_gold2e,
                  ((CUser*)m_userP)->getCurCharacInvenR()->get_money(),
                  2, (char*)0);
-        if (isAvatar(((CheckMailReceiverSendView*)msg)->m_avatarItemIdx))
+        if (isAvatar(reinterpret_cast<MSG_MAILBOX_SEND*>(msg->m_payload)->m_itemId39))
             sendAvatar(name, 0);
     }
-    else if (*(int*)msg == 2)
+    else if (msg->m_type == 2)
     {
-        sendGold(name, 0, ((CheckMailReceiverListView*)msg)->m_money,
+        sendGold(name, 0, reinterpret_cast<MSG_MULTI_MAILBOX_SEND*>(msg->m_payload)->m_gold2f,
                  ((CUser*)m_userP)->getCurCharacInvenR()->get_money(),
                  2, (char*)0);
         for (int i = 0;
-             i < (int)((CheckMailReceiverListView*)msg)->m_entryCount; ++i)
+             i < (int)reinterpret_cast<MSG_MULTI_MAILBOX_SEND*>(msg->m_payload)->m_count33; ++i)
         {
             // b28d-solo-CHackAnalyzer: NEAR 封顶（P75/N76 跨版本装载序）。ORIG
             // 0x08278c69 循环体 `mov -0xc(%ebp),%edx; mov 0x10(%ebp),%ecx`（索引先、
@@ -87,7 +55,7 @@ void Secu_AccountHacking::sendMail(char const* name, MSG_CHECK_MAIL_RECEIVER* ms
             // [L6S4 实测负结论] 新试形：实参位 `(unsigned int)` 冗余 cast（P267 转换
             // 节点改装载序）——实测仍 `mov 0x10(%ebp),%ecx` 先于 `mov -0xc(%ebp),%edx`
             // （base-first 未翻），回滚。累计 9 形均不可翻 ⇒ N75/N76 封顶。
-            if (isAvatar(((CheckMailReceiverListView*)msg)->m_entries[i].m_itemIdx))
+            if (isAvatar(reinterpret_cast<MSG_MULTI_MAILBOX_SEND*>(msg->m_payload)->m_attach[i].m_itemIdx))
                 sendAvatar(name, 0);
         }
     }

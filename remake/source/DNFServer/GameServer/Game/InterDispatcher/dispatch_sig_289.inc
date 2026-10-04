@@ -8,8 +8,8 @@ int Inter_NpcLimitBuyItemInfoRenew::dispatch_sig(CUser* /*user*/, char* data, in
 
     PacketGuard packet;
     packet.put_header(0, 0x193);
-    packet.put_int(pPkt->m_a);
-    for (int i = 0; i < pPkt->m_a && i < 0x1e; ++i)   // asm 双条件（jle/jg 归并）
+    packet.put_int(pPkt->m_count);
+    for (int i = 0; i < pPkt->m_count && i < 0x1e; ++i)   // asm 双条件（jle/jg 归并）
     {
         // [R9form4 2026-09-12] 裸偏移 (int*)(data+i*0xc+K) → 视图记录数组具名访问（ORIG 0x084e6ed7
         //   `mov 0xe(%eax,%ecx,1),%eax` 折叠 disp；base 必须用具名局部 pPkt 而非形参 data）。

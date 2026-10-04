@@ -6,7 +6,7 @@ int Inter_TriggerEventStart::dispatch_sig(CUser* /*user*/, char* data, int /*len
     if (GlobalData::s_event_manager != 0)
     {
         if (GlobalData::s_event_manager->TriggerEventStart(
-                pPkt->m_a,
+                pPkt->m_eventCode,
                 pPkt->m_wp))
             return 0;
         return 0x2a8b;

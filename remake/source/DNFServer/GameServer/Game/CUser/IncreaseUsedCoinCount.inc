@@ -1,4 +1,4 @@
 void CUser::IncreaseUsedCoinCount()
 {
-    *(int*)((char*)&m_field8eb1c) = *(int*)((char*)&m_field8eb1c) + 1;
+    *(int*)((char*)&m_usedCoinCount) = *(int*)((char*)&m_usedCoinCount) + 1;
 }

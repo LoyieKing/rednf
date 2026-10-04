@@ -22,12 +22,12 @@ int Inter_MonitorCallUserInfo::dispatch_sig(CUser* /*user*/, char* data, int /*l
         // 改「内联实参表达式」后 4.4 复现两段（探针 /tmp/l2probe/p14.cpp f7 实证），
         // 第二处经 cMyTrace 全表达式临时链以 %ebx 跨 ctor 保活（P227）。
         G_CGameManager()->Send_userinfos_to_upper_server(
-            (unsigned char)(unsigned int)pPkt->m_a);
+            (unsigned char)(unsigned int)pPkt->m_serverGroup);
         // ORIG 0x084c8a58：重读无 CSE（P48 两次独立装载）。
         cMyTrace(__PRETTY_FUNCTION__,
                  0x2230, 0)(
             "%d Server Call UserInfo Arrived\n",
-            (unsigned char)(unsigned int)pPkt->m_a);
+            (unsigned char)(unsigned int)pPkt->m_serverGroup);
     }
     return 0;
 }

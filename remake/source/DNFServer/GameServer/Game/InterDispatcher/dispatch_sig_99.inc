@@ -2,10 +2,10 @@
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=117（ORIG 0x84d1ab6）：N18a 单段 regmove+N82/P112 帧槽平移+P30/N4 add-vs-lea。
 int Inter_SaveClientHackLog::dispatch_sig(CUser* /*user*/, char* data, int /*len*/)
 {
-    Inter_SaveClientHackLogPktView* pPkt = reinterpret_cast<Inter_SaveClientHackLogPktView*>(data);
+    SIG_SAVE_CLIENT_HACK_LOG* log = reinterpret_cast<SIG_SAVE_CLIENT_HACK_LOG*>(data);
     // §P0/P52：ORIG 084d1ac6 把 m_0 读入 %ebx 跨 G_GameWorld call（无槽）⇒ 不设具名 accId。
     CUser* target = G_CGameManager()->getUser(
-        static_cast<int>(G_GameWorld()->find_session(pPkt->m_0)), 0x30cd);
+        static_cast<int>(G_GameWorld()->find_session(log->m_uid)), 0x30cd);
     if (target == 0)
         return 0;
 
@@ -28,22 +28,22 @@ int Inter_SaveClientHackLog::dispatch_sig(CUser* /*user*/, char* data, int /*len
     //   cmp $0x3ba）⇒ 原码是 switch；case 体物理序实测 0x3ba(084d1b71 cmp $0x4b0)、
     //   0x1f7(084d1b89 cmp $0x32)、0x193(084d1b9f cmp $0xfa)、0x326(084d1bb7 cmp $0x19)
     //   ⇒ gcc O0 按源码顺序布 case 体，按该序书写；m_8/m_e 均无槽往返。
-    switch (pPkt->m_8)
+    switch (log->m_cnt)
     {
     case 0x3ba:
-        if (pPkt->m_e > 0x4b0)
+        if (log->m_b > 0x4b0)
             acc += 0x14;
         break;
     case 0x1f7:
-        if (pPkt->m_e > 0x32)
+        if (log->m_b > 0x32)
             acc += 0x28;
         break;
     case 0x193:
-        if (pPkt->m_e > 0xfa)
+        if (log->m_b > 0xfa)
             acc += 0x14;
         break;
     case 0x326:
-        if (pPkt->m_e > 0x19)
+        if (log->m_b > 0x19)
             acc += 0x1e;
         break;
     }

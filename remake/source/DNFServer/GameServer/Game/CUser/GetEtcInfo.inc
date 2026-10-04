@@ -95,7 +95,7 @@ int CUser::GetEtcInfo(SIG_LOAD_ETC* sig) const
     sig->m_blueMarbleEnterCount = getBlueMarbleEnterCount();
     // type 0x13 区 = attendanceEvent 内 +1 字节起（0x14a99 起 0x11 字节，0x14a9a=+1）。
     GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)0x13)
-        ->getData((char*)&sig->m_attendanceEvent + 1);
+        ->getData(reinterpret_cast<char*>(sig->m_attendanceEvent.m_pad));
 
     return 1;
 }

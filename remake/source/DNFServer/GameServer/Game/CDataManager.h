@@ -2300,7 +2300,7 @@ public:
     // ORIG T 0x08979864：公会经验权重（clear_reward 公会经验发放）。
     double getExpWeight(int guildLevel);  // ORIG 返回 double（fldl；m_vecE4 的 second）
     // ---- Wave6-CUser 补声明（ORIG T 实证；定义 owner=guild 脚本批次）----
-    int getGuildLevelUpParam(int level);                     // T 0x08979648 _ZN20GuildParameterScript20getGuildLevelUpParamEi
+    int* getGuildLevelUpParam(int level);                    // T 0x08979648 返回 m_levelUpCost[level-1]
     int getLevelupPrice(int level, int memberCnt);           // T 0x089797a4 _ZN20GuildParameterScript15getLevelupPriceEii
     int getGuildExpBook(int key);                            // T 0x08979672 _ZN20GuildParameterScript15getGuildExpBookEi（m_map10 find→second/0）
     STGuildStorageUpgradeInfo* getGuildCargoUpradeInfo(int capacity); // ORIG T 0x08979726

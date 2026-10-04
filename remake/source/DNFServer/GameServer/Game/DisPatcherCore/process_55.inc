@@ -28,6 +28,6 @@ int DisPatcher_PvPTimeout::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     stOnPvPTimeOut& out = static_cast<stOnPvPTimeOut&>(param);
     MSG_PVP_TIMEOUT& rMsg = *reinterpret_cast<MSG_PVP_TIMEOUT*>(&msg);
     out.m_timeOutResult =
-        room->time_out(reinterpret_cast<int*>(rMsg.m_pad));   // +0x0d 席位数组首元素
+        room->time_out(rMsg.m_seats);
     return errNo;
 }

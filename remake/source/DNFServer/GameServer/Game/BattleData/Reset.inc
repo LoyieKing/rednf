@@ -1,12 +1,12 @@
 void BattleData::Reset()
 {
-    ((BattleDataZeroView*)this)->a[0] = 0;
-    ((BattleDataZeroView*)this)->a[1] = 0;
-    ((BattleDataZeroView*)this)->a[2] = 0;
-    ((BattleDataZeroView*)this)->a[3] = 0;
-    ((BattleDataZeroView*)this)->a[4] = 0;
-    ((BattleDataZeroView*)this)->b[0] = 0;   // 0x2c/0x30 成对
-    ((BattleDataZeroView*)this)->b[1] = 0;   // 0x34/0x38 成对
+    m_clearPlayedTime = 0;
+    m_playedTime = 0;
+    m_baseTick = 0;
+    m_enterTick = 0;
+    m_clearEnterTime = 0;
+    m_accTick = 0;
+    m_moveTick = 0;
     m_killedMonster0 = 0;                    // ORIG 0x3c..0x4c 各独立单 store
     m_killedMonster1 = 0;
     m_killedMonster2 = 0;
