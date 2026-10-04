@@ -88,9 +88,10 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
     if (bossIdx + 1 <= (int)m_gridMaze->m_vec20.size() - 1)
         adjBossPos = m_gridMaze->m_vec20[bossIdx + 1];
 
-    // 位置链（ORIG +0x2f0..+0x338）：注意 ORIG 存向 —— +4=起点.second、+8=起点.first。
-    m_startX = startPos.second;
-    m_startY = startPos.first;
+    // 位置链（ORIG 0x082ffe2e 段）：+0x04/+0x60 = pair.first，+0x08/+0x64 = pair.second。
+    // 旧注释把 first/second 写反；起点 (0,0) 的副本看不出，(0,1) 会取到方向 0 的空 maplist。
+    m_startX = startPos.first;
+    m_startY = startPos.second;
     m_curX = m_startX;
     m_curY = m_startY;
     m_lastX = m_curX;
@@ -100,8 +101,8 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
     {
         for (int i = 0; i < 4; ++i)
         {
-            m_curPos[i] = std::make_pair(startPos.second, startPos.first);
-            m_lastPos[i] = std::make_pair(startPos.second, startPos.first);
+            m_curPos[i] = std::make_pair(startPos.first, startPos.second);
+            m_lastPos[i] = std::make_pair(startPos.first, startPos.second);
         }
     }
 
