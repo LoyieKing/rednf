@@ -61,6 +61,8 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
     }
     else if (type == 3)
     {
+        // [bughunt10] ORIG 0x085a6e70..0x085a6ff2：type 3/7 delete_item 数量为常量 1；
+        //   各 0x16 统计值为 GetSellItemPrice 输出 sellPrice（-0x8c），非 count。
         src = user->getCurCharacInvenR()->GetInvenSlot(0, slot);
     }
     else if (type == 7)
@@ -144,7 +146,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
             return 0x11;
         }
         GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)0x16,
-                                                       user, (unsigned int)count);
+                                                       user, (unsigned int)sellPrice);
     }
     else if (type == 0)
     {
@@ -184,13 +186,13 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
                 return 0x11;
             }
             GetInstanceValueStatistic()->AddValueStatistic(
-                (VALUE_STATISTIC_FIELD)0x16, user, (unsigned int)count);
+                (VALUE_STATISTIC_FIELD)0x16, user, (unsigned int)sellPrice);
         }
     }
     else if (type == 3)
     {
         if (!user->getCurCharacInvenW()->delete_item(
-                (INVEN_TYPE)0, slot, count, (eItemDelReason)6, true))
+                (INVEN_TYPE)0, slot, 1, (eItemDelReason)6, true))
         {
             cMyTrace trace(__PRETTY_FUNCTION__,
                            0x1ae8, 5);
@@ -199,12 +201,12 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
             return 0x11;
         }
         GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)0x16,
-                                                       user, (unsigned int)count);
+                                                       user, (unsigned int)sellPrice);
     }
     else if (type == 7)
     {
         if (!user->getCurCharacInvenW()->delete_item(
-                (INVEN_TYPE)3, slot, count, (eItemDelReason)6, true))
+                (INVEN_TYPE)3, slot, 1, (eItemDelReason)6, true))
         {
             cMyTrace trace(__PRETTY_FUNCTION__,
                            0x1af9, 5);
@@ -213,7 +215,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
             return 0x11;
         }
         GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)0x16,
-                                                       user, (unsigned int)count);
+                                                       user, (unsigned int)sellPrice);
     }
 
     if (!src.isEquipableItemType() && mi.m_item.m_addInfo != 0 &&

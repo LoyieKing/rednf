@@ -29,8 +29,9 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     Inven_Item dyeItem;
     if (getItem(*user, 1, req.m_0e, dyeItem))
     {
-        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1f3),
-                                 static_cast<unsigned char>(dyeItem.m_addInfo != 0));
+        // [bughunt10] ORIG 0x081e6ac5..0x081e6aeb：err = getItem(...)（int 0/1），
+        //   SendCmdErrorPacket(0x1f3, (uchar)err) ⇒ 槽空时发 1（原写 m_addInfo!=0 恒发 0）。
+        user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1f3), 1);
         return 1;
     }
     Inven_Item targetItem;
