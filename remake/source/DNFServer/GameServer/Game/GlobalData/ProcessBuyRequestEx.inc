@@ -205,9 +205,11 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
 
     // ---- 总价资金校验 ----
     int errCode = 0;
-    if (user->GetCera() < totalCera) errCode = 0xb;
+    // [bughunt8] ORIG 0x08177466/0x081774a2 `setl`：GetCera/GetWinPoint 以 int 有符号比较总价
+    //   （旧写 unsigned 比较 ⇒ setb，总价溢出为负时错误码与 ORIG 不同）。
+    if ((int)user->GetCera() < totalCera) errCode = 0xb;
     else if (user->getCurCharacMoney() < totalGold) errCode = 10;
-    else if (user->GetWinPoint() < totalWin) errCode = 0xc;
+    else if ((int)user->GetWinPoint() < totalWin) errCode = 0xc;
     else if (user->GetMileage() < totalMileage) errCode = 0x3ed;
     if (msg.m_scalars.m_buytype == 1)
     {
@@ -247,7 +249,8 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
     int curMileage = user->GetMileage();
     int curSec = GlobalData::s_systemTime_.getCurSec();
 
-    for (unsigned int j = 0; j < (unsigned int)msg.m_scalars.m_itemCount; ++j)
+    // [bughunt8] ORIG 0x0817839e `cmp -0x2c(%ebp),%eax; setg` ⇒ j 为 int（旧 unsigned ⇒ seta）。
+    for (int j = 0; j < (int)msg.m_scalars.m_itemCount; ++j)
     {
         if (goods[j] == 0)
             continue;

@@ -1927,19 +1927,24 @@ struct Inter_MailBox_Req_CheckReceiverLoadView
     int m_checkType;                  // +0x31 ⇒ ORIG `mov 0x31(%eax),%eax`（1=cera/2=多附件）
     char m_payload35[0x11];           // +0x35..+0x45 MSG_BUY_CERASHOP_ITEM / MSG_MAILBOX_SEND 载荷
     char m_name46[0x1d];              // +0x46..+0x62 GetMoneyLimitPerLevel 名称实参
-    union                             // +0x63..+0x66：三条路径互斥复用（ORIG 各为独立 disp 直取）
+    // [bughunt8] 旧 union 把 m_63/m_64/m_67/m_68/m_items6c/m_6e 全叠在 +0x63（名不副实）：
+    //   ORIG 084cf95a 各为独立 disp（`mov ..,0x67`、`mov 0x6e`、`mov 0x64`、`movzbl 0x68`、
+    //   `+0x60+0xc` 项数组）。改为「union 内各带前置填充的匿名 struct」使每名落在其真实偏移。
+    union                             // +0x63..+0x71：三条路径互斥复用
     {
-        unsigned int m_63;            // +0x63 单附件金额阈值
-        unsigned int m_64;            // +0x64 多附件金额阈值
-        unsigned int m_67;            // +0x67 cera 路径目标槽
-        unsigned char m_68;           // +0x68 多附件计数
-        char m_items6c[1];            // +0x6c 多附件 itemIdx 数组（stride 0xb）
-        unsigned int m_6e;            // +0x6e 单附件 itemIdx
+        struct { unsigned int m_63; };                       // +0x63 单附件金额
+        struct { char m_p64[0x1]; unsigned int m_64; };      // +0x64 多附件金额
+        struct { char m_p67[0x4]; unsigned int m_67; };      // +0x67 cera 路径目标槽
+        struct { char m_p68[0x5]; unsigned char m_68; };     // +0x68 多附件计数
+        struct { char m_p6c[0x9]; char m_items6c[1]; };      // +0x6c 多附件 itemIdx 数组（stride 0xb）
+        struct { char m_p6e[0xb]; unsigned int m_6e; };      // +0x6e 单附件 itemIdx
     } m_tail;
-    char m_pad67[0x3fb9 - 0x67];      // 到 m_resultFlag
+    char m_pad67[0x3fb9 - 0x72];      // 到 m_resultFlag
     unsigned int m_resultFlag;        // +0x3fb9 DB 结果（0 ok / 0x4d 名称非法）
 };
 #pragma pack(pop)
+static_assert(offsetof(Inter_MailBox_Req_CheckReceiverLoadView, m_tail) == 0x63, "CheckReceiverLoadView tail");
+static_assert(offsetof(Inter_MailBox_Req_CheckReceiverLoadView, m_resultFlag) == 0x3fb9, "CheckReceiverLoadView resultFlag");
 
 #include "InterDispatcher/dispatch_sig_76.inc"
 

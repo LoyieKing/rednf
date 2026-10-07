@@ -2872,7 +2872,11 @@ struct ExpansionPair
                             break;
                         }
                     }
+                    // [bughunt8] ORIG 0x0866d4e5 `mov $1,%ebx; jmp 866d8c6` ⇒ 析构 PacketGuard 后
+                    //   直接回到 while 体首（0x0866cc30），**不**执行下方 update_item/发包；
+                    //   旧写落空到下方，已满数时仍重写背包格并多发一次物品更新包。
                     again = true;
+                    continue;
                 }
                 else
                 {
