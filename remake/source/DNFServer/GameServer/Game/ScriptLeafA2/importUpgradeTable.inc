@@ -177,7 +177,9 @@ bool importUpgradeTable(const char* path, upgrade_table_t* table)
             {
                 for (int i = 0; i <= 5; ++i)
                 {
-                    UPG_TBL_F32(table, i + 0x1b) = ScanFloat(&ok);
+                    // [c19] ORIG 0x08901116 `lea 0x1c(%edx),%ecx; mov %edx,0x4(%eax,%ecx,4)`
+                    //   = table+0x74+4i（ctor/get_upgrade_info 同用 k=i+0x1a）；旧 i+0x1b 落 +0x78。
+                    UPG_TBL_F32(table, i + 0x1a) = ScanFloat(&ok);
                     if (!ok)
                     {
                         LogManager::logFormat(
@@ -252,7 +254,10 @@ bool importUpgradeTable(const char* path, upgrade_table_t* table)
             {
                 for (int i = 0; i <= 0x63; ++i)
                 {
-                    UPG_TBL_F32(table, i + 0x9b) = ScanFloat(&ok);
+                    // [c19] ORIG 0x08901482 `lea 0x9c(%edx),%ecx; mov %edx,0x4(%eax,%ecx,4)`
+                    //   = table+0x274+4i（getUpgradeItemRepairCostRate 读同址）；旧 i+0x9b 落 +0x278，
+                    //   i=0x63 越写 +0x404 = m_penalty[0]。
+                    UPG_TBL_F32(table, i + 0x9a) = ScanFloat(&ok);
                     if (!ok)
                     {
                         if (i != 0x63)
@@ -377,7 +382,10 @@ bool importUpgradeTable(const char* path, upgrade_table_t* table)
             {
                 for (int t = 10; t <= 0x15; ++t)
                 {
-                    UPG_TBL_F32(table, t + 0x10b) = ScanFloat(&ok);
+                    // [c19] ORIG 0x08901a69 `lea 0x10c(%edx),%ecx; mov %edx,0x4(%eax,%ecx,4)`
+                    //   = table+0x434+4t = m_destruction.m_arr[t]；旧 m_f32[t+0x10b] 越出 union
+                    //   落 +0x438+4t（m_arr[t+1]，t=0x15 写到 m_field58）。
+                    table->m_destruction.m_arr[t] = ScanFloat(&ok);
                     if (!ok)
                     {
                         LogManager::logFormat(

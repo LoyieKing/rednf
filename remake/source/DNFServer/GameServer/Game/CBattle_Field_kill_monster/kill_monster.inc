@@ -400,12 +400,14 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
             }
         }
 
-        // 奖励按地狱派对脚本比例缩放（+0x13f8：short 表 [scriptIdx+0x38]）
-        const short* hellValues = (const short*)
-            G_CDataManager()->get_hellparty_script_values();
-        const int scriptSlot = (int)(signed char)mobPtr->m_hellPartyScriptIdx +
-                               0x38;
-        reward = (unsigned int)((int)reward * (int)hellValues[scriptSlot]);
+        // 奖励按地狱派对脚本比例缩放。ORIG 0x0830d082..0x0830d09a：
+        //   movsbl 0x338(mob); add $0x38; movzwl 0x2(%eax,%edx,2); cwtl
+        //   ⇒ stHellParty_t + 0x72 + 2*idx = m_field72[idx]。
+        // [c19] 旧 `((const short*)p)[idx + 0x38]` 落 +0x70+2*idx（错一槽：
+        //   idx 0 读 m_field6c[4..5] 两字节，idx n 读 m_field72[n-1]）。
+        reward = (unsigned int)((int)reward *
+                 (int)(short)G_CDataManager()->get_hellparty_script_values()
+                     ->m_field72[(int)(signed char)mobPtr->m_hellPartyScriptIdx]);
     }
 
     // ---- Boss 房进入条件击杀计数（+0x1436；ORIG 不判空 m_pDungeon，忠实保留） ----

@@ -143,6 +143,8 @@ struct stHellParty_t
     unsigned char m_field8a[6];      // +0x8a
     int m_guideLineValue;            // +0x90 [guide line value]
 };                                 // sizeof 0x94
+static_assert(offsetof(stHellParty_t, m_field72) == 0x72,
+              "stHellParty_t m_field72 (kill_monster reward scale) offset");
 
 // ORIG 返回错误码（bool 语义 0=成功）：0x1a24 装载失败 / 0x1a2e..0x1b30 各 Scan 失败 /
 // 0x1b08 组下标重复 / 0x1aed 未知组名；"[hellparty script end]" → 0。

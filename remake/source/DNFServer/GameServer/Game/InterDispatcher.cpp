@@ -4194,16 +4194,25 @@ struct Inter_ItemLimitEdition_ReplyPktView : PacketHeader
 };
 struct Inter_ItemLimitEdition_ReplyOptRow
 {
-    int m_itemUid;            // +0x09
-    unsigned short m_a;       // +0x0d
-    unsigned short m_b;       // +0x0f
+    int m_itemUid;            // 行 +0x0（包 +0xc9+8j）
+    unsigned short m_a;       // 行 +0x4（包 +0xcd+8j）
+    unsigned short m_b;       // 行 +0x6（包 +0xcf+8j）
 };
+// [c19] ORIG 0x084dc569..0x084dc5b6：`add $0x18,%edx; mov 0x9(%eax,%edx,8)` /
+//   `movzwl 0xd(..)` / `movzwl 0xf(..)` ⇒ data + 0xc9 + 8j（紧随 m_c8 计数字节）。
+//   旧 m_pad9[9] 读 data+0x9+8j（落在包头/m_e/m_12/子项区）。
 struct Inter_ItemLimitEdition_ReplyOptView
 {
-    char m_pad9[9];
+    char m_padC9[0xc9];
     Inter_ItemLimitEdition_ReplyOptRow m_opts[1];
 };
 #pragma pack(pop)
+static_assert(offsetof(Inter_ItemLimitEdition_ReplyPktView, m_c8) == 0xc8,
+              "ItemLimitEdition reply m_c8 offset");
+static_assert(offsetof(Inter_ItemLimitEdition_ReplyOptView, m_opts) == 0xc9,
+              "ItemLimitEdition reply opt rows start right after m_c8");
+static_assert(sizeof(Inter_ItemLimitEdition_ReplyOptRow) == 8,
+              "ItemLimitEdition reply opt row stride");
 
 #include "InterDispatcher/dispatch_sig_191.inc"
 

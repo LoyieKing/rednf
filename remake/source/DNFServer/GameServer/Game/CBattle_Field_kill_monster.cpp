@@ -29,6 +29,7 @@
 #include "CDataManager.h"           // getDropRate / find_monster（桥清零）
 #include "CKillMonsterInfo.h"       // 击杀/奖励链六谓词（桥清零）
 #include "CHellPartyItemStatistic.h" // 地狱派对统计单例/发送（桥清零）
+#include "DataManagerInitDepends.h"   // stHellParty_t（m_field72 奖励倍率表；须在 CDataManager.h 之后）
 // [N5 2026-09-11 · P139 符号轴] ORIG 局部静态
 // `_ZZN13CBattle_Field12kill_monsterER11PacketGuardR11map_monsterRjRK17STKillMonsterDataE19__PRETTY_FUNCTION__`
 // @0x08c23400（size 0x5e）内容 = "bool CBattle_Field::kill_monster(PacketGuard&,
