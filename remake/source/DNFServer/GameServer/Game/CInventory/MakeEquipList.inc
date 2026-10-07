@@ -123,10 +123,13 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
             {
                 stAvatarExpansionInfo_t expansion;
                 expansion.init();
-                if (-1 < i && i < 10 && slots[i].m_addInfo != 0)
+                // [bughunt18] ORIG 0x084fe670..0x084fe6b4（flag==0、userInfo==0 支）：
+                //   `this + 0x10 + i*0x3d` 取 +0xe/+0x13 ⇒ 读 m_invenItem[i]（this+0x1c），
+                //   **不是** slots[i]（另一支 0x084fea11 才用 slots）。
+                if (-1 < i && i < 10 && m_invenItem[i].m_addInfo != 0)
                 {
                     void* pExpansion =
-                        m_avatarItemMgr.GetExpansionInfo(slots[i].m_addInfo2);
+                        m_avatarItemMgr.GetExpansionInfo(m_invenItem[i].m_addInfo2);
                     if (pExpansion != 0)
                     {
                         memcpy(&expansion, pExpansion, 4);

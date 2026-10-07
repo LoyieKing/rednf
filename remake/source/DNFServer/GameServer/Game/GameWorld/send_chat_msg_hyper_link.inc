@@ -258,9 +258,13 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from,
             pkt.m_guildKey = from->get_charac_guildkey();
             pkt.m_charNo = from->getCurCharacNo();
             pkt.m_itemCount = msg.m_linkCount13b;
+            static_assert(sizeof(pkt.m_items[0]) == 0x68, "hyperlink item stride");
             for (int i = 0; i < (unsigned char)msg.m_linkCount13b; i++)
             {
-                memcpy(pkt.m_items + i * 0x68, msg.m_links13c[i], 0x68);
+                // [bughunt18] ORIG 0x086d086b..0x086d089f：dst = pkt + 0x13 + i*0x68。
+                //   m_items 现为 hyperlink_item_info[3]（0x68/项），旧 `m_items + i*0x68`
+                //   按元素步进 = i*0x2a40 ⇒ 第 2/3 条链接写到栈帧外（栈破坏）。
+                memcpy(&pkt.m_items[i], msg.m_links13c[i], 0x68);
             }
             pkt.m_msgLen = (unsigned char)msg.m_textLen14;
             memcpy(pkt.m_msg, msg.m_text18, msg.m_textLen14);

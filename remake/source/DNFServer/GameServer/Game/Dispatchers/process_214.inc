@@ -53,6 +53,7 @@ int Dispatcher_ItemHyperLinkMessage::process(CUser* user, MSG_BASE& msg,
         memcpy(pkt.buddy_n_user_id_what, m.m_name11c, m.m_nameLen118);
         memcpy(pkt.m_msg, m.m_text18, m.m_textLen14);
         pkt.m_itemCount = m.m_linkCount13b;
+        static_assert(sizeof(pkt.m_items[0]) == 0x68, "hyperlink item stride");
         for (int i = 0; i < m.m_linkCount13b; i++)
             // [Q4DispatchBig 2026-09-11 · 偏移轴真 bug 修复] 旧译 src 多 `+ 0xc`：
             //   ORIG 0x081d9e11..081d9e45 为 `imul $0x68,%eax; add $0x130,%eax;
@@ -62,7 +63,10 @@ int Dispatcher_ItemHyperLinkMessage::process(CUser* user, MSG_BASE& msg,
             //   我方 `m_links13c[i] + 0xc` = msg + 0x148 + i*0x68 ⇒ 复制源每项错位
             //   12 字节（跨服物品链接显示错乱，玩家可见）。同成员全库使用点
             //   （GameWorld.cpp:4656/5268/5291/5314/5333 + 本文件 :17551）均无 `+0xc`。
-            memcpy(pkt.m_items[i] + 0xb, m.m_links13c[i], 0x68);
+            // [bughunt18] ORIG 0x081d9e11..0x081d9e45：dst = pkt + 0x30 + 0xb + i*0x68
+            //   = &pkt.m_items[i]（m_items 已在 +0x3b）。旧 `+ 0xb` 让 dst 落到
+            //   +0x46+i*0x68：每条链接错位 11B，第 3 条还覆盖 m_msgLen/m_msg 头。
+            memcpy(pkt.m_items[i], m.m_links13c[i], 0x68);
         pkt.packetSize = (unsigned short)(0x174 + m.m_textLen14);
         GlobalData::s_community_proxy->SendTcpPacket(
             reinterpret_cast<char*>(&pkt), pkt.packetSize);
