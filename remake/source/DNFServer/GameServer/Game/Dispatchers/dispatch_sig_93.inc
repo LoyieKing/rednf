@@ -118,8 +118,10 @@ int Dispatcher_UpgradeGuildCargo::dispatch_sig(CUser* user, PacketBuf& packet)
     //   `add $0xa0; mov (%eax)` = 门控③d 取址 lowering，等价。）
     local_4ev.m_field1a = (unsigned int)local_20;
 
-    pCVar9 = GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    pCVar9->SendTcpPacket((char*)&local_4ev,
-                          (unsigned int)local_4ev.packetSize);
+    // [bughunt7] ORIG 0x08222db9 `movzwl -0x48(%ebp)` 读 pkt+2 的 PacketHeader::packetSize
+    //   （ctor 写 0x1e）；旧写 `local_4ev.packetSize` 被派生类 static const 0x14 遮蔽 ⇒
+    //   少发 0xa 字节（newCapacity/requiredFund 截断）。同 _debugCommandCargoCapacity 修法，链式 receiver。
+    GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())->SendTcpPacket(
+        (char*)&local_4ev, local_4ev.PacketHeader::packetSize);
     return 0;
 }

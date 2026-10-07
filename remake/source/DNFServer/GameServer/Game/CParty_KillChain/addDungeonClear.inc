@@ -21,8 +21,10 @@ bool CParty::addDungeonClear(const CDungeon* dungeon, int param, int slot)
     {
         // ORIG 0x085bde2d 先 call get_unique_id、0x085bde3a 后读记录（cmp %dx,%ax）
         // ⇒ 左操作数写 get_unique_id（求值序对齐；记录在左会把记录读提前到 call 前）。
-        if (static_cast<short>(m_member[slot].m_pUser->get_unique_id()) !=
-            m_gameResultSet.m_shot[i].m_count)
+        // [bughunt7] ORIG 0x085bde3f `cmp %dx,%ax` 为 16 位比较；旧写 static_cast<short>
+        // 使 uid 符号扩展、记录零扩展，uid>=0x8000 时永不相等 ⇒ 漏记通关。
+        if (static_cast<unsigned short>(m_member[slot].m_pUser->get_unique_id()) !=
+            static_cast<unsigned short>(m_gameResultSet.m_shot[i].m_count))
             continue;
 
         // P251：ORIG 0x085bde5f `cmp $1,%eax; je; cmp $2,%eax; je;
