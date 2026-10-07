@@ -22,7 +22,7 @@ void CDailyScheduleManager::CheckAndSendToUserSchedule(CUser* user, bool flag)
     int state;                     // -0xc
 
     count = m_schedules.size();
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
     {
         int n1 = 0;
         for (unsigned int k = 0; k < count; ++k)

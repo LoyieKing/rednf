@@ -16,7 +16,7 @@ void UserQuest::get_quest_info(char* buf) const
     //   P329 已核全内联无具名局部可删 ⇒ 无新旋钮，维持（新=DIFF 136/136 gap=0,
     //   blocks=5）。
     stSelectQuestParam selectParam(m_user);
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
     cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
         "[DNF-DIAG QPARAM] job=%d grow=%d/%d lv=%d pvp=%d side=%d expert=%d/%d tg_npc=%d tg_q=%d tg_oq=%d tg_open=%d",
         selectParam.m_job, selectParam.m_firstGrow, selectParam.m_secondGrow,
@@ -55,7 +55,7 @@ void UserQuest::get_quest_info(char* buf) const
             goto L_skip;
         }
         ++count;
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
         {
             Quest* q = G_CDataManager()->m_questList->find_quest(questIdx);
             if (q)
@@ -76,7 +76,7 @@ void UserQuest::get_quest_info(char* buf) const
 
     pb->put_short(index, count);
     pb->finalize(true);
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
     cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
         "[DNF-DIAG QPKT] size=%d count=%d questCount=%d",
         pb->get_len(), count, selectParam.m_questCount);

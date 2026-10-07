@@ -108,7 +108,7 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
             {
                 if (m_pEquipSlot[slot].m_addInfo == 0)
                     continue;
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
                 cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
                     "[DNF-DIAG ITEMLIST] slot=%d id=%d found=%d cap=%d",
                     slot, m_pEquipSlot[slot].m_addInfo,

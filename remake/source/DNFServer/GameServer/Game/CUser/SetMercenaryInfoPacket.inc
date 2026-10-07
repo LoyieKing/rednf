@@ -8,7 +8,7 @@ void CUser::SetMercenaryInfoPacket(PacketGuard& packet)
     // b28d-lane5 复测（判据⑩ 声明序 = 槽深序）：ORIG 0x0868e70b/0x0868e712 在 `sub $0x24`
     //   后立即两条 `movl $0x0,-0x18/-0x14`（循环变量置 0 **在函数头**）⇒ remainSec/nameLen
     //   须在函数头带初值声明（原形声明在循环内 ⇒ 少两槽、leveledUp 槽 -0xd 漂到 -0x15）。
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
     cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
         "[DNF-DIAG MERC] SetMercenaryInfoPacket: m_characs.size()=%u manageLevel=%d managePoint=%d",
         (unsigned int)m_mercenaryMgr.m_characs.size(),

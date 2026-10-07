@@ -69,7 +69,7 @@ int CUser::InitOnAccept(int socketFd)
         G_Cipher()->GetOriginalKey(origKey);
         int totalKeyLen = G_Cipher()->GetTotalKeyLength();
         packet.put_binary((char*)origKey, totalKeyLen);
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
         {
             char hxs[3 * 64 + 1];
             hxs[0] = 0;

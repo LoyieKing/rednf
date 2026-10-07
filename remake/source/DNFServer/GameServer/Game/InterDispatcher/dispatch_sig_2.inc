@@ -249,10 +249,6 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
         user->setRegDate(pInfo->m_regDate);
         user->setRegTime(pInfo->m_regTime);
-        cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
-            "[DNF-DIAG LOGINCHAR] acc=%d characCount=%d slot0_no=%d",
-            pInfo->m_accId, pInfo->m_characCount,
-            pInfo->m_characCount > 0 ? reinterpret_cast<CHARAC_DATA*>(pInfo->m_characData)->m_characNo : 0);
         if (0 < pInfo->m_characCount)
         {
             user->SetCharacInfo(pInfo->m_characCount, pInfo->m_characData);
@@ -693,10 +689,6 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
         user->loadInformNoticeFlag(pInfo->m_informNoticeBuf);
         user->ValidateStrikerInfo();
         user->CalcurateManageLevel();
-        cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
-            "[DNF-DIAG LOGINCHAR] after manageLevel=%d managePoint=%d characList=%u",
-            user->GetManageLevel(), user->GetManagePoint(),
-            (unsigned)user->get_charac_count());
         user->CalcurateUserMaxLevel();
         user->SetBingoData(*pInfo);
         user->initBingoData();

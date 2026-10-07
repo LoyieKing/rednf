@@ -12,7 +12,7 @@ bool CUser::Send(PacketGuard& packet)   // b28c-L5 SIGFIX：ORIG 串 bool；
     //    直传）、0x08648658 `cmp $0x6,%al; setne %al; test %al,%al; je`（b 直判）
     //    ⇒ 删具名 area/b，全部实参内联。
     PacketBuf* pBuf = ((InterfacePacketBuf*)&packet)->get();
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
     if (pBuf->is_finallized())
     {
         const unsigned char* hp =

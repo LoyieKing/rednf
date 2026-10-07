@@ -17,7 +17,7 @@ void CUser::send_clear_quest_list()
                 if (first < 0) first = i;
             }
         }
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
         cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
             "[DNF-DIAG QCLEAR] nz=%d first=%d", nz, first);
 #endif

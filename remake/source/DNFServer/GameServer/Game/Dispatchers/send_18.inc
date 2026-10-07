@@ -7,7 +7,7 @@ void Dispatcher_Mercenary_Info::send(CUser* user, ParamBase& param)
     guard.put_byte(1);
     user->SetMercenaryInfoPacket(guard);
     guard.finalize(true);
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
     {
         int blen = guard.get_len();
         const unsigned char* bp = reinterpret_cast<const unsigned char*>(guard.get_packet(0));

@@ -8,7 +8,7 @@ void CAchievement::sendList()
     PacketGuard packet;
     packet.put_header(0, 0x166);
     packet.put_int(data.m_count);
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
     cMyTrace(__PRETTY_FUNCTION__, 0, 5)("[DNF-DIAG ACH] count=%d", data.m_count);
 #endif
     for (int i = 0; i < data.m_count; ++i)

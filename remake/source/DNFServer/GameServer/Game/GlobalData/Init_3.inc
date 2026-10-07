@@ -535,7 +535,7 @@ bool GlobalData::Init()
             key[i] = (unsigned char)(rand() % 256);
         }
         G_Cipher()->Initialize(key, keyLen);
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
     {
         char hxk[3 * 336 + 1];
         hxk[0] = 0;

@@ -27,7 +27,7 @@ void CTitleBook::_sendCategoryData(CUser* user, unsigned short extra,
         }
     }
     packet.put_int(count);
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
     cMyTrace(__PRETTY_FUNCTION__, 0, 5)("[DNF-DIAG TITLE] cat=%d count=%d type=%d extra=%u",
         (int)category, count, (int)type, (unsigned)extra);
 #endif

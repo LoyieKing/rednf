@@ -83,7 +83,7 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
         {
             continue;
         }
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
         cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
             "[DNF-DIAG EQUIPLIST] slot=%d id=%d found=%d flag=%d ui=%d",
             slotNo, slots[i].m_addInfo,

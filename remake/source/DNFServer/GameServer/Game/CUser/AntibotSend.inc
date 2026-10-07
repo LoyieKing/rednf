@@ -26,7 +26,7 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
     bool encReq = packet.isEncryptRequired() &&
         ((VerifyFn)(*(VerifyFn**)GlobalData::s_antibotChecker_)[0x34 / 4])(
             GlobalData::s_antibotChecker_, getAntibotKey(), packetId) != 0;
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
     cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
         "[DNF-DIAG ENC] id=%u encReq=%d need=%d len=%d",
         (unsigned)packetId, (int)encReq, (int)packet.isEncryptRequired(),
@@ -72,7 +72,7 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
         }
         else
         {
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
             cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
                 "[DNF-DIAG 561] id=%u in=%d outLen=%d",
                 (unsigned)packetId, packet.get_len(), outLen);
@@ -117,7 +117,7 @@ bool CUser::AntibotSend(PacketBuf& packet)   // b28c-L5 SIGFIX：ORIG rodata 串
             data = sendBuf.get_packet(0);
             len = sendBuf.get_len();
             sendBuf.encFinalize();
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
             cMyTrace(__PRETTY_FUNCTION__, 0, 5)(
                 "[DNF-DIAG GCI] id=%u afterEnc=%d", (unsigned)packetId, len);
 #endif

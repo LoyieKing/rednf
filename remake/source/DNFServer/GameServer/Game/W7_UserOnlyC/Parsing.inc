@@ -78,7 +78,7 @@ bool CUser::Parsing(int received)
                 "Recv Size[%d], Parsing Packet Size[%d], recvbuf_offset[%d] is Too Large",
                 received, static_cast<int>(size),
                 reinterpret_cast<int>(m_network.m_recvBuf));
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
             cMyTrace(__PRETTY_FUNCTION__, 0x7f0, 5)(
                 "[DNF-DIAG PARSING-RET] site=1 size-too-large size=%d remain=%d id=%d",
                 static_cast<int>(size), remain, static_cast<int>(hdr.m_id));
@@ -104,7 +104,7 @@ bool CUser::Parsing(int received)
                 static_cast<int>(hdr.m_seq), NumberToString(get_acc_id(), 0));
             if (verdict != 4)
             {
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
                 cMyTrace(__PRETTY_FUNCTION__, 0x7f1, 5)(
                     "[DNF-DIAG PARSING-RET] site=2 verifier verdict=%d id=%d seq=%d",
                     verdict, static_cast<int>(hdr.m_id), static_cast<int>(hdr.m_seq));
@@ -122,7 +122,7 @@ bool CUser::Parsing(int received)
             {
                 unsigned char decrypted[0x578];
                 int outLen = 0x578;
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
                 unsigned char rawSave[64];   // [DNF-DIAG] 解密前的密文（前 64B）
                 for (int k = 0; k < 64; ++k)
                     rawSave[k] = (13 + k < size) ? m_network.m_recvBuf[13 + k] : 0;
@@ -135,7 +135,7 @@ bool CUser::Parsing(int received)
                 if (outLen > 0)
                     std::memcpy(m_network.m_recvBuf + 13, decrypted, outLen);
 
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
                 {
                     // [DNF-DIAG 2026-09-19] 整包原始字节（含我方解密结果）
                     const int n = size < 64 ? size : 64;
@@ -179,7 +179,7 @@ bool CUser::Parsing(int received)
                 _NS_PI_2ND_MakeChecksumTo1Byte2(crc, hdr.m_checksum);
                 if (hdr.m_checksum != crc)
                 {
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
                     {
                         // [DNF-DIAG TRY2] 折叠后低字节比较（上一版拿 32 位比 1 字节 ⇒ 无效）
                         const unsigned int want =
@@ -205,7 +205,7 @@ bool CUser::Parsing(int received)
                         }
                     }
 #endif
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
                     // [DNF-DIAG 2026-09-19] 临时诊断（只在失败时打印）：
                     //   size = 我们用来算校验和的长度；hdr.m_size = 包头自带长度；
                     //   crc = 我们算出的值；hdr.m_checksum = 客户端带来的值；
@@ -255,7 +255,7 @@ bool CUser::Parsing(int received)
                     return false;
 #endif
                 }
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
                 else
                 {
                     // [DNF-DIAG 2026-09-19] 正向证据：该包校验和与客户端一致。
@@ -326,7 +326,7 @@ bool CUser::Parsing(int received)
                     "[PARSING EXCEPTION] memmove : parsinglength = %d", remain);
                 return false;
             }
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
             cMyTrace(__PRETTY_FUNCTION__, 0x7f2, 5)(
                 "[DNF-DIAG PARSING-RET] site=3 parsing-length-exception remain=%d",
                 remain);

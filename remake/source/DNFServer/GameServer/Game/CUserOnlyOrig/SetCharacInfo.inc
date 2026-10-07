@@ -119,7 +119,7 @@ void CUser::SetCharacInfo(int count, char* data)
             info.m_tagVisibleFlags.m_flag = static_cast<unsigned char>(
                 (info.m_tagVisibleFlags.m_flag & 0xfd) |
                 (((static_cast<unsigned char>(rec->m_restHead[0]) >> 4) & 1) * 2));
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
             cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
                 "[DNF-DIAG CHARINFO] no=%d flag=%d pad1240=%d rest0=%02x",
                 info.m_characNo,

@@ -1,7 +1,7 @@
 // b28d-lane5 N封顶: N97/P230 cmov; P11 符号扩展; P11 反向符号扩展; N18a/P200 拓宽中轉; P168a/P248 setcc 物化方向; N82/P112 槽号分配 | ORIG 0x0865a44e | _ZN5CUser15make_basic_infoEPcc
 bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串 bool）
 {
-#if !remake_verify
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
     LogManager::logFormat(1, "user.cpp", __PRETTY_FUNCTION__, 0x73a,
         "[DNF-DIAG MAKEBASIC] type=%d list=%u",
         (int)type, (unsigned)m_characList.size());
@@ -321,7 +321,7 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
     {
         #define DIAG_CHARLIST_FIRST_ONLY 0  /* TEMP bisect; remove after test */
         // ORIG 0x0865be31：lock + 槽位/管理值 + 循环 vector[] 位移 + MakeEquipList(+0xda)
-        #if !remake_verify
+        #if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
         cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
             "[DNF-DIAG CHARLIST] ENTER type2 list=%u", (unsigned)m_characList.size());
         #endif
@@ -346,7 +346,7 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             for (int k = 0; k < 32; ++k) name[k] = 0;
             for (int k = 0; k < 30; ++k) name[k] = ch.m_name[k];
             const int nlen = (int)strlen(name);
-            #if !remake_verify
+            #if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
             cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
                 "[DNF-DIAG CHARLIST] add i=%d nlen=%d job=%d lv=%d",
                 i, nlen, (int)(signed char)ch.m_job, (int)ch.m_level);
@@ -374,7 +374,7 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
                 pkt.put_byte(8);
             else
                 pkt.put_byte(ch.m_ghost != 0 ? 4 : 0);
-            #if !remake_verify
+            #if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
             cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
                 "[DNF-DIAG CHARLIST] before equip i=%d", i);
             #endif
@@ -382,7 +382,7 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             // 空装备段(count=0)客户端不画槽。
             ch.m_curCharacInven.MakeEquipList(
                 &pg, false, (ENUM_USERINFO)2, (ENUM_EQUIPSLOT)0);
-            #if !remake_verify
+            #if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
             cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
                 "[DNF-DIAG CHARLIST] after equip i=%d", i);
             #endif
@@ -392,7 +392,7 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             pkt.put_byte((int)IsPermissionPrivateStore());
             pkt.put_byte(isAffectedPremium((ENUM_PREMIUM_TYPE)0xc) ? 1 : 0);
             pkt.put_int(GetPCRoomNo());
-            #if !remake_verify
+            #if !remake_verify && defined(DNF_DIAG) && DNF_DIAG  // remake-only diag; off unless -DDNF_DIAG=1
 
             cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
 
@@ -448,36 +448,6 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
 #endif
         }
         pkt.put_short(countIdx, written);
-        {
-            const int idx = pkt.get_index();
-            const unsigned char* b =
-                (const unsigned char*)pkt.get_packet(0);
-            char hx[1600];
-            hx[0] = 0;
-            int n = idx < 512 ? idx : 512;
-            for (int k = 0; k < n; ++k)
-            {
-                char t[4];
-                t[0] = "0123456789abcdef"[(b[k] >> 4) & 0xf];
-                t[1] = "0123456789abcdef"[b[k] & 0xf];
-                t[2] = ' ';
-                t[3] = 0;
-                for (int j = 0; j < 3; ++j) hx[k * 3 + j] = t[j];
-            }
-            hx[n * 3] = 0;
-            {
-                FILE* df = fopen("/tmp/charlist_dump.bin", "wb");
-                if (df) {
-                    fwrite(b, 1, (size_t)idx, df);
-                    fclose(df);
-                }
-            }
-            #if !remake_verify
-            cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
-                "[DNF-DIAG CHARLIST] LEAVE written=%d idx=%d err=%d hex=%s",
-                written, idx, (int)pkt.getLastError(), hx);
-            #endif
-        }
         unlock();
     }
     else if (type == 3)
