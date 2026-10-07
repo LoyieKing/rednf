@@ -92,9 +92,12 @@ bool DB_DeathTowerLoadTopRanker::dispatch(int userIdx, int slot, Stream* stream)
                 if (!db->get_ushort(
                         1, out->m_rows[k].m_towerIndex))
                     return 0;
+                // [bughunt17] ORIG 0x0842a7b0..0x0842a7de: len = rank(-0x18) * 0x17
+                //   (`imul $0x17`), i.e. member_info_N holds N party members x 0x17.
+                //   The old literal 0x17 only copied the first member's info.
                 if (!db->get_binary(
                         2, out->m_rows[k].m_memberInfo,
-                        0x17))
+                        (int)(rank * 0x17)))
                     return 0;
                 if (!db->get_uint(
                         3, out->m_rows[k].m_stage))

@@ -322,17 +322,23 @@ struct SIG_DEATH_TOWER_GET_BEST_RECORD
 // [Lane31W8LTDBTaskView] 头部字段化：ORIG DB_DeathTowerLoadTopRanker::dispatch
 // 0x0842a6?? 写 +0x00 count=0 / +0x04 flag=reload；行区（+0xfa0/+0x1000，
 // 步长 0x6c）按显式偏移视图访问。
+// [bughunt17] Row layout corrected to ORIG. ORIG 0x0842a777..0x0842a87b writes record k at
+//   towerIndex +0xfac, type +0xfae, member_info +0xfb0 (len rank*0x17, up to 0x5c),
+//   stage +0x100c, play_time +0x1010 (all + k*0x6c). The consumer
+//   Inter_DeathTowerLoadTopRanker::dispatch_sig (ORIG 0x084d3364) reads +0xfac/+0xfae/
+//   +0xfb0/+0x100c/+0x1010 the same way. So a record starts at +0xfac (not +0xfa0), and
+//   stage/play_time sit at record+0x60/+0x64. The old view put them at +0x1000/+0x1004, so
+//   the consumer read the next record's tower/type/member bytes as stage/play_time.
+//   sizeof is unchanged (0x35b68): 1999 full records + 0x68 tail (max rows 20*0x5f=1900).
 #pragma pack(push, 1)
 struct SIG_DEATH_TOWER_RANKER_ROW
 {
-    char m_pad0[0xc];
-    unsigned short m_towerIndex;
-    unsigned short m_type;
-    char m_memberInfo[0x17];
-    char m_pad27[0x39];
-    unsigned int m_stage;
-    unsigned int m_playTime;
-    char m_pad68[4];
+    unsigned short m_towerIndex;      // +0x00 (abs +0xfac)
+    unsigned short m_type;            // +0x02 (abs +0xfae)
+    char m_memberInfo[0x5c];          // +0x04 (abs +0xfb0, 4 x 0x17)
+    unsigned int m_stage;             // +0x60 (abs +0x100c)
+    unsigned int m_playTime;          // +0x64 (abs +0x1010)
+    char m_pad68[4];                  // +0x68
 };
 struct SIG_DEATH_TOWER_LOAD_TOP_RANKER
 {
@@ -340,10 +346,14 @@ struct SIG_DEATH_TOWER_LOAD_TOP_RANKER
     unsigned char m_flag;
     char m_pad05;
     unsigned short m_ranks[0x7cd];
-    SIG_DEATH_TOWER_RANKER_ROW m_rows[2000];
-    char m_tail[8];
+    char m_padFA0[0xc];               // +0xfa0
+    SIG_DEATH_TOWER_RANKER_ROW m_rows[1999];  // +0xfac, stride 0x6c
+    char m_tail[0x68];
 };
 #pragma pack(pop)
+static_assert(sizeof(SIG_DEATH_TOWER_RANKER_ROW) == 0x6c, "ranker row stride");
+static_assert(__builtin_offsetof(SIG_DEATH_TOWER_LOAD_TOP_RANKER, m_rows) == 0xfac,
+              "ranker rows base (ORIG +0xfac)");
 
 static_assert(sizeof(SIG_DEATH_TOWER_GET_BEST_RECORD) == 0x878,
               "SIG_DEATH_TOWER_GET_BEST_RECORD ABI drift");
