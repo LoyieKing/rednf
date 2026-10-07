@@ -412,7 +412,25 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
             if (ch.m_pad83 == 0)
                 pkt.put_int(0);
             else if (ch.m_field84 < 1)
+            {
                 pkt.put_int(0);
+                // [bughunt5] ORIG 0x0865c462..0x0865c5b3：禁玩期限已到 ⇒ 清内存标志
+                // (+0x83=0、+0x84=0) 并发 DB 信号 0x93（SIG_FORBID_USER_TO_PLAY：
+                // characNo/flag=0/days=0 ⇒ DB_ForbidUserToPlay 置 forbidden_to_play=0），
+                // StreamPool::Acquire("user.cpp",0x344c)，MsgQueueMgr 队列 2。
+                ch.m_pad83 = 0;
+                ch.m_field84 = 0;
+                CStreamGuard guard(GlobalData::s_stream_pool->Acquire("user.cpp", 0x344c), true);
+                **guard << 0x93;
+                **guard << (int)GetUID();
+                SIG_FORBID_USER_TO_PLAY* sig =
+                    guard->GetInBuffer<SIG_FORBID_USER_TO_PLAY>();
+                memset(sig, 0, 9);
+                sig->m_characNo = m_characList[i].m_characNo;
+                sig->m_flag = 0;
+                sig->m_days = 0;
+                GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
+            }
             else
             {
                 int days = ch.m_field84 / 0x15180;
