@@ -10,20 +10,6 @@
 int DisPatcher_BuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 
 {
-    {
-        const MSG_BUY_ITEM& _diag = *reinterpret_cast<const MSG_BUY_ITEM*>(&msg);
-        FILE* _sf = fopen("/tmp/shop_diag.log", "a");
-        if (_sf) {
-            fprintf(_sf,
-                "[SHOP_DIAG] BuyItem enter itemIdx=%lu buyCount=%u deliveryType=%u state=%d\n",
-                (unsigned long)_diag.m_itemIdx,
-                (unsigned)_diag.m_buyCount,
-                (unsigned)_diag.m_deliveryType,
-                (int)user->get_state());
-            fflush(_sf);
-            fclose(_sf);
-        }
-    }
     int errNo = check_error(user, msg);
     if (errNo > 0)
     {

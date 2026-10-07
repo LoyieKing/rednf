@@ -1375,10 +1375,14 @@ struct SIG_VALUE_STATISTIC
 static_assert(sizeof(SIG_VALUE_STATISTIC) == 0x80,
               "SIG_VALUE_STATISTIC ABI drift");
 // stAchievement_DBSaveData 权威定义见 CAchievement.h（此处不重复）
+// [bughunt5] ORIG 0x840dca6/0x840de4c 读 charac_no 于 +0x6b3a（未对齐）；
+// 须 pack(1)，与 CTitleBook.cpp 的同名定义一致（否则 +0x6b3c 错位）。
+#pragma pack(push, 1)
 struct stTitleBook_Save
 {
     char m_data[0x6b3a];   // +0x00
     int  m_characNo;       // +0x6b3a
 };
+#pragma pack(pop)
 
 #endif  // DNF_GAME_SIG_TYPES_E_H_

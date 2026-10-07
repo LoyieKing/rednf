@@ -230,7 +230,10 @@ int DisPatcher_Login::dispatch_sig(CUser* user, PacketBuf& packet)
     user->set_local_ip_address(localIp);
 
     unsigned char logInOutState = 0;
-    packet.get_byte(logInOutState);
+    // [bughunt5] ORIG 0x081e9a51..0x081e9a5d：get_byte 失败 → movb $0x0,-0xa9(%ebp)
+    // （失败时显式归零后再 SetLogInOutState）。
+    if (!packet.get_byte(logInOutState))
+        logInOutState = 0;
     user->SetLogInOutState(logInOutState);
 
     // P48/P0：ORIG 本区两个独立 getGarenaAuthData 求值点（getUid / getTimeStamp 各一）。
