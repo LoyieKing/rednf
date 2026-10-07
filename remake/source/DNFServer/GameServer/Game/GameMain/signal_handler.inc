@@ -74,6 +74,8 @@ void signal_handler(int sig)
 	case 26:
 	case 27:
 	case 28:
+	case 29:  // [DNF-FIX 2026-10-08 c23] ORIG 0x0829f28b jump table 0x8c184b8: 29/30 -> default (no-op)
+	case 30:
 		break;
 	case 4:
     case 7:
@@ -81,8 +83,6 @@ void signal_handler(int sig)
     case 23:
     case 24:
     case 25:
-    case 29:
-    case 30:
     case 31:
         LogManager::logFormat(1, "App.cpp", __PRETTY_FUNCTION__,
                               0x2486,

@@ -54,21 +54,21 @@ int Dispatcher_MonstercardBind::process(CUser* user, MSG_BASE& msg,
     tmpInv.setCopy(*reinterpret_cast<const CInventory*>(
         user->getCurCharacInvenRefR()));
 
-    const bool delA = tmpInv.delete_item((INVEN_TYPE)1, m.m_0d, 1,
+    const bool delA = tmpInv.delete_item((INVEN_TYPE)1, (int)(short)m.m_0d, 1,  // [DNF-FIX 2026-10-08 c23] ORIG 0x081d8b0e.. movswl
                                          (eItemDelReason)0x2c, false);
     if (!delA)
     {
         res.m_4 = 0x11;
         return 0;
     }
-    const bool delB = tmpInv.delete_item((INVEN_TYPE)1, m.m_0f, 1,
+    const bool delB = tmpInv.delete_item((INVEN_TYPE)1, (int)(short)m.m_0f, 1,
                                          (eItemDelReason)0x2c, false);
     if (!delB)
     {
         res.m_4 = 0x11;
         return 0;
     }
-    const bool delC = tmpInv.delete_item((INVEN_TYPE)1, m.m_11, 1,
+    const bool delC = tmpInv.delete_item((INVEN_TYPE)1, (int)(short)m.m_11, 1,
                                          (eItemDelReason)0x2c, false);
     if (!delC)
     {
@@ -83,9 +83,10 @@ int Dispatcher_MonstercardBind::process(CUser* user, MSG_BASE& msg,
 
     // 真背包扣三张卡并插入绑定结果
     CInventory* invenW = user->getCurCharacInvenW();
-    invenW->delete_item((INVEN_TYPE)1, m.m_0d, 1, (eItemDelReason)0x2c, true);
-    invenW->delete_item((INVEN_TYPE)1, m.m_0f, 1, (eItemDelReason)0x2c, true);
-    invenW->delete_item((INVEN_TYPE)1, m.m_11, 1, (eItemDelReason)0x2c, true);
+    // [DNF-FIX 2026-10-08 c23] ORIG 0x081d8c57/0x081d8c8e/0x081d8cc5: slot movswl
+    invenW->delete_item((INVEN_TYPE)1, (int)(short)m.m_0d, 1, (eItemDelReason)0x2c, true);
+    invenW->delete_item((INVEN_TYPE)1, (int)(short)m.m_0f, 1, (eItemDelReason)0x2c, true);
+    invenW->delete_item((INVEN_TYPE)1, (int)(short)m.m_11, 1, (eItemDelReason)0x2c, true);
 
     std::vector<int> outSlots;
     outSlots.clear();   // ORIG 0x081d8cdb：构造后显式 clear

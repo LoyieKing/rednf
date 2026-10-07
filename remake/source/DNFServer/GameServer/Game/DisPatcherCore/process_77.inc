@@ -132,8 +132,9 @@ int Dispather_RegenerationRandomOption::process(CUser* user, MSG_BASE& msg,
             return 0;
         }
     }
-    user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, (int)req.m_equipSlot0);
-    user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, (int)req.m_equipSlot1);
+    // [DNF-FIX 2026-10-08 c23] ORIG 0x081d70e7/0x081d710e: slot movswl
+    user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, (int)(short)req.m_equipSlot0);
+    user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)0, (int)(short)req.m_equipSlot1);
     newItem.m_field0 = allSealable ? 1 : 0;   // ORIG CONCAT31 低字节 ← local_36
     newItem.SetReSealCount(reSealCount);
     int insertedSlot = user->getCurCharacInvenW()->insertItemIntoInventory(
