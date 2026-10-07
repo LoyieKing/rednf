@@ -76,8 +76,11 @@ void CParty::party_dungeon_fail()
             G_GameWorld()->out_from_dungeon(user);
             if (user->getMoveSpace() != (UserSpace::T)1)
             {
+                // [bughunt9] ORIG 0x085b3894..0x085b38bb：实参 = this->m_battleField.m_pDungeon
+                //   (+0xcac 重读) ->get_index() 原值 + `movl $0x0,0x8(%esp)`(false)。
+                //   旧写 `get_index() != 0, true` 把 bool 当副本号传入（恒减副本 1 的计数）。
                 GetInstanceDungeonEntranceLog()->DecrementDungeonEntrance(
-                    dungeon->get_index() != 0, true);
+                    m_battleField.m_pDungeon->get_index(), false);
             }
             if (user->getMoveSpace() == (UserSpace::T)1)
             {

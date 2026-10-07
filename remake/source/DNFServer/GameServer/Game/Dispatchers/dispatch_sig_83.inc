@@ -97,8 +97,12 @@ int Dispatcher_UpgradeChronicle::dispatch_sig(CUser* user, PacketBuf& packet)
 
     int start = 0;
     int end = 0;
-    inven->getStartEndPos(Inven_Item::ITEM_TYPE_EQUIP, start, end);
-    if (slotB < start || end < slotB)
+    // [bughunt9] ORIG 0x08223777 `movl $0x0,0x4(%esp)`：ITEM_TYPE_0（槽 [3,8]），
+    //   0x08223796 `jl ok` / 0x082237a4 `jg ok`，落空才 0x13 ⇒ 槽位落在 [3,8] 内才拒绝
+    //   （与 CItemUpgrade::ProcUpgrade 0x0854a39c 同形）。旧写 ITEM_TYPE_EQUIP + `||`
+    //   方向全反（只放行 [9,0x38]）。
+    inven->getStartEndPos((Inven_Item::ITEM_TYPE)0, start, end);
+    if (slotB >= start && slotB <= end)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x112, 0x13);
         return 0;

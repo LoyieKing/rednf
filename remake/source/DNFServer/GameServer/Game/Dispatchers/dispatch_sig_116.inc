@@ -122,8 +122,26 @@ int Dispatcher_UnsealRandomOption::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
 
-    user->m_historyLog.RandomOption(*item, randomOptionReason::T_REGENERATION);
-    if (paySlot == 0xffff)
+    // [bughunt9] ORIG 0x0822937b..0x08229535：give_option 成功后**无条件**先记
+    //   statistc_proxy::add("log_random_option","unseal_cnt",1,...)（0x082293c2），
+    //   再 RandomOption(*item, 0)（0x082293d0 `movl $0x0,0x8(%esp)`，非 T_REGENERATION=1），
+    //   然后才按 paySlot 分支：卷轴 use_item+SendUpdateItem / 金币 "unseal_gold"+use_money。
+    //   旧写把 unseal_cnt 收进卷轴分支（金币解封漏记）且 reason 记成 1。
+    statistc_proxy::add(user, "log_random_option", "unseal_cnt", 1u,
+                        "%d,'%s'", user->get_charac_10_level_section(),
+                        GlobalData::s_systemTime_.getCurDate());
+    user->m_historyLog.RandomOption(*item, (randomOptionReason::T)0);
+    if (paySlot != 0xffff)
+    {
+        if (user->getCurCharacInvenW()->use_item((int)paySlot, 1, 1) != 0)
+        {
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x191, 0x16);
+            return 0;
+        }
+        user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
+                             (int)paySlot);
+    }
+    else
     {
         statistc_proxy::add(user, "log_random_option", "unseal_gold",
                             (unsigned int)found->second, "%d,'%s'",
@@ -135,19 +153,6 @@ int Dispatcher_UnsealRandomOption::dispatch_sig(CUser* user, PacketBuf& packet)
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x191, 10);
             return 0;
         }
-    }
-    else
-    {
-        statistc_proxy::add(user, "log_random_option", "unseal_cnt", 1u,
-                            "%d,'%s'", user->get_charac_10_level_section(),
-                            GlobalData::s_systemTime_.getCurDate());
-        if (user->getCurCharacInvenW()->use_item((int)paySlot, 1, 1) != 0)
-        {
-            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x191, 0x16);
-            return 0;
-        }
-        user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
-                             (int)paySlot);
     }
 
     user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0, 0);
