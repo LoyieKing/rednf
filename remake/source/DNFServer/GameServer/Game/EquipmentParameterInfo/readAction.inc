@@ -905,7 +905,10 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(19.0f);
         // 3 个具名 float（ORIG -0x9dc/-0x9e0/-0x9e4）先物化，末尾连续 3 次 push_backERKf。
-        if (!ScanStr(&token)) return false;
+        // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x089a4f2b: ScanStr result not tested (next insn
+        //   is `lea token` -> getCharacterJobToEnumValue); old `return false` aborted
+        //   the whole action on a missing job token.
+        ScanStr(&token);
         float f1 = (float)getCharacterJobToEnumValue(token);
         if (!ScanInt(&iv)) return false;
         float f2 = (float)iv;
@@ -926,7 +929,10 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         }
     {
         values.push_back(20.0f);
-        if (!ScanStr(&token)) return false;
+        // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x089a508b: ScanStr result not tested (next insn
+        //   is `lea token` -> getCharacterJobToEnumValue); old `return false` aborted
+        //   the whole action on a missing job token.
+        ScanStr(&token);
         // ORIG 0x89a5090..0x89a51a9：4 个具名 float 槽（-0x9e8/-0x9ec/-0x9f0/-0x9f4）
         // 先全部物化，末尾 4 次 push_backERKf；且只有 3 次 ScanInt（旧实现多 1 次）。
         float f1 = (float)getCharacterJobToEnumValue(token);
@@ -953,7 +959,10 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
     {
         values.push_back(21.0f);
         // 2 个具名 float（ORIG -0x9f8/-0x9fc）先物化，末尾连续 2 次 push_backERKf。
-        if (!ScanStr(&token)) return false;
+        // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x089a5237: ScanStr result not tested (next insn
+        //   is `lea token` -> getCharacterJobToEnumValue); old `return false` aborted
+        //   the whole action on a missing job token.
+        ScanStr(&token);
         float f1 = (float)getCharacterJobToEnumValue(token);
         if (!ScanInt(&iv)) return false;
         float f2 = (float)iv;
@@ -1205,7 +1214,10 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         }
     {
         values.push_back(47.0f);
-        if (!ScanStr(&token)) return false;
+        // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x089a6106: ScanStr result not tested (next insn
+        //   is `lea token` -> getCharacterJobToEnumValue); old `return false` aborted
+        //   the whole action on a missing job token.
+        ScanStr(&token);
         values.push_back((float)getCharacterJobToEnumValue(token));
         // ORIG 0x89a6140..0x89a617a：具名 float 槽 -0xa44（0.0f 初始化）承 ScanFloat。
         float f = 0.0f;

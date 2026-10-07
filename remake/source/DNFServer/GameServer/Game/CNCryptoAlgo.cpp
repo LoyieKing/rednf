@@ -3396,23 +3396,39 @@ static void encrypt(ulong32* p, int N, ulong32* uk)
    }
 }
 
+// [DNF-FIX-AUDIT 2026-10-07] ORIG _ZL7decryptPmiS_ 0x080b4a49 is the older LibTomCrypt
+//   form, not the current libtomcrypt one that was here:
+//   0x080b4a52 `t = (N & 1) ? 0 : 4`; 0x080b4a6e `switch (n > 3 ? 4 : 0)` over the
+//   0x08b1f414 jump table (case 0 = return, case 4..1 fall through pi4/pi3/pi2/pi1).
+//   The live caller always passes N=128 (CNCryptoMulti2::Initialize 0x0809b1ab
+//   `movl $0x80` -> multi2_setup), so output is unchanged; this only restores the ORIG
+//   form (same as OnlyOrigBatch14 decrypt).
 static void decrypt(ulong32* p, int N, ulong32* uk)
 {
-   int n, t;
-
-   for (t = 4 * (((N - 1) >> 2) & 1), n = N; ; )
+   int n;
+   int t = ((N & 1) == 0) ? 4 : 0;
+   n = N;
+   for (;;)
    {
-      switch (n <= 4 ? n : ((n - 1) % 4) + 1)
+      switch (n > 3 ? 4 : 0)
       {
-      case 4: pi4(p, uk + t); --n;   /* FALLTHROUGH */
-      case 3: pi3(p, uk + t); --n;   /* FALLTHROUGH */
-      case 2: pi2(p, uk + t); --n;   /* FALLTHROUGH */
-      case 1: pi1(p); --n; break;
-      case 0: goto s_decrypt_done;
+      case 0:
+         return;
+      case 4:
+         pi4(p, uk + t);
+         --n;
+      case 3:
+         pi3(p, uk + t);
+         --n;
+      case 2:
+         pi2(p, uk + t);
+         --n;
+      case 1:
+         pi1(p);
+         --n;
       }
       t ^= 4;
    }
-s_decrypt_done: ;
 }
 
 

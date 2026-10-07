@@ -65,12 +65,17 @@ scan_top:
                 goto scan_done;
             for (int i = 0; i < count; )
             {
+                // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x08918a5a/0x08918a81: a failed k/v
+                //   ScanInt jumps to 0x08918aef `jmp 0x08918800` (back to the ScanType
+                //   loop top), i.e. break out of the row loop and keep parsing. The old
+                //   `goto scan_done` (return 0) dropped every section after a bad
+                //   [quiz value] row.
                 int k = ScanInt(&ok);
                 if (!ok)
-                    goto scan_done;
+                    break;
                 int v = ScanInt(&ok);
                 if (!ok)
-                    goto scan_done;
+                    break;
                 out.m_map0.insert(std::make_pair(k, v));
                 ++i;
             }

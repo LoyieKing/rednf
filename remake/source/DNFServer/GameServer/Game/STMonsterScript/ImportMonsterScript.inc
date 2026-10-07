@@ -2910,15 +2910,15 @@ case 0xeda:  // "[atk super on scr]"（收集父 case；ORIG asm 08a1c823 / C �
                     if (!ok)
                         break;   // asm 08a1c8b1：首 ScanInt 失败退出收集
                     elem.m_field04 = v;   // 存 +4（asm mov -0x1b10）
-                    if (ScanStr(&token))
-                    {
-                        if (token == "[breakable]")
-                            elem.m_field00 = 0xd;
-                        else if (token == "[half]")
-                            elem.m_field00 = 0xe;
-                        else if (token == "[unbreakable]")
-                            elem.m_field00 = 0xf;
-                    }
+                    // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x08a1c8c2: ScanStr result is not tested;
+                    //   0x08a1c8c7 goes straight to the "[breakable]" compare.
+                    ScanStr(&token);
+                    if (token == "[breakable]")
+                        elem.m_field00 = 0xd;
+                    else if (token == "[half]")
+                        elem.m_field00 = 0xe;
+                    else if (token == "[unbreakable]")
+                        elem.m_field00 = 0xf;
                     elem.m_field08 = ScanInt(&ok);
                     elem.m_field0c = ScanInt(&ok);
                     elem.m_field10 = ScanInt(&ok);

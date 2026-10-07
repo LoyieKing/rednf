@@ -2612,12 +2612,14 @@ break;
                 else
                 {
     {
-        int v = ScanInt(&ok);
+        // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x089b7258..0x089b7273: `cmp $1; setne;
+        //   mov %dl,0x104(script)` happens before ok is tested, so the field is
+        //   written even when the parse then fails.
+        script->m_field104 = static_cast<char>(ScanInt(&ok) != 1);
         if (!ok)
         {
             return false;
         }
-        script->m_field104 = static_cast<char>(v != 1);
     }
     break;
                 }

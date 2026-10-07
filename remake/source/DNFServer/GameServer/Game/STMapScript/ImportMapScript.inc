@@ -1094,9 +1094,14 @@ bool ImportMapScript(STMapScript* script, const char* path)
         }
         if (tok == "[heroes mode map index]")               // 0x089e0435
         {
-            script->m_maxMonsterDropException = ScanInt(&ok);   // +0x284 直存
+            // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x089e045d..0x089e047e: result goes to
+            //   okInt(-0x438), ok is tested (0x089e046f jne -> loop exit) and only then
+            //   `mov %edx,0x284(%eax)`. The old direct store wrote the failed ScanInt
+            //   value into +0x284 before breaking out.
+            okInt = ScanInt(&ok);
             if (!ok)
                 break;                                      // 0x34fb → 主循环出口
+            script->m_maxMonsterDropException = okInt;      // +0x284
             continue;
         }
         if (tok == "[monster team]")                        // 0x089e049f 区
