@@ -144,7 +144,8 @@ __attribute__((weak)) competition_reward_result::competition_reward_result() thr
 
 #include "LinkMiscSecuTimerSolo/SendNotiSetDurability_1.inc"
 {
-    SendNotiSetDurability(static_cast<int>(m_durCurrent * 100.0));
+    // [bughunt13] ORIG 0x082f85b7 `fldl 0x8c1fc58` = 1000.0（与 (CUser*) 重载同常量；旧码 100.0 误）。
+    SendNotiSetDurability(static_cast<int>(m_durCurrent * 1000.0));
 }
 
 // ===========================================================================

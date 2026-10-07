@@ -47,10 +47,12 @@ void Secu_DungeonAverageCheck::setKillMonsterInfo(const MSG_MONSTER_DIE* info,
                 // [P2S5] ORIG 0x082795f6/0x08279648/0x0827969c/0x082796ef 用
                 // `fistpll`（64 位）+ `mov -0x68(%ebp),%eax; mov -0x64(%ebp),%edx`
                 // ⇒ 原码是 double→unsigned 直转（非经 (int)，fistpl 为 32 位形）。
-                unsigned int upper1 = (unsigned int)(0.5f + avg1 + adj1);
+                // [bughunt13] ORIG 0x08279660 `flds avg; fadds adj; flds 0.5; faddp` ⇒ (avg+adj)+0.5f
+                //   （旧码 (0.5f+avg)+adj 结合序反，扩展精度舍入路径不同）。
+                unsigned int upper1 = (unsigned int)(avg1 + adj1 + 0.5f);
                 unsigned int lower1 = (unsigned int)(avg1 - adj1);
                 float adj2 = 0.05f * avg2;
-                unsigned int upper2 = (unsigned int)(0.5f + avg2 + adj2);
+                unsigned int upper2 = (unsigned int)(avg2 + adj2 + 0.5f);  // ORIG 0x082796a6 同上
                 unsigned int lower2 = (unsigned int)(avg2 - adj2);
 
                 if (m_party->m_mapHitCount > 0 &&

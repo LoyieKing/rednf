@@ -2670,7 +2670,7 @@ struct channel_info_t
     std::string m_dungeonName;      // +0x08（脚本内 dungeon 分类名，"[none]" 表示无）
     std::string m_dungeonKey;       // +0x0c（命中分类后复制的键名副本）
     std::vector<int>* m_pBonusRates;  // +0x10（别名指向 channel_dungeon_info_t::m_intList）
-    unsigned char m_bonusRate;      // +0x14（getBonusRate 以 /1000.0f 转 float）
+    unsigned char m_bonusRate;      // +0x14（getBonusRate 以 /100.0f 转 float）
     // op= 0x088dd3c6 对 +0x18..+0x40 发 src 缓存 %edx + %ecx 中转的整块 dword 拷贝
     // （结构赋值形）⇒ 双视图：数组名供消费点下标访问，块视图供整体赋值（P246）。
     struct GridPercentBlock { float m_v[10]; };

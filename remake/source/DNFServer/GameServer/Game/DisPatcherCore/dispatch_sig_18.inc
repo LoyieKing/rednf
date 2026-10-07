@@ -49,7 +49,7 @@
 //    addServerHackCnt 之前算好；原写法 %10000 在 call 之后重读内存）。
 //  - 疲劳比率区改为 if/else 两分支各自内联（ORIG 0x081f5202/0x081f526b），
 //    消除 bool 槽 + double ratioDelta 局部；常量实证 .rodata 0x8bd6320=0.5 /
-//    0x8bd6328=0.8 / 0x8bd6354=100.0f / 0x8bd6358=99.98f。
+//    0x8bd6328=0.8 / 0x8bd6354=100.0f / 0x8bd6358=99.99f（[bughunt13] 位型 0x42c7fae1，旧注/码 99.98f 误）。
 // 残差 = N129/N78 带 223 条（0x081f5489..0x081f5650 / 0x081f56eb.. 两段
 // CHARAC_DATA/TAG ctor + memset/memcpy 内联展开；我方为 SIG_LOAD_CHARAC C1 +
 // call memset）+ 其余 233 条未匹配全为形态（帧 0x1d0c vs 0xf54、槽平移、
@@ -315,10 +315,10 @@ int DisPatcher_SetPlayResult::dispatch_sig(CUser* user, PacketBuf& packet)
           field.GetTotalSkillMaterial() != 0 ||
           coinDenomA == 0 ||
           100.0f * (static_cast<float>(coinUsedA) /
-                    static_cast<float>(coinDenomA)) < 99.98f ||
+                    static_cast<float>(coinDenomA)) < 99.99f ||
           expDenomB == 0 ||
           100.0f * (static_cast<float>(expGain) /
-                    static_cast<float>(expDenomB)) < 99.98f);
+                    static_cast<float>(expDenomB)) < 99.99f);
     if (tailChecksOk)
     {
         bool pillFound = false;                           // ORIG local_21

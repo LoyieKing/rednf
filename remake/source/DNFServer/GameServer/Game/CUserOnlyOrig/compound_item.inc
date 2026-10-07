@@ -157,8 +157,10 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
                     if (limitStackHit != 1)
                     {
                         // ORIG 0x86727a7..0x86727f9：
-                        // pair.second = (int)ROUND(field4 / 100.0f) * pair.second
-                        it->second = static_cast<int>(variation.m_field4 / 100.0f + 0.5f)
+                        // pair.second = (int)(field4 / 100.0f) * pair.second
+                        // [bughunt13] ORIG 0x086727c6 `fdivrp`(=field4/100) 后 fldcw(RZ 0xc00)
+                        // + fistpl = 截断（Ghidra 的 ROUND 即 fistp）；旧 `+ 0.5f` 四舍五入为发明。
+                        it->second = static_cast<int>(variation.m_field4 / 100.0f)
                                      * it->second;
                     }
                 }
@@ -230,9 +232,11 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
                 it->second = (it->second / (int)count) * successCnt;
                 if (0 < bonusCnt)
                 {
-                    // ORIG：ROUND(perCount * ratio - perCount) * bonusCnt
+                    // ORIG：(int)(perCount * ratio - perCount) * bonusCnt
+                    // [bughunt13] ORIG 0x08672be0..0x08672c13：fildl/fmuls/fildl/fsubrp
+                    // (=perCount*ratio - perCount) 后 fldcw(RZ)+fistpl 截断，无 +0.5。
                     const int extra =
-                        static_cast<int>((float)perCount * ratio - (float)perCount + 0.5f)
+                        static_cast<int>((float)perCount * ratio - (float)perCount)
                         * bonusCnt;
                     // [CUserOnlyOrig-Lane 2026-09-11 P167/P38] ORIG 0x08672c23-0x08672c2e：
                     // 单个 ptEv 结果复用于读+写（`mov 0x4(%eax),%edx; add -0x20(%ebp),%edx;

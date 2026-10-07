@@ -41,7 +41,9 @@ int SDCActiveStatusSyncCommon::getActiveStatusDurationServer(
 
     if (_SDC::isObjectType(objectType, 0x211))
     {
-        float f1 = static_cast<float>(hpPenalty) / 3.0f;
+        // [bughunt13] ORIG 0x0808d32c `flds 0x8af4c14` = 2.0f（旧码 3.0f 为误译）；
+        //   `fildl hp; flds 2.0; fdivrp` ⇒ hp / 2.0f。
+        float f1 = static_cast<float>(hpPenalty) / 2.0f;
         float x = f1 / static_cast<float>(hpPenalty);
         // ORIG 0x0808d358：fistpl 落具名 int dec 槽 -0xc（非 duration 槽），
         // `mov -0xc,%eax; sub %eax,-0x18` 两段扣减；该具名局部同时把 duration

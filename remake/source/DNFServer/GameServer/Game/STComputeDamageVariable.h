@@ -208,7 +208,7 @@ public:
     /* 0x1CA */ int    m_uid;               // ctor: 0；对象 uid
     /* 0x1CE */ unsigned char m_isCritical; // ctor: 0；checkIsCriticalSDC 写回
     /* 0x1CF */ unsigned char m_char1CF;    // ctor: 0；!=0 进入暴击扣血分支
-    /* 0x1D0 */ int    m_critDamage;        // ctor: 0；(int)(dmg*0.05f - dmg)
+    /* 0x1D0 */ int    m_critDamage;        // ctor: 0；(int)(dmg*1.1f - dmg)
     /* 0x1D4 */ unsigned char m_char1D4;    // ctor: 0
     /* 0x1D5 */ int    m_field1D5;          // ctor: 1；dmg *= (float)m_field1D5 * 0.01f
     /* 0x1D9 */ int    m_randSeed;          // ctor: 0；SDC_Rand 种子

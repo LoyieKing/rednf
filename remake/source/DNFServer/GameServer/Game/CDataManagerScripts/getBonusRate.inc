@@ -3,7 +3,7 @@ float channel_script_t::getBonusRate(unsigned char channel, unsigned int channel
                                      unsigned int dungeonIndex) const
 {
     // ORIG 0x088dce3c：getChannelInfo → 遍历 m_pBonusRates（vector<int>），命中则
-    // 返回 (float)m_bonusRate / 1000.0f；否则 0.0f。
+    // 返回 (float)m_bonusRate / 100.0f；否则 0.0f。
     size_t i;
     channel_info_t* info = getChannelInfo(channel, channelNo);
     if (info == 0)
@@ -13,7 +13,8 @@ float channel_script_t::getBonusRate(unsigned char channel, unsigned int channel
     for (i = 0; i < info->m_pBonusRates->size(); ++i)
     {
         if (info->m_pBonusRates->at(i) == dungeonIndex)
-            return (float)info->m_bonusRate / 1000.0f;
+            // [bughunt13] ORIG 0x088dceb8 `flds 0x8e0c034` = 0x42c80000 = 100.0f（旧码 1000.0f 误）。
+            return (float)info->m_bonusRate / 100.0f;
     }
     return 0.0f;
 }

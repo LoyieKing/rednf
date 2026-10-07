@@ -1,14 +1,16 @@
 // ---------------------------------------------------------------------------
 // CheckHackAverageHitCount —— ORIG T 0x085bb0ac
 // 报告：docs/class_func_reports/CParty/CheckHackAverageHitCount.md
-// 常量实证（objdump rodata）：0x08cbbbfc=10.0f（乘）、0x08cbbc00=0.1f（加）。
+// 常量实证（objdump -s rodata）：0x08cbbbfc=0x3dcccccd=0.1f（乘）、0x08cbbc00=0x3f000000=0.5f（加）。
+// [bughunt13] 旧注/码错位 4 字节读成 10.0f/0.1f（0x08cbbbf8 才是 10.0f）⇒ 带宽 [avg-10avg, 11avg]
+//   几乎恒含全部样本 ⇒ 每次检查给全体成员误加 0xd9/0xda/0xdb 服务器 hack 计数。
 // 三组命中样本带外统计过半 → 全体有效成员 addServerHackCnt 0xd9/0xda/0xdb。
 // ---------------------------------------------------------------------------
 // [b28d-solo-CPartyDepsD2] 判词 N82/N95（361=361）：已修 ①skip 改 ORIG 短路链
 // 寄存器形 `A || !B`（A=pDungeon!=0&&(m_89c!=0||possible>0)，消 skip 槽）
 // ②avg/band 三组交错 + float 预清两句式（ORIG -0x5c/-0x54/-0x50 族）。
 // [b28d-solo-CPartyDepsD2²] DIFF→AE 归零（361→361，AE 361/361）：三旋钮联动——
-// ①P252 ORIG 0x085bb163 `flds avg; flds 10.0f; fmulp; fstps -0x58` +
+// ①P252 ORIG 0x085bb163 `flds avg; flds 0.1f; fmulp; fstps -0x58` +
 //   0x085bb171 `flds avg; fadds -0x58` ⇒ 原码有具名 float 临时（三组复用同一
 //   槽、无预清）⇒ 补 `float bandTmp;`；
 // ②P212 全头部声明：4.4 块内「先声明浅」与 4.1 相反，声明整体提至函数头后
@@ -40,7 +42,7 @@ void CParty::CheckHackAverageHitCount()
     // 4.1 相反；声明整体提至函数头后同为「先声明深」单调）：声明序按 ORIG 槽
     // 深→浅排（avg1 -0x5c / tmp -0x58 / band1U -0x54 …zero3 -0x24），初始化
     // 语句留在原处（int 清零与 float 预清发射序照 ORIG）。P252：ORIG
-    // 0x085bb163 `flds avg; flds 10.0f; fmulp; fstps -0x58` + `flds avg;
+    // 0x085bb163 `flds avg; flds 0.1f; fmulp; fstps -0x58` + `flds avg;
     // fadds -0x58` ⇒ 原码有具名 float 临时（三组复用同一槽，且无预清）。
     float avg1;          // -0x5c
     float bandTmp;       // -0x58（三组复用）
@@ -60,19 +62,19 @@ void CParty::CheckHackAverageHitCount()
 
     avg1 = 0.0f;
     avg1 = static_cast<float>(m_mapHitSum) / static_cast<float>(m_mapHitCount);
-    bandTmp = avg1 * 10.0f;
-    band1Upper = D2_ROUND(avg1 + bandTmp + 0.1f);            // fistpl -0x54
+    bandTmp = avg1 * 0.1f;
+    band1Upper = D2_ROUND(avg1 + bandTmp + 0.5f);            // fistpl -0x54
     band1Lower = D2_ROUND(avg1 - bandTmp);                   // fistpl -0x50
     avg2 = 0.0f;
     avg2 = static_cast<float>(m_mapHitSum2) / static_cast<float>(m_mapHitCount);
-    bandTmp = avg2 * 10.0f;
-    band2Upper = D2_ROUND(avg2 + bandTmp + 0.1f);
+    bandTmp = avg2 * 0.1f;
+    band2Upper = D2_ROUND(avg2 + bandTmp + 0.5f);
     band2Lower = D2_ROUND(avg2 - bandTmp);
     inBand2 = 0;                                         // -0x40（list2 带内）
     avg3 = 0.0f;
     avg3 = static_cast<float>(m_mapHitSum3) / static_cast<float>(m_mapHitCount);
-    bandTmp = avg3 * 10.0f;
-    band3Upper = D2_ROUND(avg3 + bandTmp + 0.1f);
+    bandTmp = avg3 * 0.1f;
+    band3Upper = D2_ROUND(avg3 + bandTmp + 0.5f);
     band3Lower = D2_ROUND(avg3 - bandTmp);
     inBand3 = 0;                                         // -0x30（list3 带内）
     inBand1 = 0;                                         // -0x2c（list1 带内）

@@ -2040,7 +2040,7 @@ break;
                 }
             case 0x25fb:  // "[my status]"
     //  +0x2ec STStatusGenerate）：
-    //  主块（089b52cd..089b55a7）：m_field14(+0x300)=1 → vec0.push(4.0f 预置) →
+    //  主块（089b52cd..089b55a7）：m_field14(+0x300)=1 → vec0.push(6.0f 预置) →
     //  ScanStr(&name) → vec0.push((float)getActiveStatusToEnumValue(name))（ORIG
     //  645f fildl 转 float，call 088c29a2 实证符号）→ ScanInt→m_field10(+0x2fc) →
     //  ScanInt→m_fieldC(+0x2f8) → ScanInt→(float) push vec0（64a7..64b3 fildl）。
@@ -2057,7 +2057,7 @@ break;
                 {
     {
         script->m_status2ec.m_field14 = 1;
-        script->m_status2ec.m_vec0.push_back(4.0f);  // ORIG 6428..643e（0x40c00000）
+        script->m_status2ec.m_vec0.push_back(6.0f);  // [bughunt13] ORIG 0x089b52e5 `mov $0x40c00000` = 6.0f（旧码 4.0f 误）
         std::string name;
         ScanStr(&name);                               // 6443..644c
         float fStat = static_cast<float>(getActiveStatusToEnumValue(name)); // 6451..646b

@@ -131,15 +131,22 @@ void CMonsterDrop::_generateRandomItem(unsigned char type, char role,
                 rarityTable = altTable;
         }
 
+        // [bughunt13] ORIG 0x085363b2..0x08536450：weight 两次独立 if(tier==2) 各落 float
+        //   （先 ×(float)m_firstMobWeight，再 ×m_firstMobWeightRate）；随后
+        //   `flds weight; fmuls market; ×dungeon(0xf8) ×monsterType(0x15c) ×party(0xa8)`
+        //   左结合连乘后 fistpl（旧码 party×monster×dungeon×weight×market 反序 +
+        //   fmw×rate 先合并，扩展精度舍入路径不同，截断边界可差 1）。
         float weight = static_cast<float>(t.v[2 + tier]);
         if (tier == 2)
-            weight *= static_cast<float>(m_firstMobWeight) * m_firstMobWeightRate;
+            weight = static_cast<float>(m_firstMobWeight) * weight;
+        if (tier == 2)
+            weight = m_firstMobWeightRate * weight;
 
         int rollChance = static_cast<int>(
-            (*reinterpret_cast<float const*>(&m_partyBonus[tier][0] + partyCol) *
-             *reinterpret_cast<float const*>(&m_monsterTypeBonus[tier][0] + role) *
-             *reinterpret_cast<float const*>(&m_dungeonBonus[tier][0] + difficulty) *
-             weight * marketFactor)) * dropRate / 100;
+            weight * marketFactor *
+            *reinterpret_cast<float const*>(&m_dungeonBonus[tier][0] + difficulty) *
+            *reinterpret_cast<float const*>(&m_monsterTypeBonus[tier][0] + role) *
+            *reinterpret_cast<float const*>(&m_partyBonus[tier][0] + partyCol)) * dropRate / 100;
 
         int randValue = m_random.generateNumber(0, 10000);
         if (rollChance < randValue)

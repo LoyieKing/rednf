@@ -44,7 +44,9 @@ void CItemList::create_item(ENUM_ITEM_CREATE_TYPE type, Inven_Item& item,
             int rand = get_rand_int(100);
             int rate = ((CDataManagerExt*)G_CDataManager())->m_amplifyRate;
             int bonus = (int)((float)equip * ((float)(100 - rate) / 100.0f));
-            int result = (int)((float)equip + (float)bonus * ((float)rand / 100.0f));
+            // [bughunt13] ORIG 0x085121ea `flds 0x8c96d98` = 0xc2c80000 = -100.0f（第一处 0x8c96d94 才是
+            //   +100.0f）⇒ dur + bonus*(rand/-100) = 随机**扣减**耐久；旧码 /100.0f 恒 ≥ equip 后被夹回满耐久。
+            int result = (int)((float)equip + (float)bonus * ((float)rand / -100.0f));
             if (result < 0)
             {
                 result = 1;

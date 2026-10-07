@@ -277,14 +277,18 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
         {
             const float effectValue =
                 GlobalData::s_globalEffectManager_->getEffectValue(1);
-            const int dropRateRounded =
-                BFKM_ROUND(G_CDataManager()->getDropRate());
-            if ((float)dropRateRounded < effectValue)
+            // [bughunt13] ORIG 0x0830c936..0x0830ca1e（效果 4 同构 0x0830caa7..）：
+            //   getDropRate() 直接 fldcw(RZ)+fistpll 截断取低 32 位、回读零扩展 fildll
+            //   ⇒ unsigned 截断；delta = fistpll((eff-base)*money) 截断；cap =
+            //   fistpl(money*eff) 截断。全程无 +0.5（旧 BFKM_ROUND 四舍五入为发明）。
+            const unsigned int dropRateBase =
+                static_cast<unsigned int>(G_CDataManager()->getDropRate());
+            if (static_cast<float>(dropRateBase) < effectValue)
             {
-                const int delta = BFKM_ROUND(
-                    (effectValue - (float)dropRateRounded) * (float)moneyValue);
-                moneyValue += delta;
-                const int cap = BFKM_ROUND((float)moneyValue * effectValue);
+                moneyValue += static_cast<int>(static_cast<long long>(
+                    (effectValue - static_cast<float>(dropRateBase))
+                    * static_cast<float>(moneyValue)));
+                const int cap = static_cast<int>(static_cast<float>(moneyValue) * effectValue);
                 moneyValue = std::max(0, std::min(moneyValue, cap));
             }
         }
@@ -293,14 +297,18 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
         {
             const float effectValue =
                 GlobalData::s_globalEffectManager_->getEffectValue(4);
-            const int dropRateRounded =
-                BFKM_ROUND(G_CDataManager()->getDropRate());
-            if ((float)dropRateRounded < effectValue)
+            // [bughunt13] ORIG 0x0830c936..0x0830ca1e（效果 4 同构 0x0830caa7..）：
+            //   getDropRate() 直接 fldcw(RZ)+fistpll 截断取低 32 位、回读零扩展 fildll
+            //   ⇒ unsigned 截断；delta = fistpll((eff-base)*money) 截断；cap =
+            //   fistpl(money*eff) 截断。全程无 +0.5（旧 BFKM_ROUND 四舍五入为发明）。
+            const unsigned int dropRateBase =
+                static_cast<unsigned int>(G_CDataManager()->getDropRate());
+            if (static_cast<float>(dropRateBase) < effectValue)
             {
-                const int delta = BFKM_ROUND(
-                    (effectValue - (float)dropRateRounded) * (float)moneyValue);
-                moneyValue += delta;
-                const int cap = BFKM_ROUND((float)moneyValue * effectValue);
+                moneyValue += static_cast<int>(static_cast<long long>(
+                    (effectValue - static_cast<float>(dropRateBase))
+                    * static_cast<float>(moneyValue)));
+                const int cap = static_cast<int>(static_cast<float>(moneyValue) * effectValue);
                 moneyValue = std::max(0, std::min(moneyValue, cap));
             }
         }

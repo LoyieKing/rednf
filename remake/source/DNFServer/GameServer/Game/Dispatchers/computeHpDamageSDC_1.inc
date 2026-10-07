@@ -84,20 +84,28 @@ int computeHpDamageSDC(STComputeDamageVariable* v, void* /*unusedArg2*/, void* d
             float s1 = v->m_f0AB;                              // 0x08095f8f；-0x30
             if (v->m_objTypeByte != 4 && v->m_objTypeByte != 5)
                 s1 *= getAbilityConvertRateSDC((void*)convertArg0, CONVERT_TABLE_4);
-            float s2 = v->m_f03F;                              // 0x0809602d；-0x28
-            if (v->m_objTypeByte != 4 && v->m_objTypeByte != 5)
-                s2 *= getAbilityConvertRateSDC((void*)convertArg1, CONVERT_TABLE_3);
         }
         else if (v->m_damageType == 1)
         {
             float s1 = v->m_f0AF;                              // 0x08095fe2；-0x2c
             if (v->m_objTypeByte != 4 && v->m_objTypeByte != 5)
                 s1 *= getAbilityConvertRateSDC((void*)convertArg0, CONVERT_TABLE_6);
-            float s2 = v->m_f043;                              // 0x0809607e；-0x24
-            if (v->m_objTypeByte != 4 && v->m_objTypeByte != 5)
-                s2 *= getAbilityConvertRateSDC((void*)convertArg1, CONVERT_TABLE_5);
-            (void)v->m_char1EA;                                // 0x080960be 读取未用【asm 事实】
         }
+    }
+
+    // [bughunt13] ORIG 0x08095ef1 `je 0x8096022`：s2 段在防御率 if **之外**（旧码误嵌其内）。
+    if (v->m_damageType == 0)                                  // 0x08096022
+    {
+        float s2 = v->m_f03F;                                  // 0x0809602d；-0x28
+        if (v->m_objTypeByte != 4 && v->m_objTypeByte != 5)
+            s2 *= getAbilityConvertRateSDC((void*)convertArg1, CONVERT_TABLE_3);
+    }
+    else if (v->m_damageType == 1)
+    {
+        float s2 = v->m_f043;                                  // 0x0809607e；-0x24
+        if (v->m_objTypeByte != 4 && v->m_objTypeByte != 5)
+            s2 *= getAbilityConvertRateSDC((void*)convertArg1, CONVERT_TABLE_5);
+        (void)v->m_char1EA;                                    // 0x080960be 读取未用【asm 事实】
     }
 
     if (v->m_damageType == 0)                                  // 0x080960ca 物理分支
@@ -107,12 +115,16 @@ int computeHpDamageSDC(STComputeDamageVariable* v, void* /*unusedArg2*/, void* d
             final1 += (float)v->m_field063 * v->m_f0B3;
         final1 *= (v->m_f006 * 0.01f + 1.0f);                  // 0x0809610c
         final1 *= (v->m_f037 * 0.01f + 1.0f);                  // 0x08096126
-        final1 *= getAbilityConvertRateSDC((void*)convertArg1, CONVERT_TABLE_7);  // 0x08096140
-        dmg += final1;
+        // [bughunt13] ORIG 0x0809614e..0x0809615b：`call; fmuls final1; flds dmg; faddp` 单表达式，
+        //   乘积不落 float（旧码先 final1*=conv 落盘再加，多一次舍入）。
+        dmg = getAbilityConvertRateSDC((void*)convertArg1, CONVERT_TABLE_7) * final1 + dmg;  // 0x08096140
 
         if (_SDC::isObjectType(v->m_defenderObjType, 0x11) && v->m_char00E == 0)
         {
-            float mdef = (float)v->m_physMDefBase * v->m_f05F + (float)v->m_physMDefAdd;  // 0x08096196
+            // [bughunt13] ORIG 0x080961a2..0x080961ca：三步各 fstps 落 float（逐步舍入）。
+            float mdef = (float)v->m_physMDefBase;             // 0x08096196；-0x1c
+            mdef = v->m_f05F * mdef;
+            mdef = (float)v->m_physMDefAdd + mdef;
             dmg = dmg - mdef * getAbilityConvertRateSDC((void*)convertArg0, CONVERT_TABLE_8);
         }
         dmg = dmg - dmg * v->m_physReduceRate;                 // 0x080961ef
@@ -124,12 +136,15 @@ int computeHpDamageSDC(STComputeDamageVariable* v, void* /*unusedArg2*/, void* d
             final1 += (float)v->m_field067 * v->m_f0B3;
         final1 *= (v->m_f006 * 0.01f + 1.0f);                  // 0x0809624c
         final1 *= (v->m_f03B * 0.01f + 1.0f);                  // 0x08096266
-        final1 *= getAbilityConvertRateSDC((void*)convertArg1, CONVERT_TABLE_9);  // 0x08096280
-        dmg += final1;
+        // [bughunt13] ORIG 0x0809628e..0x0809629b：同上单表达式。
+        dmg = getAbilityConvertRateSDC((void*)convertArg1, CONVERT_TABLE_9) * final1 + dmg;  // 0x08096280
 
         if (_SDC::isObjectType(v->m_defenderObjType, 0x11) && v->m_char00E == 0)
         {
-            float mdef = (float)v->m_magicMDefBase * v->m_f05F + (float)v->m_magicMDefAdd;  // 0x080962d6
+            // [bughunt13] ORIG 0x080962e2..0x0809630a：同上逐步舍入。
+            float mdef = (float)v->m_magicMDefBase;            // 0x080962d6；-0x14
+            mdef = v->m_f05F * mdef;
+            mdef = (float)v->m_magicMDefAdd + mdef;
             dmg = dmg - mdef * getAbilityConvertRateSDC((void*)convertArg0, CONVERT_TABLE_A);
         }
         dmg = dmg - dmg * v->m_magicReduceRate;                // 0x0809632f
@@ -142,18 +157,22 @@ int computeHpDamageSDC(STComputeDamageVariable* v, void* /*unusedArg2*/, void* d
 
     if (v->m_char1CF != 0)                                     // 0x08096384 暴击扣血段
     {
-        // ORIG 0x08096392：m_critDamage = (int)(dmg*0.05f - dmg)（fsubrp 下-上实测定案，负值忠实保留）
-        v->m_critDamage = (int)(dmg * 0.05f - dmg);
-        dmg = dmg * 0.05f;                                     // 0x080963c7
+        // [bughunt13] ORIG 0x08096392 `mov $0x3f8ccccd,%eax; mov %eax,-0x10(%ebp)` ⇒ 局部常量 1.1f
+        //   （旧码 0.05f 为误译）；`flds dmg; fmuls -0x10; flds dmg; fsubrp` ⇒ dmg*1.1f - dmg。
+        float critMul = 1.1f;                            // -0x10
+        v->m_critDamage = (int)(dmg * critMul - dmg);
+        dmg = dmg * critMul;                                   // 0x080963c7
     }
 
-    dmg *= v->m_f00F[3] * 0.01f;                               // 0x080963d0（0x1b = f[3]）
-    dmg *= (float)v->m_field1D5 * 0.01f;                       // 0x080963e6
+    // [bughunt13] ORIG 0x080963d3/0x080963f2：先 `x*dmg` 再 `*0.01f`（结合序与 f[4..6] 不同）。
+    dmg = v->m_f00F[3] * dmg * 0.01f;                          // 0x080963d0（0x1b = f[3]）
+    dmg = (float)v->m_field1D5 * dmg * 0.01f;                  // 0x080963e6
     if (v->m_char0D3 != 0)                                     // 0x08096405 f[4]=0x1f
         dmg *= v->m_f00F[4] * 0.01f;
     if (v->m_char0D4 != 0)                                     // 0x08096429 f[5]=0x23
         dmg *= v->m_f00F[5] * 0.01f;
-    if ((unsigned char)v->m_field1D5 != 0)                     // 0x0809644d f[6]=0x27（movzbl 低字节）
+    // [bughunt13] ORIG 0x08096450 `movzbl 0xd5(%eax)` = m_char0D5（旧码读 0x1d5 低字节，偏移错）。
+    if (v->m_char0D5 != 0)                                     // 0x0809644d f[6]=0x27
         dmg *= v->m_f00F[6] * 0.01f;
     dmg *= v->m_f06B;                                          // 0x08096471
 
@@ -175,9 +194,11 @@ int computeHpDamageSDC(STComputeDamageVariable* v, void* /*unusedArg2*/, void* d
 
     if (v->m_char1DF != 0 && _SDC::isObjectType(v->m_attackerObjType, 0x111))  // 0x080965b0
     {
-        dmg *= 0.25f;                                          // 0x080965eb（0x08b12f70）
-        int n = (int)dmg;                                      // trunc；-0x70
-        dmg += (float)n;                                       // 0x0809660c
+        // [bughunt13] ORIG 0x080965eb `flds dmg; flds 0.25; fmulp; fistpl -0x70`：dmg*0.25 **不回写** dmg，
+        //   仅截断入 n；随后 `fildl n; flds dmg; faddp` ⇒ dmg = dmg + (int)(dmg*0.25f)（×1.25）。
+        //   旧码 `dmg *= 0.25f; dmg += n` ⇒ ≈×0.5，真 bug。
+        int n = (int)(dmg * 0.25f);                            // trunc；-0x70（0x08b12f70）
+        dmg = (float)n + dmg;                                  // 0x0809660c
     }
     if (v->m_char1E0 != 0)
         dmg += (float)v->m_field1E1;                           // 0x0809662b
