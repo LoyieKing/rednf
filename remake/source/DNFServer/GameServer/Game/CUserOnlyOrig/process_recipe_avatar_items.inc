@@ -175,7 +175,10 @@ int CUser::process_recipe_avatar_items(int mainSlot, bool param2,
                           getCurCharacNo(), slot);
                     return 0x11;
                 }
-            } else { // space == 1（ORIG 仅判 ==1 / !=0 两路，此为 !=0 路）
+            } else if (space == 1) {
+                // [bughunt12] ORIG 0x0868cb0f `cmpl $0x1,-0x28(%ebp); jne 0x0868cbdf`：
+                // 仅 space==1 走 avatar 删除（旧注“!=0 路”误读）。updatedSlots 仅由本函数
+                // push 0/1，故行为无差，纯形对齐。
                 // +0x62b: getCurCharacInvenR() 0x080da27e
                 // +0x64c: GetInvenSlot(2, slot) 0x084fb918 —— 读出当前 avatar 物品
                 const CInventory* invR = getCurCharacInvenR();

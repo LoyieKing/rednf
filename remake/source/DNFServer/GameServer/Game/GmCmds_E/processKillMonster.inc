@@ -28,7 +28,10 @@ void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
     {
         float effVal = GlobalData::s_globalEffectManager_->getEffectValue(1);
         // ORIG 0x84add20：条件 effVal > (int)baseF（fildll 载入截断整数 base 与
-        // effVal 浮点比较）；加成 (base - effVal) * killCnt（符号与 baseF 相反）。
+        // effVal 浮点比较）；加成 (effVal - base) * killCnt。
+        // [bughunt12] ORIG 0x084addd0/0x084adeda `de e1` = FSUBRP ST(1),ST0
+        // ⇒ ST1 ← ST0(effVal) − ST1(base)；旧形 (base - effVal) 符号反（`fsubs`
+        // = base − effVal），与 CBattle_Field::kill_monster 同构公式亦相悖。
         // T1/T2 直证：ORIG `fistp QWORD [ebp-0x68]` + 回读 `mov %eax,-0x2c;
         // mov %eax,%edx?`→`mov $0,%edx` 零扩展后 `fild QWORD` ⇒ base 为
         // unsigned int（非 int）。
@@ -41,7 +44,7 @@ void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
             // T1 直证：ORIG `fistp QWORD [ebp-0x68]` 后取低 32 位 ⇒ 源码为
             // `(int)(long long)expr`（Ghidra `(int)(longlong)ROUND(..)`）。
             killCnt += static_cast<int>(static_cast<long long>(
-                (static_cast<float>(base) - effVal)
+                (effVal - static_cast<float>(base))
                 * static_cast<float>(killCnt)));
             int cap = static_cast<int>(static_cast<float>(killCnt) * effVal);
             killCnt = std::max(0, std::min(killCnt, cap));
@@ -55,7 +58,7 @@ void CMonsterDropTest::processKillMonster(CParty* party, MapInfo& mapInfo,
         if (static_cast<float>(base) < effVal)
         {
             killCnt += static_cast<int>(static_cast<long long>(
-                (static_cast<float>(base) - effVal)
+                (effVal - static_cast<float>(base))
                 * static_cast<float>(killCnt)));
             int cap = static_cast<int>(static_cast<float>(killCnt) * effVal);
             killCnt = std::max(0, std::min(killCnt, cap));

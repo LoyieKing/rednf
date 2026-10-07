@@ -231,8 +231,10 @@ int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
         CGuildServerProxy* proxy =
             GlobalData::s_guild_proxy_mgr->GetServerProxy(
                 user->GetServerGroup());
+        // [bughunt12] ORIG 0x081fce1d..0x081fce49：get_charac_guildkey() 返回 int，
+        // `mov %eax,%ebx` 原样作为第 1 参；旧形 (unsigned short) 截断（movzwl）为发明。
         proxy->SendIncreaseDecreasePowerWarPoint(
-            (unsigned int)(unsigned short)(size_t)user->get_charac_guildkey(),
+            static_cast<unsigned int>(user->get_charac_guildkey()),
             static_cast<unsigned int>(user->getCurCharacNo()), msg->m_arg);
         break;
     }

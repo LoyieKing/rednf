@@ -5,6 +5,10 @@
 // fdivp %st,%st(1)` 三步 vs 4.4 `flds 全局; fdivs -0x8` 两步（除操作数在内存时
 // 4.4 恒折 fdivs）。其余 diff 行全为重定位地址伪差（0x8b12f54 vs .o 未解析 0x28）。
 // 语义等价，封顶。
+// [bughunt12] 上述“语义等价”判词有误：ORIG 0x08095387/0x080953eb `de f1` =
+// FDIVRP ST(1),ST0 ⇒ ST1 ← ST0(s2，后载) / ST1(全局常量，先载)，即
+// `s2 / g_*DamageRateConst_`；旧形 `g_* / s2`（4.4 `flds G; fdivs s2` = G/s2）
+// 方向相反。已按 ORIG 改为 s2 / g_*（x87 实测：先载 2、后载 8，de f1 → 4）。
 float getDamageInflictCollisionObject(STComputeDamageVariable* v, void* collisionObject)
 {
     float dmg = v->m_field000;
@@ -25,14 +29,14 @@ float getDamageInflictCollisionObject(STComputeDamageVariable* v, void* collisio
         float s2 = v->m_f03F;
         if (v->m_objTypeByte != 4 && v->m_objTypeByte != 5)
             s2 = s2 * getAbilityConvertRateSDC(collisionObject, CONVERT_TABLE_3);
-        dmg = dmg * (g_physicalDamageRateConst_ / s2 + 1.0f);
+        dmg = dmg * (s2 / g_physicalDamageRateConst_ + 1.0f);
     }
     else if (v->m_damageType == 1)
     {
         float s2 = v->m_f043;
         if (v->m_objTypeByte != 4 && v->m_objTypeByte != 5)
             s2 = s2 * getAbilityConvertRateSDC(collisionObject, CONVERT_TABLE_5);
-        dmg = dmg * (g_magicalDamageRateConst_ / s2 + 1.0f);
+        dmg = dmg * (s2 / g_magicalDamageRateConst_ + 1.0f);
     }
     dmg = dmg * getAbilityConvertRateSDC(collisionObject, CONVERT_TABLE_0);
     dmg = v->m_f047 * dmg + dmg;

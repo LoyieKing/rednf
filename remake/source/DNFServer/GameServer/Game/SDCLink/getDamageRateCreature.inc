@@ -1,8 +1,8 @@
 // _Z21getDamageRateCreatureiii @0x080955e1 (0x18d)：a=min(a,50)；sum=a+b；
-// g_creature_damage_vector_ size>6 时 result = 100/(d4 + d6/vec[6])，否则 1.0。
+// g_creature_damage_vector_ size>6 时 result = (d4 + d6/vec[6]) / 100，否则 1.0。
 //   d1 = vec[1]*sum + vec[0] + c
 //   d3 = vec[3]*sum + vec[2]
-//   d4 = (vec[4]/d3 + 1) * d1
+//   d4 = (d3/vec[4] + 1) * d1
 //   d6 = vec[3]*sum + vec[5]
 // [b28d-lane15 判词·N（N85 x87 整数↔浮点链）] → [C03CryptoInit68 修·2026-09-10]
 // 按 P167 调用点差集修两处真差（本件原 `8×operator[]` vs ORIG `8×at()`，
@@ -34,10 +34,15 @@ float getDamageRateCreature(int a, int b, int c)
                     static_cast<double>(g_creature_damage_vector_.at(1)) * static_cast<double>(sum);
         double d3 = static_cast<double>(g_creature_damage_vector_.at(2)) +
                     static_cast<double>(g_creature_damage_vector_.at(3)) * static_cast<double>(sum);
-        double d4 = (static_cast<double>(g_creature_damage_vector_.at(4)) / d3 + 1.0) * d1;
+        // [bughunt12] ORIG 0x080956d3..d9 `fildl at(4); fldl d3; de f1`(FDIVRP)
+        // ⇒ d3 / at(4)（后载 / 先载）；旧形 at(4)/d3 方向反。
+        double d4 = (d3 / static_cast<double>(g_creature_damage_vector_.at(4)) + 1.0) * d1;
         double d6 = static_cast<double>(g_creature_damage_vector_.at(5)) +
                     static_cast<double>(g_creature_damage_vector_.at(3)) * static_cast<double>(sum);
-        result = (100.0 / (d4 + static_cast<double>(g_creature_damage_vector_.at(6)) / d6)) * result;
+        // [bughunt12] ORIG 0x08095748 `fildl at(6); fdivrl d6` ⇒ d6 / at(6)；
+        // 0x08095753..59 `fldl 100.0; de f9`(FDIVP ST1←ST1/ST0) ⇒ sum / 100.0。
+        // 旧形 100/(d4 + at(6)/d6) 两处方向皆反。
+        result = ((d4 + d6 / static_cast<double>(g_creature_damage_vector_.at(6))) / 100.0) * result;
     }
     return static_cast<float>(result);
 }
