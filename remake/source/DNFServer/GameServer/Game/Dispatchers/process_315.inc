@@ -21,11 +21,11 @@ int Dispatcher_MonstercardBind::process(CUser* user, MSG_BASE& msg,
     }
 
     // ORIG：每次 GetInvenSlot 前重新 getCurCharacInvenR()（不缓存指针）
-    Inven_Item slotA = user->getCurCharacInvenR()->GetInvenSlot(1, m.m_0d);
+    Inven_Item slotA = user->getCurCharacInvenR()->GetInvenSlot(1, (int)(short)m.m_0d);  // [DNF-FIX 2026-10-08 c22] ORIG 0x081d8980 族 movswl
     CItem* cardA = G_CDataManager()->find_item(slotA.m_addInfo);
-    Inven_Item slotB = user->getCurCharacInvenR()->GetInvenSlot(1, m.m_0f);
+    Inven_Item slotB = user->getCurCharacInvenR()->GetInvenSlot(1, (int)(short)m.m_0f);
     CItem* cardB = G_CDataManager()->find_item(slotB.m_addInfo);
-    Inven_Item slotC = user->getCurCharacInvenR()->GetInvenSlot(1, m.m_11);
+    Inven_Item slotC = user->getCurCharacInvenR()->GetInvenSlot(1, (int)(short)m.m_11);
     CItem* cardC = G_CDataManager()->find_item(slotC.m_addInfo);
 
     std::vector<std::pair<int, int> > results;

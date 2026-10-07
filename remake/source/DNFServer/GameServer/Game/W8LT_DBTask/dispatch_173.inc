@@ -17,7 +17,9 @@ bool DB_AvatarOptionChange::dispatch(int /*userIdx*/, int /*slot*/,
                                                   E_SERVER_GROUP_NONE);
     db->set_query(
         "upDate user_items set ability_no=%d where ui_id=%d and charac_no=%d",
-        (unsigned int)sig->m_field4, sig->m_uiId, sig->m_characNo);
+        // [DNF-FIX 2026-10-08 c22] ORIG 0x084468c0 `movzbl 0x4; movzbl %al`：+0x04 按
+        //   unsigned char 零扩展（旧码 char→unsigned int 符号扩展，>=0x80 写成负数）。
+        (unsigned int)(unsigned char)sig->m_field4, sig->m_uiId, sig->m_characNo);
     if (db->exec(true) != 1)
     {
         cMyTrace trace(__PRETTY_FUNCTION__, 0xae5c, 5);

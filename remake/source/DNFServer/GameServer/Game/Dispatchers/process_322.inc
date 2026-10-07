@@ -103,7 +103,8 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     }
 
     const bool deleted = user->getCurCharacInvenW()->delete_item(
-        static_cast<INVEN_TYPE>(1), req.m_0e, 1,
+        // [DNF-FIX 2026-10-08 c22] ORIG 0x081e6dcf `movzwl 0xe; movswl`：(short) 收窄。
+        static_cast<INVEN_TYPE>(1), (int)(short)req.m_0e, 1,
         static_cast<eItemDelReason>(3), true);
     if (!deleted)
     {
@@ -151,6 +152,6 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
             targetItem.m_addInfo);
     user->m_historyLog.UseDye(
         dyeItem.m_addInfo, targetItem.m_addInfo, targetItem.m_addInfo,
-        std::string(avatar->GetIPGAgencyNo()), req.m_10);
+        std::string(avatar->GetIPGAgencyNo()), (int)(short)req.m_10);  // [DNF-FIX 2026-10-08 c22] ORIG 0x081e6ff8 movswl
     return 0;
 }

@@ -3807,7 +3807,8 @@ struct EventCommon
                   sig->m_obtainFrom,
                   sig->m_abilityNo,
                   sig->m_agency,
-                  sig->m_a8,
+                  // [DNF-FIX 2026-10-08 c22] ORIG 0x08400108 `movzbl 0x2c; movsbl %al`：stat 按 char 符号扩展。
+                  (int)(char)sig->m_a8,
                   db->blob_to_str(0, reinterpret_cast<char*>(&sig->m_jewelSocket), 0x1e),
                   reinterpret_cast<unsigned short*>(&sig->m_a7)[0],
                   reinterpret_cast<unsigned short*>(&sig->m_a7)[1],
