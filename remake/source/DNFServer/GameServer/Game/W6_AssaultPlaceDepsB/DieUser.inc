@@ -105,7 +105,12 @@ void CAssaultPlace::DieUser(int victimIdx, int killerIdx, MSG_DIE_ASSAULT_PLAYER
     //   —— 两者同条件（_CheckAssaultable()!=0 跳主体），仅 4.1 多一条 `xor $1`
     //   物化。实测 P226 语句表达式 `({ !_CheckAssaultable(); })` **零变化**
     //   （our 533 / diff 174+175 行逐项相同、四数不变）⇒ 回滚，形态差维持 N。
-    if (!_CheckAssaultable())
+    // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x082ec2c1..0x082ec2cb：`call _CheckAssaultable;
+    //   xor $0x1,%eax; test %al,%al; je 0x082ec54c`，0x082ec54c 即函数尾声（add/pop/ret），
+    //   即「双方仍有人（可继续乱入）⇒ 直接返回；否则走结算并 EndAssault」。
+    //   上方旧注释的「同条件」判词有误：旧写法 `if (!_CheckAssaultable()) return;`
+    //   极性相反——双方都还有人时就把乱入战结束，一方全灭反而不结算。
+    if (_CheckAssaultable())
         return;
 
     if (victim != 0 && killer != 0
