@@ -114,16 +114,18 @@ bool PvPSkillTreeParameterScript::importPvPSkillTreeParameterScript(
                         perIt = m_map30.find(key);
                     if (perIt != m_map30.end())
                     {
-                        // ORIG 三次独立 perIt->second.m_addSkills 访问。
+                        // [bughunt6c] ORIG 三次独立 perIt->second.m_removeSkills（+0x18）访问：
+                        // 0x08a5da27/0x08a5da57/0x08a5dae6 `lea 0x1c(%eax)`（pair.second
+                        // @+4 再 +0x18）；[skill] 段才是 m_addSkills（0x08a5d1cf 等 +4）。
                         std::map<int, int>::iterator slot =
-                            perIt->second.m_addSkills.find(entry.first);
-                        if (slot != perIt->second.m_addSkills.end())
+                            perIt->second.m_removeSkills.find(entry.first);
+                        if (slot != perIt->second.m_removeSkills.end())
                         {
                             slot->second = entry.second;
                         }
                         else
                         {
-                            perIt->second.m_addSkills.insert(
+                            perIt->second.m_removeSkills.insert(
                                 std::make_pair(entry.first, entry.second));
                         }
                     }

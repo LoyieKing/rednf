@@ -14,6 +14,13 @@
 #include "InterDispatcher.h"
 #include "Inter_DispatcherAradOnly.h"  // Inter_DispatcherAradOnly（槽 732）
 #include "Inter_DispatcherTaiwan.h"  // Inter_DispatcherTaiwan（槽 846）
+// [bughunt6c] 先于本 TU 任何 #pragma pack(1) 区完成 std::pair<const ushort, CUser*>
+// 的隐式实例化（sizeof 只求布局、不生成代码）。否则它在后续 pack(1) 区首次实例化成
+// 打包布局（second @+2），Inter_VillageAttackedEnd / Inter_VillageAttackedRewardServer
+// 遍历 G_GameWorld()->m_UserInWorld 时读 it->second 错位；ORIG 两处均为 +4
+// （与 GameWorld 其它 TU 一致）。
+typedef char bughunt6c_userInWorld_pair_layout[
+    (sizeof(std::pair<const unsigned short, CUser*>) == 8) ? 1 : -1];
 
 // ============================================================================
 // b20 hardcode 裸偏移清零账（本 TU，§4.3）
