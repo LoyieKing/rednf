@@ -16,8 +16,10 @@ bool DB_UpdateAvatarJewelSlot::dispatch(int userIdx, int slot, Stream* stream)
         "upDate user_items set jewel_socket='%s' where ui_id=%d and charac_no=%d",
         db->blob_to_str(0, sig->m_emblem, 0x1e),
         sig->m_avatarKey, sig->m_characNo);
-    db->exec(true);
 #if !remake_verify
-    return 1;   // DNF-FIX: 非 void 函数落底 —— g++ 13 在此发 ud2（ORIG 的 GCC 4.x 只是返回残留 eax）
+    // [bughunt15] ORIG 0x0843080f `call MySQL::exec` 后直接 epilogue ⇒ 返回 exec 结果。
+    return db->exec(true);
+#else
+    db->exec(true);
 #endif
 }

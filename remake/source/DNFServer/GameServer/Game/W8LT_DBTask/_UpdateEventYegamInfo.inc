@@ -14,8 +14,10 @@ bool DB_SaveEventItem::_UpdateEventYegamInfo(int id, int type)
         db->set_query("upDate event_yegam_info set item_check=unix_timestamp(now()) where id=%d and item!=0",
                       id);
     }
-    db->exec(true);
 #if !remake_verify
-    return 0;   // DNF-FIX: 非 void 函数落底 —— g++ 13 在此发 ud2（ORIG 的 GCC 4.x 只是返回残留 eax）
+    // [bughunt15] ORIG 0x0841a65a `call MySQL::exec; leave; ret` ⇒ 返回 exec 结果（调用方 0x0841a886 `mov %al,-0x9`，false 走失败返回）；旧 DNF-FIX 恒 0 ⇒ 每次都按失败处理。
+    return db->exec(true);
+#else
+    db->exec(true);
 #endif
 }
