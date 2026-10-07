@@ -1,5 +1,9 @@
 // [b28d-lane2] verdict=DIFF ndiff=289（ORIG 0x084d894c）：寄存器中转(N18a/N7)+混合残差；gap-5。
 // [b28d-solo-InterDispatcher] verdict=DIFF ndiff=101（ORIG 0x84d894c）：N22 cmp 操作数方向+N18a 单段 regmove。
+// [bughunt16] ORIG 0x084d89ce/0x084d8af9/0x084d8c27/0x084d8cf0/0x084d8db9：
+//   `movzbl 0x19e(%eax),%eax; cmp $0xff,%al; je` —— m_treeKind(unsigned char)==0xff 视同树 0。
+//   旧写 `== -1` 对 unsigned char 恒假（整型提升 255≠-1），g++ 直接删除该比较
+//   ⇒ treeKind=0xff 时误走第二技能树（SetOneDayLetheFlag2ND / 树 1 备份 / 回包 state=2）。
 int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
 {
     SIG_PREMIUM_LETHE_FLAG* lethe = reinterpret_cast<SIG_PREMIUM_LETHE_FLAG*>(data);
@@ -12,7 +16,7 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
                 0x3f8f, 0)("ONE_DAY_LETHE : INTER_USE_LETHE, char(%s)",
                   user->getCurCharacName());
 
-            if (lethe->m_treeKind == -1 ||
+            if (lethe->m_treeKind == 0xff ||
                 lethe->m_treeKind == 0)
             {
                 user->SetOneDayLetheFlag(
@@ -47,7 +51,7 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
             else
             {
                 char state = 0;                        // -0x9（ORIG 084d8aeb movb $0x0）
-                if (lethe->m_treeKind == -1 ||
+                if (lethe->m_treeKind == 0xff ||
                     lethe->m_treeKind == 0)
                     state = 1;
                 else
@@ -71,7 +75,7 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
 
             WongWork::CHandlePremium::handleRemoveOneDayLethePremium(user);
 
-            if (lethe->m_treeKind == -1 ||
+            if (lethe->m_treeKind == 0xff ||
                 lethe->m_treeKind == 0)
             {
                 user->SetOneDayLetheFlag(
@@ -99,7 +103,7 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
     else if (lethe->m_state ==
              CPremiumLetheManager::INIT_LETHE_SKILL)
     {
-        if (lethe->m_treeKind == -1 ||
+        if (lethe->m_treeKind == 0xff ||
             lethe->m_treeKind == 0)
         {
             user->SetOneDayLetheFlag(
@@ -126,7 +130,7 @@ int Inter_UpdateOneDayLethe::dispatch_sig(CUser* user, char* data, int /*len*/)
     else if (lethe->m_state ==
              CPremiumLetheManager::NOT_USE_LETHE_STATE)
     {
-        if (lethe->m_treeKind == -1 ||
+        if (lethe->m_treeKind == 0xff ||
             lethe->m_treeKind == 0)
         {
             user->SetOneDayLetheFlag(

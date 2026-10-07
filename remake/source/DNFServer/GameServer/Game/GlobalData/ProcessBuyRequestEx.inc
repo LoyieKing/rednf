@@ -198,7 +198,9 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
     // ---- 总校验 ----
     if (!m_ceraShop._CheckValidCount((const CCeraShopGoods**)goods))
     {
-        m_ceraShop.ProcessError(user, 1, -1, msg.m_entrySection.m_arr[0].m_productNo, 1, 1,
+        // [bughunt16] ORIG 0x08177431 `mov -0x78(%ebp),%edx; mov %edx,0xc(%esp)`：第 3 实参是
+        //   groupIdx 局部（第一遍循环末条目的 GetGroupIdx，空表时 -1），非字面量 -1。
+        m_ceraShop.ProcessError(user, 1, groupIdx, msg.m_entrySection.m_arr[0].m_productNo, 1, 1,
                                 (char)msg.m_scalars.m_buyFlag);
         return true;
     }
@@ -228,7 +230,8 @@ bool ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP
             " / UCera[%d] UGold[%d] UWP[%d] AMile[%d]\n",
             user->GetCera(), user->getCurCharacInvenR()->get_money(),
             user->GetWinPoint(), user->GetMileage());
-        m_ceraShop.ProcessError(user, (unsigned short)errCode, -1,
+        // [bughunt16] ORIG 0x08177614 `mov -0x78(%ebp),%ecx; mov %ecx,0xc(%esp)`：同上传 groupIdx。
+        m_ceraShop.ProcessError(user, (unsigned short)errCode, groupIdx,
                                 msg.m_entrySection.m_arr[0].m_productNo, 1, 1,
                                 (char)msg.m_scalars.m_buyFlag);
         return true;
