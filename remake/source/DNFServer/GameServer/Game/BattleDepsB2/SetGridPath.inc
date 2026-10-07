@@ -110,9 +110,9 @@ void CBattle_Field::SetGridPath(MazeScript* maze, int dummyAppearCnt)
     m_endY = bossPos.second;                     // +0x10
     m_field14 = adjBossPos.first;                // +0x14 相邻槽
     m_field18 = adjBossPos.second;               // +0x18
-    m_hellPosX = m_gridMaze->m_30;                     // +0x1c0
-    m_hellPosY = m_gridMaze->m_34;                     // +0x1c4
-    m_hellMapIdx = m_gridMaze->m_2c;                   // +0x1bc
+    m_hellPosX = m_gridMaze->m_sealDoorPosX;                     // +0x1c0
+    m_hellPosY = m_gridMaze->m_sealDoorPosY;                     // +0x1c4
+    m_hellMapIdx = m_gridMaze->m_sealDoorMapIdx;                   // +0x1bc
     m_ridable.SetRidableObject(m_gridMaze->m_ridable);// +0x38 RidableScript
 
     if (m_pDungeon->m_bossRoom90c.m_0 == 1)      // dungeon+0x90c

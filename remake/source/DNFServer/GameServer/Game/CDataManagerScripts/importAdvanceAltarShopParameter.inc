@@ -167,7 +167,10 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                                     if (getdataType(ft) == 0)
                                     {
                                         std::string s;
-                                        if (!ScanStr(&s))
+                                        // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x088a15d4/0x088a1c9c/0x088a2303：
+                                        // ScanStr 成功 → operator=(fd.m_str) 并继续；失败 → rowOk=false 跳出。
+                                        // 旧写法极性反了（成功即中止整个 [list]，失败才赋值）。
+                                        if (ScanStr(&s))
                                                 fd.m_str = s;
                                         else
                                             rowOk = false;
@@ -277,7 +280,10 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                                     if (getdataType(ft) == 0)
                                     {
                                         std::string s;
-                                        if (!ScanStr(&s))
+                                        // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x088a15d4/0x088a1c9c/0x088a2303：
+                                        // ScanStr 成功 → operator=(fd.m_str) 并继续；失败 → rowOk=false 跳出。
+                                        // 旧写法极性反了（成功即中止整个 [list]，失败才赋值）。
+                                        if (ScanStr(&s))
                                                 fd.m_str = s;
                                         else
                                             rowOk = false;
@@ -378,7 +384,10 @@ int advancealtar::AdvanceAltarShopParameter::importAdvanceAltarShopParameter(
                                     if (getdataType(ft) == 0)
                                     {
                                         std::string s;
-                                        if (!ScanStr(&s))
+                                        // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x088a15d4/0x088a1c9c/0x088a2303：
+                                        // ScanStr 成功 → operator=(fd.m_str) 并继续；失败 → rowOk=false 跳出。
+                                        // 旧写法极性反了（成功即中止整个 [list]，失败才赋值）。
+                                        if (ScanStr(&s))
                                                 fd.m_str = s;
                                         else
                                             rowOk = false;

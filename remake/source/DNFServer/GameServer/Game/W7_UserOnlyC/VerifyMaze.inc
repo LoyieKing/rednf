@@ -14,7 +14,7 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
             1, "data_manager.cpp",
             __PRETTY_FUNCTION__, 0x83e,
             "dungeon index(%d) maze(%d) has error. (Start positions were not declared!)",
-            m_index, maze.m_64);
+            m_index, maze.m_mazeIndex);
         return false;
     }
     for (unsigned int i = 0; i < maze.m_vec14.size(); ++i)
@@ -28,7 +28,7 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
                 1, "data_manager.cpp",
                 __PRETTY_FUNCTION__, 0x847,
                 "dungeon index(%d) maze(%d) has error. (Can't found start map(grid: %d,%d)!)",
-                m_index, maze.m_64, pos.first, pos.second);
+                m_index, maze.m_mazeIndex, pos.first, pos.second);
         }
     }
 
@@ -38,7 +38,7 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
             1, "data_manager.cpp",
             __PRETTY_FUNCTION__, 0x84e,
             "dungeon index(%d) maze(%d) has error. (End positions were not declared!)",
-            m_index, maze.m_64);
+            m_index, maze.m_mazeIndex);
         return false;
     }
     for (unsigned int i = 0; i < maze.m_vec20.size(); ++i)
@@ -51,7 +51,7 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
                 1, "data_manager.cpp",
                 __PRETTY_FUNCTION__, 0x857,
                 "dungeon index(%d) maze(%d) has error. (Can't found boss map(grid: %d,%d)!",
-                m_index, maze.m_64, pos.first, pos.second);
+                m_index, maze.m_mazeIndex, pos.first, pos.second);
         }
     }
 
@@ -78,7 +78,7 @@ bool CDungeon::VerifyMaze(const MazeScript& maze) const
                     __PRETTY_FUNCTION__,
                     0x86b,
                     "dungeon index(%d) maze(%d) has error. (Can't found grid map(grid: %d,%d)!)",
-                    m_index, maze.m_64, y, x);
+                    m_index, maze.m_mazeIndex, y, x);
             }
         L_end:;
         L_start:;

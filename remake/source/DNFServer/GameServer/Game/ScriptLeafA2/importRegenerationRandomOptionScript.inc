@@ -70,8 +70,8 @@ int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
             while (ScanFloat(&ratio.m_scaleRange0))
             {
                 ScanFloat(&ratio.m_scaleBase4);
-                ratio.m_weight8 = static_cast<unsigned int>(
-                    ScanInt(reinterpret_cast<int*>(&ratio.m_weight8)));
+                // ORIG 0x08a7e84f discards ScanInt(int*)'s success flag.
+                ScanInt(reinterpret_cast<int*>(&ratio.m_weight8));
                 reg.m_vec3c.push_back(ratio);
                 reg.m_field48 += ratio.m_weight8;
             }

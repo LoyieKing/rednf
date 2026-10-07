@@ -124,21 +124,37 @@ public:
     std::vector<GridScript> m_grids;          // +0x08
     std::vector<std::pair<int, int> > m_vec14;  // +0x14
     std::vector<std::pair<int, int> > m_vec20;  // +0x20
-    int m_2c;                                 // +0x2c（clear 置 -1）
-    int m_30;                                 // +0x30（clear 置 -1）
-    int m_34;                                 // +0x34（clear 置 -1）
+    // [DNF-FIX-PVF 2026-10-07] 以下字段名按 ImportDungeonScript 写入点（mazeLocal
+    // = ORIG ebp-0x1324，字段偏移 = 槽 + 0x1324）与 tag 具名；布局/宽度不变。
+    int m_sealDoorMapIdx;                     // +0x2c（clear 置 -1；[seal door map index]
+                                              //      ORIG 0x088e98fe -0x12f8；SetGridPath→m_hellMapIdx）
+    int m_sealDoorPosX;                       // +0x30（clear 置 -1；[seal door pos] 首值
+                                              //      ORIG 0x088e9972 -0x12f4）
+    int m_sealDoorPosY;                       // +0x34（clear 置 -1；[seal door pos] 次值
+                                              //      ORIG 0x088e9984 -0x12f0）
     RidableScript m_ridable;                  // +0x38
     int m_questType;                          // +0x4c（maze quest type；clear 置 -1；
-                                              //      set_dungeon 按 0/1/-1 分流）
-    int m_questIdx;                           // +0x50（clear 置 -1）
-    int m_54;                                 // +0x54（clear 置 -1）
+                                              //      set_dungeon 按 0/1/-1 分流；
+                                              //      [quest connection] 首值 ORIG 0x088e86af -0x12d8）
+    int m_questIdx;                           // +0x50（clear 置 -1；[quest connection] 次值
+                                              //      ORIG 0x088e86c1 -0x12d4）
+    int m_questMinDiff;                       // +0x54（clear 置 -1；[quest connection] type==0
+                                              //      第三值 ORIG 0x088e8737 -0x12d0；
+                                              //      GetAppropriateMaze 要求 <= diff）
     std::vector<DungeonClearCondition> m_clearCondition; // +0x58
-    int m_64;                                 // +0x64（clear 置 0）
-    int m_partyCountMin;                      // +0x68（GetRandMazebyPartyCount 下界）
-    int m_partyCountMax;                      // +0x6c（GetRandMazebyPartyCount 上界）
-    unsigned char m_70;                       // +0x70（clear 字节清零；拷贝按 1 字节，
-                                              //      ORIG movzbl 0x7876e89 实证）
+    int m_mazeIndex;                          // +0x64（clear 置 0；push_back 前
+                                              //      m_mazeList170.size()，ORIG 0x088e8600/
+                                              //      0x088f09c8 -0x12c0；VerifyMaze 日志 maze(%d)）
+    int m_partyCountMin;                      // +0x68（GetRandMazebyPartyCount 下界；
+                                              //      [party num check] ORIG 0x088e8ab1 -0x12bc）
+    int m_partyCountMax;                      // +0x6c（GetRandMazebyPartyCount 上界；
+                                              //      [party num check] ORIG 0x088e8ac3 -0x12b8）
+    unsigned char m_escapeHell;               // +0x70（clear 字节清零；拷贝按 1 字节，
+                                              //      ORIG movzbl 0x7876e89 实证；[escape hell]
+                                              //      ScanInt!=0，ORIG 0x088e8b37 setne→-0x12b4）
 };
+// ORIG vector<MazeScript>::size 0x0838a192：sar 2 + imul 0x4f72c235（29 的逆元）⇒ 0x74。
+static_assert(sizeof(MazeScript) == 0x74, "MazeScript size mismatch");
 
 // ---- CDungeon 支撑类型（尺寸来自 ORIG 容器函数 / 构造体）----
 

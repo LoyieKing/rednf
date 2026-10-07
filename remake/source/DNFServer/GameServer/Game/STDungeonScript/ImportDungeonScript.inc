@@ -632,9 +632,12 @@ case 0x228:  // "[maze info]"
     else
     {
         // ORIG LAB_088e8587：首轮置 -0x121 标志；后续轮先取 m_mazeList170.size()
-        // （结果仅落槽不使用，ORIG 088e85fb 实证）再 push_back + mazeLocal.clear()。
+        // 再 push_back + mazeLocal.clear()。
+        // [DNF-FIX-PVF 2026-10-07] ORIG 0x088e8600 `mov %eax,-0x12c0(%ebp)`：
+        // size() 落 mazeLocal(-0x1324)+0x64 = m_mazeIndex，随后 push_back 同一
+        // `lea -0x1324` ⇒ 是被拷走的字段，不是死存储（旧译丢弃）。
         if (mazeInited) {
-            script->m_mazeList170.size();
+            mazeLocal.m_mazeIndex = script->m_mazeList170.size();
             script->m_mazeList170.push_back(mazeLocal);
             mazeLocal.clear();
         } else {
@@ -651,24 +654,29 @@ case 0x27d:  // "[quest connection]"
     else
     {
     {
-        // ORIG LAB_088e8643：questType ∈ {-1,0,1}；type==0 时再读 1 int（quest index）。
+        // ORIG LAB_088e8643：questType ∈ {-1,0,1}；type==0 时再读 1 int。
         // 越界 → logFormat("error! maze quest type(%d)") 后 import 失败。
-        int questType = ScanInt((bool*)0);
-        ScanInt((bool*)0);   // 第 2 值（未用）
+        // [DNF-FIX-PVF 2026-10-07] ORIG 0x088e86af/0x088e86c1：两值写
+        // -0x12d8/-0x12d4 = mazeLocal+0x4c/+0x50（m_questType/m_questIdx）；
+        // 0x088e8737：type==0 第三值写 -0x12d0 = +0x54（m_questMinDiff）。
+        // 判断与日志均重读 -0x12d8（即 mazeLocal.m_questType），无独立局部。
+        // 旧译三值全丢 ⇒ set_dungeon 按 m_questType 分流恒走 -1。
+        mazeLocal.m_questType = ScanInt((bool*)0);
+        mazeLocal.m_questIdx = ScanInt((bool*)0);
         // ORIG 0x088e86cd/088e86d8：先 `cmp $0x1,%eax; jg <err>` 再
         // `cmp $0xffffffff,%eax; jge <ok>` ⇒ 源码条件序为上界在前。
-        if (questType <= 1 && questType >= -1)
+        if (mazeLocal.m_questType <= 1 && mazeLocal.m_questType >= -1)
         {
-            if (questType == 0)
+            if (mazeLocal.m_questType == 0)
             {
-                ScanInt((bool*)0);
+                mazeLocal.m_questMinDiff = ScanInt((bool*)0);
             }
         }
         else
         {
             LogManager::logFormat(0, "../RDARScriptDungeon.cpp",
                                   __FUNCTION__, 0x282,
-                                  "error! maze quest type(%d)", questType);
+                                  "error! maze quest type(%d)", mazeLocal.m_questType);
             return false;
         }
         break;
@@ -736,8 +744,10 @@ case 0x2be:  // "[party num check]"
     }
     else
     {
-        ScanInt((bool*)0);  // 局部用途 @88e8aac
-        ScanInt((bool*)0);  // 局部用途 @88e8abe
+        // [DNF-FIX-PVF 2026-10-07] ORIG 0x088e8ab1/0x088e8ac3：写 -0x12bc/-0x12b8
+        // = mazeLocal+0x68/+0x6c（GetRandMazebyPartyCount 上下界），旧译丢弃。
+        mazeLocal.m_partyCountMin = ScanInt((bool*)0);
+        mazeLocal.m_partyCountMax = ScanInt((bool*)0);
         break;
     }
 
@@ -748,7 +758,9 @@ case 0x2c4:  // "[escape hell]"
     }
     else
     {
-        ScanInt((bool*)0);  // 局部用途 @88e8b32
+        // [DNF-FIX-PVF 2026-10-07] ORIG 0x088e8b37：`test; setne; mov %al,-0x12b4`
+        // = mazeLocal+0x70 字节标志，旧译丢弃。
+        mazeLocal.m_escapeHell = ScanInt((bool*)0) != 0;
         break;
     }
 
@@ -1039,7 +1051,9 @@ case 0x38a:  // "[seal door map index]"
     }
     else
     {
-        ScanInt((bool*)0);  // 丢弃 @88e98f9
+        // [DNF-FIX-PVF 2026-10-07] ORIG 0x088e98fe：写 -0x12f8 = mazeLocal+0x2c，
+        // 旧译丢弃。
+        mazeLocal.m_sealDoorMapIdx = ScanInt((bool*)0);
         break;
     }
 
@@ -1050,9 +1064,10 @@ case 0x38d:  // "[seal door pos]"
     }
     else
     {
-        // [usable item]：两值
-        ScanInt((bool*)0);
-        ScanInt((bool*)0);
+        // [DNF-FIX-PVF 2026-10-07] ORIG 0x088e9972/0x088e9984：两值写
+        // -0x12f4/-0x12f0 = mazeLocal+0x30/+0x34，旧译丢弃（旧注误标 [usable item]）。
+        mazeLocal.m_sealDoorPosX = ScanInt((bool*)0);
+        mazeLocal.m_sealDoorPosY = ScanInt((bool*)0);
         break;
     }
 
@@ -3363,8 +3378,9 @@ case 0x962:  // "[character respawn posetion]"
     // ORIG 0x88f09c8..0x88f09ff：主循环结束后无条件提交最后一份
     // MazeScript，并把当前脚本在 g_stDungeonScriptFileList 中的索引写入
     // STDungeonScript+0x18。
-    // ORIG LAB_088f09bb：收尾 push_back 前先取一次 size()（结果不使用）。
-    script->m_mazeList170.size();
+    // [DNF-FIX-PVF 2026-10-07] ORIG 0x088f09c8 `mov %eax,-0x12c0(%ebp)`：收尾
+    // push_back 前 size() 写 mazeLocal+0x64（m_mazeIndex），旧译丢弃。
+    mazeLocal.m_mazeIndex = script->m_mazeList170.size();
     script->m_mazeList170.push_back(mazeLocal);
     script->m_18 = reinterpret_cast<STScriptFileList*>(
         &g_stDungeonScriptFileList)->FindIndexByFullScan(path);

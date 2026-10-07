@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 // importNpcScript —— ORIG 0x089fc264 主分支逐关键字转写。
-// 深水区（长尾 keyword 的次要字段、静态 lookup 表优化）以语义等价形式实现，
-// 已在对应分支标注「推断」。
+// 原版 tag、字段写入及嵌套循环退出点按 ORIG 汇编核对；调用数量相等
+// 不能证明循环次数、失败返回点与未知 tag 的分发范围相同。
 // ----------------------------------------------------------------------------
 // [b28e-NPCScript 语义修复批] ORIG 0x089fc264：超大函数（>500，§6.2 三件套）。
 //   p167 调用点差集 CLEAR（ORIG 351 = OUR 351，仅 C1/C2、D1/D2 同址别名差，P93）。
@@ -16,16 +16,9 @@
 //      [int data] 复用）⇒ int v 提升函数级（P320 int 版）。
 //   ⑥ [reward item] 0x089fdc81/0x089fdcf0/0x089fddeb：三层 `!ScanType || tok==end`
 //      拆两条独立 if（P225 推广），消 4.4 setcc 物化。
-//   残余 = 4.1/4.4 结构性差异（N 封顶）：ORIG 9 条 continue 中继岛
-//   [round5 复核] p167 复算 ORIG 351 calls = OUR 351 calls，MISSING/EXTRA 全部成对
-//   为 C1↔C2 / D1↔D2 **同址别名**（`-24 _ZNSsD2Ev` ↔ `+24 _ZNSsD1Ev`、
-//   `-11 _ZNSsC2Ev` ↔ `+11 _ZNSsC1Ev`、stGiftItemInfo 的 C2Im… ↔ C1Im… 等，P93）
-//   ⇒ **无真语义缺口**；逐助记符比对得 109 个形态差异块（我方 2532 / ORIG 2593），
-//   主体为下述 N 族，不属可译缺口。
-//   （0x089fc2f4..0x089fc30e 九对 jmp/nop 同落 +0xab，4.4 就地 jmp）、bool 局部
-//   物化（ORIG mov %al,-S; movzbl; xor$1 vs 4.4 直接 test，N122）、状态机路径标志
-//   （ORIG %esi/%ebx vs 4.4 栈 bool）、`fav` 引用缓存致成员偏移基数差 0x170
-//   （P183，语义等价）、帧 0x67c vs 0x66c（N82）。
+// [PVF 导入语义审计] ORIG 0x089fe585 的回边要求 buff 三元组完整循环；
+// 0x089fda82 / 0x089fe4cf 的未知 tag 回边保留各自子段分发；
+// 0x089fe919 / 0x089fe9d6 / 0x089fea86 / 0x089feadc 的扫描失败立即返回。
 bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 xor $1 取反 ⇒ bool（P22）
 {
     if (!loadRDARScriptFile(g_npcScriptBaseDirectory, path))
@@ -549,7 +542,7 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                             }
                             continue;
                         }
-                        break;  // 推断：未知子 keyword 结束本段处理
+                        continue;  // ORIG 0x089fda82 → 0x089fd4b1：忽略未知 gift 子键，继续本段。
                     }
                     continue;
                 }
@@ -697,18 +690,25 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                 }
                 if (token == "[favor_duration_reward_buff]")
                 {
-                    unsigned short a = static_cast<unsigned short>(ScanInt(&ok));
-                    if (!ok) { continue; }  // ORIG: 失败回到主循环
-                    stFavorableRelationShip_t::stBuffRewardInfo info;
-                    info.m_a = a;
-                    info.m_b = static_cast<unsigned short>(ScanInt(&ok));
-                    if (!ok) { continue; }
-                    info.m_c = static_cast<unsigned int>(ScanInt(&ok));
-                    if (!ok) { continue; }
-                    fav.m_buffRewards.push_back(info);
+                    // ORIG 0x089fe4d5..0x089fe585：连续读取三元组，成功后回到首项；
+                    // 任一项失败仅结束 buff 列表，回到 favorable relationship 分发。
+                    for (;;)
+                    {
+                        unsigned short a = static_cast<unsigned short>(ScanInt(&ok));
+                        if (!ok) { break; }
+                        unsigned short b = static_cast<unsigned short>(ScanInt(&ok));
+                        if (!ok) { break; }
+                        unsigned int c = static_cast<unsigned int>(ScanInt(&ok));
+                        if (!ok) { break; }
+                        stFavorableRelationShip_t::stBuffRewardInfo info;
+                        info.m_a = a;
+                        info.m_b = b;
+                        info.m_c = c;
+                        fav.m_buffRewards.push_back(info);
+                    }
                     continue;
                 }
-                break;  // 推断：未知子段结束 favorable relationship 块
+                continue;  // ORIG 0x089fe4cf → 0x089fd107：忽略未知 favorable 子键。
             }
             continue;
         }
@@ -748,7 +748,6 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
 
             randomMessageBalloonInfo info;
             std::string sub;
-            bool ok = true;
             while (ScanStr(&sub))
             {
                 int id;
@@ -778,7 +777,7 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                 case TAG_ANIMATION:
                     if (__inited)
                     {
-                        if (!ScanStr(&info.m_randomMessageAnimation)) { ok = false; break; }
+                        if (!ScanStr(&info.m_randomMessageAnimation)) { return IMPORT_FAIL; } // ORIG 0x089fe919
                         if (!info.m_randomMessageAnimation.empty())
                             npc->m_balloonInfo.m_randomMessageAnimation =
                                 info.m_randomMessageAnimation;
@@ -800,23 +799,21 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                     }
                     break;
                 case TAG_PROBABILITY:
-                    if (!ScanInt(&info.m_randomMessageProbability)) { ok = false; break; }
+                    if (!ScanInt(&info.m_randomMessageProbability)) { return IMPORT_FAIL; } // ORIG 0x089fe9d6
                     if (info.m_randomMessageProbability != 0)
                         npc->m_balloonInfo.m_randomMessageProbability =
                             info.m_randomMessageProbability;
                     break;
                 case TAG_LIST:
                 {
-                    if (!ScanInt(&id)) { ok = false; break; }   // id 复用为 count
+                    if (!ScanInt(&id)) { return IMPORT_FAIL; }   // ORIG 0x089fea86；id 复用为 count
                     info.m_randomMessageList.reserve(id);
                     std::string msg;
-                    bool bad = false;
                     for (int i = 0; i < id; ++i)
                     {
-                        if (!ScanStr(&msg)) { bad = true; break; }
+                        if (!ScanStr(&msg)) { return IMPORT_FAIL; } // ORIG 0x089feadc
                         info.m_randomMessageList.push_back(msg);
                     }
-                    if (bad) { ok = false; break; }
                     if (!info.m_randomMessageList.empty())
                         npc->m_balloonInfo.m_randomMessageList = info.m_randomMessageList;
                     break;
@@ -825,7 +822,6 @@ bool importNpcScript(NpcScript* npc, char const* path)  // ORIG load 调用侧 x
                     break;
                 }
             }
-            if (!ok) { return IMPORT_FAIL; }
             continue;
         }
         if (token == "[hide]")

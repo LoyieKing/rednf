@@ -50,13 +50,18 @@ int Dispatcher_Skill_Command_Customizing::process(CUser* user, MSG_BASE& msg, Pa
             break;
         }
 
-        unsigned char keys[8];   // ORIG 帧 -0x29 起的命令键缓存(keyCount<=5 已证)
+        // [DNF-FIX-SKILLCMD 2026-10-07] ORIG 0x081d2b89 `lea -0x2c(%ebp)` 构造 data，
+        //   0x081d2b9f `mov %ax,-0x2c`(m_command)、0x081d2bae `mov %al,-0x2a`(m_count)、
+        //   0x081d2c55 `mov %dl,-0x29(%ebp,%eax,1)` ⇒ -0x29 = data+3 = data.m_keyBytes[j]
+        //   （非独立 keys[] 局部）。原译把键写进另一个局部数组，data 的 5 个键恒 0 ⇒
+        //   customizingSkillCommand 存入 map / SaveSkill 落库 skill_command 的键全 0
+        //   （DB 实测 0x6000004c：cmd=0x4c,count=3,keys=0）⇒ 重进频道后客户端回落默认搓招。
         // [DispA6 P0] ORIG 无 keyRangeError 具名槽（该标记从未被读取）：
         //   0x081d2c71 置 0xfa 后直接 `jmp 0x081d2c92`（末位键检查段）。
         for (int j = 0; j < (int)(char)data.m_count; ++j)
         {
-            keys[j] = req.m_entries[i].m_keys[j];
-            if ((char)keys[j] < 0 || (char)keys[j] > 8)
+            data.m_keyBytes[j] = req.m_entries[i].m_keys[j];
+            if ((char)data.m_keyBytes[j] < 0 || (char)data.m_keyBytes[j] > 8)
             {
                 res.m_4 = 0xfa;
                 break;   // ORIG:跳出内层后仍无条件执行末位键检查序列
@@ -67,11 +72,11 @@ int Dispatcher_Skill_Command_Customizing::process(CUser* user, MSG_BASE& msg, Pa
         //   (ORIG 0x081d2c92..0x081d2cfd 每比较点重算 `movzbl -0x2a(%ebp),%eax;
         //    movsbl %al,%eax; sub $0x1,%eax; movzbl -0x29(%ebp,%eax,1),%eax`
         //    ⇒ 无 lastKey 具名槽，P0/P48)
-        if ((char)keys[(int)(char)data.m_count - 1] == 0 ||
-            (char)keys[(int)(char)data.m_count - 1] == 1 ||
-            (char)keys[(int)(char)data.m_count - 1] == 2 ||
-            (char)keys[(int)(char)data.m_count - 1] == 3 ||
-            (char)keys[(int)(char)data.m_count - 1] == 7)
+        if ((char)data.m_keyBytes[(int)(char)data.m_count - 1] == 0 ||
+            (char)data.m_keyBytes[(int)(char)data.m_count - 1] == 1 ||
+            (char)data.m_keyBytes[(int)(char)data.m_count - 1] == 2 ||
+            (char)data.m_keyBytes[(int)(char)data.m_count - 1] == 3 ||
+            (char)data.m_keyBytes[(int)(char)data.m_count - 1] == 7)
         {
             res.m_4 = 0xfa;
             break;

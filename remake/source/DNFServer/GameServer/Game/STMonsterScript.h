@@ -754,9 +754,12 @@ public:
     std::vector<int> m_field01c;         // +0x01c
     std::vector<std::pair<int, int> > m_field028[4];   // +0x028..+0x57
     std::vector<std::pair<int, int> > m_field058;      // +0x058
-    int m_field064;                      // +0x064（ctor/Clear 不触碰，op= 拷贝实证）
-    int m_field068;                      // +0x068
-    int m_field06c;                      // +0x06c
+    // [DNF-FIX-PVF 2026-10-07] +0x64..+0x6f 为 [catch item] 暂存的 CatchItemInfo
+    // 聚合（旧为 3 个 int）：ImportMonsterScript ORIG 0x08a20437/0x08a20449 写
+    // +0x64/+0x68、0x08a2045b `fstps 0x6c` 写 float，再 `lea 0x64(script)` 作
+    // push_back 实参；ORIG op= 0x08377a71..0x08377a80 对此段缓存双基址连拷
+    // （聚合拷贝形），故建模为 CatchItemInfo 成员。宽度/偏移/sizeof 不变。
+    CatchItemInfo m_catchItem;           // +0x064..+0x06f（ctor/Clear 不触碰）
     std::vector<CatchItemInfo> m_catchItems;           // +0x070
     std::vector<STMonsterParameterCategory> m_parameterCategories;  // +0x07c
     int m_field088;                      // +0x088

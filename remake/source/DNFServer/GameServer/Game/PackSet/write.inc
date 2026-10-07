@@ -90,7 +90,8 @@ pack_ret_t PackSet::write(char const* name, char const* tag, unsigned int rev)  
             return PACK_ERROR;
         }
     }
-    // ORIG 循环结束后不 fclose（直接重开同名文件，实证 0x08ac654f fopen）
+    // ORIG 0x08ac654a closes/flushes the header before reopening it for reading.
+    fclose(fp);
 
     fp = fopen(TEMP_HEADER_FILENAME, "rb");
     if (fp == 0)

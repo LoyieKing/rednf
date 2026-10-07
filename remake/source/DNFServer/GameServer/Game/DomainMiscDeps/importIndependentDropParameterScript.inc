@@ -52,7 +52,9 @@ bool IndependentDropParameterScript::importIndependentDropParameterScript(
                 // 属 4.1/4.4 lowering 差；如四数口径不接受 near+1/diff−1，改回
                 // `acc + rate` 即可（代价：gap −1、DIFF）。
                 acc = (int)((unsigned int)rate + (unsigned int)acc);
-                info.m_list04.push_back(std::pair<int, int>(itemId, acc));
+                // ORIG 0x0897c2ac passes &rate, not &acc, to the pair constructor.
+                // ImportIndependentDrop builds cumulative thresholds when expanding a list.
+                info.m_list04.push_back(std::pair<int, int>(itemId, rate));
             }
         }
     }

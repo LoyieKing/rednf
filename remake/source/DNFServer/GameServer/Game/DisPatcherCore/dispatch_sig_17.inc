@@ -322,8 +322,12 @@ int DisPatcher_UseStack::dispatch_sig(CUser* user, PacketBuf& packet)
         else
         {
             CDungeon* dg = tower->getCDungeonMGr()->getDungeon();
-            if (dg->limitOfStackableItemInTower() &&
-                party->m_battleField.m_bloodState != 1)
+            // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x081f7157..0x081f717f：`call limitOfStackableItemInTower;
+            //   xor $0x1,%eax; test %al,%al; je F` + `mov 0xcd8(party)(=m_battleField.m_bloodState);
+            //   cmp $0x1; jne F` ⇒ 拒绝条件 = !limit && bloodState==1（同 tower==0 分支 bloodState==1 拒绝）。
+            //   旧形两项极性皆反（limit && bloodState!=1）⇒ 绝望之塔限堆叠层非血战态误拒、血战态误放。
+            if (!dg->limitOfStackableItemInTower() &&
+                party->m_battleField.m_bloodState == 1)
             {
                 PacketGuard pgTower;
                 USESTACK_ERR(pgTower, 0);

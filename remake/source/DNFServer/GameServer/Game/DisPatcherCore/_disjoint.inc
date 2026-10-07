@@ -104,16 +104,21 @@ int DisPatcher_DisJointItem::_disjoint(CUser* user, int slot, int type,
         Inven_Item outItems[5];                        // local_26b..，步长 0x3d
         for (int i = 0; i < 5; ++i)
         {
-            if (result.m_f[i + 1] == 0)                // -0xb8+(i+1)*4 = result+4*(i+1)
+            // [DNF-FIX-DISJOINT 2026-10-07] ORIG 0x081f96f0..0x081f9764：result 基址 = -0xbc
+            //   （0x081f9555 `lea -0xbc` → DisJointResult ctor / GetResult / get_disjoint_result 实参）；
+            //   物品 ID 读 `-0xb8(%ebp,(i+4),4)` = -0xbc+0x14+4i = m_f[i+5]（m_b[i]），数量读
+            //   `-0xbc(%ebp,i,4)` = m_f[i]（m_a[i]）。旧译把 -0xb8 当基址 ⇒ ID 取 m_f[i+1]（下一个
+            //   数量），仅 i=4 撞上 m_f[5]=cube 且数量取 m_f[4]=0 ⇒ 每次只得 1 个无色小晶块。
+            if (result.m_f[i + 5] == 0)
             {
                 continue;
             }
-            foundItems[i + 1] = G_CDataManager()->find_item(result.m_f[i + 1]);
+            foundItems[i + 1] = G_CDataManager()->find_item(result.m_f[i + 5]);
             if (foundItems[i + 1] == 0)
             {
                 continue;
             }
-            outItems[i].m_addInfo = result.m_f[i + 1];   // +0x2 ← m_f[i+1]
+            outItems[i].m_addInfo = result.m_f[i + 5];   // +0x2 ← m_f[i+5]（ORIG 0x081f9748）
             outItems[i].set_add_info(result.m_f[i]);     // +0x7 ← m_f[i]
             foundItems[i + 1]->make_item(outItems[i]);   // vptr+0x8 槽
             const int slotResult =

@@ -682,7 +682,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(st);
         values.push_back(pct);
         fv = (float)v;
-        (void)iv;  // ORIG 0x89a34xx leaf [1461]：ScanInt 结果不 push（Ghidra 丢弃）
+        // ORIG 0x089a40f5..0x089a4105 appends the resistance magnitude after type/mode.
+        values.push_back(fv);
         goto L_chain_end;
     }
     // 0x144a [element resistance]
@@ -718,7 +719,8 @@ bool readAction(const std::string& line, EquipmentParameterInfo* info,
         values.push_back(15.0f);
         if (!ScanStr(&token)) return false;
         if (!ScanInt(&iv)) return false;
-        values.push_back((float)iv);
+        // ORIG 0x089a434f..0x089a4364 converts the argument but does not append it.
+        fv = (float)iv;
         goto L_chain_end;
     }
     // 0x146e [active status duration]

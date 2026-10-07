@@ -114,7 +114,17 @@ void DB_Login::GetPremiumInfo(int param, SIG_LOGIN_DATA* sig,
                 }
             }
         }
-        else if (!(it->m_eventId >= 50000 && it->m_eventId <= 89999))
+        // [DNF-FIX-CONTRACT 2026-10-07] ORIG 0x08412315..0x0841233e：
+        // `cmp $0xc34f; jle T; cmp $0x15f8f; jle F; T: mov $1; F: mov $0; test; jne 0x08412813`
+        // ⇒ eventId<50000 || eventId>89999 时直落 0x08412813（nop; jmp ++it，空分支）；
+        // 仅 [50000..89999] 进入 0x08412344 起的 70000~89999 / 59000 / IsRestrictedPremium /
+        // member_premium 查询。原译 `!(>=50000 && <=89999)` 把主体挂反到区间外：
+        // 区间内的契约事件（dnf_event_entry 50020/50027 等）登录时从不查询 ⇒ 换线/重选
+        // 角色后 premium 全部丢失（DB 行仍在）。
+        else if (it->m_eventId < 50000 || it->m_eventId > 89999)
+        {
+        }
+        else
         {
             if (it->m_eventId >= 70000 && it->m_eventId <= 89999)
             {

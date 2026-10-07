@@ -45,8 +45,11 @@ SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
     // 书写顺序」⇒ 源码 case 必须按此序书写（纯 jump table，无决策树内联风险）。
     case 4:  // IPG_TYPE_QUERY：getBalance(account, &bal, &point)
     {
-        int bal = 0;    // -0x34
-        int point = 0;  // -0x30
+        // [DNF-FIX-CASHSHOP 2026-10-07] 槽注释更正：ORIG 0x08104913..0x08104928
+        // `lea -0x34→0xc(%esp)`、`lea -0x30→0x8(%esp)` ⇒ -0x30 = 实参2 = balance(cera)，
+        // -0x34 = 实参3 = point（getBalance 0x0817381a：arg2←m_balance、arg3←m_point）。
+        int bal = 0;    // -0x30（实参2，balance）
+        int point = 0;  // -0x34（实参3，point）
         int rc = m_mgr->m_billingCash->getBalance(data->m_accName, bal, point);
         if (rc != 0)
         {
@@ -68,8 +71,11 @@ SIPGData* CIPGMgr::CIPGWorker::ProcIPGSyncForTaiwan(SIPGData* data)
         // [b28d-solo-W6_IPGDeps] 删 rq 具名指针局部：ORIG 0x8104a.. 各 sprintf 目标
         // 逐点重算 `mov 0xc(%ebp),%eax; add $0xNN`（P183/P134），指针局部使 4.4 帧
         // 多 4B 且槽序整体深移。
-        sprintf(result->m_cmd.m_query.m_ceraValues[0], "%d", point);  // asm 写序：+0x69←-0x30(point)、+0xb5←-0x34(bal)、+0xb1←rc
-        sprintf(result->m_cmd.m_query.m_ceraPoint, "%d", bal);
+        // [DNF-FIX-CASHSHOP 2026-10-07] ORIG 0x08104a5f..0x08104a96：+0x69←-0x30(balance)、
+        // +0xb5←-0x34(point)、+0xb1←rc。原译把 point/bal 写反 ⇒ 游戏内 cera 显示/扣费前检查
+        // 取到 cera_point，usp_purchase 扣真实 cash_cera 失败 → Inter_IPGResult 0x19「付费服务器错误」。
+        sprintf(result->m_cmd.m_query.m_ceraValues[0], "%d", bal);
+        sprintf(result->m_cmd.m_query.m_ceraPoint, "%d", point);
         sprintf(result->m_cmd.m_query.m_retCode, "%d", rc);
         result->m_callback = data->m_callback;
         break;

@@ -13,16 +13,16 @@ void MazeScript::clear()
     m_grids.clear();
     m_vec14.clear();
     m_vec20.clear();
-    m_2c = -1;
-    m_30 = -1;
-    m_34 = -1;
+    m_sealDoorMapIdx = -1;
+    m_sealDoorPosX = -1;
+    m_sealDoorPosY = -1;
     m_questType = -1;
     m_questIdx = -1;
-    m_54 = -1;
+    m_questMinDiff = -1;
     m_clearCondition.clear();
-    m_64 = 0;
+    m_mazeIndex = 0;
     m_partyCountMin = 0;
     m_partyCountMax = 0;
-    m_70 = 0;
+    m_escapeHell = 0;
     m_ridable.clear();
 }

@@ -1,6 +1,6 @@
 // ORIG 0x082ff128 GetAppropriateMaze(diff)：
 //   按 questType 0/1 取任务迷宫向量；过滤血战态/hell 标记/任务连接/单人格挡；
-//   questType==0 额外要求 maze->m_54 <= diff；候选 1 个直取、多个 rand()%n，
+//   questType==0 额外要求 maze->m_questMinDiff <= diff；候选 1 个直取、多个 rand()%n，
 //   两轮无候选则回退 CDungeon::GetRandMazebyPartyCount(成员数)。
 // b28d-solo-BattleDepsB2 定案（N 封顶 217/212）：已对齐项 = 正向复合条件嵌套（血战/hell/
 //   连接/任务三过滤）、候选 size 三分支直接 return（无 picked/found 具名槽）、
@@ -40,7 +40,7 @@ MazeScript* CBattle_Field::GetAppropriateMaze(ENUM_DUNGEON_DIFFICULTY diff) cons
                 //   jump-thread 折叠 ⇒ 用 2 守卫 + 3 尾标签复现。
                 if ((int)m_bloodState == 1)                       // +0x1b4
                     goto skip1;
-                if ((char)m_hellPartyActive != 0 && maze->m_70 != 0)
+                if ((char)m_hellPartyActive != 0 && maze->m_escapeHell != 0)
                     goto skip2;
                 {
                     if (m_party != NULL &&
@@ -55,7 +55,7 @@ MazeScript* CBattle_Field::GetAppropriateMaze(ENUM_DUNGEON_DIFFICULTY diff) cons
                         {
                             if (questType == 0)
                             {
-                                if (maze->m_54 <= (int)diff)
+                                if (maze->m_questMinDiff <= (int)diff)
                                     // b28d-55（P270/P234）：ORIG 走
                                     // push_back(T&&)=EOS1_（0x082ff2a4 实证）；
                                     // static_cast<T&&> 是纯语言构造（零额外 call）

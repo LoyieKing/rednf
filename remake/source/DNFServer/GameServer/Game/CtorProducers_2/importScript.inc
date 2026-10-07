@@ -77,11 +77,13 @@ bool CharacManageScript::importScript(const char* path)
         }
         else if ("[manage level max]" == token)
         {
-            m_manageLevelMax = ScanInt(&ok);         // +0x48
+            const int maximum = ScanInt(&ok);
             if (!ok)
             {
                 return false;
             }
+            // ORIG 0x088e0af8 commits +0x48 only after the scan succeeds.
+            m_manageLevelMax = maximum;
         }
         else if ("[exp bonus]" == token || "[gold bonus]" == token)
         {

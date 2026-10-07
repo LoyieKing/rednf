@@ -31,13 +31,17 @@ int Dispatcher_Buy_Charac_Status_Using_QP::process(CUser* user, MSG_BASE& msg, P
                              mref.m_0d,
                              mref.m_0e,
                              result);
+    // [DNF-FIX-QPSKILL 2026-10-07] ORIG 0x081d658c `cmpl $0,-0xc; je 0x081d65a2`：
+    //   ret!=0（失败）→ 0x081d6598 param+0x8 = ret（send 走失败包 byte0+short err）；
+    //   ret==0（成功）→ 0x081d65ac param+0x4 = msg+0xd、0x081d65b6 param+0x6 = result。
+    //   旧形两分支体对调：失败被当成功回包（01 status 0），真成功反而回 status/level=0。
     if (ok)
     {
-        STQuestShopBuyParam& out = static_cast<STQuestShopBuyParam&>(param);
-        out.m_4 = mref.m_0d;
-        out.m_6 = result;
+        static_cast<STQuestShopBuyParam&>(param).m_8 = ok;
         return 0;
     }
-    static_cast<STQuestShopBuyParam&>(param).m_8 = ok;
+    STQuestShopBuyParam& out = static_cast<STQuestShopBuyParam&>(param);
+    out.m_4 = mref.m_0d;
+    out.m_6 = result;
     return 0;
 }

@@ -2772,6 +2772,8 @@ struct ExpansionPair
                 break;
 
             Inven_Item item;
+            // ORIG 0x0866cf22..0x0866cf25：先写物品 ID；make_item 只补类型/属性。
+            item.m_addInfo = itemIdx;
             CItem* ci = G_CDataManager()->find_item(itemIdx);
             ci->make_item(item);
             item.set_add_info(gained);

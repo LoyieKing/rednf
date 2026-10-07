@@ -141,11 +141,9 @@ bool importUpgradeTable(const char* path, upgrade_table_t* table)
                 ok = true;                    // ORIG local_cb = true（入循环前置真）
                 for (;;)
                 {
-                    // ORIG 条件本体是 `ok == false || size() <= index` 的合并短路
-                    // （0x08901020 起 + bool 汇聚岛）。ok 复位为 true 的语义已补（下方）；
-                    // 汇聚岛在 4.4 下改命名 bool 反而多 12 insn（实测 1165→1177），
-                    // 故保留直判形，岛形差记 N3/setcc-fold。
-                    if (index >= table->m_infos.size())
+                    // ORIG 0x08901020..0x08901049: a failed row scan stops the
+                    // outer loop before touching another upgrade row.
+                    if (!ok || index >= table->m_infos.size())
                     {
                         break;
                     }

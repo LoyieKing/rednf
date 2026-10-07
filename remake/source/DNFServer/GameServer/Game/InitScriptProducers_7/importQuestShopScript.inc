@@ -87,33 +87,34 @@ int importQuestShopScript(const char* path, stQuestShop& out)
                 }
                 else if (token == "[quest status info]")
                 {
-                    if (!ScanStr(&text))
+                    // [DNF-FIX-QPSKILL 2026-10-07] ORIG 0x0890fc4c / 0x0890fc83 两次
+                    //   ScanStr 返回值均**不检查**（直接 lea text → loadXxxType），
+                    //   旧形多出的 `if(!ScanStr) return 0x284f` 一并去掉。
+                    ScanStr(&text);
+                    // [DNF-FIX-QPSKILL 2026-10-07] 三值不是死存：status 帧 -0xcc，
+                    //   ORIG 0x0890fc5f loadAppendageType → -0xb4 = status+0x18（m_field18，
+                    //     findStatusType 返回值；旧形未写 ⇒ 恒为 clear 默认 0x4d ⇒
+                    //     getStatusBuyingCount=-1 ⇒ buyStatus 每次返 1，QP 加点全部失败）；
+                    //   ORIG 0x0890fc96 loadValueType → -0xb0 = status+0x1c（m_statusType）；
+                    //   ORIG 0x0890fca8 fstps ScanFloat → -0xac = status+0x20（m_field20）。
+                    status.m_field18 = loadAppendageType(text);
+                    if (status.m_field18 == -1)
                     {
                         return 0x284f;
                     }
-                    const int appendage = loadAppendageType(text);
-                    if (appendage == -1)
-                    {
-                        return 0x284f;
-                    }
-                    if (!ScanStr(&text))
-                    {
-                        return 0x284f;
-                    }
-                    const int valueType = loadValueType(text);
-                    (void)valueType;
-                    const float value = ScanFloat((bool*)NULL);
-                    (void)value;
-                    // ORIG：out+0x28+appendage = (char)idx（appendage 槽位标记）
-                    out.m_pad28[appendage] = static_cast<char>(idx);
+                    ScanStr(&text);
+                    status.m_statusType = loadValueType(text);
+                    status.m_field20 = ScanFloat((bool*)NULL);
+                    // ORIG 0x0890fcbf：out+0x28+appendage = (char)idx（appendage 槽位标记）
+                    out.m_pad28[status.m_field18] = static_cast<char>(idx);
                 }
                 else if (token == "[level info]")
                 {
                     // [b56FIX · 缺 case 内循环 ⇒ 整个 [quest status] 记录被截断]
                     // ORIG 0890fcdf..0890fd50：[level info] 的 case 体是**循环**——
                     //   0890fcdf `call stStatusLevelInfoC1`（ctor 在环内，每轮重建）
-                    //   0890fcf6 ScanInt(bool*)→info.m_second；!ok → `jmp 0x890fd52`
-                    //   0890fd1a ScanInt(bool*)→info.m_first ；!ok → `jmp 0x890fd52`
+                    //   0890fcf6 ScanInt(bool*)→info+0 m_first（已按 QPSKILL 更正）；!ok → `jmp 0x890fd52`
+                    //   0890fd1a ScanInt(bool*)→info+1 m_second；!ok → `jmp 0x890fd52`
                     //   0890fd4b `status.m_levelInfos.push_back(info)`
                     //   0890fd50 `jmp 0x890fcdf` ⇐ **回到环首再读一对**
                     //   0890fd52 `jmp 0x890fb2f`（内层 while(!closeRecord) 头）
@@ -131,12 +132,16 @@ int importQuestShopScript(const char* path, stQuestShop& out)
                     for (;;)
                     {
                         stStatusLevelInfo info;
-                        info.m_second = static_cast<unsigned char>(ScanInt(&ok));
+                        // [DNF-FIX-QPSKILL 2026-10-07] 字段对调：ORIG 0x0890fcfb 首个
+                        //   ScanInt → -0x8e = info+0x00（m_first，getMaxCount 0x0890f91e
+                        //   的等级门槛 byte+0）；0x0890fd1f 第二个 → -0x8d = info+0x01
+                        //   （m_second，0x0890f939 累加的次数）。旧形先写 m_second。
+                        info.m_first = static_cast<unsigned char>(ScanInt(&ok));
                         if (!ok)
                         {
                             break;
                         }
-                        info.m_first = static_cast<unsigned char>(ScanInt(&ok));
+                        info.m_second = static_cast<unsigned char>(ScanInt(&ok));
                         if (!ok)
                         {
                             break;

@@ -134,7 +134,11 @@ int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase
         local_30->GetRandomOptionGrade(),                // vtable +0x50 槽虚调用
         (int)local_28,
         &local_34->m_random.m_random);
-    if ((char)(cVar4 ^ 1) == 0)
+    // [DNF-FIX-MAGICSEAL 2026-10-07] ORIG 0x081dceeb..0x081dcef5：`call change_option;
+    // xor $0x1,%eax; test %al,%al; je 0x081dcf1c(成功续行)` ⇒ 仅 change_option 失败(=0)
+    // 才发 0x13。原译 `== 0` 极性写反：成功时内存里已写入变换结果(+0xa/+0xd 槽号)却回
+    // 0x13 不扣费不存盘；之后其它槽因 low2 锁定回 4、同槽再回 0x13。
+    if ((char)(cVar4 ^ 1) != 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1b6, 0x13);
         return 0;

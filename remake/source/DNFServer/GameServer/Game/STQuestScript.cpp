@@ -1219,7 +1219,6 @@ static QuestScript g_questScriptCopyEmitUse(g_questScriptCopyEmitSrc);
         if (line == "[condition data]")
         {
             script->m_field198.clear();
-            std::string s;
             for (;;)
             {
                 int key = ScanInt(&ok);
@@ -1227,6 +1226,9 @@ static QuestScript g_questScriptCopyEmitUse(g_questScriptCopyEmitSrc);
                 {
                     break;                           // 读完 → continue 主循环
                 }
+                // ORIG 0x08a64201..0x08a64218：每条成功读取 key 后新建字符串，
+                // ScanStr 未赋值时仍写入空串，不继承上一条 condition 文案。
+                std::string s;
                 ScanStr(&s);
                 std::pair<std::string, std::string> p;
                 p.first = s;

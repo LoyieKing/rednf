@@ -95,7 +95,7 @@ bool CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     }
 
     if (param != 0)
-        *param = (int)reward;
+        *param = mob.m_mobIndex;
 
     // ---- 击杀合法化 hack 检测（0x25e：地图存活计数异常；0x25f：HP 上限异常） ----
     if (mob.m_field20 == 0 && !m_battleField.IsClearDungeon())
@@ -106,7 +106,7 @@ bool CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             user, (WongWork::ENUM_HACKTYPE)0x25f, 1, 0, 0);
 
     // ---- 成员击杀回调 + 击杀角色统计 ----
-    OnKilledMonster(user, (int)reward, mob, dieInfo);
+    OnKilledMonster(user, mob.m_mobIndex, mob, dieInfo);
 
     char roleType = m_battleField.convertAPCRoleType2MonsterRoleType(
         mob.m_roleType);
@@ -173,7 +173,7 @@ bool CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         if (mob.m_roleType > 4 && mob.m_roleType <= 8)
             questEnemyType = 2;
         m_member[i].m_pUser->CheckQuestMonster(
-            m_battleField.get_dungeon_index(), (int)reward,
+            m_battleField.get_dungeon_index(), mob.m_mobIndex,
             (ENUM_QUEST_ENEMY_TYPE)questEnemyType);
     }
 
@@ -186,7 +186,7 @@ bool CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
             continue;
         if (m_member[i].m_pUser == user)
             HistoryLog::WriteKillMob(
-                reinterpret_cast<FILE*>(user->m_historyLogFp), (int)reward);
+                reinterpret_cast<FILE*>(user->m_historyLogFp), mob.m_mobIndex);
     }
 
     // ---- 总经验计算（成员数倍率 + 队伍经验加成事件） ----
@@ -208,7 +208,7 @@ bool CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
 
     // ---- 击杀历史日志（KillMonster） ----
     user->m_historyLog.KillMonster(
-        (int)reward,
+        mob.m_mobIndex,
         dieInfo.m_killValue1, dieInfo.m_killValue2,
         dieInfo.m_killPairA24, dieInfo.m_killPairA26, dieInfo,
         mob.m_roleType, mob.m_roleType == 5,
@@ -225,7 +225,7 @@ bool CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
     if (mob.m_roleType > 4)
     {
         // P140：ORIG 直接解引用 dm+0x869c（无判空），照抄。
-        CAICharacter* aiChar = G_CDataManager()->m_aiCharacterList->get(reward);
+        CAICharacter* aiChar = G_CDataManager()->m_aiCharacterList->get((unsigned int)mob.m_mobIndex);
         if (aiChar != 0 &&
             (mob.m_dropCnt == 100 || mob.m_dropCnt == 200))
         {
@@ -345,7 +345,7 @@ bool CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
         int gainedSfp = 0;
         if (m_member[i].m_pUser->gain_exp_sp(
                 (int)exp, gainedSp, gainedSfp,
-                (CUser::eExpAddReason)1, (int)reward, false))
+                (CUser::eExpAddReason)1, mob.m_mobIndex, false))
         {
             m_member[i].m_pUser->SendNotiPacket((CUser::eSendTarget)2,
                                                 (ENUM_NOTIPACKET)2, 1);
@@ -401,7 +401,7 @@ bool CParty::kill_monster(CUser* user, int monsterIdx, unsigned short mapIdx,
 
     if (m_battleField.ClearCondition(
             (ENUM_DUNGEON_CLEAR_CONDITION_TYPE)clearConditionType,
-            (int)reward))
+            mob.m_mobIndex))
     {
         ClearDungeon();
     }

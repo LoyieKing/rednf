@@ -207,7 +207,7 @@ bool CDataManager::VerifyMap(const CMap& map, int idx) const
         for (unsigned int mi = 0; mi < dungeon->m_mazeList.size() && !found; ++mi)
             {
             const MazeScript& maze = dungeon->m_mazeList[mi];
-            if (maze.m_2c == map.get_index())
+            if (maze.m_sealDoorMapIdx == map.get_index())
                 {
                     found = true;
                 break;

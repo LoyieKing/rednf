@@ -4205,13 +4205,15 @@ case 0x11ff:  // "[catch item]"（ORIG 08a203c8：+0x64 三字段暂存后按 Ca
         {
             //  push 至 +0x70 vector；随后一次 ScanType 消耗尾词）
             {
-                CatchItemInfo ci;
-                ci.m_field0 = ScanInt(static_cast<bool*>(0));
-                ci.m_field4 = ScanInt(static_cast<bool*>(0));
-                ci.m_field8 = ScanFloat(static_cast<bool*>(0));
-                std::string tail;                      // local_1bdc：ScanType 消耗
+                // [DNF-FIX-PVF 2026-10-07] ORIG 0x08a20437/0x08a20449/0x08a2045b：
+                // 三值直接写 script+0x64/+0x68/+0x6c（末值 fstps float），再
+                // `lea 0x64(script)` push_back ⇒ 持久字段 m_catchItem，非局部对象。
+                script->m_catchItem.m_field0 = ScanInt(static_cast<bool*>(0));
+                script->m_catchItem.m_field4 = ScanInt(static_cast<bool*>(0));
+                script->m_catchItem.m_field8 = ScanFloat(static_cast<bool*>(0));
+                std::string tail;                      // ORIG -0x1bd8：ScanType 消耗
                 ScanType(tail, true);
-                script->m_catchItems.push_back(ci);
+                script->m_catchItems.push_back(script->m_catchItem);
             }
             break;
         }

@@ -703,7 +703,7 @@ bool ImportMapScript(STMapScript* script, const char* path)
                 monObj.m_34 = 0;                            // local_73c=0（push 前复位）
                 int total = static_cast<int>(script->m_vecMonster.size());  // esi 先算
                 total = total + static_cast<int>(script->m_vecConditionMonster.size());
-                (void)total;                                // ORIG 死存储（校验和，未用）
+                monObj.m_50 = total;                         // ORIG -0x71c = monObj(+0x50)：客户端生成条目编号
                 target->push_back(monObj);
                 if (tok == "[monster]")
                     ++normalMonsterCount;                   // iStack_140++

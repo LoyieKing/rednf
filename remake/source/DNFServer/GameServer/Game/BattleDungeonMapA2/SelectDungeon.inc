@@ -96,7 +96,7 @@ bool CBattle_Field::SelectDungeon(int dungeonIdx, const CDungeon* dungeon,
     m_field1a4 = 0;                                    // +0x1a4
 
     MazeScript* maze = GetAppropriateMaze((ENUM_DUNGEON_DIFFICULTY)diff);
-    m_mazeType = maze->m_64;                           // +0x1ac ← maze+0x64
+    m_mazeType = maze->m_mazeIndex;                           // +0x1ac ← maze+0x64
     setQuestMazeInfo();
     m_clearCondition.SetDungeonClearConditionVector(maze->m_clearCondition);
     SetGridPath(maze, dungeon->GetDummyAppearCount());

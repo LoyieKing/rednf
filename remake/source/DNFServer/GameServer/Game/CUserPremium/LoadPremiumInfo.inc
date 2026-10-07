@@ -111,6 +111,14 @@ int CUserPremium::LoadPremiumInfo(const char* path)
 
         STPremiumItemData data;
         data.m_value0 = i;
+        // [DNF-FIX-CONTRACT 2026-10-07] ORIG 0x086af52b ctor(data@-0x40) → 0x086af530/533
+        // `data.m_value0(-0x40) = i` → 0x086af536..0x086af54c `mov table[i]+0x120,%eax;
+        // mov %eax,-0x38(%ebp)` ⇒ -0x38 = data+0x8 = STPremiumItemData::m_value8
+        // （非独立 key 局部）= table[i].m_targetItemKey。原译漏写 m_value8 ⇒ 恒 0 ⇒
+        // respond_special_item_premium（ORIG 0x0827d3dc）case 0x16/0x1b/0x1d/0x21/0x4f/
+        // 0x53/0x57/0x5c 的 GetRestrictCode(item=m_value8) 恒 0 ⇒ 契约以 event_id=0
+        // 落 member_premium 且不 SaveFeaturedIdx(dnf_event_entry) ⇒ 登录不再加载。
+        data.m_value8 = (int)table[i].m_targetItemKey;
         // [b28d-solo-CUserPremium] P0 取舍（b28d 实测）：ORIG 0x86af54c
         // `mov %eax,-0x38(%ebp)` + 空分支 0x86af667 回读，确为键具名局部；
         // 但 4.4 一旦为该键分配栈槽即触发帧 0x7e3c→0x7e4c、table 基址
@@ -143,7 +151,8 @@ int CUserPremium::LoadPremiumInfo(const char* path)
         {
             // 空表：flag 字节取已拷贝 g 表 m_checkTerm 低字节，key 用记录键。
             data.m_c4 = (unsigned char)g_SPremiumInfo[i].m_checkTerm;
-            if (!SetPremiumItemData((unsigned long)table[i].m_targetItemKey, data))
+            // [DNF-FIX-CONTRACT 2026-10-07] ORIG 0x086af667 `mov -0x38(%ebp),%eax` ⇒ key 回读 data.m_value8。
+            if (!SetPremiumItemData((unsigned long)data.m_value8, data))
                 return 0x1c4;
         }
     }

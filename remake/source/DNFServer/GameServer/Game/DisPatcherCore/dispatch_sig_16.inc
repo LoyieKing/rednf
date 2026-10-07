@@ -329,9 +329,12 @@ int DisPatcher_DieMob::dispatch_sig(CUser* user, PacketBuf& packet)
             }
             if (zeroHitBossDg)
             {
+                // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x081ec0c5 `mov -0xc1(%ebp),%ebx` → 0x081ec0de
+                //   `mov %ebx,0x10(%esp)`：第 4 实参取 -0xc1 槽 = m_killValue2（0x081ec101 `test -0xc1`
+                //   → hack 0x6d 同槽），非 m_killValue1（-0xbd）。
                 attacker->getHackAnalyzer()->addServerHackCnt(
                     attacker, (WongWork::ENUM_HACKTYPE)0x7f, 1,
-                    die.m_killValue1, 0);
+                    die.m_killValue2, 0);
             }
             if (die.m_killValue2 == 0)
             {

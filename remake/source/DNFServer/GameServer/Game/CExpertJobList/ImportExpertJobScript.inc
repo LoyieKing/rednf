@@ -116,7 +116,7 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
         //        行数 60→119）；
         //   形③ 本分支循环体首（与 grade/res 并列）⇒ 又落回 -0x4c（等同形①，407 组）。
         // 采用形②（四数不变、ndiff 严格改善）。
-        int readOnly;
+        // [DNF-FIX-DISJOINT 2026-10-07] 原 `int readOnly;` 已删：其 ORIG 槽 -0x388 即 res(-0x3a8)+0x20，见下。
         int scriptIdx = 0;
         (*script).Clear();
         std::string section;
@@ -248,7 +248,11 @@ bool ImportExpertJobScript(STExpertJobScript* script, const char* path)
                     // 具名局部（写后未读，P171 照抄）⇒ 必须保留该 store。
                     // [b2c 试形 B] 该具名局部改在**函数顶层**声明（`int readOnly;` 见上），
                     // 此处只赋值 —— 见顶层注释（槽位对齐实验）。
-                    readOnly = ScanInt(&ok);
+                    // [DNF-FIX-DISJOINT 2026-10-07] ORIG 0x0896b99f `mov %eax,-0x388(%ebp)`：res 构造于
+                    //   -0x3a8（0x0896b79b），-0x388 = res+0x20 = m_field20（大奖基础率，PVF 第 8 列 0/9/100；
+                    //   get_disjoint_result_ 0x085d2577 `mov 0x20(%eax); imul $0x64`）。旧译当死局部 ⇒ map 内恒 0、
+                    //   非自助分解永不出大奖、自助只剩 etc 加成。
+                    res.m_field20 = ScanInt(&ok);
                     if (!ok) return false;
                     // b290-BigExpert [REAL-BUG 补：ORIG 0x0896ba7e..0x0896ba9d 在 insert
                     // 之后 `movzbl -0x2ac(%ebp); xor $1; test; je`（= 检查
