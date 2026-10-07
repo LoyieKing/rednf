@@ -40,11 +40,16 @@ int Dispatcher_DungeonEventStoryPause::dispatch_sig(CUser* user, PacketBuf& pack
             // party+0xb24 内嵌 CBattle_Field：getMaze / GetCurrentMapIndex
             CBattle_Field* battleField =
                 &party->m_battleField;
-            if (battleField->getMaze() != 0)
+            // ORIG 0x08216eec..0x08216f2f: maze 存局部 -0xc；实参 = (getPlayingDungeonIndex(),
+            //   GetCurrentMapIndex(), maze+0x50 m_questIdx)，求值顺序 m_questIdx→地图→副本。
+            //   [DNF-FIX 2026-10-08] 原先第 2 实参误传 flag2（此分支恒 0）⇒ case 0（按地图）
+            //   的剧情暂停判定永远与 0 比较。
+            MazeScript* maze = battleField->getMaze();
+            if (maze != 0)
             {
-                int mapIndex = battleField->GetCurrentMapIndex();
-                int dungeonNo = user->getPlayingDungeonIndex();
-                if (quest->CheckDungeonEventStoryPause(dungeonNo, flag2, mapIndex))
+                if (quest->CheckDungeonEventStoryPause(user->getPlayingDungeonIndex(),
+                                                       battleField->GetCurrentMapIndex(),
+                                                       maze->m_questIdx))
                 {
                     pauseValid = 1;
                 }

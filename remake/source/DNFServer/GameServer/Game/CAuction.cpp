@@ -300,17 +300,22 @@ struct IntView0a : PacketHeader {
 struct IntView0b : PacketHeader { char m_afterHdr; int m_v; };
 struct IntView0d : MSG_BASE { int m_v; };
 struct IntView0e : PacketHeader  { unsigned int m_fieldA; int m_v; };
-struct IntView0f { char m_afterHdr[0x5]; int m_v; };
+struct IntView0f : PacketHeader { char m_afterHdr[0x5]; int m_v; };
 struct IntView12 : PacketHeader  { unsigned int m_fieldA; unsigned int m_fieldE; int m_v; };
-struct IntView14 { char m_afterHdr[0xa]; int m_v; };
+struct IntView14 : PacketHeader { char m_afterHdr[0xa]; int m_v; };
 struct IntView29 : PacketHeader { char m_afterHdr[31]; int m_v; };
 struct UIntView0a : PacketHeader {
     unsigned int m_v;
 };
 struct UIntView0e : PacketHeader  { unsigned int m_fieldA; unsigned int m_v; };
-struct UIntView0f { char m_afterHdr[0x5]; unsigned int m_v; };
+struct UIntView0f : PacketHeader { char m_afterHdr[0x5]; unsigned int m_v; };
 struct UIntView12 : PacketHeader  { unsigned int m_fieldA; unsigned int m_fieldE; unsigned int m_v; };
-struct UIntView14 { char m_afterHdr[0xa]; unsigned int m_v; };
+struct UIntView14 : PacketHeader { char m_afterHdr[0xa]; unsigned int m_v; };
+// [DNF-FIX 2026-10-08] 0f/14 视图原缺 PacketHeader 基类 ⇒ m_v 落 +0x5/+0xa；
+//   ORIG dispatchPacket 0x08476b8f（234 键 +0x14）/0x08478975（436 键 +0xf）/
+//   0x08479903（532 键 +0xf）。补基类使 m_v 回到 +0xf/+0x14。
+static_assert(sizeof(IntView0f) == 0x13 && sizeof(UIntView0f) == 0x13, "m_v @+0xf");
+static_assert(sizeof(IntView14) == 0x18 && sizeof(UIntView14) == 0x18, "m_v @+0x14");
 struct UCharView0a : PacketHeader {
     unsigned char m_v;
 };

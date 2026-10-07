@@ -6562,9 +6562,13 @@ struct Inter_LoadEventLevelupSupportEntryPktView
     if (m_itemRef == 0)
         return 0x11;
 
-    const CItem* mat = reinterpret_cast<CItem*>(m_itemRef)->GetNeedMaterial();
-    m_needItem.first  = mat->m_index;    // GetNeedMaterial().first（CItem* 首 int）
-    m_needItem.second = mat->m_grade;    // GetNeedMaterial().second
+    // [DNF-FIX 2026-10-08] ORIG 0x084e6b8d..0x084e6b9d: GetNeedMaterial() 实为
+    //   pair<int,int>*（item idx, 数量），`mov 0x4(%eax),%edx; mov (%eax),%eax;
+    //   mov %eax,0x8(%ecx); mov %edx,0xc(%ecx)` 读 +0/+4。原先按 CItem* 读
+    //   m_index(+4)/m_grade(+8) ⇒ 整体错位 4 字节（同 DisPatcherCore/get_data.inc 用法）。
+    m_needItem =
+        *reinterpret_cast<const std::pair<int, int>*>(
+            reinterpret_cast<CItem*>(m_itemRef)->GetNeedMaterial());
     if (m_needItem.first == 0 || m_needItem.first == -1)
         return 0x17;
 
