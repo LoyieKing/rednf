@@ -80,9 +80,11 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
         //   它消失后 ~CLuckPoint 及 std::vector<CUser*>、std::map<int,…> 的
         //   27 个 COMDAT 符号不再发射（而 ORIG 本 TU 含这些符号）。
         //   按「四数不得劣化」闸门回滚；保留 `::CLuckPoint luck;` 直证形。
-        ::CLuckPoint luck;   // sizeof 0x24；ORIG 隐式 ~CLuckPoint COMDAT 依赖此 odr-use
+        // [bughunt6] 语义优先：ORIG 0x08462019 传 &result.m_luckPoint（无独立局部）；
+        //   CClearReward::_generateRandomItem 0x0853898c 以 result+0xc 调
+        //   GetItemRarity ⇒ 独立局部令幸运值不参与死亡之塔奖励稀有度判定。
         if (party != 0)
-            party->GetLuckPoint(&luck, false);
+            party->GetLuckPoint(&result.m_luckPoint, false);
 
         const int roll = get_rand_int(1000);
         // ORIG 0846204b..0x097：`imul 0x1c(%ebp),%eax; cmp -0x20(%ebp),%eax;
