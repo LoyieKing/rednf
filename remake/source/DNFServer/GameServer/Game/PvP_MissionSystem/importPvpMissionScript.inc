@@ -185,9 +185,14 @@ bool importPvpMissionScript(MissionScript* script, const char* path)
 
                         if ("[reward item]" == comboTok)
                         {
-                            // ORIG 读入两个 int 后未使用（忠实转写）。
-                            (void)ScanInt((bool*)0);
-                            (void)ScanInt((bool*)0);
+                            // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x08a5b3c0/0x08a5b3d2：两次
+                            //   ScanInt 结果 `mov %eax,-0x88(%ebp)` / `mov %eax,-0x84(%ebp)`，
+                            //   即 data(-0x94，见 0x08a5b30d resize 的 this) 的 +0x0c/+0x10
+                            //   = m_bonus.first/second，随后 0x08a5b458 make_pair(key,data)
+                            //   插入 m_comboMap。旧注释「读入后未使用」误判：丢弃后
+                            //   CMission_combo_clear::_Reward 发放的 m_bonus 恒为 (0,0)。
+                            data.m_bonus.first = ScanInt((bool*)0);
+                            data.m_bonus.second = ScanInt((bool*)0);
                         }
                         (void)ScanType(comboTok, true);   // 再读一枚，结果忽略
 

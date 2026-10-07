@@ -6164,11 +6164,18 @@ struct PCK_AUCTION_BIDDING_GP : public nsl::PACKET_HEADER
 {
     // ORIG layout: HEADER(0x12) + pad ? name@+0x1a (0xd) ? tail to sizeof 0x33.
     // Previously `#if !remake_verify` stripped payload ? ON path had no named fields.
-    char m_padAfterHdr[0x1a - 0x12];
+    // [DNF-FIX-AUDIT 2026-10-07] +0x12/+0x16 = uid / charac_no（ORIG 0x084e7d8c
+    //   `mov %eax,-0x95(%ebp)`、0x084e7d9d `mov %eax,-0x91(%ebp)`，pck@-0xa7）。
+    unsigned int m_uid __attribute__((packed));        // +0x12
+    unsigned int m_characNo __attribute__((packed));   // +0x16
     char m_name[0xd];
     char dnf_tail_pad_[0x33 - 0x1a - 0xd];
     PCK_AUCTION_BIDDING_GP() { PACKET_CTOR_BODY(0x12, 5, 0x33); }
 };
+static_assert(sizeof(PCK_AUCTION_BIDDING_GP) == 0x33, "PCK_AUCTION_BIDDING_GP size");
+static_assert(__builtin_offsetof(PCK_AUCTION_BIDDING_GP, m_uid) == 0x12 &&
+              __builtin_offsetof(PCK_AUCTION_BIDDING_GP, m_name) == 0x1a,
+              "PCK_AUCTION_BIDDING_GP layout");
 
 #pragma pack(push, 1)
 // Inter_OwnerisVIPPktView —— Inter_OwnerisVIP::dispatch_sig 包视图（本 TU 消费偏移逐槽具名；

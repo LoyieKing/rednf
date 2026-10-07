@@ -164,9 +164,11 @@ int DisPatcher_DebugCommand::dispatch_sig(CUser* user, PacketBuf& packet)
             user->get_acc_id(), (unsigned int)msg->m_arg);
         break;
     case 0x14:
-        GlobalData::s_pGMAccounts_->removeGM(user->get_acc_id(),
-                                             (unsigned int)msg->m_arg);
-        result = true;   // ORIG 定义为空实现（返回 0 前的 al 未定义口径，恒视作成功）
+        // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x081fcd21 `call removeGM; mov %al,-0x1a(%ebp)`，
+        //   removeGM（ORIG 0x081093fc）为 `mov $0x0,%eax; leave; ret` ⇒ result=false，
+        //   0x081fd047 `cmpb $0,-0x1a; je` 跳过回包。旧写法恒 true 与 ORIG 相反。
+        result = (bool)(unsigned char)GlobalData::s_pGMAccounts_->removeGM(
+            user->get_acc_id(), (unsigned int)msg->m_arg);
         break;
     case 0x15:
         result = _debugCommandInvisible(user, *msg);

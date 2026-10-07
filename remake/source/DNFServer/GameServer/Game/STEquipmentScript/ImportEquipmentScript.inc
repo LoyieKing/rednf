@@ -801,7 +801,10 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
             }
             else if (levelAniIdx != -1)
             {
-                ScanInt((bool*)0);
+                // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x0899400b..0x08994010：
+                //   `call ScanInt; mov %eax,-0x10a4(%ebp)`，-0x10a4 = growth(-0x10b4)+0x10
+                //   ⇒ growth.m_10（旧写法丢弃，level 段 [sub type] 恒 0）。
+                growth.m_10 = ScanInt((bool*)0);
             }
             else
             {
@@ -2209,8 +2212,11 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                     }
                     else
                     {
-                        ScanInt((bool*)0);
-                        ScanInt((bool*)0);
+                        // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x08998da9..0x08998dc0：
+                        //   `mov %eax,-0x10ac(%ebp)` / `mov %eax,-0x10a8(%ebp)` =
+                        //   growth(-0x10b4)+0x08/+0x0c（旧写法丢弃，level 段 [variation] 恒 0）。
+                        growth.m_8 = ScanInt((bool*)0);
+                        growth.m_c = ScanInt((bool*)0);
                     }
                 }
                 else

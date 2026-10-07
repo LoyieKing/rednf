@@ -31,10 +31,12 @@ int Inter_OwnerisVIP::dispatch_sig(CUser* user, char* data, int /*len*/)
     }
 
     PCK_AUCTION_BIDDING_GP pck;                            // -0xa7（0x33，ctor W 0x084e9a98）
-    // ORIG：GetUID/getCurCharacNo 各调用一次，结果仅存栈（-0x95/-0x91）未使用——
-    // 保留死调用以对齐 ORIG 指令序列（pck 除 characName 外保持 ctor 清零）。
-    (void)target->GetUID();
-    (void)target->getCurCharacNo();
+    // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x084e7d87..0x084e7d9d：GetUID →
+    //   `mov %eax,-0x95(%ebp)`、getCurCharacNo → `mov %eax,-0x91(%ebp)`；pck 位于
+    //   -0xa7，故二者是 pck+0x12 / pck+0x16（紧邻 +0x1a 的 m_name），随包发往
+    //   cera auction proxy。旧注释「仅存栈未使用」误判：丢弃后包内 uid/charac_no 恒 0。
+    pck.m_uid = target->GetUID();
+    pck.m_characNo = target->getCurCharacNo();
     strncpy(pck.m_name, target->getCurCharacR()->m_name, 0xd);
 
     PrePayInfo prePay;                                     // -0x74（0x28 按值）

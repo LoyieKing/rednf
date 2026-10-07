@@ -242,10 +242,16 @@ int CActionPointEtcParameter::importActionPointSystemEtcScript(
                 {
                     return 0xfa;                        // ORIG 错误码 0xfa
                 }
-                ScanInt(&ok);                           // 四个丢弃列（ORIG 存栈即弃）
-                ScanInt(&ok);
-                ScanInt(&ok);
-                ScanInt(&ok);
+                // [DNF-FIX-AUDIT 2026-10-07] ORIG 0x0889541a..0x0889545d：四列分别
+                //   `mov %ax,-0x120` / `mov %ax,-0x11e` / `mov %eax,-0x11c` / `mov %ax,-0x118`
+                //   写入栈对象 today(-0x124) 的 +4/+6/+8/+0xc，随后 0x08895477
+                //   push_back(&today)。旧注释「存栈即弃」误判：丢弃后 m_minAp/m_maxAp/
+                //   m_rewardItemIdx/m_count 恒 0（GetTodayRewardAndSendMail 区间判定与
+                //   奖励物品/数量全失效）。
+                today.m_minAp = static_cast<unsigned short>(ScanInt(&ok));
+                today.m_maxAp = static_cast<unsigned short>(ScanInt(&ok));
+                today.m_rewardItemIdx = ScanInt(&ok);
+                today.m_count = static_cast<unsigned short>(ScanInt(&ok));
                 out.m_todayRewards.push_back(today);
             }
         }
