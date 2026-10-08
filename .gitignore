@@ -47,3 +47,11 @@ dnf_remake/docs/class_func_reports/_lt_global_gt_.md
 
 # 逐函数拆分报告(体积大, 不入库; 主文件 _lt_global_gt_.md.gz 已提交)
 dnf_remake/docs/class_func_reports/_lt_global_gt_/
+
+# 运行期数据 / 本机配置 / 抓包（不入库）
+auction_bot/data/
+auction_bot/logs/
+auction_bot/**/*.db
+**/config.local.yaml
+*.pcap
+*.pcapng
