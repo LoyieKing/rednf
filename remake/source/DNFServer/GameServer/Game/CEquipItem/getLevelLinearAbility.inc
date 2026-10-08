@@ -32,7 +32,8 @@ int getLevelLinearAbility(int a, int b, int c, int d, int level)
         ratio = 1.0;
     diff = (double)vDiff;                           // ORIG：-0x50
     // ORIG 无具名 result 局部：floor 结果留 st0 直接续算（`fldl const;fdivrp;fmull -0x50`）。
-    double result2 = floor(ratio * 1000000.0 + 0.5L) / 1000000.0 * diff;
+    // [DNF-FIX 2026-10-08 c26] ORIG 0x0898c811 fldt 0.5L; faddp; fstpl; call floor@plt ⇒ ::floor(double)，非 std::floor(long double)。
+    double result2 = floor((double)(ratio * 1000000.0 + 0.5L)) / 1000000.0 * diff;
     int out = (int)((double)c + result2);
     if (out < 0)
         out = 0;

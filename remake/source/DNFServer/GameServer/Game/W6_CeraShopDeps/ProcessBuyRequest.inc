@@ -283,7 +283,8 @@ bool CCeraShop::ProcessBuyRequest(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
                     if (selects->empty() ||
                         static_cast<signed char>(
                             msg.m_entrySection.m_arr[i].m_avatarType1) >=
-                            static_cast<int>(selects->size()))
+                            // [DNF-FIX 2026-10-08 c26] ORIG 0x08321035 cmp %al,%bl; jl ⇒ 8 位有符号比较。
+                            static_cast<signed char>(selects->size()))
                     {
                         ProcessError(user, 0x17, groupSub,
                                      msg.m_entrySection.m_arr[i].m_productNo,

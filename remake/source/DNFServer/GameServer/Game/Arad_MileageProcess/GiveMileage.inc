@@ -26,6 +26,7 @@ void Arad_MileageProcess::GiveMileage(CUser* user, int ipgNo, int amount)
 
     // ORIG x87 序：fild amount → fild rate → flds 1000.0f → fdivrp → fmulp
     // ⇒ 左操作数 amount 先求值；ROUND 结果落具名 int 槽 -0xc。
-    int mileage = (int)floor((float)amount * ((float)rate / 1000.0f));
+    // [DNF-FIX 2026-10-08 c26] ORIG fstpl (%esp); call floor@plt ⇒ ::floor(double)；g++13 <cmath> 下 float 实参会落到 std::floor(float)。
+    int mileage = (int)floor((double)((float)amount * ((float)rate / 1000.0f)));
     user->AddMileage(mileage, (eCoinAddReason)3);
 }

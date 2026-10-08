@@ -55,9 +55,10 @@ void CeraShopPurcahseCountBonus::_processBonusItem(CUser* user, int goodsIdx,
         price = goods->GetCeraPrice();
         // ORIG x87 序：fild price → fild amount → flds 1000 → fdivrp → fmulp
         // ⇒ 原码 `price * ((float)(unsigned short)m_field8 / 1000.0f)`。
-        mileage = (int)floor(
+        // [DNF-FIX 2026-10-08 c26] ORIG 0x081ac2e8 fstpl (%esp); call floor@plt ⇒ ::floor(double)，非 std::floor(float)。
+        mileage = (int)floor((double)(
             (float)price *
-            ((float)(unsigned short)bonus.m_field8 / 1000.0f));
+            ((float)(unsigned short)bonus.m_field8 / 1000.0f)));
         user->AddMileage(mileage, (eCoinAddReason)5);   // ORIG reason 5
         user->SendCashData(false);
 

@@ -50,8 +50,8 @@ int Dispatcher_Compound_ExtreamItem::dispatch_sig(CUser* user, PacketBuf& packet
                         unsigned int uVar7 = (unsigned int)m_materials[1].GetReSealCount();
                         local_1c = (unsigned char)uVar6 + (unsigned char)uVar7;
                         // flds 2.0f; fdivrp; flds 0.5f; faddp; fldcw 截断; fistps（ORIG 0x8bd6348=2.0f, 0x8bd634c=0.5f）
-                        float f = ((float)local_1c / 2.0f) + 0.5f;
-                        rounded = (unsigned char)(unsigned short)(int)f;
+                        // [DNF-FIX 2026-10-08 c26] ORIG 0x08226170 无 float 落栈，fistps 直接转 unsigned char。
+                        rounded = (unsigned char)(((float)local_1c / 2.0f) + 0.5f);
                         m_resultItem.SetReSealCount(rounded);
                         if (m_resultItem.m_addInfo == 0)   // +0x92（m_resultItem 内偏移）
                         {
