@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>拍卖行机器人控制台</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>拍卖行机器人控制台</h1>
+  <div id="conn" class="pill">连接中…</div>
+  <nav id="tabs">
+    <a data-tab="overview" class="on">概览</a>
+    <a data-tab="logs">操作日志</a>
+    <a data-tab="market">行情</a>
+    <a data-tab="search">拍卖行检索</a>
+    <a data-tab="listings">系统挂单 / 成交</a>
+    <a data-tab="orphans">孤儿邮件清理</a>
+    <a data-tab="config">配置</a>
+  </nav>
+</header>
+<main>
+<section id="tab-overview" class="tab on">
+  <div class="cards" id="ov-cards"></div>
+  <div class="row">
+    <button data-act="pause">暂停自动上架/收购</button>
+    <button data-act="resume">恢复</button>
+    <button data-act="restock_now">立即补货</button>
+    <button data-act="scan_now">立即扫描行情</button>
+    <button data-act="reload">重新加载配置</button>
+  </div>
+  <h3>上架物品</h3>
+  <table id="ov-items"></table>
+  <h3>近 24 小时成交</h3>
+  <table id="ov-deals"></table>
+  <h3>最新日志</h3>
+  <table id="ov-logs" class="logs"></table>
+</section>
+
+<section id="tab-logs" class="tab">
+  <div class="row">
+    <select id="lg-kind">
+      <option value="">全部类型</option><option value="connect">连接</option><option value="list">上架</option>
+      <option value="buy">收购</option><option value="deal">成交</option><option value="expire">到期</option>
+      <option value="error">错误</option><option value="scan">扫描</option><option value="orphan">孤儿邮件</option>
+      <option value="control">控制</option>
+    </select>
+    <select id="lg-level"><option value="info">信息及以上</option><option value="debug">全部（含调试）</option>
+      <option value="warn">警告及以上</option><option value="error">仅错误</option></select>
+    <input id="lg-q" placeholder="关键字">
+    <button id="lg-go">查询</button>
+    <label><input type="checkbox" id="lg-auto" checked> 自动刷新</label>
+  </div>
+  <table id="lg-table" class="logs"></table>
+  <button id="lg-more">加载更早</button>
+</section>
+
+<section id="tab-market" class="tab">
+  <div class="row">
+    <input id="mk-q" placeholder="物品名或 ID" list="mk-dl" style="width:220px">
+    <datalist id="mk-dl"></datalist>
+    <select id="mk-bucket"><option value="300">5 分钟</option><option value="900">15 分钟</option>
+      <option value="3600" selected>1 小时</option><option value="14400">4 小时</option><option value="86400">1 天</option></select>
+    <select id="mk-days"><option value="1">近 1 天</option><option value="3">近 3 天</option>
+      <option value="7" selected>近 7 天</option><option value="30">近 30 天</option></select>
+    <button id="mk-go">查看</button>
+  </div>
+  <div id="mk-watch" class="chips"></div>
+  <h2 id="mk-title"></h2>
+  <div class="cards" id="mk-cards"></div>
+  <div class="chart"><h4>价格走势（最低挂单价 / 成交均价 VWAP / 基础价）</h4><div id="ch-trend"></div></div>
+  <div class="chart"><h4>K 线（成交价；无成交时用最低挂单价）＋ 成交量</h4><div id="ch-kline"></div></div>
+  <div class="chart"><h4>箱线图（每个时间段的挂单单价分布）</h4><div id="ch-box"></div></div>
+  <div class="chart"><h4>在售数量（总供给 / 系统供给）</h4><div id="ch-supply"></div></div>
+  <div class="two">
+    <div><h4>成交价分位数</h4><table id="mk-q-deal"></table></div>
+    <div><h4>当前挂单分位数</h4><table id="mk-q-ask"></table></div>
+  </div>
+  <h4>最近成交</h4>
+  <table id="mk-deals"></table>
+</section>
+
+<section id="tab-search" class="tab">
+  <div class="row">
+    <input id="sr-q" placeholder="物品名 / 道具 ID（可多个，逗号分隔）/ #拍卖号" style="width:340px">
+    <select id="sr-mode"><option value="live">实时（拍卖服协议检索）</option><option value="db">数据库（auction_main）</option></select>
+    <button id="sr-go">检索</button>
+    <span class="hint">留空 + 数据库模式 = 列出全部挂单。实时模式一次最多 20 个道具 ID。</span>
+  </div>
+  <div id="sr-info" class="hint"></div>
+  <table id="sr-table"></table>
+</section>
+
+<section id="tab-listings" class="tab">
+  <div class="row">
+    <select id="bl-status"><option value="active">在售</option><option value="sold">已售出</option>
+      <option value="expired">已到期</option><option value="all">全部</option></select>
+    <button id="bl-go">刷新</button>
+  </div>
+  <table id="bl-table"></table>
+  <h3>成交记录</h3>
+  <table id="dl-table"></table>
+</section>
+
+<section id="tab-orphans" class="tab">
+  <p class="warn">清理对象：假买家角色 <b id="or-cid"></b> 收到的邮件（postal.receive_charac_no / letter.charac_no）。
+  这是对游戏库的删除操作，默认关闭且为演练模式；需在配置中 <code>orphan_cleanup.enabled: true</code> 且 <code>dry_run: false</code> 才会真正删除。</p>
+  <div class="row"><button id="or-refresh">刷新预览</button> <button id="or-run">执行清理</button> <span id="or-state"></span></div>
+  <h4>postal（将删除）</h4><table id="or-postal"></table>
+  <h4>letter（将删除）</h4><table id="or-letter"></table>
+</section>
+
+<section id="tab-config" class="tab">
+  <p>配置文件：<code id="cf-path"></code>（密码已隐藏）。修改后点「概览 → 重新加载配置」生效。</p>
+  <pre id="cf-text"></pre>
+</section>
+</main>
+<script src="charts.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
