@@ -15,7 +15,7 @@ game_db:                             # 游戏库，只读（孤儿邮件清理�
   host: 127.0.0.1
   port: 4000
   user: root
-  password: ""
+  password: ""                       # 不要写在这里！放到不入库的 config.local.yaml（game_db: {password: ...}）或环境变量 AUCTION_BOT_DB_PASSWORD
   auction_db: taiwan_cain_auction_gold
   game_db: taiwan_cain_2nd
   char_db: taiwan_cain
@@ -36,33 +36,41 @@ market:
   keep_days: 60                      # 挂单快照保留天数
   keep_log_days: 60                  # 操作日志保留天数
 
-seller:                              # 自动上架（系统卖家 owner_id = -1，拍卖行显示为系统 NPC 名）
+engine:                              # 经济模型引擎（运营 agent 校准的代理人模型），开启后取代下面的简单补货 seller
   enabled: true
-  restock_interval: 120              # 补货检查间隔（秒）
-  max_new_listings_per_cycle: 3      # 每轮最多新上架几条
-  max_new_listings_per_hour: 30      # 每小时最多新上架几条
-  default_volatility: 0.08           # 单条挂单价格相对公允价的随机波动（对数正态 σ）
-  default_drift: 0.05                # 公允价每日随机游走幅度（对数 σ/日）
-  mean_revert_days: 3                # 公允价回归基础价的时间尺度（天）
-  clamp_to_reference_band: true      # 价格限制在参考价表的 下限~上限 之间
-  # 注意：系统挂单的有效期由拍卖服写死为 2 小时（7200 秒），无法配置；到期后自动下架、机器人会补货。
-  items:                             # 只支持可堆叠物品（材料/消耗品）
-    - item_id: 3037                  # 无色小晶块
-      base_price: 45                 # 基础单价；不写则用参考价表
-      target_listings: 2             # 保持在售的系统挂单条数（供给目标）
-      count_min: 50                  # 每条挂单数量范围
-      count_max: 200
-      volatility: 0.08
-    - item_id: 3036                  # 蓝色小晶块
-      target_listings: 2
-      count_min: 10
-      count_max: 50
-    - item_id: 3180                  # 冰之水晶
-      target_listings: 1
-      count_min: 10
-      count_max: 30
+  model_config: ref/model_config.json      # 53 个建模道具的参数（c/v、产出/消耗、ε、κ、σ、活跃度、挂单/买单数量）
+  excluded_items: ref/excluded_items.json  # 排除名单：NPC 可兑换的晶块类 + 无价格锚点道具，机器人永不买卖
+  excluded_extra: []                 # 额外排除的道具 ID
+  volume_scale: 1.0                  # 总量系数：1.0 = 模型校准量（全部 53 个约 1500~2200 次虚拟成交/天）
+  step_minutes: [5, 15]              # 每步间隔（分钟，随机）
+  max_dt_minutes: 30                 # 停机后恢复时单步最多补算多少分钟
+  items_whitelist: []                # 非空时只运行这些道具（分批上线用）；空 = 全部建模道具
+  item_overrides: {}                 # 单个道具覆盖，如 {3255: {enabled: false}} 或 {3187: {price_mult: 0.3}}
+  price_band_slack: 0.25             # 价格护栏：挂单单价限制在 历史价格带×(1±此值)
+  max_new_listings_per_step: 80      # 护栏：每步最多新上架
+  max_new_listings_per_hour: 400
+  virtual_fill:                      # 虚拟玩家之间的成交（假买家 1999999999 买机器人自己的 -1 挂单）
+    max_per_step: 150                # 护栏：每步最多几次购买（同一挂单同一步合并为一次）
+    max_per_day: 5000                # 护栏：每天上限（模型校准量约 1500~2200）；每次购买 = 1 条 postal + 1 条 letter，由孤儿清理删除
+  user_fill:                         # 模型需求吃到玩家（真人）挂单时的真实购买：买什么、买多少由模型决定（用户 2026-10-08 决定）
+    enabled: true
+    max_gold_per_day: 2000000        # 护栏：每日最多花费金币（假买家支付，金币实际进入卖家邮箱）
+    # 护栏：单价高于 价格带上限×(1+price_band_slack) 的不买；排除名单内的道具永不买；买家 = 1999999999
+    # 可选（默认不启用）：max_price_ratio（只买低于 min(参考价,公允价)×此值）、probability、max_gold_per_buy
 
-buyer:                               # 自动收购玩家挂单（默认关闭！）
+seller:                              # 简单补货（engine.enabled=false 时才使用）
+  enabled: false
+  restock_interval: 120
+  max_new_listings_per_cycle: 3
+  max_new_listings_per_hour: 30
+  default_volatility: 0.08
+  default_drift: 0.05
+  mean_revert_days: 3
+  clamp_to_reference_band: true
+  # 注意：系统挂单的有效期由拍卖服写死为 2 小时（7200 秒），无法配置。
+  items: []                          # 例：- {item_id: 3180, target_listings: 1, count_min: 10, count_max: 30}
+
+buyer:                               # 旧版随机收购玩家挂单（默认关闭；模型模式下由 engine.user_fill 负责）
   enabled: false
   buyer_id: 1999999999               # 假买家角色 ID（不存在于 charac_info；收到的物品/邮件为孤儿邮件）
   buyer_name: "收购商"                # 一口价购买（非堆叠品）时写入的买家名，UTF-8 ≤12 字节
@@ -77,8 +85,8 @@ buyer:                               # 自动收购玩家挂单（默认关闭�
   exclude_items: []
   base_prices: {}                    # 额外的收购基础价，如 {1047: 5000}
 
-orphan_cleanup:                      # 清理假买家 1999999999 的邮件（postal/letter）。会删除游戏库数据！
-  enabled: false                     # 默认关闭
-  dry_run: true                      # true = 只演练、展示将删除的内容；需用户批准后才可改为 false
-  interval: 3600
+orphan_cleanup:                      # 清理假买家 1999999999 的邮件（postal/letter）。用户 2026-10-08 批准真实删除
+  enabled: true
+  dry_run: false                     # false = 真实删除；只删 receive_charac_no / charac_no = buyer_id 的行，逐行记日志（logs/orphan_deletes.log）
+  interval: 1800                     # 每 30 分钟一次
   min_age_minutes: 0                 # >0 时只清理更早的邮件（注意：拍卖服写入的 occ_time 会取整到下一个整点）

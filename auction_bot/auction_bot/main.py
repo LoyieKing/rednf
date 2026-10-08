@@ -11,9 +11,27 @@ import yaml
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
+def _merge(a, b):
+    for k, v in (b or {}).items():
+        if isinstance(v, dict) and isinstance(a.get(k), dict):
+            _merge(a[k], v)
+        else:
+            a[k] = v
+    return a
+
+
 def load_config(path):
+    """config.yaml + 同目录 config.local.yaml（不入库，放密码等本机设置）+ 环境变量 AUCTION_BOT_DB_PASSWORD。"""
     with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+        cfg = yaml.safe_load(f) or {}
+    local = os.path.join(os.path.dirname(os.path.abspath(path)), "config.local.yaml")
+    if os.path.exists(local):
+        with open(local, encoding="utf-8") as f:
+            _merge(cfg, yaml.safe_load(f) or {})
+    pw = os.environ.get("AUCTION_BOT_DB_PASSWORD")
+    if pw is not None:
+        cfg.setdefault("game_db", {})["password"] = pw
+    return cfg
 
 
 def load_items(cfg, log=print):

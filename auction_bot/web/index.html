@@ -13,6 +13,7 @@
   <nav id="tabs">
     <a data-tab="overview" class="on">概览</a>
     <a data-tab="logs">操作日志</a>
+    <a data-tab="engine">经济模型</a>
     <a data-tab="market">行情</a>
     <a data-tab="search">拍卖行检索</a>
     <a data-tab="listings">系统挂单 / 成交</a>
@@ -28,6 +29,7 @@
     <button data-act="resume">恢复</button>
     <button data-act="restock_now">立即补货</button>
     <button data-act="scan_now">立即扫描行情</button>
+    <button data-act="step_now">立即执行一步模型</button>
     <button data-act="reload">重新加载配置</button>
   </div>
   <h3>上架物品</h3>
@@ -44,7 +46,7 @@
       <option value="">全部类型</option><option value="connect">连接</option><option value="list">上架</option>
       <option value="buy">收购</option><option value="deal">成交</option><option value="expire">到期</option>
       <option value="error">错误</option><option value="scan">扫描</option><option value="orphan">孤儿邮件</option>
-      <option value="control">控制</option>
+      <option value="control">控制</option><option value="engine">模型</option>
     </select>
     <select id="lg-level"><option value="info">信息及以上</option><option value="debug">全部（含调试）</option>
       <option value="warn">警告及以上</option><option value="error">仅错误</option></select>
@@ -54,6 +56,17 @@
   </div>
   <table id="lg-table" class="logs"></table>
   <button id="lg-more">加载更早</button>
+</section>
+
+<section id="tab-engine" class="tab">
+  <div class="cards" id="en-cards"></div>
+  <p class="hint">虚拟成交 = 模型里虚拟玩家之间的交易，体现为假买家 1999999999 买下系统（-1）挂单；玩家挂单成交 = 模型需求吃到真人挂单（真实购买，受每日金币上限约束）；玩家买系统货 = 真人在游戏里买走机器人挂单。每次购买会给 1999999999 产生 1 条 postal + 1 条 letter（孤儿邮件）。</p>
+  <h3>道具状态（今日）</h3>
+  <table id="en-items"></table>
+  <h3>最近步进</h3>
+  <table id="en-steps"></table>
+  <h3>未参与的道具</h3>
+  <table id="en-skipped"></table>
 </section>
 
 <section id="tab-market" class="tab">
@@ -105,7 +118,7 @@
 
 <section id="tab-orphans" class="tab">
   <p class="warn">清理对象：假买家角色 <b id="or-cid"></b> 收到的邮件（postal.receive_charac_no / letter.charac_no）。
-  这是对游戏库的删除操作，默认关闭且为演练模式；需在配置中 <code>orphan_cleanup.enabled: true</code> 且 <code>dry_run: false</code> 才会真正删除。</p>
+  这是对游戏库的删除操作（用户已批准）：配置 <code>orphan_cleanup.enabled: true</code> 且 <code>dry_run: false</code> 时定期真实删除，每条删除记录在 <code>logs/orphan_deletes.log</code>。</p>
   <div class="row"><button id="or-refresh">刷新预览</button> <button id="or-run">执行清理</button> <span id="or-state"></span></div>
   <h4>postal（将删除）</h4><table id="or-postal"></table>
   <h4>letter（将删除）</h4><table id="or-letter"></table>

@@ -1,7 +1,7 @@
 const $=s=>document.querySelector(s);
-const KIND={connect:'连接',list:'上架',buy:'收购',deal:'成交',expire:'到期',error:'错误',scan:'扫描',orphan:'孤儿邮件',control:'控制',protocol:'协议'};
+const KIND={engine:'模型',connect:'连接',list:'上架',buy:'收购',deal:'成交',expire:'到期',error:'错误',scan:'扫描',orphan:'孤儿邮件',control:'控制',protocol:'协议'};
 const LV={debug:'调试',info:'信息',warn:'警告',error:'错误'};
-const SIDE={human_buy_bot:'玩家买系统货',bot_buy_human:'机器人收购',human_human:'玩家间成交'};
+const SIDE={human_buy_bot:'玩家买系统货',bot_buy_human:'模型买玩家挂单',human_human:'玩家间成交',virtual:'虚拟成交'};
 const STATUS={active:'在售',sold:'已售出',expired:'已到期'};
 function ts(t){if(!t)return '-';const d=new Date(t*1000);const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`}
 function ago(t){if(!t)return '-';const s=Math.round(Date.now()/1000-t);if(s<60)return s+' 秒前';if(s<3600)return Math.round(s/60)+' 分钟前';if(s<86400)return (s/3600).toFixed(1)+' 小时前';return (s/86400).toFixed(1)+' 天前'}
@@ -13,7 +13,7 @@ function card(k,v){return `<div class="card"><div class="k">${k}</div><div class
 let curTab='overview';
 document.querySelectorAll('#tabs a').forEach(a=>a.onclick=()=>{document.querySelectorAll('#tabs a').forEach(x=>x.classList.remove('on'));a.classList.add('on');
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));$('#tab-'+a.dataset.tab).classList.add('on');curTab=a.dataset.tab;load(curTab)});
-function load(t){({overview:loadOverview,logs:()=>loadLogs(),market:loadWatch,listings:loadListings,orphans:loadOrphans,config:loadConfig}[t]||(()=>{}))()}
+function load(t){({overview:loadOverview,engine:loadEngine,logs:()=>loadLogs(),market:loadWatch,listings:loadListings,orphans:loadOrphans,config:loadConfig}[t]||(()=>{}))()}
 
 // ---------- 概览 ----------
 const logCols=[['时间',r=>ts(r.ts)],['级别',r=>LV[r.level]||r.level],['类型',r=>KIND[r.kind]||r.kind],['内容',r=>esc(r.msg),'msg']];
@@ -30,6 +30,24 @@ async function loadOverview(){try{const s=await api('status');
   const lg=await api('logs?limit=15');table($('#ov-logs'),logCols,lg,r=>'lv-'+r.level);
 }catch(e){$('#conn').textContent='控制台错误：'+e.message;$('#conn').className='pill bad'}}
 document.querySelectorAll('[data-act]').forEach(b=>b.onclick=async()=>{try{await api('control',{action:b.dataset.act});loadOverview()}catch(e){alert(e.message)}});
+
+// ---------- 经济模型 ----------
+async function loadEngine(){const e=await api('engine');if(!e.enabled){$('#en-cards').innerHTML=card('经济模型','未开启');return}
+  const T=e.today,C=e.caps;
+  $('#en-cards').innerHTML=card('参与道具',e.items.length)+card('总量系数',e.volume_scale)+card('步进间隔',e.step_minutes.join('~')+' 分钟')+
+    card('上一步',e.last_step_at?ago(e.last_step_at):'-')+card('下一步',e.next_step_at?Math.max(0,Math.round((e.next_step_at-Date.now()/1000)/60))+' 分钟后':'-')+
+    card('今日上架',T.listings)+card('今日虚拟成交',`${T.virtual_trades} / ${C.virtual_per_day} 次`)+card('虚拟成交量/额',fmtN(T.virtual_qty)+' / '+fmtN(T.virtual_gold))+
+    card('模型买玩家挂单',`${T.user_fills} 次 / ${fmtN(T.user_gold)} 金（日上限 ${fmtN(C.user_gold_per_day)}）`+(C.user_fill_enabled?'':'（未开启）'))+card('买玩家挂单规则','由模型决定；护栏：日上限 '+fmtN(C.user_gold_per_day)+'，单价 ≤ 价格带上限×1.25')+
+    card('玩家买系统货',T.human_buys+' 次')+card('今日新增孤儿邮件(估)',T.orphan_rows_est+' 行');
+  table($('#en-items'),[['道具',r=>esc(r.name)+' ('+r.item_id+')'],['类别',r=>esc(r.category||'')],['参考价',r=>fmtN(r.ref),'n'],['价格带',r=>r.band?fmtN(r.band[0])+'~'+fmtN(r.band[1]):'-'],
+    ['公允价',r=>fmtN(r.fair),'n'],['偏离',r=>r.fair&&r.ref?((r.fair/r.ref-1)*100).toFixed(1)+'%':'-','n'],['世界库存',r=>fmtN(r.stock),'n'],['库存/产出(小时)',r=>r.cover_h!=null?r.cover_h.toFixed(1):'-','n'],
+    ['稀缺度',r=>r.scarcity!=null?r.scarcity.toFixed(2):'-','n'],['最近成交价',r=>fmtN(r.last),'n'],['系统挂单',r=>r.sys_listings+' 条 / '+fmtN(r.sys_qty),'n'],['玩家挂单',r=>r.user_listings,'n'],
+    ['虚拟成交',r=>r.virtual_trades_today+' 次 / '+fmtN(r.virtual_today),'n'],['买玩家挂单',r=>fmtN(r.user_fill_today),'n'],['玩家买系统货',r=>fmtN(r.human_buy_today),'n'],
+    ['状态',r=>r.disabled?'<span style="color:#ef5350">'+esc(r.disabled)+'</span>':'正常']],e.items);
+  $('#en-items').querySelectorAll('tr').forEach((tr,i)=>{if(i>0){tr.style.cursor='pointer';tr.onclick=()=>{location.hash='market/'+e.items[i-1].item_id;$('#mk-q').value=e.items[i-1].item_id;document.querySelector('#tabs a[data-tab="market"]').click();loadMarket()}}});
+  table($('#en-steps'),[['时间',r=>ts(r.ts)],['dt(分钟)',r=>(r.dt_h*60).toFixed(1),'n'],['虚拟在线',r=>r.online,'n'],['上架',r=>r.new_done+'/'+r.new_planned,'n'],
+    ['虚拟成交',r=>r.vf_done+'/'+r.vf_planned,'n'],['买玩家挂单',r=>r.uf_done+'/'+r.uf_planned,'n'],['花费金币',r=>fmtN(r.user_gold),'n'],['错误',r=>r.errors,'n'],['耗时(s)',r=>(r.elapsed||0).toFixed(1),'n']],e.steps);
+  table($('#en-skipped'),[['道具',r=>esc(r.name)+' ('+r.item_id+')'],['原因',r=>esc(r.reason)]],e.skipped.concat(e.excluded.filter(x=>!e.skipped.find(y=>y.item_id===x.item_id))))}
 
 // ---------- 日志 ----------
 let lgMin=null;
@@ -49,8 +67,8 @@ $('#mk-q').oninput=async()=>{const q=$('#mk-q').value.trim();if(q.length<1||/^\d
 $('#mk-go').onclick=()=>loadMarket();
 async function loadMarket(){let q=$('#mk-q').value.trim();if(!q)return;if(!/^\d+$/.test(q)){const r=await api('items?q='+encodeURIComponent(q));if(!r.length){alert('找不到物品');return}q=r[0].item_id}
   mkItem=+q;const bucket=+$('#mk-bucket').value;const d=await api(`market?item_id=${q}&bucket=${bucket}&days=${$('#mk-days').value}`);
-  $('#mk-title').textContent=`${d.name}（${d.item_id}）`;const S=d.summary,C=d.current||{};
-  $('#mk-cards').innerHTML=card('基础价',fmtN(d.base_price))+card('当前公允价',fmtN(d.fair_value))+(d.ref?card('参考区间',fmtN(d.ref.low)+' ~ '+fmtN(d.ref.high)):'')+
+  $('#mk-title').textContent=`${d.name}（${d.item_id}）`+(d.excluded?`  —— 排除名单：${d.excluded}，机器人不买卖`:'');const S=d.summary,C=d.current||{};
+  $('#mk-cards').innerHTML=card('参考价',fmtN(d.base_price))+card('模型公允价',fmtN(d.fair_value))+(d.ref?card('参考区间',fmtN(d.ref.low)+' ~ '+fmtN(d.ref.high)):'')+
     card('当前最低挂单',fmtN(C.min))+card('在售数量',fmtN(C.supply)+(C.bot_supply!=null?'（系统 '+fmtN(C.bot_supply)+'）':''))+card('挂单条数',C.listings||0)+
     card('成交笔数',S.deals)+card('成交量',fmtN(S.volume))+card('成交均价(VWAP)',fmtN(S.vwap))+card('成交算术均价',fmtN(S.avg));
   const B=d.buckets;
@@ -58,7 +76,8 @@ async function loadMarket(){let q=$('#mk-q').value.trim();if(!q)return;if(!/^\d+
   lineChart($('#ch-trend'),[{name:'最低挂单价',color:'#7986cb',points:d.scans.map(s=>[s.ts,s.min]),step:true},
     {name:'成交均价 VWAP',color:'#ef5350',points:B.filter(b=>b.vwap).map(b=>[b.t+bucket/2,b.vwap])},
     {name:'挂单中位数',color:'#f0c674',points:B.filter(b=>b.ask_box).map(b=>[b.t+bucket/2,b.ask_box.p50])},
-    {name:'基础价',color:'#888',points:base,dash:true}]);
+    {name:'模型公允价',color:'#81c784',points:(d.fair_series||[]).map(x=>[x.ts,x.fair]),dash:true},
+    {name:'参考价',color:'#888',points:base,dash:true}]);
   klineChart($('#ch-kline'),B.filter(b=>b.deal_ohlc||b.ask_ohlc).map(b=>b.deal_ohlc?Object.assign({t:b.t,v:b.volume,src:'deal'},b.deal_ohlc):Object.assign({t:b.t,v:0,src:'ask'},b.ask_ohlc)),bucket);
   boxChart($('#ch-box'),B.filter(b=>b.ask_box).map(b=>Object.assign({t:b.t},b.ask_box)),bucket);
   lineChart($('#ch-supply'),[{name:'总在售数量',color:'#4db6ac',points:d.scans.map(s=>[s.ts,s.supply]),step:true,area:true},
@@ -97,6 +116,6 @@ async function loadOrphans(){try{const r=await api('orphans');$('#or-cid').textC
 async function loadConfig(){const r=await api('config');$('#cf-path').textContent=r.path;$('#cf-text').textContent=r.text}
 
 loadOverview();
-setInterval(()=>{if(curTab==='overview')loadOverview();else if(curTab==='logs'&&$('#lg-auto').checked)loadLogs();else loadOverview_conn()},10000);
+setInterval(()=>{if(curTab==='overview')loadOverview();else if(curTab==='engine'){loadEngine();loadOverview_conn()}else if(curTab==='logs'&&$('#lg-auto').checked)loadLogs();else loadOverview_conn()},10000);
 async function loadOverview_conn(){try{const s=await api('status');const c=$('#conn');c.textContent=s.connected?(s.ready?'已连接拍卖服':'已连接，等待就绪'):'未连接';c.className='pill '+(s.connected&&s.ready?'ok':'bad')}catch(e){}}
 if(location.hash.length>1){const [tb,arg]=location.hash.slice(1).split('/');if(tb==='market'&&arg){$('#mk-q').value=arg;mkItem=+arg;loadMarket()}const a=document.querySelector(`#tabs a[data-tab="${tb}"]`);if(a)a.click()}

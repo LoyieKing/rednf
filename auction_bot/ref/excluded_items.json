@@ -1,0 +1,224 @@
+{
+ "_说明": "被排除出经济模型(不由机器人定价/挂单)的道具及证据。证据来源: 只读对比 live PVF(/opt/dnf1031/data/Script.pvf, sha256 de1ce98e…) 与同系列客户端 PVF(D:/sogen/client_ac/Script.pvf, sha256 da406655…)以及 2026-06-06 回收站旧版 PVF(sha256 ca756b71…)。旧版与 live 的 itemshop/* 内容完全一致, 说明这些改动早于 6 月且属于整合包本身, 不是近期改动。dnf_workspace 的 git 历史中没有 PVF/商店相关提交。",
+ "excluded_npc_shop_convertible": [
+  {
+   "id": 3037,
+   "name": "无色小晶块",
+   "confidence": "确认(用户确认)",
+   "evidence": "赛丽亚商店 itemshop/equipmentshop7.shp [sell item] 第5位; 道具 [price] 100 (客户端 PVF 为 150, 被改低)",
+   "npc_cost_gold": 100
+  },
+  {
+   "id": 3033,
+   "name": "黑色小晶块",
+   "confidence": "确认(用户确认)",
+   "evidence": "equipmentshop7.shp 在售; [need material] 3037×5 → 等价 500 金",
+   "npc_cost_gold": 500
+  },
+  {
+   "id": 3034,
+   "name": "白色小晶块",
+   "confidence": "确认(用户确认)",
+   "evidence": "同上, 3037×5",
+   "npc_cost_gold": 500
+  },
+  {
+   "id": 3035,
+   "name": "红色小晶块",
+   "confidence": "确认(用户确认)",
+   "evidence": "同上, 3037×5",
+   "npc_cost_gold": 500
+  },
+  {
+   "id": 3036,
+   "name": "蓝色小晶块",
+   "confidence": "确认(用户确认)",
+   "evidence": "同上, 3037×5",
+   "npc_cost_gold": 500
+  },
+  {
+   "id": 3262,
+   "name": "金色小晶块",
+   "confidence": "高",
+   "evidence": "equipmentshop7.shp 在售; [need material] 3037×20 → 等价 2000 金(参考价 9000 远高于此)",
+   "npc_cost_gold": 2000
+  },
+  {
+   "id": 3042,
+   "name": "无色大晶体",
+   "confidence": "高",
+   "evidence": "equipmentshop7.shp 在售; [price] 2000 + [need material] 3037×100 → 等价 12000 金",
+   "npc_cost_gold": 12000
+  },
+  {
+   "id": 3038,
+   "name": "黑色大晶体",
+   "confidence": "高",
+   "evidence": "equipmentshop7.shp 在售; [price] 2000 + 黑色小晶块×100 → 等价 52000 金",
+   "npc_cost_gold": 52000
+  },
+  {
+   "id": 3039,
+   "name": "白色大晶体",
+   "confidence": "高",
+   "evidence": "同上, 白色小晶块×100",
+   "npc_cost_gold": 52000
+  },
+  {
+   "id": 3040,
+   "name": "红色大晶体",
+   "confidence": "高",
+   "evidence": "同上, 红色小晶块×100",
+   "npc_cost_gold": 52000
+  },
+  {
+   "id": 3041,
+   "name": "蓝色大晶体",
+   "confidence": "高",
+   "evidence": "同上, 蓝色小晶块×100",
+   "npc_cost_gold": 52000
+  }
+ ],
+ "not_modelled_no_price_anchor": [
+  {
+   "id": 3071,
+   "name": "牛头怪的硬角",
+   "reason": "参考表中只有定性史料, 没有数值价格"
+  },
+  {
+   "id": 1047,
+   "name": "命运硬币",
+   "reason": "参考表中只有定性史料, 没有数值价格"
+  }
+ ],
+ "custom_shop_changes_not_in_reference_table": [
+  {
+   "id": 7467,
+   "name": "配方材料",
+   "shop": "赛丽亚 equipmentshop7",
+   "evidence": "live 新增 [price] 200000 (客户端 PVF 无 price); 客户端赛丽亚不卖",
+   "confidence": "高"
+  },
+  {
+   "id": 7725,
+   "name": "有机南瓜",
+   "shop": "赛丽亚 equipmentshop7",
+   "evidence": "live 新增 [price] 10000 (客户端无)",
+   "confidence": "高"
+  },
+  {
+   "id": 690000002,
+   "name": "成长的碎片",
+   "shop": "赛丽亚 equipmentshop7",
+   "evidence": "[price] 0→10000, 去掉了过期时间",
+   "confidence": "高"
+  },
+  {
+   "id": 1206,
+   "name": "TP初始化书",
+   "shop": "赛丽亚 equipmentshop7",
+   "evidence": "客户端赛丽亚不卖, live 赛丽亚以 100000 金出售",
+   "confidence": "中高"
+  },
+  {
+   "id": 690000471,
+   "name": "解放之钥",
+   "shop": "赛丽亚 equipmentshop7",
+   "evidence": "自定义 ID 段 6900xxxxx, 用 690000429×3 兑换",
+   "confidence": "高"
+  },
+  {
+   "id": 690000470,
+   "name": "装扮代币",
+   "shop": "赛丽亚 equipmentshop7",
+   "evidence": "自定义 ID 段, 用 690000430×3 兑换",
+   "confidence": "高"
+  },
+  {
+   "id": 690000427,
+   "name": "宠物蛋 (蓝喜鹊)",
+   "shop": "赛丽亚 equipmentshop7",
+   "evidence": "自定义 ID 段, 用 690000375×3 兑换",
+   "confidence": "高"
+  },
+  {
+   "id": 7421,
+   "name": "镶孔生成器",
+   "shop": "emblem.shp",
+   "evidence": "live 新增 [price] 100000, 去掉过期时间",
+   "confidence": "高"
+  },
+  {
+   "id": "8372-8387,2600014,10000357,10000576,10000606",
+   "name": "同桌商店(同桌硬币 8388 兑换)",
+   "shop": "equipmentshop68",
+   "evidence": "兑换所需同桌硬币大幅下调, 例如 +10强化券 2080→388、保护券 2080→588; 瞬移药剂等新增兑换",
+   "confidence": "高"
+  },
+  {
+   "id": "1295,1296",
+   "name": "闪耀/璀璨的挑战书礼盒",
+   "shop": "equipmentshop15",
+   "evidence": "1295 兑换材料 3285→3260(更便宜); 1296 产出深渊派对挑战书 1→2",
+   "confidence": "高"
+  },
+  {
+   "id": "3727-3729,3761-3777",
+   "name": "卡片兑换",
+   "shop": "magic4 / siran",
+   "evidence": "兑换所需材料变多(例如 3333×60→×250), 方向是变贵, 对模型影响小",
+   "confidence": "高"
+  },
+  {
+   "id": 3263,
+   "name": "金色大晶体",
+   "shop": "(不在任何 live 商店)",
+   "evidence": "[price] 2000→400, 去掉 [need material] 3262×100; 目前买不到, 所以没有实际影响",
+   "confidence": "中"
+  }
+ ],
+ "watchlist_kept_in_model": [
+  {
+   "ids": [
+    3187,
+    3221,
+    3229,
+    3300
+   ],
+   "names": [
+    "灵魂晶石",
+    "灾难的征兆",
+    "混沌魔石碎片",
+    "虚空魔石碎片"
+   ],
+   "reason": "官方神秘商店 etc/secretshop.etc 材料商人(NPC 1003)以金币出售, 基价 1000/1000/500/1000, 每次限购 10 个, 价格随机 ×0.9/×1.0/×1.1。用户已确认(2026-10-08)本服神秘商店会刷新 → 这 4 个道具保留在模型中, 价格锚点从史料价改为商店基价, 商店作为额外产出和价格软上限建模(见 analysis/secret_shop.json)。这是对\"不考虑 NPC 价格\"规则的明确例外, 仅限神秘商店。",
+   "confidence_affects_model": "高(已按用户决定处理)"
+  },
+  {
+   "ids": [
+    3255,
+    4330,
+    4331,
+    3281,
+    3283
+   ],
+   "names": [
+    "五种恶魔的挑战书"
+   ],
+   "reason": "1031 PVF 里找不到任何产出(掉落表、任务奖励、礼盒都没有; 早先扫描在 盛装的箱子 2660419 里的命中, 核对后是权重数值碰巧等于 3255, 不是道具)。只剩兑换消耗(例如 3281: 扭曲恶魔的邀请函×1、幻影之破魔石×18)。模型把它们当作只能靠机器人注入的薄市场收藏品。",
+   "confidence_affects_model": "中"
+  },
+  {
+   "ids": [
+    3017955,
+    36
+   ],
+   "names": [
+    "黑钻贵族 (30天)",
+    "服务器喇叭"
+   ],
+   "reason": "点券道具。核查结论: 当前没有游戏内发放渠道(game_issuance=0)。黑钻只在点券商城; 喇叭在点券商城、点券礼包, 以及未开启的出席活动(活动 86)中出现。模型按机器人独供的薄市场处理(产出与挑战书同级, 仅代表机器人注入)。证据见 analysis/cash_item_sources.json",
+   "confidence_affects_model": "中(数据库中的 GM 发放/点券余额未能核实)"
+  }
+ ]
+}

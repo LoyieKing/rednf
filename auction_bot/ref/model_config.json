@@ -1,0 +1,3360 @@
+{
+ "meta": {
+  "generated": "2026-10-08 (Asia/Shanghai)",
+  "description": "DNF 1031 单人私服 拍卖行机器人经济模型 校准配置。键为道具ID, 价格单位为金币。",
+  "model_spec": "market_model_conversation.md 原型的 DNF 改编版, 见 sim.py 文件头",
+  "excluded_items": "excluded_items.json (NPC 可兑换的晶块类, 不建模)",
+  "relative_value_regression": {
+   "formula": "ln(ref) = a + b·ln(1/units_per_run)",
+   "a": 7.144,
+   "b": 0.338,
+   "r2": 0.163,
+   "n": 44
+  },
+  "fit_history": [
+   {
+    "round": 0,
+    "median_abs_bias_pct": 2.54,
+    "max_abs_bias_pct": 13.07,
+    "trades_per_day": 2339
+   },
+   {
+    "round": 1,
+    "median_abs_bias_pct": 1.17,
+    "max_abs_bias_pct": 9.51,
+    "trades_per_day": 2351
+   },
+   {
+    "round": 2,
+    "median_abs_bias_pct": 1.17,
+    "max_abs_bias_pct": 7.19,
+    "trades_per_day": 2354
+   },
+   {
+    "round": 3,
+    "median_abs_bias_pct": 1.24,
+    "max_abs_bias_pct": 9.35,
+    "trades_per_day": 2348
+   },
+   {
+    "round": 4,
+    "median_abs_bias_pct": 1.3,
+    "max_abs_bias_pct": 7.19,
+    "trades_per_day": 2343
+   },
+   {
+    "round": 5,
+    "median_abs_bias_pct": 1.52,
+    "max_abs_bias_pct": 10.84,
+    "trades_per_day": 2349
+   }
+  ],
+  "out_of_sample_fit": {
+   "seeds": "1000-1009",
+   "days": 14,
+   "median_abs_bias_pct": 0.9,
+   "median_mean_abs_err_pct": 2.47,
+   "max_mean_abs_err_pct": 11.33,
+   "median_days_in_band_pct": 99.2,
+   "items_ge80pct_days_in_band": 53,
+   "n_items": 53
+  },
+  "assumptions": {
+   "difficulty": "勇士(master)列",
+   "world_item_p_per_kill": 0.135,
+   "spo_per_run": 2.0,
+   "RUNS_MARKET_PER_H": 240.0,
+   "S_mix": "Lv45-72 常规地下城平均单局产出 + 0.10 × 最佳地下城单局产出"
+  }
+ },
+ "global": {
+  "tick_minutes": 10,
+  "listing_expire_s": 7200,
+  "listing_expire_ticks": 12,
+  "system_owner_id": -1,
+  "fake_buyer_id": 1999999999,
+  "user_priority": true,
+  "activity_scale": 0.15,
+  "online_curve": {
+   "base": 700,
+   "amp": 1300,
+   "power": 1.4,
+   "weekend_mult": 1.35
+  },
+  "agent_shares": {
+   "consumer": 0.04,
+   "producer": 0.012,
+   "flipper": 0.008,
+   "dumper": 0.003
+  },
+  "agent_act_prob": {
+   "consumer": 0.35,
+   "producer": 0.55,
+   "flipper": 0.6,
+   "dumper": 0.25
+  },
+  "scarcity": {
+   "a": 1.6,
+   "b": 3.2,
+   "lo": 0.15,
+   "hi": 1.5
+  },
+  "runs_market_per_h": 240.0
+ },
+ "items": {
+  "3255": {
+   "name": "威严恶魔的挑战书",
+   "category": "挑战书",
+   "ref": 33000.0,
+   "band_hist": [
+    29000.0,
+    37000.0
+   ],
+   "band": [
+    29000.0,
+    37000.0
+   ],
+   "c": 30657.04,
+   "v": 45507.04,
+   "faucet_per_h": 0.24,
+   "sink_rate_per_h": 0.01,
+   "epsilon": 1.0,
+   "kappa_per_day": 0.231,
+   "sigma_per_day": 0.0272,
+   "ou_sd": 0.04,
+   "pvf": {
+    "units_per_run_mix": 0.0,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 0,
+    "best_dungeon": null,
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": []
+   },
+   "activity": 0.125,
+   "target_listings": 5,
+   "lot_qty": {
+    "median": 2,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 10
+   },
+   "consumer_qty": {
+    "median": 2,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 18
+   },
+   "price_mult": 1.042,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "4331": {
+   "name": "强韧恶魔的挑战书",
+   "category": "挑战书",
+   "ref": 28000.0,
+   "band_hist": [
+    27000.0,
+    32000.0
+   ],
+   "band": [
+    25200.0,
+    32000.0
+   ],
+   "c": 26012.04,
+   "v": 38612.04,
+   "faucet_per_h": 0.24,
+   "sink_rate_per_h": 0.01,
+   "epsilon": 1.0,
+   "kappa_per_day": 0.231,
+   "sigma_per_day": 0.0136,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.0,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 0,
+    "best_dungeon": null,
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": []
+   },
+   "activity": 0.125,
+   "target_listings": 5,
+   "lot_qty": {
+    "median": 2,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 10
+   },
+   "consumer_qty": {
+    "median": 2,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 18
+   },
+   "price_mult": 1.0124,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "4330": {
+   "name": "狂乱恶魔的挑战书",
+   "category": "挑战书",
+   "ref": 29000.0,
+   "band_hist": [
+    23000.0,
+    31000.0
+   ],
+   "band": [
+    23000.0,
+    31900.000000000004
+   ],
+   "c": 26941.04,
+   "v": 39991.04,
+   "faucet_per_h": 0.24,
+   "sink_rate_per_h": 0.01,
+   "epsilon": 1.0,
+   "kappa_per_day": 0.231,
+   "sigma_per_day": 0.0159,
+   "ou_sd": 0.0233,
+   "pvf": {
+    "units_per_run_mix": 0.0,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 0,
+    "best_dungeon": null,
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": []
+   },
+   "activity": 0.125,
+   "target_listings": 5,
+   "lot_qty": {
+    "median": 2,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 10
+   },
+   "consumer_qty": {
+    "median": 2,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 18
+   },
+   "price_mult": 1.0176,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3281": {
+   "name": "扭曲恶魔的挑战书",
+   "category": "挑战书",
+   "ref": 37500.0,
+   "band_hist": [
+    35000.0,
+    40000.0
+   ],
+   "band": [
+    33750.0,
+    41250.0
+   ],
+   "c": 34293.61,
+   "v": 51168.61,
+   "faucet_per_h": 0.24,
+   "sink_rate_per_h": 0.0111,
+   "epsilon": 1.0,
+   "kappa_per_day": 0.231,
+   "sigma_per_day": 0.0154,
+   "ou_sd": 0.0226,
+   "pvf": {
+    "units_per_run_mix": 0.0,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 0,
+    "best_dungeon": null,
+    "n_sink_uses": 2,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": []
+   },
+   "activity": 0.125,
+   "target_listings": 5,
+   "lot_qty": {
+    "median": 2,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 10
+   },
+   "consumer_qty": {
+    "median": 2,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 18
+   },
+   "price_mult": 0.9923,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3283": {
+   "name": "震撼恶魔的挑战书",
+   "category": "挑战书",
+   "ref": 35000.0,
+   "band_hist": [
+    35000.0,
+    38000.0
+   ],
+   "band": [
+    31500.0,
+    38500.0
+   ],
+   "c": 32515.05,
+   "v": 48265.05,
+   "faucet_per_h": 0.24,
+   "sink_rate_per_h": 0.01,
+   "epsilon": 1.0,
+   "kappa_per_day": 0.231,
+   "sigma_per_day": 0.0136,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.0,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 0,
+    "best_dungeon": null,
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": []
+   },
+   "activity": 0.125,
+   "target_listings": 5,
+   "lot_qty": {
+    "median": 2,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 10
+   },
+   "consumer_qty": {
+    "median": 2,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 18
+   },
+   "price_mult": 1.012,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3187": {
+   "name": "灵魂晶石",
+   "category": "副本材料",
+   "ref": 1000.0,
+   "band_hist": [
+    900.0,
+    1200.0
+   ],
+   "band": [
+    900.0,
+    1200.0
+   ],
+   "c": 789.77,
+   "v": 1239.77,
+   "faucet_per_h": 306.888,
+   "sink_rate_per_h": 0.02738,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0307,
+   "ou_sd": 0.0369,
+   "pvf": {
+    "units_per_run_mix": 1.26612,
+    "mean_units_per_run_lv45_72": 0.4751,
+    "best_units_per_run": 7.9102,
+    "best_dungeon": "暗黑城入口 (Lv54)",
+    "n_sink_uses": 39,
+    "quest_turnin_median": 20,
+    "recipe_median": null,
+    "secret_shop_gold": [
+     [
+      1000,
+      10
+     ]
+    ],
+    "implied_price_from_yield": 1169
+   },
+   "ref_hist": {
+    "ref": 3950.0,
+    "band": [
+     2200.0,
+     4100.0
+    ],
+    "source": "史料参考价表 v2 (已被神秘商店锚点替代)"
+   },
+   "drop_faucet_per_h": 303.8688,
+   "secret_shop": {
+    "base_price": 1000,
+    "price_rolls": [
+     900,
+     1000,
+     1100
+    ],
+    "limit_per_visit": 10,
+    "p_offer_per_run": 0.001259,
+    "units_per_run": 0.01258,
+    "faucet_per_h": 3.0192,
+    "resale_prob": 0.5,
+    "evidence": "etc/secretshop.etc + dnf_remake CSecretShop::LotteryNpc/GetItems/GetRandItemPrice, 见 analysis/secret_shop.json"
+   },
+   "activity": 1.382,
+   "target_listings": 12,
+   "consumer_qty": {
+    "median": 10.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 20
+   },
+   "lot_qty": {
+    "median": 39.6,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 118
+   },
+   "price_mult": 1.0563,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3221": {
+   "name": "灾难的征兆",
+   "category": "副本材料",
+   "ref": 1000.0,
+   "band_hist": [
+    900.0,
+    1200.0
+   ],
+   "band": [
+    900.0,
+    1200.0
+   ],
+   "c": 812.37,
+   "v": 1262.37,
+   "faucet_per_h": 429.5184,
+   "sink_rate_per_h": 0.02322,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0307,
+   "ou_sd": 0.0369,
+   "pvf": {
+    "units_per_run_mix": 1.77708,
+    "mean_units_per_run_lv45_72": 0.94964,
+    "best_units_per_run": 8.2744,
+    "best_dungeon": "根特北门 (Lv61)",
+    "n_sink_uses": 4,
+    "quest_turnin_median": 10.0,
+    "recipe_median": null,
+    "secret_shop_gold": [
+     [
+      1000,
+      10
+     ]
+    ],
+    "implied_price_from_yield": 1043
+   },
+   "ref_hist": {
+    "ref": 3500.0,
+    "band": [
+     2850.0,
+     4275.0
+    ],
+    "source": "史料参考价表 v2 (已被神秘商店锚点替代)"
+   },
+   "drop_faucet_per_h": 426.4992,
+   "secret_shop": {
+    "base_price": 1000,
+    "price_rolls": [
+     900,
+     1000,
+     1100
+    ],
+    "limit_per_visit": 10,
+    "p_offer_per_run": 0.001259,
+    "units_per_run": 0.01258,
+    "faucet_per_h": 3.0192,
+    "resale_prob": 0.5,
+    "evidence": "etc/secretshop.etc + dnf_remake CSecretShop::LotteryNpc/GetItems/GetRandItemPrice, 见 analysis/secret_shop.json"
+   },
+   "activity": 1.556,
+   "target_listings": 13,
+   "consumer_qty": {
+    "median": 5.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 10
+   },
+   "lot_qty": {
+    "median": 40,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 120
+   },
+   "price_mult": 1.0904,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3205": {
+   "name": "泰拉石",
+   "category": "副本材料",
+   "ref": 7450.0,
+   "band_hist": [
+    4488.0,
+    10000.0
+   ],
+   "band": [
+    4488.0,
+    10000.0
+   ],
+   "c": 4167.61,
+   "v": 11817.61,
+   "faucet_per_h": 630.5232,
+   "sink_rate_per_h": 0.02416,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0858,
+   "ou_sd": 0.103,
+   "pvf": {
+    "units_per_run_mix": 2.62718,
+    "mean_units_per_run_lv45_72": 0.52718,
+    "best_units_per_run": 21.0,
+    "best_dungeon": "南部溪谷 (Lv30)",
+    "n_sink_uses": 7,
+    "quest_turnin_median": 8.0,
+    "recipe_median": 50,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 914
+   },
+   "activity": 1.784,
+   "target_listings": 15,
+   "consumer_qty": {
+    "median": 4.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 8
+   },
+   "lot_qty": {
+    "median": 40,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 120
+   },
+   "price_mult": 1.0958,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3253": {
+   "name": "使徒的气息",
+   "category": "副本材料",
+   "ref": 8400.0,
+   "band_hist": [
+    7800.0,
+    8800.0
+   ],
+   "band": [
+    7560.0,
+    9240.0
+   ],
+   "c": 6805.92,
+   "v": 10585.92,
+   "faucet_per_h": 687.5088,
+   "sink_rate_per_h": 0.02358,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0167,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 2.86462,
+    "mean_units_per_run_lv45_72": 0.58462,
+    "best_units_per_run": 22.8,
+    "best_dungeon": "诺伊佩拉 (Lv64)",
+    "n_sink_uses": 5,
+    "quest_turnin_median": 6,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 887
+   },
+   "activity": 1.839,
+   "target_listings": 15,
+   "consumer_qty": {
+    "median": 3.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 6
+   },
+   "lot_qty": {
+    "median": 40,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 120
+   },
+   "price_mult": 1.1084,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3254": {
+   "name": "戮蛊的眼睛",
+   "category": "副本材料",
+   "ref": 39500.0,
+   "band_hist": [
+    37000.0,
+    42000.0
+   ],
+   "band": [
+    35550.0,
+    43450.0
+   ],
+   "c": 32088.62,
+   "v": 49863.62,
+   "faucet_per_h": 482.4624,
+   "sink_rate_per_h": 0.02322,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0179,
+   "ou_sd": 0.0215,
+   "pvf": {
+    "units_per_run_mix": 2.01026,
+    "mean_units_per_run_lv45_72": 0.41026,
+    "best_units_per_run": 16.0,
+    "best_dungeon": "悲鸣洞穴 (Lv61)",
+    "n_sink_uses": 4,
+    "quest_turnin_median": 150.0,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1000
+   },
+   "activity": 1.625,
+   "target_listings": 14,
+   "consumer_qty": {
+    "median": 1.5,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 3
+   },
+   "lot_qty": {
+    "median": 3,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 9
+   },
+   "price_mult": 1.0168,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3186": {
+   "name": "波罗丁的印章",
+   "category": "副本材料",
+   "ref": 14000.0,
+   "band_hist": [
+    10550.0,
+    15000.0
+   ],
+   "band": [
+    10550.0,
+    15400.000000000002
+   ],
+   "c": 11221.14,
+   "v": 17521.14,
+   "faucet_per_h": 96.492,
+   "sink_rate_per_h": 0.02513,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0201,
+   "ou_sd": 0.0241,
+   "pvf": {
+    "units_per_run_mix": 0.40205,
+    "mean_units_per_run_lv45_72": 0.08205,
+    "best_units_per_run": 3.2,
+    "best_dungeon": "王的遗迹 (Lv55)",
+    "n_sink_uses": 12,
+    "quest_turnin_median": 5.0,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1723
+   },
+   "activity": 0.925,
+   "target_listings": 10,
+   "consumer_qty": {
+    "median": 2.5,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 5
+   },
+   "lot_qty": {
+    "median": 16.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 48
+   },
+   "price_mult": 1.0642,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3229": {
+   "name": "混沌魔石碎片",
+   "category": "副本材料",
+   "ref": 500.0,
+   "band_hist": [
+    450.0,
+    600.0
+   ],
+   "band": [
+    450.0,
+    600.0
+   ],
+   "c": 395.41,
+   "v": 620.41,
+   "faucet_per_h": 496.2384,
+   "sink_rate_per_h": 0.02717,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0307,
+   "ou_sd": 0.0369,
+   "pvf": {
+    "units_per_run_mix": 2.05508,
+    "mean_units_per_run_lv45_72": 0.42308,
+    "best_units_per_run": 16.32,
+    "best_dungeon": "南部溪谷 (Lv30)",
+    "n_sink_uses": 35,
+    "quest_turnin_median": 10,
+    "recipe_median": null,
+    "secret_shop_gold": [
+     [
+      500,
+      10
+     ]
+    ],
+    "implied_price_from_yield": 993
+   },
+   "ref_hist": {
+    "ref": 1500.0,
+    "band": [
+     1000.0,
+     1800.0
+    ],
+    "source": "史料参考价表 v2 (已被神秘商店锚点替代)"
+   },
+   "drop_faucet_per_h": 493.2192,
+   "secret_shop": {
+    "base_price": 500,
+    "price_rolls": [
+     450,
+     500,
+     550
+    ],
+    "limit_per_visit": 10,
+    "p_offer_per_run": 0.001259,
+    "units_per_run": 0.01258,
+    "faucet_per_h": 3.0192,
+    "resale_prob": 0.5,
+    "evidence": "etc/secretshop.etc + dnf_remake CSecretShop::LotteryNpc/GetItems/GetRandItemPrice, 见 analysis/secret_shop.json"
+   },
+   "activity": 1.637,
+   "target_listings": 14,
+   "consumer_qty": {
+    "median": 5.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 10
+   },
+   "lot_qty": {
+    "median": 40,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 120
+   },
+   "price_mult": 1.0813,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3300": {
+   "name": "虚空魔石碎片",
+   "category": "副本材料",
+   "ref": 1000.0,
+   "band_hist": [
+    900.0,
+    1200.0
+   ],
+   "band": [
+    900.0,
+    1200.0
+   ],
+   "c": 789.28,
+   "v": 1239.28,
+   "faucet_per_h": 250.7736,
+   "sink_rate_per_h": 0.02748,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0307,
+   "ou_sd": 0.0369,
+   "pvf": {
+    "units_per_run_mix": 1.03231,
+    "mean_units_per_run_lv45_72": 0.69231,
+    "best_units_per_run": 3.4,
+    "best_dungeon": "南部溪谷 (Lv30)",
+    "n_sink_uses": 41,
+    "quest_turnin_median": 10.0,
+    "recipe_median": 1500,
+    "secret_shop_gold": [
+     [
+      1000,
+      10
+     ]
+    ],
+    "implied_price_from_yield": 1253
+   },
+   "ref_hist": {
+    "ref": 1350.0,
+    "band": [
+     970.0,
+     1700.0
+    ],
+    "source": "史料参考价表 v2 (已被神秘商店锚点替代)"
+   },
+   "drop_faucet_per_h": 247.7544,
+   "secret_shop": {
+    "base_price": 1000,
+    "price_rolls": [
+     900,
+     1000,
+     1100
+    ],
+    "limit_per_visit": 10,
+    "p_offer_per_run": 0.001259,
+    "units_per_run": 0.01258,
+    "faucet_per_h": 3.0192,
+    "resale_prob": 0.5,
+    "evidence": "etc/secretshop.etc + dnf_remake CSecretShop::LotteryNpc/GetItems/GetRandItemPrice, 见 analysis/secret_shop.json"
+   },
+   "activity": 1.287,
+   "target_listings": 12,
+   "consumer_qty": {
+    "median": 5.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 10
+   },
+   "lot_qty": {
+    "median": 17.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 51
+   },
+   "price_mult": 1.0506,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3249": {
+   "name": "卡勒特干部的徽章",
+   "category": "副本材料",
+   "ref": 1950.0,
+   "band_hist": [
+    1300.0,
+    2100.0
+   ],
+   "band": [
+    1300.0,
+    2145.0
+   ],
+   "c": 1589.32,
+   "v": 2466.82,
+   "faucet_per_h": 65.3544,
+   "sink_rate_per_h": 0.02277,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0216,
+   "ou_sd": 0.0259,
+   "pvf": {
+    "units_per_run_mix": 0.27231,
+    "mean_units_per_run_lv45_72": 0.09231,
+    "best_units_per_run": 1.8,
+    "best_dungeon": "根特南门 (Lv60)",
+    "n_sink_uses": 3,
+    "quest_turnin_median": 10,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1965
+   },
+   "activity": 0.807,
+   "target_listings": 9,
+   "consumer_qty": {
+    "median": 5.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 10
+   },
+   "lot_qty": {
+    "median": 9.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 27
+   },
+   "price_mult": 1.014,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3267": {
+   "name": "卡勒特首领的徽章",
+   "category": "副本材料",
+   "ref": 13000.0,
+   "band_hist": [
+    12000.0,
+    14750.0
+   ],
+   "band": [
+    11700.0,
+    14750.0
+   ],
+   "c": 10419.63,
+   "v": 16269.63,
+   "faucet_per_h": 79.9992,
+   "sink_rate_per_h": 0.02513,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0233,
+   "ou_sd": 0.028,
+   "pvf": {
+    "units_per_run_mix": 0.33333,
+    "mean_units_per_run_lv45_72": 0.13333,
+    "best_units_per_run": 2.0,
+    "best_dungeon": "追击歼灭战 (Lv65)",
+    "n_sink_uses": 12,
+    "quest_turnin_median": 4.0,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1836
+   },
+   "activity": 0.866,
+   "target_listings": 9,
+   "consumer_qty": {
+    "median": 2.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 4
+   },
+   "lot_qty": {
+    "median": 10.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 30
+   },
+   "price_mult": 1.0437,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3303": {
+   "name": "英雄的宿命",
+   "category": "副本材料",
+   "ref": 1000.0,
+   "band_hist": [
+    800.0,
+    1200.0
+   ],
+   "band": [
+    800.0,
+    1200.0
+   ],
+   "c": 565.81,
+   "v": 1165.81,
+   "faucet_per_h": 666.8616,
+   "sink_rate_per_h": 0.06445,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0531,
+   "ou_sd": 0.0638,
+   "pvf": {
+    "units_per_run_mix": 2.77859,
+    "mean_units_per_run_lv45_72": 1.91354,
+    "best_units_per_run": 8.6505,
+    "best_dungeon": "追击歼灭战 (Lv65)",
+    "n_sink_uses": 17,
+    "quest_turnin_median": 25,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 896
+   },
+   "activity": 1.819,
+   "target_listings": 15,
+   "consumer_qty": {
+    "median": 10.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 20
+   },
+   "lot_qty": {
+    "median": 40,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 120
+   },
+   "price_mult": 1.0712,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3217": {
+   "name": "王之石像碎块",
+   "category": "副本材料",
+   "ref": 1900.0,
+   "band_hist": [
+    1850.0,
+    1900.0
+   ],
+   "band": [
+    1710.0,
+    2090.0
+   ],
+   "c": 1522.87,
+   "v": 2377.87,
+   "faucet_per_h": 31.3848,
+   "sink_rate_per_h": 0.02513,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0167,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.13077,
+    "mean_units_per_run_lv45_72": 0.03077,
+    "best_units_per_run": 1.0,
+    "best_dungeon": "堕落的盗贼 (Lv51)",
+    "n_sink_uses": 12,
+    "quest_turnin_median": 4,
+    "recipe_median": 66,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 2518
+   },
+   "activity": 0.624,
+   "target_listings": 8,
+   "consumer_qty": {
+    "median": 2.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 4
+   },
+   "lot_qty": {
+    "median": 5.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 15
+   },
+   "price_mult": 1.0295,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3218": {
+   "name": "疯狂盗贼的口罩",
+   "category": "副本材料",
+   "ref": 250.0,
+   "band_hist": [
+    200.0,
+    310.0
+   ],
+   "band": [
+    200.0,
+    310.0
+   ],
+   "c": 184.8,
+   "v": 334.8,
+   "faucet_per_h": 444.0624,
+   "sink_rate_per_h": 0.02461,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0627,
+   "ou_sd": 0.0753,
+   "pvf": {
+    "units_per_run_mix": 1.85026,
+    "mean_units_per_run_lv45_72": 0.41026,
+    "best_units_per_run": 14.4,
+    "best_dungeon": "堕落的盗贼 (Lv51)",
+    "n_sink_uses": 9,
+    "quest_turnin_median": 6,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1029
+   },
+   "activity": 1.578,
+   "target_listings": 13,
+   "consumer_qty": {
+    "median": 3.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 6
+   },
+   "lot_qty": {
+    "median": 40,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 120
+   },
+   "price_mult": 1.1022,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3178": {
+   "name": "风之流动",
+   "category": "副本材料",
+   "ref": 1750.0,
+   "band_hist": [
+    1000.0,
+    2500.0
+   ],
+   "band": [
+    1000.0,
+    2500.0
+   ],
+   "c": 784.59,
+   "v": 3034.59,
+   "faucet_per_h": 120.6144,
+   "sink_rate_per_h": 0.02416,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.1039,
+   "ou_sd": 0.1248,
+   "pvf": {
+    "units_per_run_mix": 0.50256,
+    "mean_units_per_run_lv45_72": 0.10256,
+    "best_units_per_run": 4.0,
+    "best_dungeon": "王的遗迹 (Lv55)",
+    "n_sink_uses": 7,
+    "quest_turnin_median": 4.0,
+    "recipe_median": 248,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1598
+   },
+   "activity": 1.0,
+   "target_listings": 10,
+   "consumer_qty": {
+    "median": 2.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 4
+   },
+   "lot_qty": {
+    "median": 20.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 60
+   },
+   "price_mult": 1.1068,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3182": {
+   "name": "光之心脏",
+   "category": "副本材料",
+   "ref": 4000.0,
+   "band_hist": [
+    3000.0,
+    5000.0
+   ],
+   "band": [
+    3000.0,
+    5000.0
+   ],
+   "c": 2712.79,
+   "v": 5712.79,
+   "faucet_per_h": 120.6144,
+   "sink_rate_per_h": 0.02416,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.065,
+   "ou_sd": 0.0781,
+   "pvf": {
+    "units_per_run_mix": 0.50256,
+    "mean_units_per_run_lv45_72": 0.10256,
+    "best_units_per_run": 4.0,
+    "best_dungeon": "王的遗迹 (Lv55)",
+    "n_sink_uses": 7,
+    "quest_turnin_median": 4.0,
+    "recipe_median": 167,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1598
+   },
+   "activity": 1.0,
+   "target_listings": 10,
+   "consumer_qty": {
+    "median": 2.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 4
+   },
+   "lot_qty": {
+    "median": 20.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 60
+   },
+   "price_mult": 1.0476,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3181": {
+   "name": "炎之内核",
+   "category": "副本材料",
+   "ref": 2000.0,
+   "band_hist": [
+    800.0,
+    2000.0
+   ],
+   "band": [
+    800.0,
+    2200.0
+   ],
+   "c": 1613.84,
+   "v": 2513.84,
+   "faucet_per_h": 120.6144,
+   "sink_rate_per_h": 0.02416,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0167,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.50256,
+    "mean_units_per_run_lv45_72": 0.10256,
+    "best_units_per_run": 4.0,
+    "best_dungeon": "王的遗迹 (Lv55)",
+    "n_sink_uses": 7,
+    "quest_turnin_median": 4.0,
+    "recipe_median": 185,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1598
+   },
+   "activity": 1.0,
+   "target_listings": 10,
+   "consumer_qty": {
+    "median": 2.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 4
+   },
+   "lot_qty": {
+    "median": 20.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 60
+   },
+   "price_mult": 1.0632,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3179": {
+   "name": "守护之印记",
+   "category": "副本材料",
+   "ref": 320.0,
+   "band_hist": [
+    170.0,
+    320.0
+   ],
+   "band": [
+    170.0,
+    352.0
+   ],
+   "c": 258.21,
+   "v": 402.21,
+   "faucet_per_h": 120.6144,
+   "sink_rate_per_h": 0.02416,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0167,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.50256,
+    "mean_units_per_run_lv45_72": 0.10256,
+    "best_units_per_run": 4.0,
+    "best_dungeon": "王的遗迹 (Lv55)",
+    "n_sink_uses": 7,
+    "quest_turnin_median": 4.0,
+    "recipe_median": 199,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1598
+   },
+   "activity": 1.0,
+   "target_listings": 10,
+   "consumer_qty": {
+    "median": 2.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 4
+   },
+   "lot_qty": {
+    "median": 20.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 60
+   },
+   "price_mult": 1.0644,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3180": {
+   "name": "冰之水晶",
+   "category": "副本材料",
+   "ref": 210.0,
+   "band_hist": [
+    100.0,
+    210.0
+   ],
+   "band": [
+    100.0,
+    231.00000000000003
+   ],
+   "c": 169.45,
+   "v": 263.95,
+   "faucet_per_h": 120.6144,
+   "sink_rate_per_h": 0.02416,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0167,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.50256,
+    "mean_units_per_run_lv45_72": 0.10256,
+    "best_units_per_run": 4.0,
+    "best_dungeon": "王的遗迹 (Lv55)",
+    "n_sink_uses": 7,
+    "quest_turnin_median": 4.0,
+    "recipe_median": 190,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1598
+   },
+   "activity": 1.0,
+   "target_listings": 10,
+   "consumer_qty": {
+    "median": 2.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 4
+   },
+   "lot_qty": {
+    "median": 20.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 60
+   },
+   "price_mult": 1.0716,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "4084": {
+   "name": "燃烧的心脏",
+   "category": "副本材料",
+   "ref": 3449.0,
+   "band_hist": [
+    2800.0,
+    3449.0
+   ],
+   "band": [
+    2800.0,
+    3793.9
+   ],
+   "c": 2759.05,
+   "v": 4311.1,
+   "faucet_per_h": 276.48,
+   "sink_rate_per_h": 0.02542,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0167,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 1.152,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 11.52,
+    "best_dungeon": "熔岩穴 (Lv43)",
+    "n_sink_uses": 14,
+    "quest_turnin_median": 6.0,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1207
+   },
+   "activity": 1.337,
+   "target_listings": 12,
+   "consumer_qty": {
+    "median": 3.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 6
+   },
+   "lot_qty": {
+    "median": 40,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 120
+   },
+   "price_mult": 1.0808,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3270": {
+   "name": "碎肉块",
+   "category": "副本材料",
+   "ref": 4900.0,
+   "band_hist": [
+    4000.0,
+    5757.0
+   ],
+   "band": [
+    4000.0,
+    5757.0
+   ],
+   "c": 3805.58,
+   "v": 6376.58,
+   "faucet_per_h": 54.276,
+   "sink_rate_per_h": 0.02389,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.047,
+   "ou_sd": 0.0564,
+   "pvf": {
+    "units_per_run_mix": 0.22615,
+    "mean_units_per_run_lv45_72": 0.04615,
+    "best_units_per_run": 1.8,
+    "best_dungeon": "补给线阻断战 (Lv64)",
+    "n_sink_uses": 6,
+    "quest_turnin_median": 5.5,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 2093
+   },
+   "activity": 0.756,
+   "target_listings": 9,
+   "consumer_qty": {
+    "median": 2.8,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 5
+   },
+   "lot_qty": {
+    "median": 9.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 27
+   },
+   "price_mult": 1.0399,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3266": {
+   "name": "粗糙的机械零件",
+   "category": "副本材料",
+   "ref": 1500.0,
+   "band_hist": [
+    1300.0,
+    1750.0
+   ],
+   "band": [
+    1300.0,
+    1750.0
+   ],
+   "c": 1212.67,
+   "v": 1887.67,
+   "faucet_per_h": 60.3072,
+   "sink_rate_per_h": 0.02389,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0417,
+   "ou_sd": 0.0501,
+   "pvf": {
+    "units_per_run_mix": 0.25128,
+    "mean_units_per_run_lv45_72": 0.05128,
+    "best_units_per_run": 2.0,
+    "best_dungeon": "补给线阻断战 (Lv64)",
+    "n_sink_uses": 6,
+    "quest_turnin_median": 8.0,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 2020
+   },
+   "activity": 0.785,
+   "target_listings": 9,
+   "consumer_qty": {
+    "median": 4.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 8
+   },
+   "lot_qty": {
+    "median": 10.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 30
+   },
+   "price_mult": 1.0415,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3298": {
+   "name": "有用的零件",
+   "category": "副本材料",
+   "ref": 8550.0,
+   "band_hist": [
+    7600.0,
+    9500.0
+   ],
+   "band": [
+    7600.0,
+    9500.0
+   ],
+   "c": 6927.46,
+   "v": 10774.96,
+   "faucet_per_h": 12.0624,
+   "sink_rate_per_h": 0.02358,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0307,
+   "ou_sd": 0.0369,
+   "pvf": {
+    "units_per_run_mix": 0.05026,
+    "mean_units_per_run_lv45_72": 0.01026,
+    "best_units_per_run": 0.4,
+    "best_dungeon": "夺回西部线 (Lv69)",
+    "n_sink_uses": 5,
+    "quest_turnin_median": 6,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 3479
+   },
+   "activity": 0.447,
+   "target_listings": 7,
+   "consumer_qty": {
+    "median": 3.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 6
+   },
+   "lot_qty": {
+    "median": 2,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 6
+   },
+   "price_mult": 1.0356,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3296": {
+   "name": "天界珍珠",
+   "category": "副本材料",
+   "ref": 1000.0,
+   "band_hist": [
+    200.0,
+    1819.0
+   ],
+   "band": [
+    200.0,
+    1819.0
+   ],
+   "c": 300.0,
+   "v": 1920.25,
+   "faucet_per_h": 152.3688,
+   "sink_rate_per_h": 0.02439,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.1249,
+   "ou_sd": 0.15,
+   "pvf": {
+    "units_per_run_mix": 0.63487,
+    "mean_units_per_run_lv45_72": 0.19487,
+    "best_units_per_run": 4.4,
+    "best_dungeon": "夺回西部线 (Lv69)",
+    "n_sink_uses": 8,
+    "quest_turnin_median": 5.0,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1476
+   },
+   "activity": 1.085,
+   "target_listings": 11,
+   "consumer_qty": {
+    "median": 2.5,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 5
+   },
+   "lot_qty": {
+    "median": 22.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 66
+   },
+   "price_mult": 1.088,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3295": {
+   "name": "副船长的戒指",
+   "category": "副本材料",
+   "ref": 3500.0,
+   "band_hist": [
+    2800.0,
+    4400.0
+   ],
+   "band": [
+    2800.0,
+    4400.0
+   ],
+   "c": 2577.81,
+   "v": 4677.81,
+   "faucet_per_h": 193.9704,
+   "sink_rate_per_h": 0.02497,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.065,
+   "ou_sd": 0.0781,
+   "pvf": {
+    "units_per_run_mix": 0.80821,
+    "mean_units_per_run_lv45_72": 0.32821,
+    "best_units_per_run": 4.8,
+    "best_dungeon": "铁鳞海贼团 (Lv69)",
+    "n_sink_uses": 11,
+    "quest_turnin_median": 6,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1361
+   },
+   "activity": 1.181,
+   "target_listings": 11,
+   "consumer_qty": {
+    "median": 3.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 6
+   },
+   "lot_qty": {
+    "median": 24.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 72
+   },
+   "price_mult": 1.0372,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3273": {
+   "name": "枪械修理工具",
+   "category": "副本材料",
+   "ref": 150.0,
+   "band_hist": [
+    150.0,
+    285.0
+   ],
+   "band": [
+    135.0,
+    285.0
+   ],
+   "c": 120.66,
+   "v": 188.16,
+   "faucet_per_h": 387.0768,
+   "sink_rate_per_h": 0.02461,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.0167,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 1.61282,
+    "mean_units_per_run_lv45_72": 0.51282,
+    "best_units_per_run": 11.0,
+    "best_dungeon": "补给线阻断战 (Lv64)",
+    "n_sink_uses": 9,
+    "quest_turnin_median": 6,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1077
+   },
+   "activity": 1.504,
+   "target_listings": 13,
+   "consumer_qty": {
+    "median": 3.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 6
+   },
+   "lot_qty": {
+    "median": 40,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 120
+   },
+   "price_mult": 1.0879,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3276": {
+   "name": "防弹金属碎片",
+   "category": "副本材料",
+   "ref": 300.0,
+   "band_hist": [
+    240.0,
+    380.0
+   ],
+   "band": [
+    240.0,
+    380.0
+   ],
+   "c": 224.09,
+   "v": 404.09,
+   "faucet_per_h": 30.1536,
+   "sink_rate_per_h": 0.02358,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.065,
+   "ou_sd": 0.0781,
+   "pvf": {
+    "units_per_run_mix": 0.12564,
+    "mean_units_per_run_lv45_72": 0.02564,
+    "best_units_per_run": 1.0,
+    "best_dungeon": "追击歼灭战 (Lv65)",
+    "n_sink_uses": 5,
+    "quest_turnin_median": 6,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 2553
+   },
+   "activity": 0.616,
+   "target_listings": 8,
+   "consumer_qty": {
+    "median": 3.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 6
+   },
+   "lot_qty": {
+    "median": 5.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 15
+   },
+   "price_mult": 1.0183,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3203": {
+   "name": "被污染的蜘蛛腿",
+   "category": "副本材料",
+   "ref": 2000.0,
+   "band_hist": [
+    1600.0,
+    2500.0
+   ],
+   "band": [
+    1600.0,
+    2500.0
+   ],
+   "c": 1499.65,
+   "v": 2699.65,
+   "faucet_per_h": 124.8,
+   "sink_rate_per_h": 0.02322,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.065,
+   "ou_sd": 0.0781,
+   "pvf": {
+    "units_per_run_mix": 0.52,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 5.2,
+    "best_dungeon": "蜘蛛洞穴 (Lv41)",
+    "n_sink_uses": 4,
+    "quest_turnin_median": 5.0,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1579
+   },
+   "activity": 1.012,
+   "target_listings": 10,
+   "consumer_qty": {
+    "median": 2.5,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 5
+   },
+   "lot_qty": {
+    "median": 26.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 78
+   },
+   "price_mult": 1.0641,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3052": {
+   "name": "赫仑皇帝的印章",
+   "category": "副本材料",
+   "ref": 400.0,
+   "band_hist": [
+    320.0,
+    500.0
+   ],
+   "band": [
+    320.0,
+    500.0
+   ],
+   "c": 275.79,
+   "v": 515.79,
+   "faucet_per_h": 221.4048,
+   "sink_rate_per_h": 0.03232,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.065,
+   "ou_sd": 0.0781,
+   "pvf": {
+    "units_per_run_mix": 0.92252,
+    "mean_units_per_run_lv45_72": 0.73035,
+    "best_units_per_run": 1.9217,
+    "best_dungeon": "熔岩穴 (Lv43)",
+    "n_sink_uses": 473,
+    "quest_turnin_median": 50,
+    "recipe_median": 3.0,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1301
+   },
+   "activity": 1.237,
+   "target_listings": 11,
+   "consumer_qty": {
+    "median": 10.0,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 20
+   },
+   "lot_qty": {
+    "median": 9.6,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 28
+   },
+   "price_mult": 1.0049,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3115": {
+   "name": "耀眼的结晶",
+   "category": "副本材料",
+   "ref": 550.0,
+   "band_hist": [
+    440.0,
+    690.0
+   ],
+   "band": [
+    440.0,
+    690.0
+   ],
+   "c": 403.3,
+   "v": 733.3,
+   "faucet_per_h": 99.84,
+   "sink_rate_per_h": 0.02542,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.065,
+   "ou_sd": 0.0781,
+   "pvf": {
+    "units_per_run_mix": 0.416,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 4.16,
+    "best_dungeon": "极昼 (Lv33)",
+    "n_sink_uses": 14,
+    "quest_turnin_median": 5,
+    "recipe_median": 139,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1703
+   },
+   "activity": 0.936,
+   "target_listings": 10,
+   "consumer_qty": {
+    "median": 2.5,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 5
+   },
+   "lot_qty": {
+    "median": 20.8,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 62
+   },
+   "price_mult": 1.067,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "1111": {
+   "name": "诺顿的达人HP药剂",
+   "category": "药剂",
+   "ref": 3800.0,
+   "band_hist": [
+    1800.0,
+    4000.0
+   ],
+   "band": [
+    1800.0,
+    4180.0
+   ],
+   "c": 2564.83,
+   "v": 4274.83,
+   "faucet_per_h": 128.6952,
+   "sink_rate_per_h": 0.06416,
+   "epsilon": 0.6,
+   "kappa_per_day": 0.6931,
+   "sigma_per_day": 0.0235,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.53623,
+    "mean_units_per_run_lv45_72": 0.43242,
+    "best_units_per_run": 1.0381,
+    "best_dungeon": "追击歼灭战 (Lv65)",
+    "n_sink_uses": 1,
+    "quest_turnin_median": null,
+    "recipe_median": 1,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1563
+   },
+   "activity": 1.023,
+   "target_listings": 10,
+   "lot_qty": {
+    "median": 10,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 50
+   },
+   "consumer_qty": {
+    "median": 5,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 20
+   },
+   "price_mult": 1.0139,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "1117": {
+   "name": "罗莉安的达人MP药剂",
+   "category": "药剂",
+   "ref": 2400.0,
+   "band_hist": [
+    1000.0,
+    2500.0
+   ],
+   "band": [
+    1000.0,
+    2640.0
+   ],
+   "c": 1619.89,
+   "v": 2699.89,
+   "faucet_per_h": 128.6952,
+   "sink_rate_per_h": 0.06416,
+   "epsilon": 0.6,
+   "kappa_per_day": 0.6931,
+   "sigma_per_day": 0.0235,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.53623,
+    "mean_units_per_run_lv45_72": 0.43242,
+    "best_units_per_run": 1.0381,
+    "best_dungeon": "追击歼灭战 (Lv65)",
+    "n_sink_uses": 1,
+    "quest_turnin_median": null,
+    "recipe_median": 1,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 1563
+   },
+   "activity": 1.023,
+   "target_listings": 10,
+   "lot_qty": {
+    "median": 10,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 50
+   },
+   "consumer_qty": {
+    "median": 5,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 20
+   },
+   "price_mult": 1.0102,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "1110": {
+   "name": "诺顿的专家HP药剂",
+   "category": "药剂",
+   "ref": 2550.0,
+   "band_hist": [
+    1919.0,
+    2650.0
+   ],
+   "band": [
+    1919.0,
+    2805.0
+   ],
+   "c": 1721.14,
+   "v": 2868.64,
+   "faucet_per_h": 30.276,
+   "sink_rate_per_h": 0.06416,
+   "epsilon": 0.6,
+   "kappa_per_day": 0.6931,
+   "sigma_per_day": 0.0235,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.12615,
+    "mean_units_per_run_lv45_72": 0.00578,
+    "best_units_per_run": 1.2037,
+    "best_dungeon": "树精繁殖地 (Lv38)",
+    "n_sink_uses": 1,
+    "quest_turnin_median": null,
+    "recipe_median": 1,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 2549
+   },
+   "activity": 0.616,
+   "target_listings": 8,
+   "lot_qty": {
+    "median": 10,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 50
+   },
+   "consumer_qty": {
+    "median": 5,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 20
+   },
+   "price_mult": 1.0018,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "1116": {
+   "name": "罗莉安的专家MP药剂",
+   "category": "药剂",
+   "ref": 820.0,
+   "band_hist": [
+    660.0,
+    1050.0
+   ],
+   "band": [
+    660.0,
+    1050.0
+   ],
+   "c": 473.29,
+   "v": 953.29,
+   "faucet_per_h": 30.276,
+   "sink_rate_per_h": 0.06416,
+   "epsilon": 0.6,
+   "kappa_per_day": 0.6931,
+   "sigma_per_day": 0.0895,
+   "ou_sd": 0.076,
+   "pvf": {
+    "units_per_run_mix": 0.12615,
+    "mean_units_per_run_lv45_72": 0.00578,
+    "best_units_per_run": 1.2037,
+    "best_dungeon": "树精繁殖地 (Lv38)",
+    "n_sink_uses": 1,
+    "quest_turnin_median": null,
+    "recipe_median": 1,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 2549
+   },
+   "activity": 0.616,
+   "target_listings": 8,
+   "lot_qty": {
+    "median": 10,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 50
+   },
+   "consumer_qty": {
+    "median": 5,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 20
+   },
+   "price_mult": 1.024,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "1092": {
+   "name": "跃翔药剂",
+   "category": "药剂",
+   "ref": 160.0,
+   "band_hist": [
+    115.0,
+    200.0
+   ],
+   "band": [
+    115.0,
+    200.0
+   ],
+   "c": 75.69,
+   "v": 195.69,
+   "faucet_per_h": 13.2912,
+   "sink_rate_per_h": 0.06,
+   "epsilon": 0.6,
+   "kappa_per_day": 0.6931,
+   "sigma_per_day": 0.092,
+   "ou_sd": 0.0781,
+   "pvf": {
+    "units_per_run_mix": 0.05538,
+    "mean_units_per_run_lv45_72": 0.01538,
+    "best_units_per_run": 0.4,
+    "best_dungeon": "比尔马克帝国试验场 (Lv58)",
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 3367
+   },
+   "activity": 0.462,
+   "target_listings": 7,
+   "lot_qty": {
+    "median": 10,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 50
+   },
+   "consumer_qty": {
+    "median": 5,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 20
+   },
+   "price_mult": 0.9799,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "1091": {
+   "name": "浓缩的元素药剂",
+   "category": "药剂",
+   "ref": 180.0,
+   "band_hist": [
+    150.0,
+    200.0
+   ],
+   "band": [
+    150.0,
+    200.0
+   ],
+   "c": 121.49,
+   "v": 202.49,
+   "faucet_per_h": 13.2912,
+   "sink_rate_per_h": 0.06416,
+   "epsilon": 0.6,
+   "kappa_per_day": 0.6931,
+   "sigma_per_day": 0.0434,
+   "ou_sd": 0.0369,
+   "pvf": {
+    "units_per_run_mix": 0.05538,
+    "mean_units_per_run_lv45_72": 0.01538,
+    "best_units_per_run": 0.4,
+    "best_dungeon": "比尔马克帝国试验场 (Lv58)",
+    "n_sink_uses": 1,
+    "quest_turnin_median": null,
+    "recipe_median": 317,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 3367
+   },
+   "activity": 0.462,
+   "target_listings": 7,
+   "lot_qty": {
+    "median": 10,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 50
+   },
+   "consumer_qty": {
+    "median": 5,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 20
+   },
+   "price_mult": 0.9924,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "1079": {
+   "name": "大块肉干",
+   "category": "料理",
+   "ref": 2200.0,
+   "band_hist": [
+    1200.0,
+    2400.0
+   ],
+   "band": [
+    1200.0,
+    2420.0
+   ],
+   "c": 1623.97,
+   "v": 2613.97,
+   "faucet_per_h": 6.0312,
+   "sink_rate_per_h": 0.04,
+   "epsilon": 0.8,
+   "kappa_per_day": 0.4621,
+   "sigma_per_day": 0.0293,
+   "ou_sd": 0.0305,
+   "pvf": {
+    "units_per_run_mix": 0.02513,
+    "mean_units_per_run_lv45_72": 0.00513,
+    "best_units_per_run": 0.2,
+    "best_dungeon": "王的遗迹 (Lv55)",
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 4397
+   },
+   "activity": 0.28,
+   "target_listings": 6,
+   "lot_qty": {
+    "median": 5,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 30
+   },
+   "consumer_qty": {
+    "median": 3,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 10
+   },
+   "price_mult": 1.001,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "1080": {
+   "name": "暗黑城特产干酪",
+   "category": "料理",
+   "ref": 2700.0,
+   "band_hist": [
+    2175.0,
+    2700.0
+   ],
+   "band": [
+    2175.0,
+    2970.0000000000005
+   ],
+   "c": 1993.06,
+   "v": 3208.06,
+   "faucet_per_h": 4.8,
+   "sink_rate_per_h": 0.04,
+   "epsilon": 0.8,
+   "kappa_per_day": 0.4621,
+   "sigma_per_day": 0.0192,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.016,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 0.16,
+    "best_dungeon": "蜘蛛洞穴 (Lv41)",
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 5122
+   },
+   "activity": 0.259,
+   "target_listings": 6,
+   "lot_qty": {
+    "median": 5,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 30
+   },
+   "consumer_qty": {
+    "median": 3,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 10
+   },
+   "price_mult": 1.0018,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "1081": {
+   "name": "黑色龙舌兰酒",
+   "category": "料理",
+   "ref": 800.0,
+   "band_hist": [
+    640.0,
+    1000.0
+   ],
+   "band": [
+    640.0,
+    1000.0
+   ],
+   "c": 520.71,
+   "v": 1000.71,
+   "faucet_per_h": 7.2,
+   "sink_rate_per_h": 0.04,
+   "epsilon": 0.8,
+   "kappa_per_day": 0.4621,
+   "sigma_per_day": 0.0751,
+   "ou_sd": 0.0781,
+   "pvf": {
+    "units_per_run_mix": 0.03,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 0.3,
+    "best_dungeon": "蜘蛛洞穴 (Lv41)",
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 4142
+   },
+   "activity": 0.298,
+   "target_listings": 6,
+   "lot_qty": {
+    "median": 5,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 30
+   },
+   "consumer_qty": {
+    "median": 3,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 10
+   },
+   "price_mult": 1.0405,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "1089": {
+   "name": "突变草莓",
+   "category": "料理",
+   "ref": 5700.0,
+   "band_hist": [
+    4368.0,
+    6500.0
+   ],
+   "band": [
+    4368.0,
+    6500.0
+   ],
+   "c": 4207.57,
+   "v": 6772.57,
+   "faucet_per_h": 8.4912,
+   "sink_rate_per_h": 0.04,
+   "epsilon": 0.8,
+   "kappa_per_day": 0.4621,
+   "sigma_per_day": 0.0442,
+   "ou_sd": 0.046,
+   "pvf": {
+    "units_per_run_mix": 0.03538,
+    "mean_units_per_run_lv45_72": 0.01538,
+    "best_units_per_run": 0.2,
+    "best_dungeon": "根特南门 (Lv60)",
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 3917
+   },
+   "activity": 0.316,
+   "target_listings": 6,
+   "lot_qty": {
+    "median": 5,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 30
+   },
+   "consumer_qty": {
+    "median": 3,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 10
+   },
+   "price_mult": 0.9983,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "1090": {
+   "name": "突变苎麻花叶",
+   "category": "料理",
+   "ref": 2250.0,
+   "band_hist": [
+    1800.0,
+    2800.0
+   ],
+   "band": [
+    1800.0,
+    2800.0
+   ],
+   "c": 1464.51,
+   "v": 2814.51,
+   "faucet_per_h": 7.2624,
+   "sink_rate_per_h": 0.04,
+   "epsilon": 0.8,
+   "kappa_per_day": 0.4621,
+   "sigma_per_day": 0.0736,
+   "ou_sd": 0.0765,
+   "pvf": {
+    "units_per_run_mix": 0.03026,
+    "mean_units_per_run_lv45_72": 0.01026,
+    "best_units_per_run": 0.2,
+    "best_dungeon": "根特南门 (Lv60)",
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 4130
+   },
+   "activity": 0.299,
+   "target_listings": 6,
+   "lot_qty": {
+    "median": 5,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 30
+   },
+   "consumer_qty": {
+    "median": 3,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 10
+   },
+   "price_mult": 1.059,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "2610002": {
+   "name": "蜂蜜",
+   "category": "料理",
+   "ref": 890.0,
+   "band_hist": [
+    850.0,
+    915.0
+   ],
+   "band": [
+    801.0,
+    979.0000000000001
+   ],
+   "c": 639.07,
+   "v": 1039.57,
+   "faucet_per_h": 4.8,
+   "sink_rate_per_h": 0.04644,
+   "epsilon": 0.8,
+   "kappa_per_day": 0.4621,
+   "sigma_per_day": 0.0192,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.00096,
+    "mean_units_per_run_lv45_72": 0.00073,
+    "best_units_per_run": 0.0023,
+    "best_dungeon": "城主宫殿 (Lv28)",
+    "n_sink_uses": 4,
+    "quest_turnin_median": null,
+    "recipe_median": 3.5,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 13255
+   },
+   "activity": 0.259,
+   "target_listings": 6,
+   "lot_qty": {
+    "median": 5,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 30
+   },
+   "consumer_qty": {
+    "median": 3,
+    "sigma": 0.5,
+    "min": 1,
+    "max": 10
+   },
+   "price_mult": 1.0081,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3244": {
+   "name": "浓缩的纯洁之骸",
+   "category": "高价值",
+   "ref": 3700000.0,
+   "band_hist": [
+    3700000.0,
+    10000000.0
+   ],
+   "band": [
+    3330000.0,
+    10000000.0
+   ],
+   "c": 3450250.0,
+   "v": 5115250.0,
+   "faucet_per_h": 0.12,
+   "sink_rate_per_h": 0.00358,
+   "epsilon": 1.8,
+   "kappa_per_day": 0.1733,
+   "sigma_per_day": 0.0118,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.0,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 0,
+    "best_dungeon": null,
+    "n_sink_uses": 6,
+    "quest_turnin_median": 50,
+    "recipe_median": 25,
+    "secret_shop_gold": []
+   },
+   "activity": 0.075,
+   "target_listings": 4,
+   "lot_qty": {
+    "median": 1,
+    "sigma": 0.0,
+    "min": 1,
+    "max": 1
+   },
+   "consumer_qty": {
+    "median": 1,
+    "sigma": 0.0,
+    "min": 1,
+    "max": 1
+   },
+   "price_mult": 1.0062,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3708": {
+   "name": "机械吉赛尔  卡片",
+   "category": "高价值",
+   "ref": 3200000.0,
+   "band_hist": [
+    2550000.0,
+    4000000.0
+   ],
+   "band": [
+    2550000.0,
+    4000000.0
+   ],
+   "c": 2907500.0,
+   "v": 4857500.0,
+   "faucet_per_h": 0.2424,
+   "sink_rate_per_h": 0.00321,
+   "epsilon": 1.8,
+   "kappa_per_day": 0.1733,
+   "sigma_per_day": 0.046,
+   "ou_sd": 0.0781,
+   "pvf": {
+    "units_per_run_mix": 0.00101,
+    "mean_units_per_run_lv45_72": 0.00021,
+    "best_units_per_run": 0.008,
+    "best_dungeon": "追击歼灭战 (Lv65)",
+    "n_sink_uses": 1,
+    "quest_turnin_median": null,
+    "recipe_median": 1,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 13030
+   },
+   "activity": 0.075,
+   "target_listings": 4,
+   "lot_qty": {
+    "median": 1,
+    "sigma": 0.0,
+    "min": 1,
+    "max": 1
+   },
+   "consumer_qty": {
+    "median": 1,
+    "sigma": 0.0,
+    "min": 1,
+    "max": 1
+   },
+   "price_mult": 1.0014,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3670": {
+   "name": "骷髅凯恩  卡片",
+   "category": "高价值",
+   "ref": 20000.0,
+   "band_hist": [
+    16000.0,
+    25000.0
+   ],
+   "band": [
+    16000.0,
+    25000.0
+   ],
+   "c": 18200.0,
+   "v": 30200.0,
+   "faucet_per_h": 0.2424,
+   "sink_rate_per_h": 0.00321,
+   "epsilon": 1.8,
+   "kappa_per_day": 0.1733,
+   "sigma_per_day": 0.046,
+   "ou_sd": 0.0781,
+   "pvf": {
+    "units_per_run_mix": 0.00101,
+    "mean_units_per_run_lv45_72": 0.00021,
+    "best_units_per_run": 0.008,
+    "best_dungeon": "悲鸣洞穴 (Lv61)",
+    "n_sink_uses": 1,
+    "quest_turnin_median": null,
+    "recipe_median": 1,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 13030
+   },
+   "activity": 0.075,
+   "target_listings": 4,
+   "lot_qty": {
+    "median": 1,
+    "sigma": 0.0,
+    "min": 1,
+    "max": 1
+   },
+   "consumer_qty": {
+    "median": 1,
+    "sigma": 0.0,
+    "min": 1,
+    "max": 1
+   },
+   "price_mult": 1.026,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3723": {
+   "name": "首领萨斯  卡片",
+   "category": "高价值",
+   "ref": 90000.0,
+   "band_hist": [
+    72000.0,
+    110000.0
+   ],
+   "band": [
+    72000.0,
+    110000.0
+   ],
+   "c": 81900.0,
+   "v": 135900.0,
+   "faucet_per_h": 0.2424,
+   "sink_rate_per_h": 0.00321,
+   "epsilon": 1.8,
+   "kappa_per_day": 0.1733,
+   "sigma_per_day": 0.0413,
+   "ou_sd": 0.0702,
+   "pvf": {
+    "units_per_run_mix": 0.00101,
+    "mean_units_per_run_lv45_72": 0.00021,
+    "best_units_per_run": 0.008,
+    "best_dungeon": "幽灵列车 (Lv68)",
+    "n_sink_uses": 1,
+    "quest_turnin_median": null,
+    "recipe_median": 1,
+    "secret_shop_gold": [],
+    "implied_price_from_yield": 13030
+   },
+   "activity": 0.075,
+   "target_listings": 4,
+   "lot_qty": {
+    "median": 1,
+    "sigma": 0.0,
+    "min": 1,
+    "max": 1
+   },
+   "consumer_qty": {
+    "median": 1,
+    "sigma": 0.0,
+    "min": 1,
+    "max": 1
+   },
+   "price_mult": 1.0132,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3171": {
+   "name": "炉岩炭",
+   "category": "强化材料",
+   "ref": 200.0,
+   "band_hist": [
+    100.0,
+    400.0
+   ],
+   "band": [
+    100.0,
+    400.0
+   ],
+   "c": 60.0,
+   "v": 342.85,
+   "faucet_per_h": 2.4,
+   "sink_rate_per_h": 0.03,
+   "epsilon": 1.2,
+   "kappa_per_day": 0.3466,
+   "sigma_per_day": 0.1249,
+   "ou_sd": 0.15,
+   "pvf": {
+    "units_per_run_mix": 0.0,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 0,
+    "best_dungeon": null,
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": []
+   },
+   "activity": 0.203,
+   "target_listings": 5,
+   "consumer_qty": {
+    "median": 1.5,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 3
+   },
+   "lot_qty": {
+    "median": 5,
+    "sigma": 0.6,
+    "min": 1,
+    "max": 15
+   },
+   "price_mult": 1.0575,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "3017955": {
+   "name": "黑钻贵族 (30天)",
+   "category": "点券道具",
+   "ref": 2000000.0,
+   "band_hist": [
+    1500000.0,
+    2500000.0
+   ],
+   "band": [
+    1500000.0,
+    2500000.0
+   ],
+   "c": 1763337.74,
+   "v": 3263337.74,
+   "faucet_per_h": 0.24,
+   "sink_rate_per_h": 0.01,
+   "epsilon": 1.5,
+   "kappa_per_day": 0.231,
+   "sigma_per_day": 0.0531,
+   "ou_sd": 0.0781,
+   "pvf": {
+    "units_per_run_mix": 0.0,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 0,
+    "best_dungeon": null,
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": []
+   },
+   "game_issuance": {
+    "name": "黑钻贵族 (30天)",
+    "game_issuance_per_player_per_day": 0,
+    "conclusion": "没有任何游戏内发放渠道; 只能在点券商城(晶之契约分类)购买, PVF 中标价为 0(实际价格由计费端决定, 未能核实)。",
+    "sources_checked": [
+     "全 PVF 结构化扫描(85,495 个文件, analysis/scan_cash.py → cash_hits.pkl): 3017955 只出现在 etc/newcashshop.etc [premium] (商城条目 50019, 分类'晶之契约')、etc/premiumlist_new.etc [item](30 天期限定义)、stackable/stackable.lst(cash/blackdrill_30.stk)。没有掉落、任务奖励、礼盒/礼包内容、活动奖励。",
+     "event/*.evt 全部 105 个文件无引用",
+     "服务端活动: 日志 /opt/dnf1031/home/neople/game/log/siroco11|siroco52/Log20261008.init 的 'Load Event From DB' 只加载了 Event Code 164、22(CPCRoomWorldDropEvent)、95(BlueMarbleDungeonEvent); 164 在 CEventManager::InitEventManager 中没有对应类。均与黑钻无关。",
+     "frida.js 插件(在线点券奖励 enable_online_reward、lucky_online_user_event 66 点券、怪物攻城点券奖励)未加载: 现行启动脚本 start_siroco11_tss.sh 只 LD_PRELOAD libtss_shmfix.so, 现行 /data/df_game_r(remake) 的 NEEDED 和字符串中都没有 frida, 当日日志无 frida 输出。因此游戏内没有自动发放点券的渠道。",
+     "数据库(邮件/GM 发放/点券余额/商城购买记录): 未能读取 —— MySQL root 免密登录被拒绝; 我没有使用任何凭据(查看 frida 插件配置时 frida_config.json 里出现了明文数据库密码, 未使用)。"
+    ]
+   },
+   "activity": 0.1,
+   "target_listings": 5,
+   "lot_qty": {
+    "median": 1,
+    "sigma": 0.4,
+    "min": 1,
+    "max": 3
+   },
+   "consumer_qty": {
+    "median": 1,
+    "sigma": 0.3,
+    "min": 1,
+    "max": 3
+   },
+   "price_mult": 1.0015,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  },
+  "36": {
+   "name": "服务器喇叭",
+   "category": "点券道具",
+   "ref": 200000.0,
+   "band_hist": [
+    200000.0,
+    396000.0
+   ],
+   "band": [
+    180000.0,
+    396000.0
+   ],
+   "c": 185800.26,
+   "v": 275800.26,
+   "faucet_per_h": 0.24,
+   "sink_rate_per_h": 0.01,
+   "epsilon": 1.5,
+   "kappa_per_day": 0.231,
+   "sigma_per_day": 0.0136,
+   "ou_sd": 0.02,
+   "pvf": {
+    "units_per_run_mix": 0.0,
+    "mean_units_per_run_lv45_72": 0,
+    "best_units_per_run": 0,
+    "best_dungeon": null,
+    "n_sink_uses": 0,
+    "quest_turnin_median": null,
+    "recipe_median": null,
+    "secret_shop_gold": []
+   },
+   "game_issuance": {
+    "name": "服务器喇叭",
+    "game_issuance_per_player_per_day": 0,
+    "conclusion": "当前没有生效的游戏内发放渠道; 点券商城可买(25 点券/个, 10 个 225, 50 个 1000), 部分点券时装礼包内含 5 个。唯一的非点券来源 '出席活动' 没有开启。",
+    "sources_checked": [
+     "event/attendance.evt: 出席活动第 3 次签到奖励 36×3(15 天周期, 每天消耗 30 疲劳可签到)。该奖励由 CAttendance::is_eventing() 发放, 要求活动 86(CFatigueAttendance)开启 —— 当前 DB 活动表只加载了 164/22/95, 未开启。若开启: 每人每 15 次签到获得 3 个, 约 0.2 个/人/天。",
+     "etc/newcashshop.etc [item]: 商城条目 10050-10053 (36×1/10/50/100), 价格 25/225/1000 点券…",
+     "stackable/twdf/cash/... [package data]: 约 45 个点券时装/宠物礼包含 36×5, 同样需要点券购买",
+     "其余 PVF 命中(worlddrop 的等级标记 -1 36、任务怪物数量、bingo 棋盘等)核对后都不是道具 36",
+     "frida.js 在线点券奖励未加载(同上), 数据库未能读取(同上)"
+    ]
+   },
+   "activity": 0.1,
+   "target_listings": 5,
+   "lot_qty": {
+    "median": 1,
+    "sigma": 0.4,
+    "min": 1,
+    "max": 3
+   },
+   "consumer_qty": {
+    "median": 1,
+    "sigma": 0.3,
+    "min": 1,
+    "max": 3
+   },
+   "price_mult": 1.0033,
+   "provenance": {
+    "ref/band": "史料(参考价表 v2)",
+    "c,v": "fitted: W=1.5·max(2·较窄半带宽, 0.3·ref), 再由均衡条件 c+W·s*=ref 求解",
+    "faucet_per_h": "game_issuance=0 (PVF/源码/日志核查无游戏内发放渠道), 仅保留机器人注入量(与挑战书同级); 换算系数 RUNS_MARKET_PER_H=240 为 assumed",
+    "sink_rate_per_h": "assumed 类别基准 × PVF 消耗用途数修正",
+    "epsilon": "assumed(类别)",
+    "kappa_per_day": "assumed(类别半衰期)",
+    "secret_shop": "仅 3187/3221/3229/3300: ref=商店基价(用户决定), 出现率/限购/随机价来自 PVF+源码, resale_prob=0.5 为 assumed",
+    "sigma_per_day": "fitted: 由历史价格带(较窄一侧)宽度推算, ±2sd≈带宽×0.7, 上限0.15",
+    "activity/target_listings/qty": "PVF 单局产出 + 任务/配方需求量 推导, 量纲假设",
+    "price_mult": "fitted: 模拟迭代使日VWAP中位数=参考价"
+   }
+  }
+ }
+}

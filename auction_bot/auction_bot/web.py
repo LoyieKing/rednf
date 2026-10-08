@@ -146,7 +146,25 @@ def make_handler(bot, web_dir, cfg_path):
             st = bot.store.kv_get("fair:%d" % iid)
             if st and r["base_price"]:
                 r["fair_value"] = st["base"] * __import__("math").exp(st["x"])
+            if bot.runner and bot.runner.engine and iid in bot.runner.items:
+                r["fair_value"] = bot.runner.engine.fair(iid)[0]
+                r["base_price"] = bot.runner.items[iid]["ref"]
+                r["ref"] = {"low": bot.runner.items[iid]["band"][0], "high": bot.runner.items[iid]["band"][1]}
+                r["fair_series"] = bot.store.query("SELECT ts, fair FROM engine_snap WHERE item_id=? AND ts>=? ORDER BY ts",
+                                                   (iid, time.time() - float(qs.get("days", 7)) * 86400))
+            r["excluded"] = bot.excluded.get(iid)
             return r
+
+        def api_engine(self, qs):
+            if not bot.runner:
+                return {"enabled": False}
+            return bot.runner.status()
+
+        def api_engine_series(self, qs):
+            iid = int(qs["item_id"])
+            since = time.time() - float(qs.get("days", 3)) * 86400
+            return bot.store.query("SELECT ts, fair, stock, scarcity, n_sys, new, vqty, uqty FROM engine_snap "
+                                   "WHERE item_id=? AND ts>=? ORDER BY ts", (iid, since))
 
         def api_bot_listings(self, qs):
             st = qs.get("status", "active")
@@ -190,7 +208,7 @@ def make_handler(bot, web_dir, cfg_path):
                              "unit_price": l["unit_price"], "average_price": l["average_price"],
                              "owner_name": l["owner_name"], "expire_hours": l["expire_hours"],
                              "upgrade": l["item"].get("upgrade"),
-                             "is_bot": l["auction_id"] in mine or (npc is not None and l["owner_name"] == npc)})
+                             "is_bot": l["auction_id"] in mine or bot.is_npc_name(l["owner_name"])})
             rows.sort(key=lambda r: (r["item_id"], r["unit_price"] or r["instant_price"]))
             return {"mode": "live", "ids": ids, "names": {i: bot.item_name(i) for i in ids}, "rows": rows,
                     "elapsed": round(time.time() - t0, 3)}
@@ -223,6 +241,10 @@ def make_handler(bot, web_dir, cfg_path):
             elif a == "restock_now":
                 bot.last["restock"] = 0
                 bot.log("control", "网页操作：立即补货")
+            elif a == "step_now":
+                if bot.runner:
+                    bot.runner.next_step_at = 0
+                bot.log("control", "网页操作：立即执行一步经济模型")
             elif a == "scan_now":
                 bot.last["scan"] = 0
                 bot.last["history"] = 0

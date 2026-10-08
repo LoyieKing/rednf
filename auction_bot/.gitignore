@@ -2,3 +2,4 @@ data/
 logs/
 __pycache__/
 *.pyc
+config.local.yaml

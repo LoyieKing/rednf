@@ -33,6 +33,15 @@ CREATE TABLE IF NOT EXISTS listing_obs(
 CREATE INDEX IF NOT EXISTS ix_obs_item_ts ON listing_obs(item_id, ts);
 
 CREATE TABLE IF NOT EXISTS kv(k TEXT PRIMARY KEY, v TEXT);
+
+-- 经济模型：每一步的汇总、每个道具的状态快照
+CREATE TABLE IF NOT EXISTS engine_steps(
+  ts REAL NOT NULL, dt_h REAL, online INTEGER, items INTEGER, new_planned INTEGER, new_done INTEGER,
+  vf_planned INTEGER, vf_done INTEGER, uf_planned INTEGER, uf_done INTEGER, user_gold INTEGER, errors INTEGER, elapsed REAL);
+CREATE TABLE IF NOT EXISTS engine_snap(
+  ts REAL NOT NULL, item_id INTEGER NOT NULL, fair REAL, stock REAL, scarcity REAL, x REAL, n_sys INTEGER,
+  new INTEGER, vqty INTEGER, uqty INTEGER);
+CREATE INDEX IF NOT EXISTS ix_esnap_item_ts ON engine_snap(item_id, ts);
 """
 
 
@@ -98,3 +107,4 @@ class Store:
         now = time.time()
         self.execute("DELETE FROM listing_obs WHERE ts<?", (now - keep_days_obs * 86400,))
         self.execute("DELETE FROM ops_log WHERE ts<?", (now - keep_days_log * 86400,))
+        self.execute("DELETE FROM engine_snap WHERE ts<?", (now - keep_days_obs * 86400,))

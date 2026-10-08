@@ -123,12 +123,12 @@ class GameDB:
         cutoff = int(time.time() - min_age_sec) if min_age_sec > 0 else 2000000000
         postal = self.select(
             "SELECT postal_id,UNIX_TIMESTAMP(occ_time),send_charac_no,send_charac_name,item_id,add_info,gold,letter_id,"
-            "auction_id FROM postal WHERE receive_charac_no=%d AND occ_time <= FROM_UNIXTIME(%d) ORDER BY postal_id"
+            "auction_id FROM postal WHERE receive_charac_no=%d AND occ_time <= FROM_UNIXTIME(%d) ORDER BY postal_id LIMIT 5000"
             % (int(charac_no), cutoff), self.gdb,
             ["postal_id", "ts", "send_charac_no", "send_charac_name", "item_id", "add_info", "gold", "letter_id",
              "auction_id"])
         letters = self.select(
             "SELECT letter_id,UNIX_TIMESTAMP(reg_date),send_charac_name,letter_text FROM letter WHERE charac_no=%d "
-            "AND reg_date <= FROM_UNIXTIME(%d) ORDER BY letter_id" % (int(charac_no), cutoff), self.gdb,
+            "AND reg_date <= FROM_UNIXTIME(%d) ORDER BY letter_id LIMIT 5000" % (int(charac_no), cutoff), self.gdb,
             ["letter_id", "ts", "send_charac_name", "letter_text"])
         return postal, letters

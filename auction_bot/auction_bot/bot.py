@@ -2,6 +2,7 @@
 """机器人主循环：自动上架（系统 -1 卖家）、可选自动收购、行情采集、孤儿邮件清理。"""
 import asyncio
 import csv
+import json
 import math
 import os
 import random
@@ -69,7 +70,11 @@ class Bot:
         self.disabled_items = {}          # item_id -> 原因
         self.hourly = []                  # 最近一小时上架时间戳
         self.buy_hist = []                # (ts, gold)
+        self.excluded = {}
+        self.runner = None
         self.reload_config(cfg)
+        from .runner import EngineRunner
+        self.runner = EngineRunner(self)
         self._stop = None
 
     # ---------------- 工具 ----------------
@@ -104,6 +109,8 @@ class Bot:
             if not it.get("enabled", True):
                 continue
             iid = int(it["item_id"])
+            if iid in self.excluded:
+                continue
             base = it.get("base_price") or (self.ref.get(iid) or {}).get("ref")
             if not base:
                 self.log("error", "上架物品 %d 没有基础价格（配置和参考价表都没有），已跳过" % iid, level="warn")
@@ -115,6 +122,8 @@ class Bot:
             self.watch_ids |= set(self.ref)
         for x in cfg.get("market", {}).get("extra_watch_items", []) or []:
             self.watch_ids.add(int(x))
+        if self.runner is not None:
+            self.runner.reload()
 
     def base_price(self, iid):
         if iid in self.seller_items:
@@ -188,7 +197,9 @@ class Bot:
                     if self._due("history", float(mk.get("history_interval", 30))):
                         await asyncio.to_thread(self.poll_history)
                     if not self.paused:
-                        if se.get("enabled", True) and self._due("restock", float(se.get("restock_interval", 120))):
+                        if self.runner.engine is not None and self.runner.due():
+                            await self.runner.step()
+                        elif self.runner.engine is None and se.get("enabled", True) and self._due("restock", float(se.get("restock_interval", 120))):
                             await self.restock()
                         if self.buyer_cfg.get("enabled") and self._due("buy", float(self.buyer_cfg.get("scan_interval", 120))):
                             await self.auto_buy()
@@ -227,7 +238,7 @@ class Bot:
             aid = l["auction_id"]
             cnt = l["item"]["add_info"] if l["item"]["add_info"] > 0 else 1
             unit = l["unit_price"] or (l["instant_price"] // cnt if l["instant_price"] > 0 else l["price"] // cnt)
-            is_bot = 1 if aid in known or (npc_name and l["owner_name"] == npc_name) else 0
+            is_bot = 1 if aid in known or self.is_npc_name(l["owner_name"]) else 0
             obs.append((now, l["item"]["item_id"], aid, l["owner_name"], is_bot, unit, cnt))
         self.store.executemany("INSERT INTO listing_obs VALUES(?,?,?,?,?,?,?)", obs)
         # 对账：机器人挂单
@@ -250,6 +261,8 @@ class Bot:
                 continue
             if now >= r["expire_at"] - 90:
                 self.store.execute("UPDATE bot_listings SET status='expired', closed_at=? WHERE auction_id=?", (now, aid))
+                if self.runner is not None and r["count_now"] > 0 and r["item_id"] in self.runner.items:
+                    self.runner.expired_pending.setdefault(r["item_id"], []).append(r["count_now"])
                 self.log("expire", "系统挂单到期下架：%s ×%d（单价 %d，拍卖号 %d）"
                          % (self.item_name(r["item_id"]), r["count_now"], r["unit_price"], aid))
             else:
@@ -330,6 +343,8 @@ class Bot:
         return max(1, int(round(p)))
 
     async def ensure_item_ok(self, iid):
+        if iid in self.excluded:
+            return False
         if iid in self.disabled_items:
             return False
         if self.store.kv_get("probe_ok:%d" % iid):
@@ -410,15 +425,24 @@ class Bot:
             self.last["scan"] = 0       # 下一轮马上扫描，学习系统卖家显示名
 
     def learn_npc_name(self):
-        if self.store.kv_get("npc_name"):
-            return
-        mine = {r["auction_id"] for r in self.store.query("SELECT auction_id FROM bot_listings")}
+        """记录系统卖家在拍卖行的显示名（拍卖服 taiwan.xml 字符串 101；改名后会变，所以保留历史名集合）。"""
+        mine = {r["auction_id"] for r in self.store.query("SELECT auction_id FROM bot_listings ORDER BY listed_at DESC LIMIT 500")}
+        names = set(self.store.kv_get("npc_names") or [])
+        cur = self.store.kv_get("npc_name")
+        newest = None
         for ls in self.snapshot.values():
             for l in ls:
                 if l["auction_id"] in mine and l["owner_name"]:
-                    self.store.kv_set("npc_name", l["owner_name"])
-                    self.log("scan", "系统卖家在拍卖行显示为「%s」" % l["owner_name"])
-                    return
+                    if newest is None or l["auction_id"] > newest[0]:
+                        newest = (l["auction_id"], l["owner_name"])
+        if newest and newest[1] != cur:
+            names.add(newest[1])
+            self.store.kv_set("npc_name", newest[1])
+            self.store.kv_set("npc_names", sorted(names))
+            self.log("scan", "系统卖家在拍卖行显示为「%s」" % newest[1])
+
+    def is_npc_name(self, name):
+        return bool(name) and name in set(self.store.kv_get("npc_names") or []) | {self.store.kv_get("npc_name")}
 
     # ---------------- 自动收购 ----------------
     async def auto_buy(self, force_auction_id=None, force_count=None):
@@ -444,6 +468,8 @@ class Bot:
         done = []
         for c in cands:
             iid = c["item_id"]
+            if iid in self.excluded:
+                continue
             if not force_auction_id:
                 if buys_hour >= max_hour or spent_day >= max_day:
                     break
@@ -522,6 +548,9 @@ class Bot:
         if not oc.get("enabled") or oc.get("dry_run", True):
             self.log("orphan", "孤儿邮件清理（演练，未删除）：将删除 postal %d 条、letter %d 条" % (len(pids), len(lids)))
             return {"deleted": False, "postal": len(pids), "letters": len(lids), "msg": "演练模式：未删除任何数据"}
+        os.makedirs(os.path.join(self.base_dir, "logs"), exist_ok=True)
+        dl = os.path.join(self.base_dir, "logs", "orphan_deletes.log")
+        stamp = time.strftime("%Y-%m-%d %H:%M:%S")
         for k in range(0, len(pids), 500):
             ch = pids[k:k + 500]
             self.db.write("DELETE FROM postal WHERE receive_charac_no=%d AND postal_id IN (%s)"
@@ -530,8 +559,20 @@ class Bot:
             ch = lids[k:k + 500]
             self.db.write("DELETE FROM letter WHERE charac_no=%d AND letter_id IN (%s)"
                           % (bid, ",".join(map(str, ch))), self.db.gdb)
-        self.log("orphan", "孤儿邮件清理：已删除 postal %d 条、letter %d 条" % (len(pids), len(lids)))
+        with open(dl, "a", encoding="utf-8") as f:
+            for p in prev["postal"]:
+                f.write(json.dumps({**p, "deleted_at": stamp, "table": "postal", "receive_charac_no": bid}, ensure_ascii=False) + "\n")
+            for l in prev["letters"]:
+                f.write(json.dumps({**l, "deleted_at": stamp, "table": "letter", "charac_no": bid}, ensure_ascii=False) + "\n")
+        self.log("orphan", "孤儿邮件清理：已删除 postal %d 条（id %s）、letter %d 条（id %s），明细见 logs/orphan_deletes.log"
+                 % (len(pids), self._idrange(pids), len(lids), self._idrange(lids)), postal_ids=pids[:2000], letter_ids=lids[:2000])
         return {"deleted": True, "postal": len(pids), "letters": len(lids), "msg": "已删除"}
+
+    @staticmethod
+    def _idrange(ids):
+        if not ids:
+            return "-"
+        return str(ids[0]) if len(ids) == 1 else "%d~%d" % (min(ids), max(ids))
 
     # ---------------- 跨线程调用（供 Web 使用） ----------------
     def call(self, coro_fn, timeout=60):
@@ -561,4 +602,7 @@ class Bot:
                               "disabled": self.disabled_items.get(i)} for i, v in self.seller_items.items()],
             "listings_last_hour": len([t for t in self.hourly if now - t < 3600]),
             "db_error": self.db.last_error,
+            "engine_enabled": self.runner is not None and self.runner.engine is not None,
+            "engine_items": len(self.runner.items) if self.runner else 0,
+            "engine_next_step": self.runner.next_step_at if self.runner else None,
         }
