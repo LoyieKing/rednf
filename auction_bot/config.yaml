@@ -39,10 +39,10 @@ market:
 
 engine:                              # 经济模型引擎（运营 agent 校准的代理人模型），开启后取代下面的简单补货 seller
   enabled: true
-  model_config: ref/model_config.json      # 53 个建模道具的参数（c/v、产出/消耗、ε、κ、σ、活跃度、挂单/买单数量）
+  model_config: ref/model_config.json      # 89 个建模道具（v3 起含尖晶石、锆石等基础材料）的参数（c/v、产出/消耗、ε、κ、σ、活跃度、挂单/买单数量）
   excluded_items: ref/excluded_items.json  # 排除名单：NPC 可兑换的晶块类 + 无价格锚点道具，机器人永不买卖
   excluded_extra: []                 # 额外排除的道具 ID
-  volume_scale: 1.0                  # 总量系数：1.0 = 模型校准量（全部 53 个约 1500~2200 次虚拟成交/天）
+  volume_scale: 1.0                  # 总量系数：1.0 = 模型校准量（全部 89 个：运营 v3 14 天模拟约 3500 次虚拟成交/天，神秘商店活动日约 5000+）
   step_minutes: [5, 15]              # 每步间隔（分钟，随机）
   max_dt_minutes: 30                 # 停机后恢复时单步最多补算多少分钟
   items_whitelist: []                # 非空时只运行这些道具（分批上线用）；空 = 全部建模道具
@@ -52,7 +52,7 @@ engine:                              # 经济模型引擎（运营 agent 校准�
   max_new_listings_per_hour: 400
   virtual_fill:                      # 虚拟玩家之间的成交（假买家 1999999999 买机器人自己的 -1 挂单）
     max_per_step: 150                # 护栏：每步最多几次购买（同一挂单同一步合并为一次）
-    max_per_day: 5000                # 护栏：每天上限（模型校准量约 1500~2200）；每次购买 = 1 条 postal + 1 条 letter，由孤儿清理删除
+    max_per_day: 5000                # 护栏：每天上限（v3 模拟约 3500 笔成交/天，同一挂单同一步合并后购买次数更少）；每次购买 = 1 条 postal + 1 条 letter，由孤儿清理删除
   user_fill:                         # 模型需求吃到玩家（真人）挂单时的真实购买：买什么、买多少由模型决定（用户 2026-10-08 决定）
     enabled: true
     max_gold_per_day: 2000000        # 护栏：每日最多花费金币（假买家支付，金币实际进入卖家邮箱）
