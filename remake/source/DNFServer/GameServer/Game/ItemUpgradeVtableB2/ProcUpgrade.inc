@@ -173,17 +173,17 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         return 0xd;
     }
 
-    // 【ORIG 怪癖】payBase/matCount 仅 upCount!=0 时赋值，其余路径沿用旧栈值。
-    int payBase;                // -0x250 金钱基数
-    int matCount;               // -0x254 材料消耗数量
-    int ticketMatIdx;           // -0x258（ORIG 写入后无读者：死写入照抄，P171）
+    // [DNF-FIX 2026-10-08 c29] ORIG -0x258/-0x254/-0x250 lie inside info (-0x284, sizeof 0x6c):
+    //   info+0x2c m_recipeItem / +0x30 m_meterialCount / +0x34 m_discountBase,
+    //   filled by _GetUpgradeInfo / _ProcPortableUpgradeItem / SettingRecipeNUpConunt.
+    //   The old separate uninitialised locals made normal upgrades (m_25==0)
+    //   charge garbage gold and delete a garbage material count.
     if (msg->m_25 != 0)
     {
-        payBase = 0;
-        matCount = 1;
-        ticketMatIdx = (int)material.m_addInfo;
+        info.m_discountBase = 0;
+        info.m_meterialCount = 1;
+        info.m_recipeItem = (int)material.m_addInfo;
     }
-    (void)ticketMatIdx;
 
     if (!_CheckTargetUsableLv(material, target))
     {
@@ -197,7 +197,7 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
 
     if (ticket.m_addInfo == 0x28d30e || ticket.m_addInfo == 0x28d30f)
     {
-        payBase = 0;
+        info.m_discountBase = 0;
     }
 
     GlobalData::s_pEvent_UpGrade_Jar->SettingRecipeNUpConunt(
@@ -225,22 +225,22 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         {
             if (msg->m_upgradeType == 0)
             {
-                matCount = 0x32;
+                info.m_meterialCount = 0x32;
             }
             else
             {
-                matCount = 10;
+                info.m_meterialCount = 10;
             }
         }
         else if (ticketAgain.m_addInfo == 0x28d30e)
         {
             if (msg->m_upgradeType == 0)
             {
-                matCount = 100;
+                info.m_meterialCount = 100;
             }
             else
             {
-                matCount = 20;
+                info.m_meterialCount = 20;
             }
         }
     }
@@ -312,7 +312,7 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
                     ->GetReduceRate();
             if (rate > 0)
             {
-                pay = payBase - (payBase * rate) / 100;
+                pay = info.m_discountBase - (info.m_discountBase * rate) / 100;
                 if (pay < 0)
                 {
                     pay = 0;
@@ -321,7 +321,7 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         }
         else
         {
-            pay = payBase;
+            pay = info.m_discountBase;
         }
 
         // 减费装备来自**右槽**（0x08548ad3 getCurCharacInvenR，type=0/slot=0xb）。
@@ -371,22 +371,22 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
         {
             if (msg->m_upgradeType == 0)
             {
-                matCount = 0x32;
+                info.m_meterialCount = 0x32;
             }
             else
             {
-                matCount = 10;
+                info.m_meterialCount = 10;
             }
         }
         else if (ticketDel.m_addInfo == 0x28d30e)
         {
             if (msg->m_upgradeType == 0)
             {
-                matCount = 100;
+                info.m_meterialCount = 100;
             }
             else
             {
-                matCount = 20;
+                info.m_meterialCount = 20;
             }
         }
         if (((CUserCharacInfo*)user)->getCurCharacInvenW()->delete_item(
@@ -400,7 +400,7 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
     }
 
     if (((CUserCharacInfo*)user)->getCurCharacInvenW()->delete_item(
-            INVEN_TYPE_EQUIP, msg->m_materialSlot, matCount,
+            INVEN_TYPE_EQUIP, msg->m_materialSlot, info.m_meterialCount,
             (eItemDelReason)0xc, true) != 1)
     {
         return 0x11;
@@ -412,7 +412,7 @@ int CItemUpgrade::ProcUpgrade(CUser* user, MSG_ITEM_UPGRADE* msg,
     }
 
     GetInstanceValueStatistic()->AddValueStatistic(
-        (VALUE_STATISTIC_FIELD)0xe, user, (unsigned int)payBase);
+        (VALUE_STATISTIC_FIELD)0xe, user, (unsigned int)info.m_discountBase);
 
     pg->put_byte((int)msg->m_upgradeType);
     pg->put_short((int)msg->m_materialSlot);

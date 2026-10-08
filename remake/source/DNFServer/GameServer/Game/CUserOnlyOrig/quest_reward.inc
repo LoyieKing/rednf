@@ -328,7 +328,7 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
                     // （小端低半字；put_short 内部亦按 16 位截断）。
                     // 试形记录：`reinterpret_cast<unsigned short*>(&field)` 视图形劣化
                     // （多 lea+add $0x7，4 条）⇒ 不采用。
-                    ack.put_short((unsigned short)chkItem.m_addInfo2);
+                    ack.put_short(chkItem.m_fieldb);   // [DNF-FIX 2026-10-08 c29] ORIG 0x0866fdf3 movzwl -0x233 = chkItem(-0x23e)+0x0b
             }
         }
     }

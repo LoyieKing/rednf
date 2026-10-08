@@ -383,7 +383,9 @@ void CParty::clear_reward(int param)
             else
             {
                 clearGen->generateRandomItem(ref, genResult);
-                if (!genResult.m_dropItems.empty() &&
+                // [DNF-FIX 2026-10-08 c29] ORIG 0x085af379: call empty; test %al; je skip
+                //   => premium card only when the random roll produced nothing.
+                if (genResult.m_dropItems.empty() &&
                     (IsReturnUserParty() || IsEventCharacParty()))
                 {
                     clearGen->generatePremiumGoldCardItem(
@@ -721,7 +723,7 @@ void CParty::clear_reward(int param)
                 if (putSlotNo >= 0)
                 {
                     pkReward.put_short(putSlotNo);
-                    pkReward.put_int(entry.first);
+                    pkReward.put_int(questItem.m_addInfo);   // [DNF-FIX 2026-10-08 c29] ORIG 0x085b07d2 reads questItem+0x02
                     pkReward.put_int(questItem.get_add_info());
                     pkReward.put_short(static_cast<int>(questItem.m_fieldb));
                     pkReward.put_byte(static_cast<int>(
@@ -732,7 +734,7 @@ void CParty::clear_reward(int param)
                     questPutCount += 1;
                     if (questItem.m_field1 == 1)
                     {
-                        CItem* itemDef = G_CDataManager()->find_item(entry.first);
+                        CItem* itemDef = G_CDataManager()->find_item(questItem.m_addInfo);   // [DNF-FIX 2026-10-08 c29] ORIG 0x085b0881
                         if (itemDef != 0)
                         {
                             CLuckPoint::UseLuckPoint(

@@ -274,8 +274,11 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
     {
         // b28d-49 @0x85a18c6：ORIG 第三实参是重调 get_member_count()（`mov %esi,0xc(%esp)`），
         // 非 startCount 缓存（P157/P0；P167 MISSING get_member_count -1）。
+        // [DNF-FIX 2026-10-08 c29] ORIG 0x085a18cd..0x085a18ec: both args reload this+0xcac
+        //   (m_battleField.m_pDungeon), not the find_dungeon() local.
         shop.m_openCode = GlobalData::s_secret_shop->LotteryNpc(
-            dungeon->get_index(), dungeon->get_standard_level(), get_member_count());
+            m_battleField.m_pDungeon->get_index(),
+            m_battleField.m_pDungeon->get_standard_level(), get_member_count());
     }
     else
     {

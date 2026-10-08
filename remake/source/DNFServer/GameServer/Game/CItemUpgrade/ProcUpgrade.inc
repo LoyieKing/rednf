@@ -172,8 +172,12 @@ ENUM_ERROR CItemUpgrade::ProcUpgrade(CUser* user, MSG_ENCHANT* msg, PacketGuard*
     // [L6 父泳道 2026-09-11] 直接用已存在的 1 位位域视角 `m_bits.m_flag`（= bit0，
     // 与 `m_enchFields[i] & 1` 同义）⇒ 试复现 ORIG 单条 `movzbl mem,%eax; and $0x1`，
     // 免去新增 .h 视角（S6 请求）。若不成则回滚并保留原 `& 1` 形。
-    if (slotA.m_random.m_skills[0].m_bits.m_flag)  ++count;
-    if (slotA.m_random.m_skills[1].m_bits.m_flag)  ++count;
+    // [DNF-FIX 2026-10-08 c29] ORIG 0x0854a8a4: skill0 flag clear jumps past BOTH increments.
+    if (slotA.m_random.m_skills[0].m_bits.m_flag)
+    {
+        ++count;
+        if (slotA.m_random.m_skills[1].m_bits.m_flag)  ++count;
+    }
 
     user->m_historyLog.Enchant3rdChronicleItem(doEnchant,
         itemScript->get_index(), material.m_addInfo, msg->m_19, count);
