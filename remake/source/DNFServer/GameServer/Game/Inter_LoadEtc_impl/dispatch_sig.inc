@@ -691,9 +691,10 @@ int Inter_LoadEtc::dispatch_sig(CUser* user, char* data, int /*len*/)
 
             if (G_GameWorld()->GetChannelType() == 0xe)
             {
-                unsigned int playCount =
-                    online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam();
-                if (playCount == 1)
+                // [DNF-FIX 2026-10-08 c38] ORIG 0x084c1f5b-0x084c1f67 `call GetPlayCountPerOneTeam; cmp $0x1,%al;
+                //   sete; test; je`: no local, only the low byte is compared (unsigned char return,
+                //   same as every other ORIG call site). The old 32-bit `playCount == 1` ignored that.
+                if ((unsigned char)online_preliminary::COnlinePreliminary::GetPlayCountPerOneTeam() == 1)
                 {
                     CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
                         "InterDispatcher.cpp", 0xf44), true);
