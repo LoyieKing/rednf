@@ -10,6 +10,14 @@ int Dispatcher_SoloTeleport::check_error(CUser* user, MSG_BASE& msg, ParamBase& 
     // 5 次 get_party_teleport call 实证）；dir/posY 前两 getter 落 int 槽(-0x30/-0x2c)，
     // posx/area/village 实参直传升格 edi/esi/ebx（P200，右至左求值序 dir→village）；
     // vcall 用虚槽形去 fn 中间槽。末参 2=强制通过同村检查。
+    // [DNF-FIX 2026-10-08 c39] ORIG 0x081e1ef8/0x081e1f28/...: every use is `mov -0x20,%eax; mov 0x44(%eax),%eax`
+    //   and that value **is** the Teleport* (this for the vtable+8 check_rule call and for
+    //   get_party_teleport) - process() stores g_pTeleport[i]'s value into m_44 (0x081e1db3,
+    //   see process_332.inc, same fix as there and in send_98.inc). The old
+    //   `*reinterpret_cast<void**>(req.m_44)` dereferenced once more, i.e. used the vptr as
+    //   the object (check_rule fetched its fn from inside the vtable code).
+    //   posx/posy: ORIG 0x081e1f5a `cwtl` / 0x081e1f74 `movswl` - signed short, like
+    //   Teleport::move_area 0x0828400d/0x0828401f.
     (void)param;
     if (user == 0)
     {
@@ -24,25 +32,22 @@ int Dispatcher_SoloTeleport::check_error(CUser* user, MSG_BASE& msg, ParamBase& 
     STCheckRuleData rule;
     rule.m_field00 = req.m_30;
     rule.m_user = user;
-    result = static_cast<Teleport*>(*reinterpret_cast<void**>(req.m_44))
+    result = reinterpret_cast<Teleport*>(req.m_44)
         ->check_rule(rule);
     if (result == 0)
     {
-        int dir = static_cast<Teleport*>(*reinterpret_cast<void**>(req.m_44))
+        int dir = reinterpret_cast<Teleport*>(req.m_44)
             ->get_party_teleport().get_teleport_direction();
-        int posY = static_cast<Teleport*>(*reinterpret_cast<void**>(req.m_44))
-            ->get_party_teleport().get_teleport_posy();
+        int posY = static_cast<short>(reinterpret_cast<Teleport*>(req.m_44)
+            ->get_party_teleport().get_teleport_posy());
         result = G_GameWorld()->check_move_area(
             user,
-            static_cast<int>(static_cast<Teleport*>(
-                *reinterpret_cast<void**>(req.m_44))
+            static_cast<int>(reinterpret_cast<Teleport*>(req.m_44)
                 ->get_party_teleport().get_teleport_village()),
-            static_cast<int>(static_cast<Teleport*>(
-                *reinterpret_cast<void**>(req.m_44))
+            static_cast<int>(reinterpret_cast<Teleport*>(req.m_44)
                 ->get_party_teleport().get_teleport_area_index()),
-            static_cast<int>(static_cast<Teleport*>(
-                *reinterpret_cast<void**>(req.m_44))
-                ->get_party_teleport().get_teleport_posx()),
+            static_cast<int>(static_cast<short>(reinterpret_cast<Teleport*>(req.m_44)
+                ->get_party_teleport().get_teleport_posx())),
             posY,
             dir,
             true, 2);

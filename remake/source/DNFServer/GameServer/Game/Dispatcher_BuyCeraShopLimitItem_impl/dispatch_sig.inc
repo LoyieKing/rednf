@@ -121,7 +121,11 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
         if (condRet != 0) throw (ENUM_ERROR)condRet;
 
         // ---- avatar 类型选取 ----
-        unsigned short avatarTypeSel = (unsigned short)edition->getAvatarTypeSelect();
+        // [DNF-FIX 2026-10-08 c39] ORIG 0x0822011d-0x08220124 `call CItemLimitEdition::getAvatarTypeSelect;
+        //   cbtw; mov %ax,-0x2a(%ebp)`: the byte is sign-extended into the 16-bit local.
+        //   For the 0xff select mode the slot starts at 0xffff and the m_avatarSelect walk
+        //   below increments it to a 0-based index (old zero extension started at 0x00ff).
+        unsigned short avatarTypeSel = (unsigned short)(char)edition->getAvatarTypeSelect();
         // ORIG 0x08220132：先 relatedItem->IsCreatureItem()（vtable+0x10 虚调用）通过后才 dynamic_cast。
         if (relatedItem != 0 && relatedItem->IsCreatureItem()) {
             CEquipItem* equip = dynamic_cast<CEquipItem*>(relatedItem);

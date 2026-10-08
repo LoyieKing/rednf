@@ -2985,9 +2985,13 @@ break;
     break;
                 }
             case 0x2802:  // "[3choro enchant]"
-    //  段1（089b8267..089b8351）：ScanType 逐行，"[probability]" 行 2×ScanInt 写
-    //  m_40d[0/1]（任一 !ok → return false）；首行非 [probability] 即转段2。
-    //  段2：行 "[/3choro enchant]" → 完成本段；行 "[check]" → 条目组处理
+    //  [DNF-FIX 2026-10-08 c39] ORIG 0x089b8267..0x089b830a: 段1 不是循环——只读**一行**
+    //  （ScanType 失败 → return false），若是 "[probability]" 则 2×ScanInt 写
+    //  m_40d[0/1]（任一 !ok → return false）；**无论是否 [probability]**都落到
+    //  0x089b830a 的段2 循环头，再 ScanType 读新行（首行非 [probability] 时被丢弃）。
+    //  旧码 for(;;) 会重复吃 [probability] 行、并把首个非 [probability] 行直接交给段2。
+    //  段2（循环头 0x089b830a ScanType，失败 → return false）：
+    //  行 "[/3choro enchant]" → 完成本段；行 "[check]" → 条目组处理
     //  （089b8433 起，key=STEnchantSystemMapKey/-0x15ec、val=STEnchantSystemMapData
     //  /-0x15fc）：
     //    key.m_a=ScanInt（94c3..94d1）→ key.m_b(byte)=ScanInt（94f4..9502）→
@@ -3006,34 +3010,31 @@ break;
                 else
                 {
     {
-        // 段1
+        // 段1（[DNF-FIX 2026-10-08 c39] ORIG 0x089b8267：单次 ScanType，非循环）
+        if (!ScanType(line, true))
+        {
+            return false;       // 0x089b8284
+        }
+        if (line == "[probability]")
+        {
+            script->m_40d[0] = static_cast<char>(ScanInt(&ok));
+            if (!ok)
+            {
+                return false;
+            }
+            script->m_40d[1] = static_cast<char>(ScanInt(&ok));
+            if (!ok)
+            {
+                return false;
+            }
+        }
+        // 段2（ORIG 0x089b830a 循环头：先 ScanType 读新行；组处理完 0x089b86a8 jmp 回此处）
         for (;;)
         {
             if (!ScanType(line, true))
             {
-                return false;   // 93bc
+                return false;   // 0x089b8327
             }
-            if (line == "[probability]")
-            {
-                script->m_40d[0] = static_cast<char>(ScanInt(&ok));
-                if (!ok)
-                {
-                    return false;
-                }
-                script->m_40d[1] = static_cast<char>(ScanInt(&ok));
-                if (!ok)
-                {
-                    return false;
-                }
-            }
-            else
-            {
-                break;          // 非 [probability] → 段2（line 已就绪）
-            }
-        }
-        // 段2
-        for (;;)
-        {
             if (line == "[/3choro enchant]")
             {
                 break;          // 完成本段（9484 → 公共 stub）
@@ -3101,11 +3102,6 @@ break;
             else
             {
                 return false;   // 段2 未知行（089b86ad）
-            }
-            // ORIG 0x089b89da：段2 每组处理完读取下一行
-            if (!ScanType(line, true))
-            {
-                return false;
             }
         }
     }
