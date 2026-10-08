@@ -9,9 +9,10 @@ int Dispatcher_TournamentRewardSelectState::check_error(CUser* user, MSG_BASE& m
     (void)msg;
     // [b28d-solo-S206] ORIG 0x081dff32 首条 `cmpl $0x0,0xc(%ebp); jne; mov $0x7fffffff`
     //   （user==0 判空）。
+    // [DNF-FIX 2026-10-08 c27] ORIG 0x081dff3f user==0 → `mov $0xffffffff,%eax`（-1），非 0x7fffffff。
     if (user == 0)
     {
-        return 0x7fffffff;
+        return -1;
     }
     if (user->get_state() != 5)
     {
