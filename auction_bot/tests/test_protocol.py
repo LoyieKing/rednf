@@ -175,5 +175,14 @@ class TestAgainstMock(unittest.TestCase):
         self.assertEqual(len(regs), 1)
 
 
+
+
+class TestGameText(unittest.TestCase):
+    def test_decode_game_text(self):
+        from auction_bot.gamedb import GameDB
+        raw = "测试角色\t拍卖行\n".encode("utf-8") + "로저레빈".encode("utf-8") + b"\n" + "收购".encode("gbk")
+        self.assertEqual(GameDB.decode_game_text(raw), "测试角色\t拍卖行\n로저레빈\n收购")
+
+
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    unittest.main()

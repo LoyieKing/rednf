@@ -20,6 +20,7 @@ game_db:                             # 游戏库，只读（孤儿邮件清理�
   game_db: taiwan_cain_2nd
   char_db: taiwan_cain
   mysql_bin: /usr/bin/mysql
+  charset: latin1                    # 游戏库约定：UTF-8 字节按 latin1 存（与 df_game_r 一致；拍卖服 2026-10-08 起同样用 latin1 连接）
 
 pvf:
   path: /opt/dnf1031/data/Script.pvf  # 用于显示物品中文名、判断是否可堆叠及堆叠上限

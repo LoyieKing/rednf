@@ -37,11 +37,33 @@ class GameDB:
         self.mysql = cfg.get("mysql_bin", "mysql")
         self.last_error = None
 
+    @staticmethod
+    def decode_game_text(raw):
+        """游戏库文本的约定存法：UTF-8 原始字节经 latin1 连接写入 utf8 列（df_game_r / df_dbmw_r，以及修复后的拍卖服）。
+        用 latin1 连接读出来就是原始 UTF-8 字节，逐行按 UTF-8 解码；个别非 UTF-8 的行退回 GBK/CP949/latin-1。"""
+        out = []
+        for line in raw.split(b"\n"):
+            try:
+                out.append(line.decode("utf-8"))
+                continue
+            except UnicodeDecodeError:
+                pass
+            for enc in ("gbk", "cp949"):
+                try:
+                    out.append(line.decode(enc))
+                    break
+                except UnicodeDecodeError:
+                    pass
+            else:
+                out.append(line.decode("latin-1"))
+        return "\n".join(out)
+
     def _run(self, sql, db, timeout=20):
         env = dict(os.environ)
         env["MYSQL_PWD"] = str(self.cfg.get("password", ""))
         cmd = [self.mysql, "-h", str(self.cfg.get("host", "127.0.0.1")), "-P", str(self.cfg.get("port", 4000)),
-               "-u", str(self.cfg.get("user", "root")), "--default-character-set=utf8", "-B", "-N",
+               "-u", str(self.cfg.get("user", "root")),
+               "--default-character-set=%s" % self.cfg.get("charset", "latin1"), "-B", "-N",
                "--connect-timeout=5", db, "-e", sql]
         p = subprocess.run(cmd, capture_output=True, timeout=timeout, env=env)
         if p.returncode != 0:
@@ -49,6 +71,8 @@ class GameDB:
             self.last_error = err
             raise RuntimeError("MySQL 错误：%s" % err)
         self.last_error = None
+        if str(self.cfg.get("charset", "latin1")).lower() == "latin1":
+            return self.decode_game_text(p.stdout)
         return p.stdout.decode("utf-8", "replace")
 
     def select(self, sql, db, cols):
