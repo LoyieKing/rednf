@@ -89,7 +89,8 @@ bool CSession::Parsing(int recvLen)
             return 0;
         }
 
-        if (parsingLength < (int)packetSize)
+        // [DNF-FIX 2026-10-08 c37] ORIG 0x08490155-0x0849015b `mov -0x24,%eax; cmp -0x14(%ebp),%eax; jb` (unsigned).
+        if ((unsigned int)parsingLength < packetSize)
         {
             break;
         }

@@ -151,7 +151,12 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
             if (avatar == 0) return 0xfca;
             const int count = ScanInt(&ok);
             if (!ok) return 0xfcd;
-            for (int i = 0; i < count; ++i)
+            // [DNF-FIX 2026-10-08 c37] ORIG 0x8903904..0x89039a3: count is stored (-0x28) but never read; the loop is
+            //   `while (true)` and ends only on a failed item ScanInt (break -> outer ScanType
+            //   loop 0x0890325d) or an error return. The old `i < count` bound stopped early
+            //   and left the remaining tokens to the outer token loop (same for the 3 sections below).
+            (void)count;
+            while (true)
             {
                 int item = ScanInt(&ok);
                 if (!ok) break;
@@ -166,7 +171,8 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
             if (avatar == 0) return 0x100c;
             const int count = ScanInt(&ok);
             if (!ok) return 0x100f;
-            for (int i = 0; i < count; ++i)
+            (void)count;   // [DNF-FIX 2026-10-08 c37] ORIG 0x8903a00..0x8903a9f: count never read, while(true) (see [material])
+            while (true)
             {
                 int item = ScanInt(&ok);
                 if (!ok) break;
@@ -181,7 +187,8 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
             if (avatar == 0) return 0x1023;
             const int count = ScanInt(&ok);
             if (!ok) return 0x1026;
-            for (int i = 0; i < count; ++i)
+            (void)count;   // [DNF-FIX 2026-10-08 c37] ORIG 0x8903afc..0x8903b9b: count never read, while(true) (see [material])
+            while (true)
             {
                 int item = ScanInt(&ok);
                 if (!ok) break;
@@ -196,7 +203,8 @@ int importCompoundAvatarTableCore(const char* dir, const char* path,
             if (avatar == 0) return 0x103a;
             const int count = ScanInt(&ok);
             if (!ok) return 0x103d;
-            for (int i = 0; i < count; ++i)
+            (void)count;   // [DNF-FIX 2026-10-08 c37] ORIG 0x8903bf8..0x8903c97: count never read, while(true) (see [material])
+            while (true)
             {
                 int item = ScanInt(&ok);
                 if (!ok) break;
