@@ -36,6 +36,11 @@
 #include "MoreTypes.h"      // arad::Sig* 线格式结构
 #include "StreamPool.h"    // GlobalData::s_stream_pool->Acquire（LoadRewardEventItem/LoadServerState）
 #include "MsgQueueMgr.h"   // MsgQueueMgr::DISPATCH_Q / put（LoadRewardEventItem/LoadServerState）
+#if !remake_verify
+// [DNF-MOD 2026-10-08 GM-skip lv60 check] WongWork::CGMAccounts 完整定义（isGM，供
+//   checkWorkState_5.inc 的 GM 跳过分支）；仅现代构建包含，verify 构建 include 集不变。
+#include "../Statics/GMAccounts.h"
+#endif
 
 #include "Arad_InternalDispatcher/Arad_InternalDispatcher.inc"
 
