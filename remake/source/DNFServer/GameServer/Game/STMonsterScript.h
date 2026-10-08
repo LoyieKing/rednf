@@ -794,7 +794,9 @@ public:
     std::vector<STMosterAttackReady> m_attackReadies;  // +0x39c
     bool m_flag3a8;                      // +0x3a8（Clear=false）
     std::vector<stMonsterIndependentDrop_t> m_independentDrops;  // +0x3ac
-    bool m_flag3b8;                      // +0x3b8（Clear=1；setBasic → info.m_flag14）
+    char m_flag3b8;                      // +0x3b8（Clear=1；setBasic → info.m_flag14）
+                                         // [DNF-FIX 2026-10-08 c42] char 非 bool：ORIG [life max] 0x08a2212b
+                                         //   ScanInt 结果低字节直存（mov %dl,0x3b8），无 !=0 归一
     int m_abilityTable;                  // +0x3bc（getMonsterTableIndex：==1 → idx3）
     int m_field3c0;                      // +0x3c0
     float m_field3c4[10];                // +0x3c4..0x3eb（Clear 循环 i≤9 清零；float 实证：imm 经寄存器中转形态）

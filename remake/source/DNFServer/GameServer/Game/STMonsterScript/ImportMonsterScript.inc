@@ -4792,7 +4792,9 @@ case 0x12f7:  // "[life max]"
         }
         else
         {
-            script->m_flag3b8 = ScanInt(&ok) != 0;
+            // [DNF-FIX 2026-10-08 c42] ORIG 0x08a22121..0x08a2212b：ScanInt(0) → mov %eax,%edx →
+            //   mov %dl,0x3b8(script)，低字节截断直存（非 bool 归一；值 2/256 等与 ORIG 一致）
+            script->m_flag3b8 = static_cast<char>(ScanInt(static_cast<bool*>(0)));
             break;
         }
 
