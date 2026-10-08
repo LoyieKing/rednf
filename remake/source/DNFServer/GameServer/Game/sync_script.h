@@ -213,7 +213,9 @@ public:
     std::map<SARMORTYPE, SITEMTYPE> m_armorMap;      // +0x4c
     std::map<unsigned char, std::string> m_map64;    // +0x64
     std::map<unsigned char, std::string> m_map7c;    // +0x7c
-    std::map<unsigned int, STEquipmentStatInfo> m_oldEquipMap;  // +0x94
+    // [DNF-FIX 2026-10-08 c36] sizeof == 0x94: ORIG CSyncScript ctor 0x0861cc6c / dtor 0x0861cd7a stop at
+    //   +0x7c (same as the CItemList.cpp definition that owns the static instance); the
+    //   never-filled m_oldEquipMap (+0x94) existed only in this header copy (ODR mismatch).
 };
 
 // ---- CStringMaker（ORIG 全部为 W 内联符号；类体单 std::string 成员） ----
