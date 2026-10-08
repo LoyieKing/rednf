@@ -18,14 +18,14 @@ int Dispatcher_UseCreatureEvolutionItem::process(CUser* user,
     CItem* itemInfo = G_CDataManager()->find_item(item->m_addInfo);
     if (itemInfo == 0)
     {
-        cMyTrace local_58(__PRETTY_FUNCTION__, 0xe621, 0);
+        cMyTrace local_58(__PRETTY_FUNCTION__, 0xe621, 5);  // [DNF-FIX 2026-10-08 c24] ORIG 0x08228c57 movl $0x5 (log level)
         local_58("Dispatcher_UseCreatureEvolutionItem not found item_id(%d), charac_no(%d)\n",
                  item->m_addInfo, user->getCurCharacNo());
         return 0x15;
     }
     if (!itemInfo->is_stackable())
     {
-        cMyTrace local_48(__PRETTY_FUNCTION__, 0xe627, 0);
+        cMyTrace local_48(__PRETTY_FUNCTION__, 0xe627, 5);  // [DNF-FIX 2026-10-08 c24] ORIG 0x08228cc4 movl $0x5
         local_48("Dispatcher_UseCreatureEvolutionItem item_id(%d) is not stackable charac_no(%d)\n",
                  item->m_addInfo, user->getCurCharacNo());
         return 0x17;
@@ -39,7 +39,7 @@ int Dispatcher_UseCreatureEvolutionItem::process(CUser* user,
     if (user->getCurCharacInvenW()->GetCreatureMgrW()->GetCreatureIndex()
         != stackable->m_int360)
     {
-        cMyTrace local_38(__PRETTY_FUNCTION__, 0xe62f, 0);
+        cMyTrace local_38(__PRETTY_FUNCTION__, 0xe62f, 5);  // [DNF-FIX 2026-10-08 c24] ORIG 0x08228d7f movl $0x5
         local_38("Dispatcher_UseCreatureEvolutionItem cur_creatureid(%d) != item_base_creature_id(%d) charac_no(%d)\n",
                  user->getCurCharacInvenW()->GetCreatureMgrW()->GetCreatureIndex(),
                  stackable->m_int360, user->getCurCharacNo());
