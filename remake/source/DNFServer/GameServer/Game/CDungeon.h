@@ -708,10 +708,13 @@ public:
     unsigned char getQuestNpcDungeon() const;      // ORIG 单 movzbl
     int getAICharacterAppearRate() const;
     int getEventMonsterTotalProb() const;
-    int getTryGenEventMonsterCnt() const;
+    // [DNF-FIX 2026-10-08 c36] ORIG CBattle_Field::SetGridPath 0x083008e0-0x083008e8 / 0x08300c24-0x08300c2c:
+    //   `call getTryGen*EventMonsterCnt; cmp attempt,%eax; seta` (unsigned loop bound) => both
+    //   Cnt getters return unsigned int (were int, so the spawn-attempt loop compared signed).
+    unsigned int getTryGenEventMonsterCnt() const;
     int getTryGenEventMonsterProb() const;
     int getSecondEventMonsterTotalProb() const;
-    int getTryGenSecondEventMonsterCnt() const;
+    unsigned int getTryGenSecondEventMonsterCnt() const;   // [DNF-FIX 2026-10-08 c36] unsigned (see above)
     int getTryGenSecondEventMonsterProb() const;
     int getRandomTowerMaxStage() const;
     int getDeathTowerMaxStage() const;
