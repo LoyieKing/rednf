@@ -41,7 +41,9 @@ void CUserCharacInfo::setBloodBestRecord(unsigned int time, int round, int recor
             if (m_selected->m_bloodBestRoundRecord == round)
             {
                 setBloodBestRecordUpdate(true);
-                m_selected->m_bloodBestTimeRecord = std::min(m_selected->m_bloodBestTimeRecord, static_cast<int>(time));
+                // [DNF-FIX 2026-10-08 c35] ORIG 0x08688198-0x086881ae: std::min<unsigned int>(&best, &time)
+                //   (unsigned compare, no int temp); was std::min<int>(best, (int)time).
+                m_selected->m_bloodBestTimeRecord = std::min<unsigned int>(m_selected->m_bloodBestTimeRecord, time);
             }
             else
             {

@@ -668,7 +668,10 @@ struct _Charac_info
     unsigned char m_ultimateInout[3];  // +0xec0 ← Reset memset(0,3)；CParty 0x0859fa8f movzbl 零扩展=unsigned
     char m_bloodBestRecordUpdate;                  // +0xec3 ← Reset movb $0（R+0x405）
     int m_bloodBestRoundRecord;                   // +0xec4 ← Reset movl $-1（R+0x40f）
-    int m_bloodBestTimeRecord;                   // +0xec8 ← Reset movl $0x17d78400（R+0x41c）
+    // [DNF-FIX 2026-10-08 c35] ORIG CUserCharacInfo::setBloodBestRecord 0x086881ae calls
+    //   std::min<unsigned int>(&+0xec8, &time) and getBloodBestTimeRecord returns unsigned int:
+    //   the field is unsigned (was int, so the same-round best-time min compared signed).
+    unsigned int m_bloodBestTimeRecord;                   // +0xec8 ← Reset movl $0x17d78400（R+0x41c）
     std::map<int, stBloodBestRecord> m_bloodBestRecords;    // +0xecc（Reset 0x086822b8 map::clear 实证；sizeof 0x18，P40 口径）
     char m_expItemAffected;                  // +0xee4 ← Reset movb $0（R+0x436）
     float m_expAffectRate;                 // +0xee5（Reset 0x086822b8+0x443 `mov $0,%edx;mov %edx,mem` 两段物化=float 成员；镜像 CUserCharacInfo.h:450 已 float；CUOC7 probe p14）
