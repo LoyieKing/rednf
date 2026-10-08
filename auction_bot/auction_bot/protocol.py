@@ -264,7 +264,13 @@ MY_REGISTED_ITEM_INFO_SIZE = 0x75
 
 def decode_name(raw):
     raw = raw.split(b"\0", 1)[0]
-    for enc in ("utf-8", "gbk", "cp949"):
+    # 拍卖服把 UTF-8 名字截断到 12 字节以内时可能切掉半个汉字（如「测试角色」→「测试角」+2 字节），先去掉残缺尾部再按 UTF-8 解
+    for cut in range(0, 4):
+        try:
+            return raw[: len(raw) - cut].decode("utf-8") if cut < len(raw) else ""
+        except UnicodeDecodeError:
+            continue
+    for enc in ("gbk", "cp949"):
         try:
             return raw.decode(enc)
         except UnicodeDecodeError:

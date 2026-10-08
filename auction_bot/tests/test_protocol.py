@@ -61,6 +61,11 @@ class TestCodec(unittest.TestCase):
         self.assertEqual(s[-1], 0)
         s.split(b"\0")[0].decode("utf-8")
 
+    def test_decode_truncated_utf8_name(self):
+        # 真服实测：「测试角色」在 owner_name[13] 中被截成 e6b58b e8af95 e8a792 e889 00
+        self.assertEqual(P.decode_name(bytes.fromhex("e6b58be8af95e8a792e8890000")), "测试角")
+        self.assertEqual(P.decode_name("로저레빈".encode() + b"\0"), "로저레빈")
+
     def test_apiece_and_bidding_offsets(self):
         b = P.build_buy_item_apiece(9, 1999999999, 5000, 1, 1)
         self.assertEqual(struct.unpack_from("<iiiQi", b, 18), (9, 1999999999, 5000, 1, 1))
