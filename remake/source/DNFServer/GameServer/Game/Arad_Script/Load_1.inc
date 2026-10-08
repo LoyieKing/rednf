@@ -139,7 +139,14 @@ bool Arad_Script::Load(const char* path)
                 }
                 else
                 {
+                    // [DNF-FIX 2026-10-08 c40] ORIG 0x0817c2a7 `movl $-1,-0x2c; jmp 0x0817c428` -> outer loop
+                    //   test, c == -1 -> fclose; return 1 (0x0817c433). An empty token (blank
+                    //   line, trailing blank, EOF after the last '\n') ends the block successfully;
+                    //   the old fall-through hit `usedCols_ != rowIdx` with rowIdx == -1 and
+                    //   returned 0 (same fix as the 2-arg Load, b24FIX). Non-empty token + '\n'/EOF
+                    //   still takes the row-end check (0x0817c3af-0x0817c3b9).
                     c = -1;
+                    goto rows_done;
                 }
                 if (c == 10 || c == -1)
                     break;
@@ -159,6 +166,7 @@ bool Arad_Script::Load(const char* path)
         if (c == -1)
             break;
     }
+rows_done:
     std::fclose(fp);
     return 1;
 }

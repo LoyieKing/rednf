@@ -151,7 +151,11 @@ bool Arad_Script::Load(const char* dir, const char* file)
                 }
                 else
                 {
+                    // [DNF-FIX 2026-10-08 c40] ORIG 0x0817bd06 `movl $-1,-0x28; jmp 0x0817be89` -> the outer
+                    //   loop test (c != -1 ? next row : return 1). Only this empty-token path
+                    //   skips the row-end check.
                     c = -1;
+                    goto rows_done;
                 }
                 // [b24FIX · 空行/EOF = 本节解析**成功**结束] ORIG 0x817bd06 置 c=-1 后
                 // **直接 `jmp 0x817be89`**（不是 fallthrough）：该处做
@@ -162,10 +166,13 @@ bool Arad_Script::Load(const char* dir, const char* file)
                 // 实机 A/B 实证：`Nexon/AradSpecialUseItems.txt` 的 39 行数据全部解析成功
                 // （usedRows=39）后遇到空行 `\r\n`，旧形在此返回 0 → parsing 返回 39
                 // （0x27）→ Init Arad GameScriptManager 失败；ORIG 同数据同位置返回 1。
-                if (c == 10)
+                // [DNF-FIX 2026-10-08 c40] ORIG 0x0817be10-0x0817be1a: after a non-empty token, '\n' **or EOF**
+                //   goes to the row-end check at 0x0817be1c (rowIdx == usedCols_ else return 0,
+                //   ++usedRows_, ExpandRow) and only then 0x0817be89 returns 1 on EOF. The old
+                //   `if (c == -1) return 1;` here accepted a last row that has no trailing newline
+                //   without the column check and without counting it in usedRows_.
+                if (c == 10 || c == -1)
                     break;
-                if (c == -1)
-                    return 1;
                 continue;
             }
             colBuf[colLen] = (char)c;
@@ -182,5 +189,6 @@ bool Arad_Script::Load(const char* dir, const char* file)
         if (c == -1)
             break;
     }
+rows_done:
     return 1;
 }
