@@ -137,7 +137,8 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
 
     CGuildServerProxy* proxy =
         GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup());
-    proxy->SendTcpPacket(reinterpret_cast<char*>(&pck), (int)pck.m_f);
+    // [DNF-FIX 2026-10-08 c31] ORIG 0x084dddc7 `movzwl -0xc2` = pck(-0xc4)+2 = packetSize（旧码误用 m_f +0x51 槽号）
+    proxy->SendTcpPacket(reinterpret_cast<char*>(&pck), (int)pck.packetSize);
 
     user->m_historyLog.GuildCargoPushItem(
         (ENUM_GUILD_CARGO_HISTORY_REASON)7,

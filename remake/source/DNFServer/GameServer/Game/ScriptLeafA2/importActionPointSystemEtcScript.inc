@@ -90,7 +90,8 @@ int CActionPointEtcParameter::importActionPointSystemEtcScript(
                 {
                     return 0x65;                        // 0x65
                 }
-                ex.m_ap.m_days[2] = static_cast<unsigned char>(v5);   // +0x08（后被覆写）
+                // [DNF-FIX 2026-10-08 c31] ORIG 0x08894b67 `mov %al,-0x146` = ex(-0x154)+0x0e = m_field0e
+                ex.m_field0e = static_cast<unsigned char>(v5);
 
                 for (int i = 0; i <= 4; ++i)            // days 区 B+0x06..+0x0a
                 {
@@ -137,12 +138,13 @@ int CActionPointEtcParameter::importActionPointSystemEtcScript(
                 }
                 ex.m_weekday = static_cast<int>(weekday);
 
-                int b9 = ScanInt(&ok);
+                // [DNF-FIX 2026-10-08 c31] ORIG 0x08894d5a `mov %al,-0x145` 紧跟 ScanInt（先存后判 ok）：
+                //   -0x145 = ex+0x0f = m_levelMin（旧码误写 m_ap.m_days[3]）。
+                ex.m_levelMin = static_cast<unsigned char>(ScanInt(&ok));
                 if (!ok)
                 {
                     return 0xa4;                        // 0xa4
                 }
-                ex.m_ap.m_days[3] = static_cast<unsigned char>(b9);   // +0x09（覆盖 days[3]）
 
                 int b10 = ScanInt(&ok);
                 if (!ok)

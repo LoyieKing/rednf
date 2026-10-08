@@ -102,10 +102,13 @@ bool procSpecialPassiveObjectVerifyError(SPOBJ_ACTION_DATAS& action,
                 STHellPartyGroupRate orderRate;   // -0x118/-0x114
                 orderRate.m_groupIdx = tvIdx;
                 orderRate.m_rate = rate;
+                // [DNF-FIX 2026-10-08 c31] ORIG 0x089e724a：m_field54 存入 orderRate+8（m_difficulty）后再入表。
+                orderRate.m_difficulty = git->second.m_field54;
+                const char& diffSlot = orderRate.m_difficulty;
 
                 // [R4a06 ④ 符号性修复] 同 procSpecialPassiveObject：ORIG 0x089e72f1/0x089e72fb/
                 //   0x089e7343/0x089e734d 同形（`movzbl` 读 + `movsbl` 符号扩展）⇒ signed char。
-                const char diffSlot = git->second.m_field54;
+                // [DNF-FIX 2026-10-08 c31] 见上：diffSlot = orderRate.m_difficulty。
 
                 std::map<unsigned short, STHellPartyGroupOrder>::iterator mit =
                     localOrders.find(static_cast<unsigned short>(cnt));

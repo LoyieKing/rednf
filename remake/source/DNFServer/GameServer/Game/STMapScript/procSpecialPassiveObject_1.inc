@@ -84,7 +84,7 @@ bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,
             //   原码 diffSlot 是 signed char（m_field54 为 unsigned char 字段，故读取仍 movzbl，
             //   扩展段 movsbl）。我方原为 unsigned char ⇒ 4.4 仅 movzbl（零扩展），
             //   m_field54 ≥ 0x80 时索引分叉（ORIG 负索引 vs 我方正索引）。
-            const char diffSlot = git->second.m_field54;
+            // [DNF-FIX 2026-10-08 c31] diffSlot 实为 orderRate.m_difficulty（见下）。
 
             bool ok2;                                     // ORIG 0x089e7bdb 段同样无预清
             int rate = ScanInt(&ok2);                     // -0x10 组序号
@@ -106,6 +106,10 @@ bool procSpecialPassiveObject(SPOBJ_ACTION_DATAS& action,
             STHellPartyGroupRate orderRate;               // -0x108（前两 int 赋值）
             orderRate.m_groupIdx = tvIdx;
             orderRate.m_rate = rate;
+            // [DNF-FIX 2026-10-08 c31] ORIG 0x089e7c97/0x089e7c9b：m_field54 → -0x100 = orderRate(-0x108)+8，
+            //   先于 push_back 写入（入表元素带难度），索引读同槽。
+            orderRate.m_difficulty = git->second.m_field54;
+            const char& diffSlot = orderRate.m_difficulty;
 
             std::map<unsigned short, STHellPartyGroupOrder>::iterator mit =
                 localOrders.find(static_cast<unsigned short>(cnt));

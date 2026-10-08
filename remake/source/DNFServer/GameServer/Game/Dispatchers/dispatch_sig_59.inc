@@ -113,7 +113,8 @@ int Dispatcher_CompleteDisplay::dispatch_sig(CUser* user, PacketBuf& packet)
                             0, 0);
         // +0x495：CheckItemLock(user, GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)attr), slot)
         if (user->CheckItemLock(GetInvenTypeFromItemSpace((ENUM_ITEMSPACE)(char)item.m_field46),
-                                (int)(short)item.m_field44))
+                                // [DNF-FIX 2026-10-08 c31] ORIG 0x0820316f 读 item+0x48（第 4 个 get_short 的槽位），非 +0x44
+                                (int)(short)item.m_field48))
         {
             ((private_store::CPrivateStore*)seller)->ResetItems();
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x5a, 0xd5);

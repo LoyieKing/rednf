@@ -23,11 +23,9 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
 {
     InterfacePacketBuf* pkt = (InterfacePacketBuf*)packet;
 
-    // ORIG 怪物序列化首个 put_short 读取未初始化栈槽 [ebp-0x114]
-    // （报告 asm 0x8309368 为全函数唯一引用、无任何写入点）。以未初始化局部
-    // 变量复现同一行为。b28e：ORIG 读取为 `movzwl -0x114; movzwl %ax,%edx`
-    // （零扩展，P11）⇒ 类型为 unsigned short（有符号 short 生 movswl）。
-    unsigned short staleStackValue;
+    // [DNF-FIX 2026-10-08 c31] ORIG 0x08309368 `movzwl -0x114(%ebp)`：mob 位于 -0x448（0x0830935a
+    //   map_monster::operator= 的 this），-0x114 = mob+0x334 = m_hellPartyGroupIdx，
+    //   并非未初始化栈槽（旧 staleStackValue 局部删除）。
 
     switch (packetId)
     {
@@ -60,7 +58,7 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
                  it != GetCurrentMapInfo()->m_monsterMap.end(); it++)
             {
                 mob = it->second;
-                pkt->put_short(staleStackValue);             // 未初始化槽复现
+                pkt->put_short(mob.m_hellPartyGroupIdx);     // +0x334（[DNF-FIX 2026-10-08 c31] ORIG 0x08309368）
                 pkt->put_int(mob.m_mobId);                   // +0x00
                 pkt->put_short((short)mob.m_instId);         // +0x04 低 16 位
                 pkt->put_int(mob.m_mobIndex);                // +0x0c

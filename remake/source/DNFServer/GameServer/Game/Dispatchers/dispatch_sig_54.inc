@@ -8,7 +8,9 @@ int Dispatcher_Lag_Statistics::dispatch_sig(CUser* user, PacketBuf& packet)
     // [Lane1Dispatchers 2026-09-10] P183：ORIG 无具名 base 指针局部（每处重发
     //   `lea`，0x08223de0 段实证）⇒ 宏内联（零局部），函数尾 `#undef base`。
 #define base (reinterpret_cast<unsigned char*>(&local_161))
-    unsigned char count = 0;                                 // -0x153 = base+0xa
+    // [DNF-FIX 2026-10-08 c31] ORIG 0x08223e10 get_byte(base+0xa)、0x08223e47/0x0822440b 读 -0x153=base+0xa：
+    //   计数直接写入包体 m_flagA（无独立局部、无清零）。
+    unsigned char& count = reinterpret_cast<unsigned char&>(local_161.m_flagA);
     if (!packet.get_byte(count))
     {
         return LineFunc(0xde9f,
@@ -56,7 +58,8 @@ int Dispatcher_Lag_Statistics::dispatch_sig(CUser* user, PacketBuf& packet)
         }
         if (idx == 1)
         {
-            unsigned char count2 = 0;                        // -0x102 = base+0x5b
+            // [DNF-FIX 2026-10-08 c31] ORIG 0x08224036 get_byte(base+0x5b)、0x0822406d/0x082243ef 读 -0x102=base+0x5b。
+            unsigned char& count2 = reinterpret_cast<unsigned char&>(local_161.m_flagB);
             if (!packet.get_byte(count2))
             {
                 return LineFunc(0xdeb4,

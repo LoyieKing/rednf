@@ -529,12 +529,14 @@ int exportPassiveObjectScript(STPassiveObjectScript* script, const char* path)
         }
         fwrite("[/sequences]\n", 1, 0xd, file);
     }
+    // [DNF-FIX 2026-10-08 c31] ORIG 0x08a2c394..0x08a2c404：+0x1d4/+0x1d8/+0x1dc 均与 default -0x164
+    //   （warnDanger.m_a）比较，+0x1e0/+0x1e4/+0x1e8 均与 -0x158（warnRecovery.m_a）比较。
     if (script->m_warnDanger.m_a != defaultScript.m_warnDanger.m_a ||
-        script->m_warnDanger.m_b != defaultScript.m_warnDanger.m_b ||
-        script->m_warnDanger.m_c != defaultScript.m_warnDanger.m_c ||
+        script->m_warnDanger.m_b != defaultScript.m_warnDanger.m_a ||
+        script->m_warnDanger.m_c != defaultScript.m_warnDanger.m_a ||
         script->m_warnRecovery.m_a != defaultScript.m_warnRecovery.m_a ||
-        script->m_warnRecovery.m_b != defaultScript.m_warnRecovery.m_b ||
-        script->m_warnRecovery.m_c != defaultScript.m_warnRecovery.m_c)
+        script->m_warnRecovery.m_b != defaultScript.m_warnRecovery.m_a ||
+        script->m_warnRecovery.m_c != defaultScript.m_warnRecovery.m_a)
     {
         fwrite("[warning]\n", 1, 10, file);
         fprintf(file, "[min distance] %d %d %d\n",

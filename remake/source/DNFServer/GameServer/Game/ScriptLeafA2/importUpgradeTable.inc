@@ -100,7 +100,8 @@ bool importUpgradeTable(const char* path, upgrade_table_t* table)
                     // (→+0x34) 才是 `movl $0x0`（m_discountBase = 0，int 单条）。
                     info.m_meterialCount = ScanInt(&ok);
                     info.m_discountBase = 0;
-                    info.m_f38[4] =
+                    // [DNF-FIX 2026-10-08 c31] ORIG 0x08900e74 `fstps -0x118` = info(-0x164)+0x4c = m_f4c[0]（非 +0x48）
+                    info.m_f4c[0] =
                         static_cast<float>(ScanInt(&ok));
                     if (!ok)
                     {
@@ -132,6 +133,8 @@ bool importUpgradeTable(const char* path, upgrade_table_t* table)
                     {
                         break;
                     }
+                    // [DNF-FIX 2026-10-08 c31] ORIG 0x08900f57 `mov $0,-0xfc` = info+0x68 = m_f5c[3] 清零
+                    info.m_f5c[3] = 0.0f;
                     table->m_infos.push_back(info);
                 }
             }

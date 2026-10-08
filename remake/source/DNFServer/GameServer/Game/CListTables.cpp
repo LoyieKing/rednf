@@ -248,13 +248,15 @@ public:
     char m_pad4[0x3a8];                       // +0x04
     std::vector<stMonsterIndependentDrop_t>
         m_dropList;                           // +0x3ac
-    char m_pad3b8[0x30];                      // +0x3b8
-    int m_minLevel;                           // +0x3e8
-    int m_maxLevel;                           // +0x3ec
+    // [DNF-FIX 2026-10-08 c31] ORIG load_monsters 0x0834fcb1 读 -0x1914 / 0x0834fce1 读 -0x1910，
+    //   script@-0x1d00 ⇒ +0x3ec/+0x3f0（= STMonsterScript.h m_levelByDiff[2] @+0x3ec）。
+    char m_pad3b8[0x34];                      // +0x3b8
+    int m_minLevel;                           // +0x3ec
+    int m_maxLevel;                           // +0x3f0
     // [b28d-solo-CListTables] 补足权威 sizeof（STMonsterScript.h 尾部注释 0x1cc4；
     // ORIG load_monsters 帧 0x1d1c / script 槽 -0x1d0c 实证），此前截断到 0x3f0
     // 导致栈帧仅 0x44c。
-    char m_pad3f0[0x1cc4 - 0x3f0];            // +0x3f0..0x1cc4
+    char m_pad3f4[0x1cc4 - 0x3f4];            // +0x3f4..0x1cc4
 };
 
 struct MonsterKillItem

@@ -171,26 +171,23 @@ int importHellPartyScript(const char* path, stHellParty_t& out)
                     // out.m_field6c[tag] / out.m_field72[tag] 存入紧随 list 之后的
                     // 两个死局部（P171 死写入照抄；读字段无副作用、值不再被读），
                     // 最后写 tag 字节（ORIG movb ⇒ uchar）。
-                    unsigned char deadField6c;
-                    unsigned short deadField72;
-                    unsigned char tag;
+                    // [DNF-FIX 2026-10-08 c31] ORIG 0x08909e71/0x08909e7e/0x08909e85（A..E 同形）：三处写入
+                    //   -0xf8/-0xf6/-0xf4 = list(-0x148)+0x50/+0x52/+0x54，即 list.m_field50/52/54，
+                    //   随 list 一并入表——不是死局部。
                     if (groupName == "A")
-                    { deadField6c = out.m_field6c[1]; deadField72 = out.m_field72[1]; tag = 1; }
+                    { list.m_field50 = out.m_field6c[1]; list.m_field52 = out.m_field72[1]; list.m_field54 = 1; }
                     else if (groupName == "B")
-                    { deadField6c = out.m_field6c[2]; deadField72 = out.m_field72[2]; tag = 2; }
+                    { list.m_field50 = out.m_field6c[2]; list.m_field52 = out.m_field72[2]; list.m_field54 = 2; }
                     else if (groupName == "C")
-                    { deadField6c = out.m_field6c[3]; deadField72 = out.m_field72[3]; tag = 3; }
+                    { list.m_field50 = out.m_field6c[3]; list.m_field52 = out.m_field72[3]; list.m_field54 = 3; }
                     else if (groupName == "D")
-                    { deadField6c = out.m_field6c[4]; deadField72 = out.m_field72[4]; tag = 4; }
+                    { list.m_field50 = out.m_field6c[4]; list.m_field52 = out.m_field72[4]; list.m_field54 = 4; }
                     else if (groupName == "E")
-                    { deadField6c = out.m_field6c[5]; deadField72 = out.m_field72[5]; tag = 5; }
+                    { list.m_field50 = out.m_field6c[5]; list.m_field52 = out.m_field72[5]; list.m_field54 = 5; }
                     else
                     {
                         return 0x1aed;
                     }
-                    (void)deadField6c;
-                    (void)deadField72;
-                    (void)tag;
                     // ORIG 0x08909f9e..0x08909fee：无上界门禁的 for(;;)，仅以 ok
                     // 失败 break 退出（越界行为照抄，P171）；ScanInt 结果直存数组
                     // （P0：ORIG 无 monsterIdx/rate 中转局部，store 紧跟 call）。
