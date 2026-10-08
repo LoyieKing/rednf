@@ -38,6 +38,9 @@ def resolve_items(bot, q, limit=20):
     return [i for _, i in hits[:limit]]
 
 
+_manual_lock = threading.Lock()
+
+
 def make_handler(bot, web_dir, cfg_path):
     class H(BaseHTTPRequestHandler):
         server_version = "AuctionBot/1.0"
@@ -220,6 +223,23 @@ def make_handler(bot, web_dir, cfg_path):
                     "expire_time": r["expire_time"], "upgrade": r["upgrade"], "buyer_id": r["buyer_id"],
                     "is_bot": r["owner_id"] == -1}
 
+        def api_manual_preview(self, qs):
+            q = (qs.get("q") or "").strip()
+            ids = resolve_items(bot, q, 10)
+            if not ids:
+                return {"error": "找不到物品：%s" % q}
+            from .runner import manual_preview
+            r = manual_preview(bot, ids[0])
+            r["candidates"] = [{"item_id": i, "name": bot.item_name(i), "kind": bot.item_meta(i).get("kind")} for i in ids]
+            return r
+
+        def api_manual_history(self, qs):
+            rows = bot.store.query("SELECT * FROM bot_listings WHERE note LIKE 'manual%' ORDER BY listed_at DESC LIMIT ?",
+                                   (min(1000, int(qs.get("limit", 200))),))
+            for r in rows:
+                r["name"] = bot.item_name(r["item_id"])
+            return rows
+
         def api_orphans(self, qs):
             return bot.orphan_preview()
 
@@ -256,6 +276,31 @@ def make_handler(bot, web_dir, cfg_path):
             else:
                 return {"error": "未知操作"}
             return {"ok": True, "paused": bot.paused}
+
+        def post_manual_list(self, body):
+            from .runner import manual_list
+            try:
+                iid = int(body.get("item_id"))
+                count = int(body.get("count"))
+            except (TypeError, ValueError):
+                return {"error": "物品 ID 和数量必须是整数"}
+            price = body.get("unit_price")
+            price = int(price) if price not in (None, "") else None
+            stack = body.get("stack_size")
+            stack = int(stack) if stack not in (None, "") else None
+            if not _manual_lock.acquire(blocking=False):
+                return {"error": "上一次手动上架还在进行，请稍候"}
+            try:
+                bot.log("control", "网页操作：手动上架 %s(%d) ×%d，单价 %s，每条 %s%s" % (
+                    bot.item_name(iid), iid, count, price or "默认", stack or "默认",
+                    "（已确认排除名单警告）" if body.get("confirm_excluded") else ""))
+                r = bot.call(lambda: manual_list(bot, iid, count, price, stack, bool(body.get("confirm_excluded"))),
+                             timeout=900)
+                if not r.get("ok") and r.get("error") and not r.get("created"):
+                    bot.log("control", "手动上架被拒绝：%s(%d)：%s" % (bot.item_name(iid), iid, r["error"]), level="warn")
+                return r
+            finally:
+                _manual_lock.release()
 
         def post_orphans_cleanup(self, body):
             return bot.orphan_cleanup_run()

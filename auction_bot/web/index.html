@@ -16,6 +16,7 @@
     <a data-tab="engine">经济模型</a>
     <a data-tab="market">行情</a>
     <a data-tab="search">拍卖行检索</a>
+    <a data-tab="manual">手动上架</a>
     <a data-tab="listings">系统挂单 / 成交</a>
     <a data-tab="orphans">孤儿邮件清理</a>
     <a data-tab="config">配置</a>
@@ -103,6 +104,28 @@
   </div>
   <div id="sr-info" class="hint"></div>
   <table id="sr-table"></table>
+</section>
+
+<section id="tab-manual" class="tab">
+  <p class="hint">立刻以系统卖家（拍卖行，owner -1）上架指定数量的物品，与经济模型上架走同一条协议路径。手动挂单不计入模型的挂单数，虚拟买家不会买走，到期（2 小时）后不补挂；自动收购也从不买系统挂单。</p>
+  <div class="row">
+    <label>物品 <input id="ml-q" placeholder="物品名或道具 ID" list="ml-dl" style="width:220px"></label>
+    <datalist id="ml-dl"></datalist>
+    <button id="ml-look">查询</button>
+  </div>
+  <div id="ml-info" class="cards"></div>
+  <div id="ml-warn" class="warn" style="display:none"></div>
+  <div class="row">
+    <label>总数量 <input id="ml-count" type="number" min="1" step="1" style="width:110px"></label>
+    <label>单价（金币） <input id="ml-price" type="number" min="1" step="1" style="width:130px"></label>
+    <label>每条数量 <input id="ml-stack" type="number" min="1" step="1" style="width:100px"></label>
+    <label id="ml-confirm-wrap" style="display:none"><input type="checkbox" id="ml-confirm"> 我确认要上架排除名单里的物品</label>
+    <button id="ml-go" disabled>立即上架</button>
+  </div>
+  <div id="ml-plan" class="hint"></div>
+  <div id="ml-result"></div>
+  <h3>手动上架记录</h3>
+  <table id="ml-hist"></table>
 </section>
 
 <section id="tab-listings" class="tab">

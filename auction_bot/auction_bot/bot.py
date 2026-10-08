@@ -220,7 +220,10 @@ class Bot:
 
     # ---------------- 行情采集 / 对账 ----------------
     async def scan_market(self):
-        ids = sorted(self.watch_ids)
+        # 观察列表 + 仍在售的机器人挂单涉及的物品（手动上架的非建模物品也要对账）
+        scan_ids = set(self.watch_ids) | {r["item_id"] for r in self.store.query(
+            "SELECT DISTINCT item_id FROM bot_listings WHERE status='active'")}
+        ids = sorted(scan_ids)
         if not ids:
             return
         listings = await self.client.search_items(ids)
@@ -244,7 +247,7 @@ class Bot:
         # 对账：机器人挂单
         seen = {l["auction_id"]: l for l in listings}
         for aid, r in known.items():
-            if r["item_id"] not in self.watch_ids:
+            if r["item_id"] not in scan_ids:
                 continue
             l = seen.get(aid)
             if l is not None:
@@ -261,7 +264,9 @@ class Bot:
                 continue
             if now >= r["expire_at"] - 90:
                 self.store.execute("UPDATE bot_listings SET status='expired', closed_at=? WHERE auction_id=?", (now, aid))
-                if self.runner is not None and r["count_now"] > 0 and r["item_id"] in self.runner.items:
+                # 手动上架（note 以 manual 开头）到期不补挂：那是一次性注入，不是模型的货
+                if self.runner is not None and r["count_now"] > 0 and r["item_id"] in self.runner.items \
+                        and not str(r["note"] or "").startswith("manual"):
                     self.runner.expired_pending.setdefault(r["item_id"], []).append(r["count_now"])
                 self.log("expire", "系统挂单到期下架：%s ×%d（单价 %d，拍卖号 %d）"
                          % (self.item_name(r["item_id"]), r["count_now"], r["unit_price"], aid))

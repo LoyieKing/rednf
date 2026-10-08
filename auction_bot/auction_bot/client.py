@@ -191,6 +191,13 @@ class AuctionClient:
         r = await self.request(lambda i: P.build_ask_registed_item_num(i, -1, item_id), ["ASK_REGISTED_ITEM_NUM"])
         return r[-1]["now_registed_num"]
 
+    async def probe_item_info(self, item_id):
+        """同 probe_item，但同时返回回包里的 item_id：未知物品回 item_id=0 或挂单数 -2。只读。"""
+        r = await self.request(lambda i: P.build_ask_registed_item_num(i, -1, item_id), ["ASK_REGISTED_ITEM_NUM"])
+        m = r[-1]
+        return {"item_id": m["item_id"], "num": m["now_registed_num"],
+                "missing": m["item_id"] == 0 or m["now_registed_num"] == -2}
+
     async def search_items(self, item_ids, max_pages=20):
         """按道具 ID 检索当前全部挂单（真人+系统），自动翻页。"""
         ids = list(dict.fromkeys(int(x) for x in item_ids))

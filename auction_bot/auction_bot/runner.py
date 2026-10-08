@@ -127,13 +127,16 @@ class EngineRunner:
         self.schedule_next()
         await b.scan_market()               # 刷新挂单簿 + 对账（到期 → expired_pending）
         npc = b.store.kv_get("npc_name")
-        mine = {r["auction_id"]: r for r in b.store.query("SELECT auction_id, listed_at FROM bot_listings WHERE status='active'")}
+        mine = {r["auction_id"]: r for r in b.store.query("SELECT auction_id, listed_at, note FROM bot_listings WHERE status='active'")}
         book = {}
         for iid in self.items:
             asks = []
             for l in b.snapshot.get(iid, []):
                 aid = l["auction_id"]
                 cnt = l["item"]["add_info"]
+                row = mine.get(aid)
+                if row is not None and str(row.get("note") or "").startswith("manual"):
+                    continue        # 手动上架：模型完全看不到（不计入挂单数/上限，虚拟买家不买，到期不补挂）
                 is_sys = aid in mine or b.is_npc_name(l["owner_name"])
                 apiece = l["price"] == -1 and l["unit_price"] > 0 and cnt > 0
                 asks.append({"auction_id": aid, "price": l["unit_price"] or (l["instant_price"] // max(1, cnt)),
@@ -294,7 +297,11 @@ class EngineRunner:
         counts, nl, t0 = self.today_counts()
         info = (self.last_plan or {}).get("items", {})
         act = {r["item_id"]: r for r in b.store.query(
-            "SELECT item_id, COUNT(*) n, SUM(count_now) q FROM bot_listings WHERE status='active' GROUP BY item_id")}
+            "SELECT item_id, COUNT(*) n, SUM(count_now) q FROM bot_listings WHERE status='active' "
+            "AND COALESCE(note,'') NOT LIKE 'manual%' GROUP BY item_id")}
+        man = {r["item_id"]: r for r in b.store.query(
+            "SELECT item_id, COUNT(*) n, SUM(count_now) q FROM bot_listings WHERE status='active' "
+            "AND note LIKE 'manual%' GROUP BY item_id")}
         dl = {}
         for r in b.store.query("SELECT item_id, side, COUNT(*) n, SUM(count) q, SUM(total) g FROM deals WHERE ts>=? "
                                "GROUP BY item_id, side", (t0,)):
@@ -314,6 +321,7 @@ class EngineRunner:
                          "scarcity": (info.get(iid) or {}).get("scarcity"), "x": st.get("x"), "last": st.get("last"),
                          "sys_listings": (act.get(iid) or {}).get("n", 0), "sys_qty": (act.get(iid) or {}).get("q") or 0,
                          "user_listings": user_ls.get(iid, 0),
+                         "manual_listings": (man.get(iid) or {}).get("n", 0), "manual_qty": (man.get(iid) or {}).get("q") or 0,
                          "virtual_today": (d.get("virtual") or {}).get("q") or 0,
                          "virtual_trades_today": (d.get("virtual") or {}).get("n") or 0,
                          "user_fill_today": (d.get("bot_buy_human") or {}).get("q") or 0,
@@ -341,3 +349,127 @@ class EngineRunner:
                          "new_per_step": int(c.get("max_new_listings_per_step", 40)),
                          "new_per_hour": int(c.get("max_new_listings_per_hour", 200))},
                 "steps": steps}
+
+
+# ---------------- 手动上架（网页操作） ----------------
+MAX_MANUAL_LISTINGS = 200          # 一次提交最多拆成多少条挂单，防止误操作刷爆拍卖行
+LISTING_EXPIRE_S = 7200
+
+
+def plan_stacks(total, stack_max):
+    """把总量拆成每条挂单的数量：stack_max<=1（不可堆叠）时每件一条，否则尽量装满。返回数量列表。"""
+    total = int(total)
+    if total < 1:
+        raise ValueError("数量必须是正整数")
+    stack_max = max(1, int(stack_max or 1))
+    n = (total + stack_max - 1) // stack_max
+    if n > MAX_MANUAL_LISTINGS:
+        raise ValueError("需要拆成 %d 条挂单，超过一次最多 %d 条。可堆叠物品请加大每条数量，或分几次提交" % (n, MAX_MANUAL_LISTINGS))
+    out = []
+    left = total
+    while left > 0:
+        q = min(stack_max, left)
+        out.append(q)
+        left -= q
+    return out
+
+
+def suggest_price(bot, iid):
+    """建议单价：建模道具用模型当前公允价（与模型上架同样按价位取整、夹在价格带内），否则用参考价。
+    没有价格锚点时返回 (None, None)，必须由用户填写。"""
+    from .engine import round_price
+    r = bot.runner
+    if r and r.engine is not None and iid in r.items:
+        fair, _ = r.engine.fair(iid)
+        lo, hi = r.band(iid)
+        return int(min(max(round_price(fair), lo), hi)), "模型公允价"
+    ref = bot.base_price(iid) or (bot.ref.get(iid) or {}).get("ref")
+    if ref:
+        return int(ref), "参考价"
+    return None, None
+
+
+def manual_preview(bot, iid):
+    """网页预览：物品信息、建议单价、每条挂单数量、是否在排除名单。不连拍卖服。"""
+    iid = int(iid)
+    meta = bot.item_meta(iid)
+    p = bot.runner.items.get(iid) if bot.runner else None
+    lim = int(meta.get("stack_limit") or 0)
+    kind = meta.get("kind")
+    if kind == "stackable":
+        stack = int(((p or {}).get("lot_qty") or {}).get("max") or 0) or lim or 100
+        src = "模型单笔挂单上限" if p and (p.get("lot_qty") or {}).get("max") else ("PVF 堆叠上限" if lim else "默认")
+        if lim > 0:
+            stack = min(stack, lim)
+    else:
+        stack, src = 1, "不可堆叠，每件一条"
+    px, psrc = suggest_price(bot, iid)
+    blocked = None
+    if kind == "equipment":
+        blocked = "装备等不可堆叠物品暂不支持手动上架（耐久、随机属性等字段的上架格式未在真服验证，机器人从不上架装备）"
+    return {"item_id": iid, "name": bot.item_name(iid), "known_in_pvf": bool(meta), "kind": kind,
+            "stackable": kind == "stackable", "stack_size": stack, "stack_source": src, "stack_limit": lim or None,
+            "suggested_price": px, "price_source": psrc, "excluded": (bot.excluded or {}).get(iid),
+            "modelled": p is not None, "blocked": blocked, "max_listings": MAX_MANUAL_LISTINGS}
+
+
+async def manual_list(bot, iid, total, unit_price=None, stack_size=None, confirm_excluded=False):
+    """立刻以系统卖家（owner -1，拍卖行）上架指定数量。
+    拆堆：建模道具默认用模型每单数量（lot_qty 中位数），否则用 PVF 堆叠上限；不可堆叠每件一条。
+    返回 {"ok", "created":[{auction_id,count,unit_price}], "failed":[...], "error"}。"""
+    from .bot import MAX_PRICE, SYSTEM_OWNER
+    iid = int(iid)
+    info = manual_preview(bot, iid)
+    if info["blocked"]:
+        return {"ok": False, "error": info["blocked"]}
+    if iid in bot.excluded and not confirm_excluded:
+        return {"ok": False, "error": "该物品在排除名单（%s）。确认后才能手动上架" % bot.excluded[iid],
+                "need_confirm": True, "excluded": bot.excluded[iid]}
+    if unit_price in (None, ""):
+        unit_price = info["suggested_price"]
+    if not unit_price:
+        return {"ok": False, "error": "该物品没有价格锚点，请填写单价"}
+    unit = int(unit_price)
+    if unit < 1 or unit > MAX_PRICE:
+        return {"ok": False, "error": "单价必须在 1 到 %d 之间" % MAX_PRICE}
+    size = int(stack_size or info["stack_size"] or 1)
+    if info["stack_limit"] and size > info["stack_limit"]:
+        size = info["stack_limit"]
+    try:
+        stacks = plan_stacks(total, size)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    if not bot.client.connected or not bot.client.ready:
+        return {"ok": False, "error": "拍卖服未连接或未就绪"}
+    pr = await bot.client.probe_item_info(iid)      # 实时探测（不用缓存）：不在 iteminfo.dat 的物品拍卖服会静默吞掉上架
+    if pr["missing"]:
+        return {"ok": False, "error": "拍卖服 iteminfo.dat 中没有此物品（探测回包 item_id=%d、挂单数=%d），无法上架"
+                % (pr["item_id"], pr["num"])}
+    created, failed = [], []
+    for q in stacks:
+        if unit * q > MAX_PRICE:
+            q = max(1, MAX_PRICE // unit)
+        r = await bot.client.regist_item(SYSTEM_OWNER, "", iid, q, unit)
+        if not r["ok"] or not r["auction_id"]:
+            failed.append({"count": q, "because": r.get("because_text") or "拍卖号为 0（物品不在拍卖服 iteminfo.dat）"})
+            bot.log("error", "手动上架失败 %s ×%d @%d：%s" % (bot.item_name(iid), q, unit, failed[-1]["because"]),
+                    level="warn", item_id=iid)
+            if r.get("because") in (0x9e, 0x31):
+                break
+            continue
+        aid = r["auction_id"]
+        t = time.time()
+        bot.store.execute("INSERT OR REPLACE INTO bot_listings(auction_id,item_id,count0,count_now,unit_price,instant_price,"
+                          "listed_at,expire_at,status,last_seen,note) VALUES(?,?,?,?,?,?,?,?,'active',?,?)",
+                          (aid, iid, q, q, unit, unit * q, t, t + LISTING_EXPIRE_S, t, "manual"))
+        created.append({"auction_id": aid, "count": q, "unit_price": unit})
+        bot.log("list", "手动上架 %s ×%d，单价 %d（拍卖号 %d）" % (bot.item_name(iid), q, unit, aid),
+                auction_id=aid, item_id=iid)
+    if not created and not failed:
+        return {"ok": False, "error": "没有上架任何物品"}
+    bot.log("control", "手动上架完成：%s ×%d，单价 %d，成功 %d 条、失败 %d 条（拍卖号 %s）" % (
+        bot.item_name(iid), sum(c["count"] for c in created), unit, len(created), len(failed),
+        "、".join(str(c["auction_id"]) for c in created) or "无"), item_id=iid)
+    return {"ok": bool(created), "item_id": iid, "name": bot.item_name(iid), "unit_price": unit,
+            "stack_size": size, "excluded": info["excluded"], "created": created, "failed": failed,
+            "note": "手动上架不计入经济模型的挂单数和虚拟成交，模型不会买走也不会在到期后补挂；到期（2 小时）自动下架。"}

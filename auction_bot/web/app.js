@@ -3,6 +3,7 @@ const KIND={engine:'模型',connect:'连接',list:'上架',buy:'收购',deal:'�
 const LV={debug:'调试',info:'信息',warn:'警告',error:'错误'};
 const SIDE={human_buy_bot:'玩家买系统货',bot_buy_human:'模型买玩家挂单',human_human:'玩家间成交',virtual:'虚拟成交'};
 const STATUS={active:'在售',sold:'已售出',expired:'已到期'};
+const NOTE={manual:'手动上架',producer:'模型·生产者',dumper:'模型·抛售者',flipper:'模型·倒爷',relist:'模型·到期补挂',secret_shop_resale:'模型·神秘商店转卖'};
 function ts(t){if(!t)return '-';const d=new Date(t*1000);const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`}
 function ago(t){if(!t)return '-';const s=Math.round(Date.now()/1000-t);if(s<60)return s+' 秒前';if(s<3600)return Math.round(s/60)+' 分钟前';if(s<86400)return (s/3600).toFixed(1)+' 小时前';return (s/86400).toFixed(1)+' 天前'}
 async function api(p,body){const r=await fetch('/api/'+p,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const j=await r.json();if(j&&j.error)throw new Error(j.error);return j}
@@ -13,7 +14,7 @@ function card(k,v){return `<div class="card"><div class="k">${k}</div><div class
 let curTab='overview';
 document.querySelectorAll('#tabs a').forEach(a=>a.onclick=()=>{document.querySelectorAll('#tabs a').forEach(x=>x.classList.remove('on'));a.classList.add('on');
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));$('#tab-'+a.dataset.tab).classList.add('on');curTab=a.dataset.tab;load(curTab)});
-function load(t){({overview:loadOverview,engine:loadEngine,logs:()=>loadLogs(),market:loadWatch,listings:loadListings,orphans:loadOrphans,config:loadConfig}[t]||(()=>{}))()}
+function load(t){({overview:loadOverview,engine:loadEngine,logs:()=>loadLogs(),market:loadWatch,listings:loadListings,manual:loadManualHist,orphans:loadOrphans,config:loadConfig}[t]||(()=>{}))()}
 
 // ---------- 概览 ----------
 const logCols=[['时间',r=>ts(r.ts)],['级别',r=>LV[r.level]||r.level],['类型',r=>KIND[r.kind]||r.kind],['内容',r=>esc(r.msg),'msg']];
@@ -41,7 +42,7 @@ async function loadEngine(){const e=await api('engine');if(!e.enabled){$('#en-ca
     card('玩家买系统货',T.human_buys+' 次')+card('今日新增孤儿邮件(估)',T.orphan_rows_est+' 行');
   table($('#en-items'),[['道具',r=>esc(r.name)+' ('+r.item_id+')'],['类别',r=>esc(r.category||'')],['参考价',r=>fmtN(r.ref),'n'],['价格带',r=>r.band?fmtN(r.band[0])+'~'+fmtN(r.band[1]):'-'],
     ['公允价',r=>fmtN(r.fair),'n'],['偏离',r=>r.fair&&r.ref?((r.fair/r.ref-1)*100).toFixed(1)+'%':'-','n'],['世界库存',r=>fmtN(r.stock),'n'],['库存/产出(小时)',r=>r.cover_h!=null?r.cover_h.toFixed(1):'-','n'],
-    ['稀缺度',r=>r.scarcity!=null?r.scarcity.toFixed(2):'-','n'],['最近成交价',r=>fmtN(r.last),'n'],['系统挂单',r=>r.sys_listings+' 条 / '+fmtN(r.sys_qty),'n'],['玩家挂单',r=>r.user_listings,'n'],
+    ['稀缺度',r=>r.scarcity!=null?r.scarcity.toFixed(2):'-','n'],['最近成交价',r=>fmtN(r.last),'n'],['系统挂单',r=>r.sys_listings+' 条 / '+fmtN(r.sys_qty)+(r.manual_listings?'（另手动 '+r.manual_listings+' 条 / '+fmtN(r.manual_qty)+'）':''),'n'],['玩家挂单',r=>r.user_listings,'n'],
     ['虚拟成交',r=>r.virtual_trades_today+' 次 / '+fmtN(r.virtual_today),'n'],['买玩家挂单',r=>fmtN(r.user_fill_today),'n'],['玩家买系统货',r=>fmtN(r.human_buy_today),'n'],
     ['状态',r=>r.disabled?'<span style="color:#ef5350">'+esc(r.disabled)+'</span>':'正常']],e.items);
   $('#en-items').querySelectorAll('tr').forEach((tr,i)=>{if(i>0){tr.style.cursor='pointer';tr.onclick=()=>{location.hash='market/'+e.items[i-1].item_id;$('#mk-q').value=e.items[i-1].item_id;document.querySelector('#tabs a[data-tab="market"]').click();loadMarket()}}});
@@ -100,9 +101,43 @@ async function doSearch(){$('#sr-info').textContent='检索中…';try{const r=a
 $('#bl-go').onclick=loadListings;
 async function loadListings(){const r=await api('bot_listings?status='+$('#bl-status').value);
   table($('#bl-table'),[['拍卖号',r=>r.auction_id],['名称',r=>esc(r.name)+' ('+r.item_id+')'],['初始数量',r=>r.count0,'n'],['剩余',r=>r.count_now,'n'],['单价',r=>fmtN(r.unit_price),'n'],
-    ['总价',r=>fmtN(r.instant_price),'n'],['上架时间',r=>ts(r.listed_at)],['到期时间',r=>ts(r.expire_at)],['状态',r=>STATUS[r.status]||r.status]],r);
+    ['总价',r=>fmtN(r.instant_price),'n'],['上架时间',r=>ts(r.listed_at)],['到期时间',r=>ts(r.expire_at)],['来源',r=>NOTE[r.note]||esc(r.note||'')],['状态',r=>STATUS[r.status]||r.status]],r);
   const d=await api('deals?limit=200');table($('#dl-table'),[['时间',r=>ts(r.ts)],['类型',r=>SIDE[r.side]||r.side],['道具',r=>esc(r.name)+' ('+r.item_id+')'],['数量',r=>fmtN(r.count),'n'],
     ['单价',r=>fmtN(r.unit_price),'n'],['总价',r=>fmtN(r.total),'n'],['卖家',r=>r.seller_id],['买家',r=>r.buyer_id],['来源',r=>({snapshot:'挂单快照',history:'拍卖记录',bot:'机器人'}[r.source]||r.source)]],d)}
+
+// ---------- 手动上架 ----------
+let mlInfo=null;
+$('#ml-q').oninput=async()=>{const q=$('#ml-q').value.trim();if(q.length<1||/^\d+$/.test(q))return;try{const r=await api('items?q='+encodeURIComponent(q));
+  $('#ml-dl').innerHTML=r.map(x=>`<option value="${x.item_id}">${esc(x.name)}${x.kind==='stackable'?'':'（不可堆叠）'}</option>`).join('')}catch(e){}};
+$('#ml-q').onchange=()=>mlLookup();$('#ml-q').onkeydown=e=>{if(e.key==='Enter')mlLookup()};$('#ml-look').onclick=()=>mlLookup();
+['#ml-count','#ml-price','#ml-stack'].forEach(s=>$(s).oninput=mlPlan);$('#ml-confirm').onchange=mlPlan;
+async function mlLookup(){const q=$('#ml-q').value.trim();if(!q)return;mlInfo=null;$('#ml-go').disabled=true;$('#ml-result').innerHTML='';
+  try{const r=await api('manual_preview?q='+encodeURIComponent(q));mlInfo=r;$('#ml-q').value=r.item_id;
+    $('#ml-info').innerHTML=card('物品',esc(r.name)+'（'+r.item_id+'）')+card('类型',r.kind==='stackable'?'可堆叠':(r.kind==='equipment'?'装备（不可堆叠）':(r.kind||'PVF 中未找到')))+
+      card('建议单价',r.suggested_price?fmtN(r.suggested_price)+'（'+r.price_source+'）':'无价格锚点，必须填写')+card('每条数量',r.stack_size+'（'+r.stack_source+'）')+
+      card('PVF 堆叠上限',r.stack_limit||'-')+card('经济模型',r.modelled?'建模道具':'未建模')+
+      (r.candidates&&r.candidates.length>1?card('同名候选',r.candidates.slice(1,6).map(c=>esc(c.name)+'('+c.item_id+')').join('、')):'');
+    const w=[];if(r.blocked)w.push(esc(r.blocked));if(r.excluded)w.push('⚠ 该物品在排除名单：'+esc(r.excluded)+'。机器人平时不买卖它；如确实要上架，请勾选确认。');
+    $('#ml-warn').style.display=w.length?'':'none';$('#ml-warn').innerHTML=w.join('<br>');
+    $('#ml-confirm-wrap').style.display=r.excluded&&!r.blocked?'':'none';$('#ml-confirm').checked=false;
+    $('#ml-price').value='';$('#ml-price').placeholder=r.suggested_price?String(r.suggested_price):'必填';$('#ml-stack').value='';$('#ml-stack').placeholder=String(r.stack_size);
+    $('#ml-stack').disabled=!r.stackable;mlPlan()}catch(e){$('#ml-info').innerHTML='';$('#ml-warn').style.display='';$('#ml-warn').textContent='查询失败：'+e.message}}
+function mlPlan(){const r=mlInfo;if(!r){$('#ml-go').disabled=true;return}
+  const n=parseInt($('#ml-count').value),px=parseInt($('#ml-price').value)||r.suggested_price;let st=parseInt($('#ml-stack').value)||r.stack_size;if(r.stack_limit)st=Math.min(st,r.stack_limit);if(!r.stackable)st=1;
+  let msg='',ok=!r.blocked&&n>0&&px>0&&(!r.excluded||$('#ml-confirm').checked);
+  if(n>0){const k=Math.ceil(n/st);msg=`将拆成 ${k} 条挂单（每条最多 ${st} 个）`+(px?`，单价 ${fmtN(px)}，合计 ${fmtN(px*n)} 金币`:'');if(k>r.max_listings){msg+=`——超过一次最多 ${r.max_listings} 条，请加大每条数量或分批`;ok=false}}
+  if(!px)msg+=(msg?'；':'')+'请填写单价';$('#ml-plan').textContent=msg;$('#ml-go').disabled=!ok}
+$('#ml-go').onclick=async()=>{const r=mlInfo;if(!r)return;const n=parseInt($('#ml-count').value);
+  if(!confirm(`确定立即上架 ${r.name} ×${n}？`))return;$('#ml-go').disabled=true;$('#ml-result').innerHTML='<p class="hint">上架中…（每条约 0.2 秒）</p>';
+  try{const res=await api('manual/list',{item_id:r.item_id,count:n,unit_price:$('#ml-price').value||null,stack_size:$('#ml-stack').value||null,confirm_excluded:$('#ml-confirm').checked});
+    let h=`<p>已上架 <b>${res.created.length}</b> 条，共 ${fmtN(res.created.reduce((a,c)=>a+c.count,0))} 个，单价 ${fmtN(res.unit_price)}。`+(res.failed.length?`<span style="color:#ef5350">失败 ${res.failed.length} 条。</span>`:'')+'</p>';
+    if(res.created.length)h+='<p>拍卖号：'+res.created.map(c=>c.auction_id+'（×'+c.count+'）').join('、')+'</p>';
+    if(res.failed.length)h+='<p style="color:#ef5350">失败原因：'+res.failed.map(f=>'×'+f.count+' '+esc(f.because)).join('；')+'</p>';
+    if(res.note)h+='<p class="hint">'+esc(res.note)+'</p>';$('#ml-result').innerHTML=h;loadManualHist()}
+  catch(e){$('#ml-result').innerHTML='<p style="color:#ef5350">上架失败：'+esc(e.message)+'</p>'}mlPlan()};
+async function loadManualHist(){const r=await api('manual_history?limit=200');
+  table($('#ml-hist'),[['上架时间',r=>ts(r.listed_at)],['拍卖号',r=>r.auction_id],['名称',r=>esc(r.name)+' ('+r.item_id+')'],['数量',r=>r.count0,'n'],['剩余',r=>r.count_now,'n'],
+    ['单价',r=>fmtN(r.unit_price),'n'],['到期时间',r=>ts(r.expire_at)],['状态',r=>STATUS[r.status]||r.status]],r)}
 
 // ---------- 孤儿邮件 ----------
 $('#or-refresh').onclick=loadOrphans;

@@ -171,3 +171,131 @@ class TestRunnerMock(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestManualListing(unittest.TestCase):
+    def test_plan_stacks(self):
+        from auction_bot.runner import plan_stacks, MAX_MANUAL_LISTINGS
+        self.assertEqual(plan_stacks(10, 120), [10])
+        self.assertEqual(plan_stacks(250, 120), [120, 120, 10])
+        self.assertEqual(plan_stacks(3, 1), [1, 1, 1])          # 不可堆叠：每件一条
+        with self.assertRaises(ValueError):
+            plan_stacks(0, 10)
+        with self.assertRaises(ValueError):
+            plan_stacks(MAX_MANUAL_LISTINGS + 1, 1)
+
+    def test_manual_list_against_mock(self):
+        asyncio.run(self._manual())
+
+    async def _manual(self):
+        from auction_bot.bot import Bot
+        from auction_bot.client import AuctionClient
+        from auction_bot.runner import manual_list, manual_preview, suggest_price
+        for k in (3274, 9999999):
+            mock_server.KNOWN_ITEMS.pop(k, None)
+        mock_server.KNOWN_ITEMS[3274] = True
+        m, srv, port = await mock_server.start()
+        tmp = tempfile.mkdtemp()
+        cfg = {"data_dir": tmp, "auction_server": {"host": "127.0.0.1", "port": port, "min_interval": 0},
+               "game_db": {"mysql_bin": "/bin/false"}, "market": {"watch_reference_items": False},
+               "seller": {"enabled": False, "items": []},
+               "engine": {"enabled": True, "model_config": os.path.join(BASE, "ref/model_config.json"),
+                          "excluded_items": os.path.join(BASE, "ref/excluded_items.json"),
+                          "items_whitelist": [3274], "volume_scale": 0.0},
+               "buyer": {"enabled": False}}
+        bot = Bot(cfg, BASE, {3274: {"name": "扳手", "kind": "stackable", "stack_limit": 1000}})
+        bot.loop = asyncio.get_running_loop()
+        bot.client = AuctionClient("127.0.0.1", port, lambda *a, **k: None, 3, 0)
+        await bot.client.connect()
+        # 默认单价来自模型公允价（取整、夹在价格带内）
+        px, src = suggest_price(bot, 3274)
+        self.assertEqual(src, "模型公允价")
+        self.assertTrue(20 <= px <= 60, px)
+        prev = manual_preview(bot, 3274)
+        self.assertEqual(prev["stack_size"], 120)
+        # 没有价格锚点的物品必须手填单价
+        px2, src2 = suggest_price(bot, 9999999)
+        self.assertIsNone(px2)
+        r = await manual_list(bot, 9999999, 5)
+        self.assertFalse(r["ok"])
+        self.assertIn("价格锚点", r["error"])
+        # 排除名单：不勾选确认就拒绝；勾选后可上架
+        r = await manual_list(bot, 3037, 5, 10)
+        self.assertFalse(r["ok"])
+        self.assertTrue(r.get("need_confirm"))
+        r = await manual_list(bot, 3037, 5, 10, confirm_excluded=True)
+        self.assertTrue(r["ok"], r)
+        for c in r["created"]:
+            del m.listings[c["auction_id"]]
+        bot.store.execute("DELETE FROM bot_listings")
+        bot.store.execute("DELETE FROM ops_log")
+        # 未知物品（探测回包 item_id=0）：明确拒绝，不产生挂单
+        before = len(m.listings)
+        r = await manual_list(bot, 9999999, 5, 100)
+        self.assertFalse(r["ok"])
+        self.assertIn("iteminfo", r["error"])
+        self.assertEqual(len(m.listings), before)
+        # 扳手 ×250：按每条 120 拆成 120+120+10，系统卖家 -1
+        r = await manual_list(bot, 3274, 250)
+        self.assertTrue(r["ok"], r)
+        self.assertEqual([c["count"] for c in r["created"]], [120, 120, 10])
+        for c in r["created"]:
+            l = m.listings[c["auction_id"]]
+            self.assertEqual(l["owner"], -1)
+            self.assertEqual(l["item_id"], 3274)
+            self.assertEqual(l["count"], c["count"])
+            self.assertEqual(l["unit_price"], r["unit_price"])
+        rows = bot.store.query("SELECT note, COUNT(*) n FROM bot_listings GROUP BY note")
+        self.assertEqual(rows, [{"note": "manual", "n": 3}])
+        logs = bot.store.query("SELECT msg FROM ops_log WHERE kind='list'")
+        self.assertEqual(len(logs), 3)
+        self.assertTrue(all("手动上架" in x["msg"] for x in logs))
+        # 模型看不到手动挂单：步进不买走、不计入挂单数（volume_scale=0 也不会新增挂单）
+        bot.watch_ids.add(3274)
+        await bot.scan_market()
+        self.assertEqual(len(bot.snapshot.get(3274, [])), 3)
+        manual_ids = {c["auction_id"] for c in r["created"]}
+        bot.cfg["engine"]["volume_scale"] = 40.0                   # 大量虚拟买卖：模型照常挂自己的货、买自己的货
+        bot.cfg["engine"]["virtual_fill"] = {"max_per_step": 1000, "max_per_day": 100000}
+        vf = new = 0
+        for _ in range(4):
+            res = await bot.runner.step()
+            vf += res["vf_done"]
+            new += res["new_done"]
+        self.assertGreater(new, 0)                                  # 手动挂单没有挤占模型的挂单名额
+        self.assertGreater(vf, 0)
+        self.assertEqual(sum(m.listings[a]["count"] for a in manual_ids), 250)   # 虚拟买家从不买手动挂单
+        self.assertFalse(any(h[1] in manual_ids for h in m.history))
+        for a in list(m.listings):
+            if a not in manual_ids:
+                del m.listings[a]
+        bot.store.execute("DELETE FROM bot_listings WHERE COALESCE(note,'')<>'manual'")
+        st = bot.runner.status()
+        it = next(x for x in st["items"] if x["item_id"] == 3274)
+        self.assertEqual(it["sys_listings"], 0)
+        self.assertEqual(it["manual_listings"], 3)
+        # 自动收购也不买系统挂单（owner_id=-1 被 SQL 排除）
+        bot.buyer_cfg["enabled"] = True
+        bot.buyer_cfg["only_configured_items"] = False
+        seen_where = []
+
+        def fake_auction_main(where):
+            seen_where.append(where)
+            rows = [{"auction_id": l["auction_id"], "owner_id": l["owner"], "owner_name": "拍卖行", "item_id": l["item_id"],
+                     "instant_price": l["instant_price"]} for l in m.listings.values()]
+            return [r for r in rows if r["owner_id"] != -1] if "owner_id NOT IN (-1" in where else rows
+        bot.db.auction_main = fake_auction_main
+        done = await bot.auto_buy()
+        self.assertEqual(done, [])
+        self.assertIn("owner_id NOT IN (-1", seen_where[0])
+        self.assertEqual(sum(l["count"] for l in m.listings.values()), 250)
+        # 手动挂单到期不补挂
+        for row in bot.store.query("SELECT * FROM bot_listings"):
+            bot.store.execute("UPDATE bot_listings SET expire_at=? WHERE auction_id=?", (time.time() - 1000, row["auction_id"]))
+        for aid in list(m.listings):
+            del m.listings[aid]
+        await bot.scan_market()
+        self.assertEqual(bot.runner.expired_pending.get(3274), None)
+        await bot.client.close()
+        srv.close()
+        self.assertEqual(m.violations, [])
