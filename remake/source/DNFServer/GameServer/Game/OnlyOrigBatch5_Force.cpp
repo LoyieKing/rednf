@@ -28,7 +28,7 @@
 #include "../../../shared/packet/include/Packet_P2P_Statistics.h"
 #include "../../../shared/packet/include/Packet_Pcroom_Response.h"
 #include "../../../shared/packet/include/Packet_PvPResult.h"
-#include "../../../shared/packet/include/Packet_User_Ting_TimeCheck_Statistic_Add.h"
+#include "Packet_User_Ting_TimeCheck_Statistic_Add.h"  // [DNF-FIX 2026-10-08 c33] Game 版已字段化（单一定义，消除 ODR 双布局）
 #include "../../../shared/packet/include/Packet_Value_Statistic.h"
 #include "../../../shared/packet/include/Packet_VillageMonsterFightResult.h"
 

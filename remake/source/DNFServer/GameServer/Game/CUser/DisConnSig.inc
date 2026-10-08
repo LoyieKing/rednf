@@ -121,12 +121,12 @@ void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
     if (0x12 < hour && hour < 0x17)
     {
         Packet_User_Ting_TimeCheck_Statistic_Add ting;
-        int playSec = (int)(GlobalData::s_systemTime_.getCurSec() - GetLoginTime());
-        // ORIG 0x08648efb `mov 0x704ac(%eax),%eax; mov %eax,-0x9c(%ebp)`：
-        //   直读成员入死局部（P171 照抄），非 get_acc_id 调用。
-        unsigned int accId = m_accId;
-        (void)accId;
-        if (0 < playSec && playSec < 0x2a31)
+        // [DNF-FIX 2026-10-08 c33] ORIG -0xa0/-0x9c 即 ting(-0xaa)+0xa/+0xe：在线秒数与 accId 是包字段，
+        //   不是独立局部（旧写法使 SendPacket(0x12) 发出无关栈字节）。
+        ting.m_playSec = (int)(GlobalData::s_systemTime_.getCurSec() - GetLoginTime());  // 0x08648ef2
+        // ORIG 0x08648efb `mov 0x704ac(%eax),%eax; mov %eax,-0x9c(%ebp)`：直读成员，非 get_acc_id 调用。
+        ting.m_accId = m_accId;
+        if (0 < ting.m_playSec && ting.m_playSec < 0x2a31)
         {
             // [R9a14 ④ #17/#33] ORIG 0x08648f34→0x08648f48：GetServerProxy 返回值**直接**
             //   作 this 调用（0x08648f39/41/45 实参后 0x08648f48 `call SendPacket`），
