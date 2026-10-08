@@ -82,10 +82,11 @@ int Dispatcher_MailBox_Send::process(CUser* user, MSG_BASE& msg, ParamBase& para
         const int money = user->getCurCharacInvenR()->get_money();
         // ORIG 浮点序：(long long)(money * (0.7 + (float)((double)rnd * 0.01)))
         // （.rodata 0x08bd6338=0.01、0x08bd6340=0.7，已从二进制核实）
-        const double factor = 0.7 + static_cast<double>(static_cast<float>(static_cast<double>(rnd) * 0.01));
-        const unsigned long long goldCap =
-            static_cast<unsigned long long>(static_cast<double>(money) * factor);
-        if (goldCap <= static_cast<unsigned long long>(req->m_gold2e)) {
+        // [DNF-FIX 2026-10-08 c25] ORIG 0x081ccbed..0x081ccc52: x87 extended expr (no double spill), fistpll low dword,
+        //   cmp m_gold2e ; setbe  -> 32-bit unsigned compare (was 64-bit unsigned long long)
+        const unsigned int goldCap = static_cast<unsigned int>(
+            static_cast<double>(money) * (static_cast<float>(static_cast<double>(rnd) * 0.01) + 0.7));
+        if (goldCap <= static_cast<unsigned int>(req->m_gold2e)) {
             Stream* stream = GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x241d);
             CStreamGuard guard(stream, true);
             // [M7BigTUDispatchers 2026-09-11 · P132/P103] ORIG 0x081ccc8c 段直证调用链：

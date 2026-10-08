@@ -106,7 +106,8 @@ bool ProcStage::makeCurrentPhaseSummonObject()
                     {
                         spawnCounts.insert(std::make_pair(pSummon->m_field0c, 1));
                     }
-                    else if (found->second < it->m_flagValue)
+                    // [DNF-FIX 2026-10-08 c25] ORIG 0x0812ef45: movzwl 0x12 ; cwtl ; cmp ; setge  (flagValue as signed short)
+                    else if (found->second < (int)(short)it->m_flagValue)
                     {
                         ++found->second;
                     }
