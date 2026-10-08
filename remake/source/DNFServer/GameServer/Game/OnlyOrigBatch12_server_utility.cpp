@@ -382,6 +382,22 @@ read_guard:                                                 // 8904627
                                                 opt.m_jobValue[16] = avNameIdx5;
                                             else if (grade == 3)
                                                 opt.m_jobValue[17] = avNameIdx5;
+                                            // [DNF-FIX 2026-10-08 c30] ORIG 0x08905268..0x089052df：0x2b 追加值
+                                            //   ScanInt(-0xb8) 属本列（jobValue[15..17]@-0x154），写 m_grow[5]
+                                            //   （-0xe8/-0xe4/-0xe0 = opt+0xac..）；旧码挂在下一列且写 m_grow[6]，
+                                            //   使该列 token 消费错位。
+                                            if (avNameIdx5 == 0x2b)
+                                            {
+                                                gv2 = -1;
+                                                if (!ScanInt(&gv2))
+                                                    goto ret_one;
+                                                if (grade == 1)
+                                                    opt.m_grow[5][0] = gv2;
+                                                else if (grade == 2)
+                                                    opt.m_grow[5][1] = gv2;
+                                                else if (grade == 3)
+                                                    opt.m_grow[5][2] = gv2;
+                                            }
                                         }
                                         ++avNameIdx5;
                                     }
@@ -398,18 +414,6 @@ read_guard:                                                 // 8904627
                                                 opt.m_jobValue[19] = avNameIdx6;
                                             else if (grade == 3)
                                                 opt.m_jobValue[20] = avNameIdx6;
-                                            if (avNameIdx6 == 0x2b)
-                                            {
-                                                gv2 = -1;
-                                                if (!ScanInt(&gv2))
-                                                    goto ret_one;
-                                                if (grade == 1)
-                                                    opt.m_grow[6][0] = gv2;
-                                                else if (grade == 2)
-                                                    opt.m_grow[6][1] = gv2;
-                                                else if (grade == 3)
-                                                    opt.m_grow[6][2] = gv2;
-                                            }
                                         }
                                         ++avNameIdx6;
                                     }

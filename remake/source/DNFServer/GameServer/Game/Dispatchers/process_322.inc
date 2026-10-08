@@ -82,7 +82,10 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     // ORIG 以目标物品 idx 为 avatar key
     const WongWork::CAvatarItemMgr* mgrR =
         user->getCurCharacInvenR()->GetAvatarItemMgrR();
-    const void* expansion = mgrR->GetExpansionInfo(targetItem.m_addInfo);
+    // [DNF-FIX 2026-10-08 c30] ORIG 0x081e6cd8/0x081e6d40/0x081e6e20/0x081e6f94/0x081e6fcd/0x081e702b
+    //   均读 `-0xdb(%ebp)` = targetItem(@-0xe2)+0x07 = m_addInfo2（头像管理器槽键），仅
+    //   find_item 与 UseDye 第 2 参读 +0x02（-0xe0）；旧码六处误用 m_addInfo（物品 idx）。
+    const void* expansion = mgrR->GetExpansionInfo(targetItem.m_addInfo2);
     if (expansion == 0)
     {
         return 1;
@@ -93,7 +96,7 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     // ORIG 0x081e6d4c/0x081e6e2c：两处各自 getCurCharacInvenW()->GetAvatarItemMgrW()（P183）。
     const bool applied =
         user->getCurCharacInvenW()->GetAvatarItemMgrW()->SetAvatarColor(
-            targetItem.m_addInfo, static_cast<short>(dye.m_vec4[0].first), 0);
+            targetItem.m_addInfo2, static_cast<short>(dye.m_vec4[0].first), 0);
     if (!applied)
     {
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1f3), 1);
@@ -110,7 +113,7 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     {
         // 删除失败：回滚头像颜色并报错
         user->getCurCharacInvenW()->GetAvatarItemMgrW()->SetAvatarColor(
-            targetItem.m_addInfo, oldColorA, oldColorB);
+            targetItem.m_addInfo2, oldColorA, oldColorB);
         user->SendCmdErrorPacket(static_cast<ENUM_CMDPACKET>(0x1f3), 0x11);
         return LineFunc(0x629b,
                         __PRETTY_FUNCTION__,
@@ -142,16 +145,16 @@ int Dispatcher_UseDye::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     /* ORIG 0x81e6fa0..0x81e6fc8：发包后先通知头像变化
        SendAvatarEvent(0x31a, targetItem.m_addInfo, 颜色, 0, 0)，再取头像信息。 */
     user->getCurCharacInvenW()->SendAvatarEvent(
-        0x31a, targetItem.m_addInfo, dye.m_vec4[0].first, 0, 0);
+        0x31a, targetItem.m_addInfo2, dye.m_vec4[0].first, 0, 0);
 
     /* ORIG 0x81e6fed..0x81e7062：GetAvatarInfo(targetItem.m_addInfo) →
        UseDye(dyeItem.m_addInfo, targetItem.m_addInfo, targetItem.m_addInfo,
        string(GetIPGAgencyNo()), req.m_10)（cUserHistoryLog @ user+0x79700）。 */
     WongWork::Avatar_Item* avatar =
         user->getCurCharacInvenW()->GetAvatarItemMgrR()->GetAvatarInfo(
-            targetItem.m_addInfo);
+            targetItem.m_addInfo2);
     user->m_historyLog.UseDye(
-        dyeItem.m_addInfo, targetItem.m_addInfo, targetItem.m_addInfo,
+        dyeItem.m_addInfo, targetItem.m_addInfo, targetItem.m_addInfo2,
         std::string(avatar->GetIPGAgencyNo()), (int)(short)req.m_10);  // [DNF-FIX 2026-10-08 c22] ORIG 0x081e6ff8 movswl
     return 0;
 }

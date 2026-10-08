@@ -296,12 +296,15 @@ void CParty::clear_reward(int param)
             bd.m_arr64[slot] += 1;
         }
 
-        float deadPenalty = calDeadUserDungeonPenalty(slot);
-        if (deadPenalty > 0.0f)
+        // [DNF-FIX 2026-10-08 c30] ORIG 0x085aee11 `fstps -0x244(%ebp)`（ref@-0x248 ⇒ ref+0x04 =
+        //   m_field04f）：死亡惩罚率写入 ref，之后 generateRandomItem（0x08538773 读 +0x04 float）
+        //   消费；原独立局部 deadPenalty 使生成器恒见 ctor 值 0。
+        ref.m_field04f = calDeadUserDungeonPenalty(slot);
+        if (ref.m_field04f > 0.0f)
         {
             int addInfo = rewardItems[0].get_add_info();
             rewardItems[0].set_add_info(static_cast<int>(
-                (1.0f - deadPenalty) * static_cast<float>(addInfo)));
+                (1.0f - ref.m_field04f) * static_cast<float>(addInfo)));
             m_battleData.m_arr60[slot] = 1;
         }
 

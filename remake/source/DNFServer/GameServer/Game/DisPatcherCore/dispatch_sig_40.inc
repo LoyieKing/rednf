@@ -76,9 +76,12 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
         memcpy(notify.m_msg, msgBuf, (unsigned char)msgLen);
         notify.m_msgLen = (unsigned char)msgLen;
 
+        // [DNF-FIX 2026-10-08 c30] ORIG 0x081f3959 `mov %ax,-0x2dc(%ebp)`（notify@-0x2de ⇒ +0x02 =
+        //   PacketHeader::packetSize）回写包头长度后读回作发送长度。
+        notify.packetSize = (unsigned short)(notify.m_msgLen + 0x3b);
         GlobalData::s_community_proxy->SendTcpPacket(
             reinterpret_cast<char*>(&notify),
-            (int)(unsigned short)(notify.m_msgLen + 0x3b));
+            (int)notify.packetSize);
         return 0;
     }
 
@@ -115,8 +118,9 @@ int DisPatcher_SendMess::dispatch_sig(CUser* user, PacketBuf& packet)
             {
                 strncpy(notify.m_msg, filtered.c_str(), filtered.size());
                 notify.m_msgLen = (unsigned char)(msgLen + 0);   // 长度保持原值口径
-                const int total =
-                    (int)(unsigned short)(notify.m_msgLen + 0x3b);
+                // [DNF-FIX 2026-10-08 c30] ORIG 0x081f3c0a：packetSize 回写后作发送长度。
+                notify.packetSize = (unsigned short)(notify.m_msgLen + 0x3b);
+                const int total = (int)notify.packetSize;
                 CMonitorServerProxy* proxy =
                     GlobalData::s_monitor_proxy_mgr->GetServerProxy(
                         user->GetServerGroup());

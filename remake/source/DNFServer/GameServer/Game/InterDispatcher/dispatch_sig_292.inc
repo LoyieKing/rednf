@@ -38,6 +38,9 @@ int Inter_OwnerisVIP::dispatch_sig(CUser* user, char* data, int /*len*/)
     pck.m_uid = target->GetUID();
     pck.m_characNo = target->getCurCharacNo();
     strncpy(pck.m_name, target->getCurCharacR()->m_name, 0xd);
+    // [DNF-FIX 2026-10-08 c30] ORIG 0x084e7dce..0x084e7ddd：itemUid(needInfo+0x4) → pck+0x2b、price → pck+0x27。
+    pck.m_itemUid = needInfo.m_itemUid;
+    pck.m_price = price;
 
     PrePayInfo prePay;                                     // -0x74（0x28 按值）
     *reinterpret_cast<unsigned int*>(&prePay.m_data[0]) =

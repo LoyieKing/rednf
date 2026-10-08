@@ -93,7 +93,9 @@ int Dispatcher_UnsealRandomOption::dispatch_sig(CUser* user, PacketBuf& packet)
     if (paySlot != 0xffff)
     {
         Inven_Item scroll = user->getCurCharacInvenR()->GetInvenSlot(1, paySlot);
-        if (scroll.m_addInfo < 1)
+        // [DNF-FIX 2026-10-08 c30] ORIG 0x0822924d `mov -0x82(%ebp),%eax; test; jg`：scroll@-0x89 ⇒
+        //   +0x07 = m_addInfo2（数量），非 +0x02 物品 idx。
+        if (scroll.m_addInfo2 < 1)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x191, 0x16);
             return 0;

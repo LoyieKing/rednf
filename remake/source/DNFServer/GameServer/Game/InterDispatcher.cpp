@@ -6190,12 +6190,17 @@ struct PCK_AUCTION_BIDDING_GP : public nsl::PACKET_HEADER
     unsigned int m_uid __attribute__((packed));        // +0x12
     unsigned int m_characNo __attribute__((packed));   // +0x16
     char m_name[0xd];
-    char dnf_tail_pad_[0x33 - 0x1a - 0xd];
+    // [DNF-FIX 2026-10-08 c30] ORIG 0x084e7dd4/0x084e7dd7/0x084e7ddd（pck@-0xa7）：+0x27 = price、
+    //   +0x2b = 拍卖物品 uid（needInfo.m_itemUid 8 字节）；旧码以 pad 占位从不填写。
+    int m_price __attribute__((packed));               // +0x27
+    long long m_itemUid __attribute__((packed));       // +0x2b
     PCK_AUCTION_BIDDING_GP() { PACKET_CTOR_BODY(0x12, 5, 0x33); }
 };
 static_assert(sizeof(PCK_AUCTION_BIDDING_GP) == 0x33, "PCK_AUCTION_BIDDING_GP size");
 static_assert(__builtin_offsetof(PCK_AUCTION_BIDDING_GP, m_uid) == 0x12 &&
-              __builtin_offsetof(PCK_AUCTION_BIDDING_GP, m_name) == 0x1a,
+              __builtin_offsetof(PCK_AUCTION_BIDDING_GP, m_name) == 0x1a &&
+              __builtin_offsetof(PCK_AUCTION_BIDDING_GP, m_price) == 0x27 &&
+              __builtin_offsetof(PCK_AUCTION_BIDDING_GP, m_itemUid) == 0x2b,
               "PCK_AUCTION_BIDDING_GP layout");
 
 #pragma pack(push, 1)

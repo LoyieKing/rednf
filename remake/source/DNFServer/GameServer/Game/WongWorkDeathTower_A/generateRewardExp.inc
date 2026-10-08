@@ -63,66 +63,50 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
             (double)G_CDataManager()->m_deathTower.m_rewardExpWeight[stage]);
     }
 
-    stClearRewardExpParameter_t clearParam;   // 栈构造（ORIG ctor 0x0814a8b8）
-    stClearRewardBonusExp_t bonus;            // 栈构造（ORIG ctor 0x0814a800）
+    stClearRewardBonusExp_t bonus;            // ORIG ctor 0x0814a800 @-0x64
+    stClearRewardExpParameter_t clearParam;   // ORIG ctor 0x0814a8b8 @-0xc4
+    // [DNF-FIX 2026-10-08 c30] ORIG 0x084626e3..0x0846290d：各系数直接写入 clearParam（@-0xc4：
+    //   +0x08/-0xbc avatar、+0x0c/-0xb8 creature、+0x10/-0xb4 pcRoomBurning、+0x14/-0xb0
+    //   expDouble、+0x1c/-0xa8 burningFatigue、+0x20/-0xa4 channel、+0x24/-0xa0 premium、
+    //   +0x28/-0x9c serverEvent、+0x3c/-0x88 manageBonus），0x08462938
+    //   getClearRewardBonusExp(user, exp, clearParam, bonus) 读取；旧码独立局部 ⇒ 加成全丢。
+    clearParam.m_avatarBonus = (float)party->getAvatarBonus();
+    clearParam.m_creatureBonus = (float)party->getCreatureBonus(user);
 
-    const float avatarBonus = (float)party->getAvatarBonus();
-    const float creatureBonus = (float)party->getCreatureBonus(user);
+    // 事件 8：PC 房间燃烧（整除 /100 —— imul 0x51eb851f 形态实证）
+    if (GlobalData::s_event_manager->GetRepeatEvent(8)->IsEventing(user))
+        clearParam.m_pcRoomBurningRate = (float)(((CPCRoomBurningEvent*)
+            GlobalData::s_event_manager->GetRepeatEvent(8))->GetExpFactor() / 100);
 
-    float pcRoomRate = 0.0f;
-    {   // 事件 8：PC 房间燃烧（整除 /100 —— imul 0x51eb851f 形态实证）
-        // [N3 2026-09-11 P0] ORIG 0x08462701..0x08462727 无 ev 具名槽：
-        //   `mov s_event_manager,%eax; movl $0x8,0x4(%esp); call GetRepeatEvent;
-        //    mov (%eax),%edx; add $0x34,%edx; mov (%edx),%ecx; mov -0x18(%ebp),%edx;
-        //    mov %edx,0x4(%esp); mov %eax,(%esp); call *%ecx` ⇒ 虚调直内联。
-        if (GlobalData::s_event_manager->GetRepeatEvent(8)->IsEventing(user))
-            pcRoomRate = (float)(((CPCRoomBurningEvent*)
-                GlobalData::s_event_manager->GetRepeatEvent(8))->GetExpFactor() / 100);
-    }
+    // 事件 3：双倍经验（浮点 /100.0f）
+    if (GlobalData::s_event_manager->GetRepeatEvent(3)->IsEventing(0))
+        clearParam.m_expDoubleRate = (float)((CExpDoubleEvent*)
+            GlobalData::s_event_manager->GetRepeatEvent(3))->GetExpFactor() / 100.0f;
 
-    float expDoubleRate = 0.0f;
-    {   // 事件 3：双倍经验（浮点 /100.0f，常量 _DAT_08c640b8 = 100.0f）
-        // [N3 2026-09-11 P0] 同上：ORIG 0x08462775..0x0846279c 无 ev 具名槽（直内联）。
-        if (GlobalData::s_event_manager->GetRepeatEvent(3)->IsEventing(0))
-            expDoubleRate = (float)((CExpDoubleEvent*)
-                GlobalData::s_event_manager->GetRepeatEvent(3))->GetExpFactor() / 100.0f;
-    }
-
-    int burningBonusExp = 0;
-    {   // 事件 0xf：疲劳燃烧加成（千分率原始值）
+    {   // 事件 0xf：疲劳燃烧加成（千分率原始值；ORIG -0x14 具名 ev 槽）
         CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0xf);
         if (ev->IsEventing(0))
-            burningBonusExp =
+            clearParam.m_burningFatigueBonusExp =
                 ((CBurningFatigueEvent*)ev)->getBonusExpRate(user->getCurCharacUsedFatigue());
     }
 
-    // 频道脚本 bonus rate（+0x378 = Server_Envir 组别，参照 CBossPlay 先例走
-    // get_server_group() 访问器替代裸偏移）
     channel_script_t* channelScript =
         (channel_script_t*)G_CDataManager()->GetChannelScript();
-    // [M1S3EmblemLink 2026-09-11 p167 真缺口修正] ORIG `_Z14G_CEnvironmentv`
-    //   调用 **2 次**（p167 差集 MISSING -1；Ghidra 亦作两次 `G_CEnvironment()`
-    //   分别供 `get_channel_no` 与 `*(env+0x378)`）⇒ 旧「复用 env 单调用」形
-    //   为误修，恢复两处直调；ORIG 无具名 CEnvironment* 槽。
-    const float channelRate =
+    clearParam.m_serverChannelRate =
         channelScript->getBonusRate(
             (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
             (unsigned int)G_CEnvironment()->get_channel_no(),
             (unsigned int)dungeonMgr.getDungeon()->get_index());
 
-    float premiumAdvantageRate = 0.0f;
     if (user->IsHavePremiumAdvantage())
-        premiumAdvantageRate =
+        clearParam.m_premiumAdvantageRate =
             (float)user->GetPremiumInfo()->GetAdvantageExpRate() / 100.0f;
 
-    const float serverEventExpRate = (float)CServerEvent::GetExpRate() / 100.0f;
+    clearParam.m_serverEventExpRate = (float)CServerEvent::GetExpRate() / 100.0f;
 
-    const float manageBonus = party->CalcurateManageBonus((ManageBonusType::T)0, user, reward);
+    clearParam.m_manageBonus =
+        party->CalcurateManageBonus((ManageBonusType::T)0, user, reward);
 
-    // 结算基础通关经验（exp 以引用进出）
-    // [M1S3EmblemLink 2026-09-11 负结论] 试删 expInOut（改传 reward 自身，照
-    //   Ghidra `&local_20`）⇒ 305→306 反劣（4.4 对「返回值与 in/out 同变量」
-    //   多发一条槽往返）⇒ 回滚，保留具名 expInOut。
     unsigned int expInOut = reward;
     reward = party->getClearRewardBonusExp(user, expInOut, clearParam, bonus);
 
@@ -132,10 +116,11 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
             "BLOOD_LOG : EROOR DEATHTOWER CLEAR REWARD EXP(%u)\n", reward);
         LogManager::logFormat(1, "DeathTower.cpp", __PRETTY_FUNCTION__, 0x32e,
             "BLOOD_LOG : DEATHTOWER EXP PARAMETER : %f, %f, %f, %f, %f, %f, %f, %d\n",
-            (double)avatarBonus, (double)creatureBonus, (double)pcRoomRate,
-            (double)expDoubleRate, (double)channelRate,
-            (double)premiumAdvantageRate, (double)serverEventExpRate,
-            (int)burningBonusExp);
+            (double)clearParam.m_avatarBonus, (double)clearParam.m_creatureBonus,
+            (double)clearParam.m_pcRoomBurningRate, (double)clearParam.m_expDoubleRate,
+            (double)clearParam.m_serverChannelRate, (double)clearParam.m_premiumAdvantageRate,
+            (double)clearParam.m_serverEventExpRate,
+            (int)clearParam.m_burningFatigueBonusExp);
         reward = 1100000;
     }
 

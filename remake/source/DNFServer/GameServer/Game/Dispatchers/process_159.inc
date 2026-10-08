@@ -107,7 +107,8 @@ int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase
     {
         Inven_Item local_81 = user->getCurCharacInvenR()->GetInvenSlot(
             1, (int)(unsigned int)local_38->m_10);  // 返回值落于 -0x7d 区，仅取 +0x2 字段判定
-        if (local_81.m_addInfo < 1)      // -0x76 = local_81+0x2（mov -0x76,test,jg）
+        // [DNF-FIX 2026-10-08 c30] ORIG 0x081dcd6f `mov -0x76(%ebp)`：local_81@-0x7d ⇒ +0x07 = m_addInfo2。
+        if (local_81.m_addInfo2 < 1)
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1b6, 0x16);
             return 0;

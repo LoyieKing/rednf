@@ -137,7 +137,9 @@ void PvP_Room::pvp_reward()   // [b28c-16 SIGFIX] ORIG 串 void
                 (CMissionList_Charac*)local_58->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
             local_48->setIssue(P_WIN(local_5c) != 0, m_pvpBattleMode == 2);
             MissionClearCondition_Parameter local_b0((PVP_BATTLE_MODE)m_pvpBattleMode);
-            short local_af = (short)local_48->getIssue_mode(m_pvpBattleMode == 2);
+            // [DNF-FIX 2026-10-08 c30] ORIG 0x085dabd9 `mov %ax,-0xab(%ebp)`（local_b0@-0xac ⇒ +0x01 =
+            //   m_victory），Update_Win_event 读取；旧码写独立局部（同 Update_Revenge_event 先例）。
+            local_b0.m_victory = local_48->getIssue_mode(m_pvpBattleMode == 2);
             bool local_b1 = false;
             local_48->Update_Win_event(*local_58, local_b0, local_b1);
             if (local_b1 != false)

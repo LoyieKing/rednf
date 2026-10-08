@@ -11,9 +11,15 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
 
     // ---------------- 报文解析（ORIG 依次读字段） ----------------
     // 第一条记录区：{ int; uchar subCount; uchar count(<0x24); [item_idx, uchar]*count }
-    unsigned int ipgNo = 0;          // 首个 int（IPG/商品编号，再 a 传 checkBuyingCondition）
-    unsigned char subCount = 0;      // 首个 byte（再 d 传 checkBuyingCondition）
-    unsigned char entryCnt1 = 0;     // 第一条记录数（<0x24）
+    // [DNF-FIX 2026-10-08 c30] ORIG 0x0821fa06..0x0821fd24：先构造 query(@-0x238)，报文直接解析进 query：
+    //   +0x0e int ipgNo、+0x12 subCount、+0x13 entryCnt1、+0x14+5i 记录一、+0xc3 entryCnt2、
+    //   +0xc4+8i 记录二；末段仅补 +0x0a uid 后按 packetSize 原样发往 monitor（monitor 回拷
+    //   payload）。旧码解析进独立局部，发出空 payload 且把 subCount 误填 +0x0e。
+    Packet_Item_Limit_Edition_Buyable_Query query;
+    char* const qbuf = reinterpret_cast<char*>(&query);
+    unsigned int& ipgNo = *reinterpret_cast<unsigned int*>(qbuf + 0x0e);
+    unsigned char& subCount = *reinterpret_cast<unsigned char*>(qbuf + 0x12);
+    unsigned char& entryCnt1 = *reinterpret_cast<unsigned char*>(qbuf + 0x13);
     if (!packet.get_int(ipgNo))
         return LineFunc(0xd88c,
                         __PRETTY_FUNCTION__,
@@ -35,7 +41,7 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
 #pragma pack(push, 1)
     struct RawEntry1 { unsigned long itemIdx; unsigned char cnt; };
 #pragma pack(pop)
-    RawEntry1 rec1[0x24];
+    RawEntry1* const rec1 = reinterpret_cast<RawEntry1*>(qbuf + 0x14);
     for (int i = 0; i < entryCnt1; ++i) {
         if (!packet.get_item_idx(rec1[i].itemIdx))
             return LineFunc(0xd894,
@@ -49,13 +55,13 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
 
     // 第二条记录区：count(<0x24)；每条 { unsigned long itemIdx; ushort; ushort }（stride 8）。
     //   ORIG 同时校验两条 item_idx+ushort 组合不重复（重复 → LineFunc(0xd8ac)）。
-    unsigned char entryCnt2 = 0;
+    unsigned char& entryCnt2 = *reinterpret_cast<unsigned char*>(qbuf + 0xc3);
     if (!packet.get_byte(entryCnt2) || entryCnt2 >= 0x24)
         return LineFunc(0xd89d,
                         __PRETTY_FUNCTION__,
                         0, 0);
     struct RawEntry2 { unsigned long itemIdx; unsigned short v1; unsigned short v2; };
-    RawEntry2 rec2[0x24];
+    RawEntry2* const rec2 = reinterpret_cast<RawEntry2*>(qbuf + 0xc4);
     for (int i = 0; i < entryCnt2; ++i) {
         if (!packet.get_item_idx(rec2[i].itemIdx))
             return LineFunc(0xd8a1,
@@ -175,16 +181,12 @@ int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet
         user->updateLastItemLimitEditionBuyTime(GlobalData::s_systemTime_.getCurSec());
 
         // ---- 组监控查询包并发送 ----
-        Packet_Item_Limit_Edition_Buyable_Query query;
         query.m_seq   = user->GetUID();
-        // ORIG 包布局：m_ipgno(+0xe) 与解析首个 byte(subCount, ebp-0x22a) 同址，故填 subCount。
-        query.m_ipgno = (unsigned int)subCount;
-        // b28d-lane25：P167 差集实证 ORIG 0x082203d4..0x08220412 无 m_payload 填充
-        // （无 memcpy/循环，栈对象按 ctor 状态直发）⇒ 删除本重建段的 memcpy（P171 照抄）。
+        // [DNF-FIX 2026-10-08 c30] payload 已在解析阶段直接写入 query（见函数首注释），此处仅补 uid。
 
         CMonitorServerProxy* proxy =
             GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
-        proxy->SendTcpPacket((char*)&query, (int)sizeof(query));
+        proxy->SendTcpPacket((char*)&query, (int)query.packetSize);   // ORIG 0x082203da movzwl +0x02
     }
     // ORIG 0x0822041e：`cmp $0x1,%edx; je; _Unwind_Resume` + `__cxa_begin_catch;
     //   mov (%eax),%eax; mov %eax,-0x1c(%ebp)`（按值 catch、值先入槽，P229）⇒ 按值 catch。

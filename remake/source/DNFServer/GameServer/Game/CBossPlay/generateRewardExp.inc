@@ -43,52 +43,38 @@ bool CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
 
     stClearRewardBonusExp_t bonus;
     stClearRewardExpParameter_t param;
-    float avatarBonus = (float)m_party->getAvatarBonus();
-    float creatureBonus = (float)m_party->getCreatureBonus(user);
+    // [DNF-FIX 2026-10-08 c30] ORIG 0x08149f01..0x0814a102：各加成系数直接写入 param（param@-0xcc：
+    //   +0x08/-0xc4 avatar、+0x0c/-0xc0 creature、+0x28/-0xa4 serverEvent、+0x20/-0xac channel、
+    //   +0x10/-0xbc pcRoomBurning、+0x14/-0xb8 expDouble、+0x1c/-0xb0 burningFatigue、
+    //   +0x24/-0xa8 premiumAdvantage），随后 0x0814a130 getClearRewardBonusExp(user, exp,
+    //   param, bonus) 读取；旧码用独立局部，param 恒为 ctor 零值 ⇒ 塔通关经验加成全丢。
+    param.m_avatarBonus = (float)m_party->getAvatarBonus();
+    param.m_creatureBonus = (float)m_party->getCreatureBonus(user);
 
-    float serverRate = (float)CServerEvent::GetExpRate() / 100.0f;
+    param.m_serverEventExpRate = (float)CServerEvent::GetExpRate() / 100.0f;
 
-    // [L5Free49to60 P0/P183] ORIG 对 dm/chScript/env/channelNo/channelType 全无槽往返：
-    // get_index→%edi（08149f4c）、G_CDataManager+GetChannelScript→%esi（08149f5b）、
-    // G_CEnvironment 读 +0x378→%ebx（08149f62/68）、G_CEnvironment+get_channel_no→%eax
-    // （08149f73）后直接 call getBonusRate（08149f87）⇒ 原码为单表达式链，无具名局部。
-    // 渠道组字节：内联读 +0x378（= Server_Envir m_serverGroup，+0x198+0x1e0），
-    // 不 call get_server_group()。
-    float channelRate = ((channel_script_t*)G_CDataManager()->GetChannelScript())->getBonusRate(
+    param.m_serverChannelRate = ((channel_script_t*)G_CDataManager()->GetChannelScript())->getBonusRate(
         (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
         (unsigned int)G_CEnvironment()->get_channel_no(),
         dungeon->get_index());
 
-    // [L5Free49to60 P131/P171] ORIG 对 pcrBurning(-0xbc)/expDouble(-0xb8)/premiumRate(-0xa8)
-    // 三个 float 槽**无**清零指令（仅条件分支内 fstps 写入）⇒ 原码无 `= 0.0f`
-    // 初始化器；`=0.0f` 每处多发 `mov $0,%eax; mov %eax,slot` 两条。
-    float pcrBurning;
-    float expDouble;
-    int burningRate;
-    float premiumRate;
-
-    // [L5Free49to60 P0/P183] ORIG 对 GetRepeatEvent(8/3/0xf) 结果**无槽往返**
-    //（`call GetRepeatEvent; mov (%eax),%edx; add $0x34; mov (%edx),%ecx; …; call *%ecx`）
-    // ⇒ 原码把 receiver 写成内联表达式，无 ev8/ev3/evF 具名指针。
     if (GlobalData::s_event_manager->GetRepeatEvent(8)->IsEventing(user))
         // ORIG：整型 /100（imul 0x51eb851f 形态）后才转 float
-        pcrBurning = (float)(((CPCRoomBurningEvent*)
+        param.m_pcRoomBurningRate = (float)(((CPCRoomBurningEvent*)
             GlobalData::s_event_manager->GetRepeatEvent(8))->GetExpFactor() / 100);
 
     if (GlobalData::s_event_manager->GetRepeatEvent(3)->IsEventing(0))
-        expDouble = (float)((CExpDoubleEvent*)
+        param.m_expDoubleRate = (float)((CExpDoubleEvent*)
             GlobalData::s_event_manager->GetRepeatEvent(3))->GetExpFactor() / 100.0f;
 
     if (GlobalData::s_event_manager->GetRepeatEvent(0xf)->IsEventing(0))
-        burningRate =
+        param.m_burningFatigueBonusExp =
             ((CBurningFatigueEvent*)
                 GlobalData::s_event_manager->GetRepeatEvent(0xf))->getBonusExpRate(user->getCurCharacUsedFatigue());
 
     if (user->IsHavePremiumAdvantage())
     {
-        // [L5Free49to60 P0/P183] ORIG 0x0814a0e1/0x0814a0e6：GetPremiumInfo 结果
-        // **直用 %eax** 压 esp（无槽往返）⇒ 原码内联链式，无 pre 具名指针。
-        premiumRate =
+        param.m_premiumAdvantageRate =
             (float)user->GetPremiumInfo()->GetAdvantageExpRate() / 100.0f;
     }
 
@@ -102,8 +88,10 @@ bool CBossPlay::generateRewardExp(int memberIdx, unsigned int a, unsigned int b,
         LogManager::logFormat(1, "localglobal/global_PlayUser.cpp",
             __PRETTY_FUNCTION__,
             0x163, "BOSS_LOG : BOSSTOWER EXP PARAMETER : %f, %f, %f, %f, %f, %f, %f, %d\n",
-            (double)avatarBonus, (double)creatureBonus, (double)pcrBurning, (double)expDouble,
-            (double)channelRate, (double)premiumRate, (double)serverRate, burningRate);
+            (double)param.m_avatarBonus, (double)param.m_creatureBonus,
+            (double)param.m_pcRoomBurningRate, (double)param.m_expDoubleRate,
+            (double)param.m_serverChannelRate, (double)param.m_premiumAdvantageRate,
+            (double)param.m_serverEventExpRate, param.m_burningFatigueBonusExp);
         total = 0x10c8e0;
     }
     m_rewardExp[memberIdx] = (int)total;

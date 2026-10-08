@@ -133,6 +133,9 @@ public:
 };
 
 // ---- 拍卖服务器注册/就绪检查包（ORIG 弱符号 ctor，继承 PACKET_HEADER）----
+// [DNF-FIX 2026-10-08 c30] ORIG 0x082f7b62/0x082f7c72 `mov %eax,-0xc(%ebp)`（packet@-0x1e）⇒ gc_no 在
+//   +0x12（包长 0x16）；无 pack 时 int 4 对齐落 +0x14，只发出低 2 字节且错位。
+#pragma pack(push, 1)
 struct PCK_AUCTION_REGIST_GA : public nsl::PACKET_HEADER
 {
 #if !remake_verify
@@ -153,6 +156,11 @@ struct PCK_AUCTION_REGIST_GP : public nsl::PACKET_HEADER
 #endif
     PCK_AUCTION_REGIST_GP() { PACKET_CTOR_BODY(0x12, 0, 0x16); }
 };
+#pragma pack(pop)
+#if !remake_verify
+static_assert(sizeof(PCK_AUCTION_REGIST_GA) == 0x16 && sizeof(PCK_AUCTION_REGIST_GP) == 0x16,
+              "PCK_AUCTION_REGIST_GA/GP size (c30)");
+#endif
 struct PCK_AUCTION_CHECK_AUCTION_READY_GA : public nsl::PACKET_HEADER
 {
     PCK_AUCTION_CHECK_AUCTION_READY_GA() { PACKET_CTOR_BODY(0, 0xd, 0x12); }

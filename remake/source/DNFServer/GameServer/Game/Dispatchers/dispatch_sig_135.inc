@@ -70,7 +70,9 @@ int Dispatcher_CreatureScriptMessage::dispatch_sig(CUser* user, PacketBuf& packe
             notify.m_msgLen = (unsigned char)msgLen;                      // +0x3a
             memcpy(notify.m_msg, msg, msgLen);                            // +0x3b
             {
-                unsigned short total = (unsigned short)((unsigned char)msgLen + 0x3b);  // local_294
+                // [DNF-FIX 2026-10-08 c30] ORIG 0x082050fa `mov %ax,-0x290(%ebp)`（notify@-0x292 ⇒ +0x02 packetSize）。
+                notify.packetSize = (unsigned short)(notify.m_msgLen + 0x3b);
+                unsigned short total = notify.packetSize;  // local_294
                 CMonitorServerProxy* proxy =
                     GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
                 proxy->SendPacket((char*)&notify, (int)(unsigned int)total);
