@@ -58,12 +58,17 @@ public:
 static_assert(sizeof(MSG_ACHIEVEMENT_TRIGGER) == 0x17, "MSG_ACHIEVEMENT_TRIGGER size");
 #pragma pack(pop)
 
+// [DNF-FIX 2026-10-08 c32] ORIG DisPatcher_AddFriend::read 0x081cb1d9 add $0xd / 0x081cb221 add $0x11 ⇒ pack(1)
+//   （旧未打包：m_nameLen@+0x10、m_name@+0x14）。
+#pragma pack(push, 1)
 class MSG_ADD_FRIEND : public MSG_BASE
 {
 public:
     int m_nameLen;            // +0x0d
     char m_name[0x1e];        // +0x11
 };
+static_assert(sizeof(MSG_ADD_FRIEND) == 0x2f, "MSG_ADD_FRIEND size");
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 class MSG_APPROVE_JOIN_GUILD : public MSG_BASE
@@ -221,12 +226,18 @@ public:
 static_assert(sizeof(MSG_CHANGE_EMOTION) == 0xf, "MSG_CHANGE_EMOTION size");
 #pragma pack(pop)
 
+// [DNF-FIX 2026-10-08 c32] ORIG Dispatcher_ChangeHostWarRoom::read 0x081d73af add $0xe（get_int）、process
+//   0x081d749b mov 0xe(%eax)、dispatch_template msg@-0x1e ⇒ pack(1)，sizeof 0x12
+//   （旧未打包：m_field0e@+0x10，sizeof 0x14）。
+#pragma pack(push, 1)
 class MSG_CHANGE_HOST_WARROOM : public MSG_BASE
 {
 public:
     char m_field0d;              // +0x0d Dispatcher_ChangeHostWarRoom::read
     unsigned long m_field0e;     // +0x0e
 };
+static_assert(sizeof(MSG_CHANGE_HOST_WARROOM) == 0x12, "MSG_CHANGE_HOST_WARROOM size");
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 class MSG_CHANGE_LETTER_STAT : public MSG_BASE
@@ -1239,12 +1250,16 @@ public:
 static_assert(sizeof(MSG_REGISTER_TO_BLACKLIST) == 0x34, "MSG_REGISTER_TO_BLACKLIST size");
 #pragma pack(pop)
 
+// [DNF-FIX 2026-10-08 c32] 与 MSG_ADD_FRIEND 同形（RemoveFriend 消费点按 MSG_ADD_FRIEND 视图读 +0x11）⇒ pack(1)。
+#pragma pack(push, 1)
 class MSG_REMOVE_FRIEND : public MSG_BASE
 {
 public:
     int m_nameLen;            // +0x0d
     char m_name[0x1e];        // +0x11
 };
+static_assert(sizeof(MSG_REMOVE_FRIEND) == 0x2f, "MSG_REMOVE_FRIEND size");
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 class MSG_RENAME_CREATURE : public MSG_BASE
@@ -1372,6 +1387,9 @@ public:
 };
 #pragma pack(pop)
 
+// [DNF-FIX 2026-10-08 c32] ORIG Dispatcher_SaveCharacterOption::read 0x081ce8e7 mov 0xd(%eax) / 0x081ce932
+//   add $0x11、C1 0x08255484 add $0x11 ⇒ pack(1)（旧未打包：m_len@+0x10、m_option@+0x14）。
+#pragma pack(push, 1)
 class MSG_SAVE_CHARACTER_OPTION : public MSG_BASE
 {
 public:
@@ -1380,6 +1398,8 @@ public:
     unsigned int m_len;        // +0x0d
     CharacterOption m_option;  // +0x11（sizeof 0x200）
 };
+static_assert(sizeof(MSG_SAVE_CHARACTER_OPTION) == 0x211, "MSG_SAVE_CHARACTER_OPTION size");
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 class MSG_SAVE_GAME_OPTION_1 : public MSG_BASE
@@ -2116,10 +2136,14 @@ public:
     SendMercenaryCompetitionResult();
     unsigned char m_isMyCharac;  // +0x04 是否我方角色（Dispatcher_Mercenary_Competition/process.md
                                  //  0x081dddb5 mov %al,0x4(%edx)）
+    // [DNF-FIX 2026-10-08 c32] ORIG process 0x081dddc1 mov %edx,0x8 / 0x081dddce %dl,0xc / 0x081ddddb %dl,0xd，
+    //   send 0x081dde88 mov 0x8 / 0x081dde9d 0xd / 0x081ddeb6 0xc ⇒ +0x05..+0x07 为对齐填充
+    //   （旧 pack(1) 无填充：m_characNo@+0x5、m_charac@+0x9、m_charac2@+0xa）。
+    char m_pad05[3];             // +0x05..+0x07
     unsigned int m_characNo;     // +0x08 竞技对象角色 No（msg+0x10 回写；0x081dddc1）
     unsigned char m_charac;      // +0x0c（msg[0x15] 回写；0x081dddce）【推断】
     unsigned char m_charac2;     // +0x0d（msg[0x14] 回写；0x081ddddb）【推断】
-    char m_pad0e[5];             // +0x0e..+0x12（b28d-solo-S153：ORIG 0x824d24a 帧距
+    char m_pad0e[2];             // +0x0e..+0x0f（b28d-solo-S153：ORIG 0x824d24a 帧距
                                  //   param sizeof=0x10 [m=-0x24/p=-0x34]）
 };
 static_assert(sizeof(SendMercenaryCompetitionResult) == 0x10, "SendMercenaryCompetitionResult size");

@@ -1365,9 +1365,9 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
         {
             Packet_Game_Monitor_GM_Village_Attacked pkt;
             pkt.m_flag = 1;                           // +0x0a（ORIG local_3b5）
-            pkt.m_a = std::atoi(args[1].c_str());        // +0x0c（ORIG local_3b4）
-            pkt.m_b = std::atoi(args[2].c_str());        // +0x10（ORIG local_3b0）
-            pkt.m_c = std::atoi(args[3].c_str());        // +0x14（ORIG local_3ac）
+            pkt.m_a = std::atoi(args[1].c_str());        // +0x0b（ORIG -0x3b0）[DNF-FIX 2026-10-08 c32]
+            pkt.m_b = std::atoi(args[2].c_str());        // +0x0f（ORIG -0x3ac）
+            pkt.m_c = std::atoi(args[3].c_str());        // +0x13（ORIG -0x3a8）
             CMonitorServerProxy* proxy =
                 GlobalData::s_monitor_proxy_mgr->GetServerProxy(user->GetServerGroup());
             proxy->SendTcpPacket(reinterpret_cast<char*>(&pkt), 0x17);

@@ -30,26 +30,10 @@ void CUser::add_guild_pvp_result(int v)
         //   的符号（实测 missing_in_game 588→590，已回退）。改用真实类型 + 尾随 4B
         //   缓冲承载越界 3B 写（P171 照抄 ORIG 写偏移）。Game/ 头为无字段最小镜像
         //   （sizeof 0xc，真头字段化属 .h 类型轴，另报 Main）。
+        // [DNF-FIX 2026-10-08 c32] 真实类型已字段化（sizeof 0xf）：直接成员写，去掉越界视图写与尾随缓冲。
         Packet_Notice_Guild_War_Point_Change notice;
-        unsigned char noticeTail[4];
-        // [L9-C组J PATCH J1'] ORIG 0x0865c9e7 `mov %eax,-0x15(%ebp)`（基址 −0x1f + 0xa）/
-        //   0x0865c9ed `mov %al,-0x11(%ebp)`（+0xe）= 成员 disp 直存；裸指针 cast 在 4.4 产
-        //   `lea 0xa(%eax),%ebx; mov %eax,(%ebx)` 双 lea（多 1 条/处）⇒ 视图 cast + 成员访问。
-        //   ⚠ 必须保留真实类型实例（v1 换类型的版本实测丢失
-        //   `_ZN36Packet_Notice_Guild_War_Point_ChangeC1/C2Ev` 两个 ORIG 存在的 weak 符号
-        //   ⇒ ae 1712→1711、missing 588→587，已回滚）。
-#pragma pack(push, 1)
-        struct NoticeWarPointLayout
-        {
-            char m_pad[0xa];
-            unsigned int m_guildKey;   // +0xa
-            unsigned char m_point;     // +0xe
-        };
-#pragma pack(pop)
-        reinterpret_cast<NoticeWarPointLayout*>(&notice)->m_guildKey =
-            (unsigned int)get_charac_guildkey();
-        reinterpret_cast<NoticeWarPointLayout*>(&notice)->m_point = (unsigned char)v;
-        (void)noticeTail;
+        notice.m_guildKey = (unsigned int)get_charac_guildkey();   // +0xa（ORIG 0x0865c9e7）
+        notice.m_point = (char)v;                                  // +0xe（ORIG 0x0865c9ed）
         // ORIG 0x0865c9fe..0x0865ca1f：代理指针无槽无判空（`mov &s_guild_proxy_mgr,%edx;
         //   mov %eax,0x4(%esp); mov %edx,(%esp); call GetServerProxy; ...; call SendPacket`）
         //   ⇒ 删具名 proxy 与发明判空，改链式内联（P183）。
