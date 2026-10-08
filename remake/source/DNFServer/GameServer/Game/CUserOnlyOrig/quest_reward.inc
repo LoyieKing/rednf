@@ -209,7 +209,7 @@ int CUser::quest_reward(int questId, int selectIdx, int repeatN)
             if (gi->first == 0) {                              // 金钱项：上限封顶
                 long offer = goldGain * repeatN;               // local_120*rpt
                 moneyOfferSum = offer;
-                if (curMoney + offer > (long)moneyLimit) {
+                if ((long)moneyLimit - offer < curMoney) {  // [DNF-FIX 2026-10-08 c28] ORIG 0x0866f7b6..0x0866f7c3: ecx=limit(-0x80)-amt(-0x70); cmp cur(-0x7c); jl -> limit - offer < cur (no wrap of cur+offer)
                     if ((long)moneyLimit > curMoney) {
                         int allowed = moneyLimit - curMoney;   // -0x70
                         gi->second      = allowed;
