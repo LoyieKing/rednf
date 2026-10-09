@@ -36,8 +36,10 @@ ITEMS = {"10478": item("A", 30000.0, [30000.0, 350000.0]),
          "31119": item("HI", 400000000.0, [320000000.0, 500000000.0]),
          "99999": item("A", 30000.0, [24000.0, 37500.0])}                  # 不能登记拍卖的 attach type
 META = {10478: {"name": "爆麟夹克", "kind": "equipment", "attach": "[sealing]", "durability": 33, "random_option": False, "path": "equipment/x.equ"},
-        20203: {"name": "银波石项链", "kind": "equipment", "attach": "[sealing]", "durability": None, "random_option": True, "path": "equipment/y.equ"},
-        2200110: {"name": "狂狮左轮", "kind": "equipment", "attach": "[sealing]", "durability": 35, "random_option": True, "path": "equipment/z.equ"},
+        20203: {"name": "银波石项链", "kind": "equipment", "attach": "[sealing]", "durability": None, "random_option": True, "path": "equipment/y.equ",
+                "rarity": 2, "level": 50, "item_group": "amulet", "ro_grade": 1},
+        2200110: {"name": "狂狮左轮", "kind": "equipment", "attach": "[sealing]", "durability": 35, "random_option": True, "path": "equipment/z.equ",
+                  "rarity": 2, "level": 50, "item_group": "amulet", "ro_grade": 1},
         20066: {"name": "项链", "kind": "equipment", "attach": "[free]", "durability": None, "random_option": False, "path": "equipment/n.equ"},
         31119: {"name": "冰焰左轮枪", "kind": "equipment", "attach": "[sealing]", "durability": 40, "random_option": False, "path": "equipment/w.equ"},
         99999: {"name": "账号绑定", "kind": "equipment", "attach": "[account]", "durability": 30, "random_option": False, "path": "equipment/v.equ"},
@@ -96,7 +98,7 @@ class TestEquipRunner(unittest.TestCase):
         eq = bot.runner.equip
         self.assertEqual(set(eq.catalog), {10478, 20066, 31119})
         self.assertIn("假紫", eq.skipped[20203])
-        self.assertIn("[random option]", eq.skipped[2200110])
+        self.assertIn("不一致", eq.skipped[2200110])
         self.assertIn("attach", eq.skipped[99999])
         self.assertFalse(eq.listing_enabled)                       # 格式未验证 → 不挂
         self.assertEqual(eq.catalog[10478]["endurance"], 33)       # PVF 满耐久
@@ -199,6 +201,75 @@ class TestEquipRunner(unittest.TestCase):
         self.assertFalse(r["ok"])                                   # 偏离价格带太多
         st = bot.runner.status()["equipment"]
         self.assertEqual(st["items"], 3)
+        await bot.client.close()
+        srv.close()
+        self.assertEqual(m.violations, [])
+
+
+class TestEquipRandomOption(unittest.TestCase):
+    """假紫：random_option 段开启+verified 才进清单；挂单带 give_option 生成的属性 + ROI 30000；sealed 模式属性全 0。"""
+
+    def _bot(self, port, ro):
+        b = TestEquipRunner._bot(self, port, {"enabled": True, "format_verified": True, "max_listings_per_tier": 3,
+                                              "volume_scale": 400.0, "max_new_per_step": 10, "max_new_per_hour": 100,
+                                              "virtual_fill": {"max_per_step": 10, "max_per_day": 100},
+                                              "user_fill": {"enabled": False}, "manual_enabled": True, "random_option": ro})
+        from tests.test_randopt import fixture
+        b.runner.equip.ro_tables = fixture()
+        b.runner.reload()
+        return b
+
+    def test_gate(self):
+        self.assertNotIn(20203, self._bot(1, {"enabled": True, "verified": False}).runner.equip.catalog)
+        self.assertNotIn(20203, self._bot(1, {"enabled": False, "verified": True}).runner.equip.catalog)
+        bot = self._bot(1, {"enabled": True, "verified": True})
+        eq = bot.runner.equip
+        self.assertIn(20203, eq.catalog)
+        self.assertNotIn(2200110, eq.catalog)                          # csv 与 PVF 不一致 → 不挂
+        self.assertEqual(eq.catalog[20203]["ro_args"], (2, 50, 51, 1))
+        info, f = eq.item_info(20203)
+        u = P.unpack_item_info(info)
+        self.assertFalse(u["random_empty"])
+        self.assertEqual(u["random_option"], f["random_option"])
+        self.assertEqual(eq.ro_tables.explain(bytes.fromhex(u["random_option"]), 2, 50, 51, 1), [])
+        self.assertEqual((u["seal"], u["endurance"], u["upgrade"]), (1, 0, 0))
+        self.assertEqual(f["roi"], struct.pack("<hhhH", 30000, 30000, 30000, 0) + b"\0" * 4)
+        info, f = eq.item_info(10478)
+        self.assertTrue(P.unpack_item_info(info)["random_empty"])
+        self.assertEqual(f["roi"], b"\0" * 12)
+        bot.cfg["engine"]["equipment"]["random_option"]["mode"] = "sealed"
+        info, f = eq.item_info(20203)
+        self.assertTrue(P.unpack_item_info(info)["random_empty"])
+        self.assertEqual(f["roi"][:2], struct.pack("<h", 30000))
+
+    def test_mock_e2e(self):
+        asyncio.run(self._run())
+
+    async def _run(self):
+        from auction_bot.client import AuctionClient
+        from auction_bot.runner import manual_list
+        for k in (10478, 20066, 31119, 20203, 2200110, 3274):
+            mock_server.KNOWN_ITEMS[k] = k == 3274
+        m, srv, port = await mock_server.start()
+        bot = self._bot(port, {"enabled": True, "verified": True})
+        bot.loop = asyncio.get_running_loop()
+        bot.client = AuctionClient("127.0.0.1", port, lambda *a, **k: None, 3, 0)
+        await bot.client.connect()
+        eq = bot.runner.equip
+        r = await manual_list(bot, 20203, 2, 30000)
+        self.assertTrue(r["ok"], r)
+        for _ in range(4):
+            await bot.runner.step()
+        ro = [l for l in list(m.listings.values()) + list(m.sold.values()) if l["owner"] == -1 and l["item_id"] == 20203]
+        self.assertGreaterEqual(len(ro), 2)
+        for l in ro:
+            u = P.unpack_item_info(l["raw"])
+            self.assertFalse(u["random_empty"])
+            self.assertEqual(eq.ro_tables.explain(bytes.fromhex(u["random_option"]), 2, 50, 51, 1), [])
+            self.assertEqual(l["roi"][:6], struct.pack("<hhh", 30000, 30000, 30000))
+        for l in m.listings.values():
+            if l["owner"] == -1 and l["item_id"] != 20203:
+                self.assertEqual(l["roi"], b"\0" * 12)
         await bot.client.close()
         srv.close()
         self.assertEqual(m.violations, [])

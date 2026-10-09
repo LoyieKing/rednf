@@ -74,6 +74,11 @@ engine:                              # 经济模型引擎（运营 agent 校准�
     user_fill:                       # 模型收购真人挂的装备：默认关闭，需要用户决定是否开启以及每日上限
       enabled: false
       max_gold_per_day: 20000000     # 独立于材料的 2,000,000/天；只收清单内、+0、无随机属性、无增幅的装备
+    random_option:                   # 随机属性装备（假紫，PVF [random option]；v4.1 的 171 件 P_L41_50/P_L51_70）
+      enabled: true                  # 关闭时假紫一律不挂、不买（2026-10-10 实测通过后开启，放量仍受 max_listings_per_tier 限制）
+      verified: true                 # 2026-10-10 实测：拍卖号 8080（2290110 野蛮逆击胸甲）→ postal 4262 随机属性/耐久/封装/guid 逐字节一致，见 README
+      mode: unsealed                 # unsealed = 用服务器「随机属性解封」同一算法生成属性（randopt.py 复刻 give_option）
+                                     # sealed   = 属性全 0（服务器掉落时的真实状态，玩家买到后自己花金币解封）
 
 seller:                              # 简单补货（engine.enabled=false 时才使用）
   enabled: false

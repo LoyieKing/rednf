@@ -46,8 +46,9 @@ python3 -m auction_bot.cli buy-test --auction-id 1 --count 1   # 受控收购 1 
 
 ## 装备挂单（运营 v4.1 equipment 段）
 
-只挂 PVF 里**没有** `[random option]` 的 +0 装备（v4.1 中 212 件：粉装、名品紫装、套装件、Lv30/40 白菜价粉装）。
-随机属性紫装（假紫，171 件）被跳过，永不挂、永不买。判断同时看运营 csv 的 `random_option_in_pvf` 和机器人自己读的 PVF。
+普通装备：PVF 里**没有** `[random option]` 的 +0 装备（v4.1 中 212 件：粉装、名品紫装、套装件、Lv30/40 白菜价粉装）。
+随机属性紫装（假紫，v4.1 中 171 件）：只有 `engine.equipment.random_option.enabled` 且 `verified` 时才挂（见下文「随机属性装备」），否则永不挂、永不买。
+判断同时看运营 csv 的 `random_option_in_pvf` 和机器人自己读的 PVF，两者不一致的一律跳过。
 
 ### 上架格式（ORIG 推导 + 实测）
 游戏端登记拍卖（`Inter_AuctionResultAskRegistedItemNum::dispatch_sig`，ORIG 0x084d5930）把背包格子 `Inven_Item`（61 字节）逐字段拷进 `DnfItemInfo`；
@@ -60,7 +61,7 @@ python3 -m auction_bot.cli buy-test --auction-id 1 --count 1   # 受控收购 1 
 | add_info | 随机 0..2^31-1 | 装备的 `m_addInfo2` 是 make_item 时的 `rand()`，不是数量（运营提议的 0 不对） |
 | endurance | PVF `[durability]`，没有该字段 = 0 | make_item；库里真实首饰耐久都是 0 |
 | guid（item_info+19，10 字节） | serverId=3011、datetime=当前时间、seq=60000..65535 | make_item 给装备类型 10..21 生成 guid；库里真实装备 serverId 都是 3011；游戏端 seq 在 59999 归零，机器人用 60000+ 永不重复。guid 只用于日志，没有唯一性校验（库里也有大量 guid=0 的合法装备） |
-| random_option | 全 0 | 无随机属性装备 |
+| random_option | 全 0（假紫见下文） | 无随机属性装备 |
 | 外层 guid@139 | 0 | ORIG 构造函数 memset 0，之后从不写 |
 | 价格 | price=-1、instant=unit=一口价 | 拍卖服价格是 int32（不是 u32），最大 2,147,483,647；4 亿没问题 |
 
@@ -72,6 +73,44 @@ python3 -m auction_bot.cli buy-test --auction-id 1 --count 1   # 受控收购 1 
 数量恒为 1；虚拟成交用一口价购买（BIDDING），不是 BUY_ITEM_APIECE。放量护栏：`engine.equipment.max_listings_per_tier`（初始 1）、`max_new_per_step`、`max_new_per_hour`。
 收购真人挂的装备（`engine.equipment.user_fill`）默认关闭，有自己独立的每日金币上限，不占材料的 2,000,000/天；只收清单内、+0、无随机属性、无增幅的装备。
 扫描/对账/成交记录里装备数量一律按 1 计（add_info 不是数量）。
+
+### 随机属性装备（假紫）
+**服务器怎么给假紫属性**（remake 源码 + ORIG 对照）：掉落/拾取（`CParty::get_item` → `CEquipItem::make_item`）**不生成**属性，
+刚掉落的假紫 RandomOption 14 字节全 0（未解封，不能穿戴：`move_item` 对属性为空的随机属性装备报错 0x11）。
+玩家花 `[break seal cost]` 金币（Lv50/60/70 紫：520/740/1000）或解封券「随机属性解封」（`Dispatcher_UnsealRandomOption`）时，服务器调用
+`random_option::CRandomOptionItemHandle::give_option(itemIdx, [rarity], [minimum level], [item group name] 序号, [random option] 值)`；
+CeraShop 自动解封、活动奖励解封、抽奖也调用同一个函数。机器人在 `auction_bot/randopt.py` 逐步复刻 give_option：
+
+1. 档次：`randomizedoptionoverall1.etc [option type]` 键 (稀有度, 等级)，内层先 -1 后 grade，3 个权重抽 1..3；
+2. 条数：`optionquantity.etc [option quantity]` 键 {稀有度, 0xff→grade, 档次, 等级} → (min,max)，权重取 `[quantity ratio]`；
+3. 组号：`optiongroupselection.etc [choose option group]` 键 {稀有度, 0xff→grade, 部位组(`etc/itemgroupname.tbl`), 等级} + 档次，`randInt(总权重-1)`；
+4. 数值范围：`randomizedoptionoverall2.etc [different weight]` (稀有度, 档次) → (min,max)（紫：0-25 / 10-30 / 30-55）；
+5. 每条属性（最多 3 条）：`optiongrouping.etc [option group]` 按权重不放回抽类型；两个数值各按 `optionnumbering.etc [option value ratio]`
+   抽 (base, range)，值 = int(min×base) + randInt(int((max-min)×range))；
+6. seed 字节 = 档次 | (randInt(64) & 0x3f) << 2。
+随机数：ORIG 是多个独立 CMTRand（`randInt(n)` 闭区间 0..n），机器人用 Python `random`，分布相同；CRandomList 的「抽到总权重时落到下标 0」怪癖也照抄。
+
+**编码**：RandomOption 14 字节 = 3×{类型 u8, 数值1 u8, 数值2 u8} + seed u8（低 2 位档次，高 6 位种子）+ modify_option[3] + modify_seed（解封时为 0）。
+DnfItemInfo+29、`auction_main.random_option`、`postal.random_option` 都是这 14 字节原样（HEX）。
+ground truth：测试角色身上 6 件已解封的 Lv15 假紫（2221103/2290103/2291103/2292103/2293103/2294103）全部能被 give_option 生成（`tests/test_randopt.py`，WSL 上读真实 PVF）。
+库里没有任何未穿戴的真实假紫，也没有带随机属性的 postal/auction 行。
+
+**登记拍卖**：游戏端（`Dispatcher_AuctionRegistItem`）对随机属性装备把客户端 ROI 空槽填 30000，所以机器人挂假紫时 ROI = high[3]=30000、low=0
+（`auction_main.roi_high_key` = 128850984990000，与模板库 `auction_roi_average_price` 里已有的两行同值）。拍卖服据此在信件里把物品名写成
+`@物品ID,类型1,值,值,类型2,…,seed,-1@`（客户端显示带属性的名字）。真实客户端给已解封装备填的 ROI 类别（`etc/randomoption/auctionrandomcategory.etc`）
+是客户端逻辑、无法从服务端核实，只影响「按属性筛选」检索和均价分组，不影响物品本身。
+
+**模式**（`engine.equipment.random_option.mode`）：`unsealed`（默认，按用户决定）= 用 give_option 生成属性，相当于玩家掉落后已解封、未穿戴（封装仍为 1）；
+`sealed` = 属性全 0，即服务器掉落时的真实状态，买家自己花金币解封。
+
+**均价表**：随机属性装备的均价不查 `auction_average_price`，而查 `auction_roi_average_price`
+（键 item_id, upgrade, roi_high_key, roi_low_key, roi_index1..3 = 排序后的 3 个属性类型, seperate_upgrade）。机器人定价只用模型，不依赖这张表；
+成交后拍卖服自己按概率写入。运营若想让客户端「均价」显示未解封假紫的价格，写 `roi_high_key=128850984990000, roi_low_key=0, roi_index1..3=0, upgrade=0,
+seperate_upgrade=0` 的行；拍卖服只在启动时读这张表。
+
+实测（2026-10-10 00:28）：野蛮逆击胸甲 2290110（Lv50 重甲上衣）一口价 30000，give_option → `470e08…92`（档次 2，1 条：类型 71 = 14/8），
+拍卖号 8080 → 检索回包、auction_main（roi_high_key 128850984990000）、假买家买下后的 postal 4262 逐字节一致（seal 1、耐久 40、guid、随机属性），
+信件「恭喜您成功竞拍到[@2290110,71,14,8,0,0,0,0,0,0,146,-1@]」与拍卖服 GetRandomOptionName 格式一致。
 
 ## 配置（config.yaml）
 

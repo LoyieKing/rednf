@@ -10,13 +10,17 @@
     装备类型 10..21（武器~魔法石）生成 guid；随机属性在「随机属性解封」时才生成。
   * 拍卖服 → 买家邮件（HandlerFor_DB_::insertPackageData）逐字段写 postal，取件时原样还原进背包。
 所以机器人挂的装备 = 一件刚掉落、未解封的 +0 装备：seal=1，耐久满，add_info 随机，guid 唯一，随机属性全 0。
-只挂 PVF 里没有 [random option] 的装备（运营 csv 标记与 PVF 双重核对）。
+随机属性装备（假紫，PVF [random option]）默认不挂；engine.equipment.random_option 开启且 verified 后才挂：
+  mode=unsealed：用 randopt.give_option（逐行复刻服务器「随机属性解封」）生成属性 = 玩家掉落后解封、未穿戴的状态；
+  mode=sealed：属性全 0 = 刚掉落未解封的状态（服务器掉落本身不生成属性）。
+  两种都带 ROI high[3]=30000（游戏端登记拍卖时给随机属性装备补的值）。
 """
 import math
 import random
 import time
 
 from . import protocol as P
+from . import randopt
 from .engine import Engine, round_price
 
 FAKE_BUYER = 1999999999
@@ -42,6 +46,8 @@ class EquipRunner:
         self.rng = random.Random()
         self.last_plan = None
         self._guid_last = (0, GUID_SEQ_MIN - 1)
+        self.ro_tables = None
+        self.ro_error = None
 
     # ---------------- 配置 ----------------
     @property
@@ -58,11 +64,49 @@ class EquipRunner:
         c = self.cfg
         return bool(c.get("manual_enabled")) and bool(c.get("format_verified"))
 
+    @property
+    def ro_cfg(self):
+        return self.cfg.get("random_option") or {}
+
+    @property
+    def ro_allowed(self):
+        """随机属性装备（假紫）能不能挂：random_option.enabled 且 verified（1 件实测通过后由人工置 true）。"""
+        c = self.ro_cfg
+        return bool(c.get("enabled")) and bool(c.get("verified"))
+
+    @property
+    def ro_mode(self):
+        m = str(self.ro_cfg.get("mode") or "unsealed")
+        return m if m in ("unsealed", "sealed") else "unsealed"
+
+    def load_ro_tables(self):
+        if self.ro_tables is not None or self.ro_error:
+            return self.ro_tables
+        try:
+            from .pvf import PVF
+            path = (self.bot.cfg.get("pvf") or {}).get("path")
+            self.ro_tables = randopt.RandomOptionTables.from_pvf(PVF(path))
+        except Exception as e:                       # noqa: BLE001
+            self.ro_error = "随机属性脚本载入失败：%s" % e
+            self.bot.log("error", self.ro_error, level="warn")
+        return self.ro_tables
+
+    def ro_args(self, iid):
+        """give_option 的入参（与 Dispatcher_UnsealRandomOption 相同）：rarity, [minimum level], 部位组序号, [random option] 值。"""
+        meta = self.bot.item_meta(iid)
+        t = self.ro_tables
+        g = (meta.get("item_group") or "").strip()
+        if t is None or g not in t.group_names:
+            return None
+        return (int(meta.get("rarity") or 0), int(meta.get("level") or 0), t.group_names[g], int(meta.get("ro_grade") or 1))
+
     def reload(self, model):
         b = self.bot
         self.catalog, self.skipped, self.tiers, self.engine = {}, {}, {}, None
         eq = (model or {}).get("equipment") or {}
         tiers = eq.get("tiers") or {}
+        if self.ro_allowed:
+            self.load_ro_tables()
         for k, it in (eq.get("items") or {}).items():
             iid = int(k)
             why = self._check(iid, it, tiers)
@@ -76,6 +120,7 @@ class EquipRunner:
                 "band": [float(x) for x in (it.get("band") or [it["ref"] * 0.8, it["ref"] * 1.25])],
                 "weight": max(float(it.get("supply_weight") or 0), 1e-6),
                 "seal": ATTACH_SEAL[meta["attach"]], "endurance": int(meta.get("durability") or 0),
+                "ro": bool(meta.get("random_option")), "ro_args": self.ro_args(iid) if meta.get("random_option") else None,
                 "model_endurance": lst.get("endurance"), "name": it.get("name") or b.item_name(iid)}
         maxpt = self.cfg.get("max_listings_per_tier")
         for t, p in tiers.items():
@@ -97,8 +142,9 @@ class EquipRunner:
             self.engine = Engine({"global": self.runner.model["global"]}, self.tiers, ecfg, state=state, rng=self.rng)
         if self.listing_enabled:
             b.watch_ids |= set(self.catalog)
-        b.log("engine", "装备模型已加载：%d 件可挂（%d 个层级），跳过 %d 件；装备挂单%s，手动上架装备%s，收购玩家装备%s"
-              % (len(self.catalog), len(self.tiers), len(self.skipped),
+        b.log("engine", "装备模型已加载：%d 件可挂（其中随机属性 %d 件，%s），%d 个层级，跳过 %d 件；装备挂单%s，手动上架装备%s，收购玩家装备%s"
+              % (len(self.catalog), sum(1 for c in self.catalog.values() if c["ro"]),
+                 ("模式 " + self.ro_mode) if self.ro_allowed else "随机属性装备关闭", len(self.tiers), len(self.skipped),
                  "已开启" if self.listing_enabled else "关闭", "允许" if self.manual_enabled else "关闭",
                  "已开启" if (self.cfg.get("user_fill") or {}).get("enabled") else "关闭"))
 
@@ -108,8 +154,9 @@ class EquipRunner:
             return "排除名单：" + b.excluded[iid]
         if tier_key(it.get("tier")) not in tiers:
             return "层级不存在：%s" % it.get("tier")
-        if it.get("random_option_in_pvf") is not False:
-            return "随机属性装备（假紫，random_option_in_pvf≠false），永不挂/买"
+        ro = it.get("random_option_in_pvf")
+        if ro is not False and not self.ro_allowed:
+            return "随机属性装备（假紫）：engine.equipment.random_option 未开启/未验证"
         lst = it.get("listing") or {}
         if int(lst.get("upgrade") or 0) != 0 or lst.get("random_option") not in (None, "none", "") \
                 or int(lst.get("separate_upgrade") or 0) != 0:
@@ -119,8 +166,17 @@ class EquipRunner:
             return "PVF 中找不到"
         if meta.get("kind") != "equipment" or meta.get("is_avatar"):
             return "PVF 中不是装备（或是时装）"
+        if bool(meta.get("random_option")) != bool(ro):
+            return "运营 random_option_in_pvf 与 PVF [random option] 不一致"
         if meta.get("random_option"):
-            return "PVF 带 [random option]（假紫），永不挂/买"
+            if self.ro_tables is None:
+                return "随机属性装备：%s" % (self.ro_error or "随机属性脚本未载入")
+            a = self.ro_args(iid)
+            if a is None:
+                return "随机属性装备：[item group name] %r 不在 itemgroupname.tbl" % meta.get("item_group")
+            why = self.ro_tables.supports(*a)
+            if why:
+                return "随机属性装备：服务器无法为它生成属性（%s）" % why
         if meta.get("attach") not in ATTACH_SEAL:
             return "attach type %s 不能登记拍卖" % meta.get("attach")
         if float(it.get("ref") or 0) <= 0:
@@ -168,13 +224,27 @@ class EquipRunner:
         self.bot.store.kv_set("equip_guid_last", [now, seq])
         return P.make_item_guid(sid, now, seq), (sid, now, seq)
 
+    def random_option(self, iid):
+        """随机属性 14 字节 + 说明。普通装备 = 全 0；假紫按 ro_mode（见模块说明）。"""
+        c = self.catalog[iid]
+        if not c["ro"]:
+            return b"", None
+        if self.ro_mode == "sealed":
+            return b"\0" * P.RANDOM_OPTION_SIZE, {"mode": "sealed"}
+        ro, info = self.ro_tables.give_option(*c["ro_args"])
+        info["mode"] = "unsealed"
+        return ro, info
+
     def item_info(self, iid):
-        """一件刚掉落、未解封的 +0 装备（见模块说明）。返回 (53 字节, 字段说明)。"""
+        """一件刚掉落的 +0 装备（见模块说明）。返回 (53 字节, 字段说明)。"""
         c = self.catalog[iid]
         add_info = self.rng.randint(0, 0x7fffffff)          # ORIG make_item：set_add_info(rand())
         guid, g = self.new_guid()
-        info = P.equipment_item_info(iid, c["seal"], c["endurance"], add_info, guid)
-        return info, {"seal": c["seal"], "endurance": c["endurance"], "add_info": add_info, "guid": g}
+        ro, roinfo = self.random_option(iid)
+        info = P.equipment_item_info(iid, c["seal"], c["endurance"], add_info, guid, random_option=ro)
+        return info, {"seal": c["seal"], "endurance": c["endurance"], "add_info": add_info, "guid": g,
+                      "random_option": ro.hex() if c["ro"] else None, "ro": roinfo,
+                      "roi": randopt.roi_bytes_for(c["ro"])}
 
     async def ensure_ok(self, iid):
         b = self.bot
@@ -196,7 +266,7 @@ class EquipRunner:
         """以系统卖家（-1）挂 1 件装备，写 bot_listings。返回 (结果, 字段)。"""
         b = self.bot
         info, f = self.item_info(iid)
-        r = await b.client.regist_equipment(-1, "", iid, int(price), info)
+        r = await b.client.regist_equipment(-1, "", iid, int(price), info, roi=f["roi"])
         if r["ok"] and r["auction_id"]:
             t = time.time()
             b.store.execute("INSERT OR REPLACE INTO bot_listings(auction_id,item_id,count0,count_now,unit_price,instant_price,"
@@ -209,6 +279,14 @@ class EquipRunner:
         """检索回包里的物品是不是「+0、无封装次数、无随机属性、无分离强化」的普通装备。"""
         return (item.get("upgrade") == 0 and item.get("seal_cnt") == 0 and item.get("random_empty", True)
                 and not item.get("separate_raw") and not item.get("ability_type") and not item.get("ability_value"))
+
+    def comparable(self, iid, item):
+        """挂单能不能算进这件装备的盘口：普通装备要 plain_plus0；假紫允许带随机属性（其余同样要 +0、无增幅、无分离）。"""
+        c = self.catalog.get(iid) or {}
+        if c.get("ro"):
+            return (item.get("upgrade") == 0 and item.get("seal_cnt") == 0 and not item.get("separate_raw")
+                    and not item.get("ability_type") and not item.get("ability_value"))
+        return self.plain_plus0(item)
 
     def day_spent_user(self, t0):
         ids = list(self.catalog) or [0]
@@ -232,7 +310,7 @@ class EquipRunner:
                 row = mine.get(aid)
                 if row is not None and str(row.get("note") or "").startswith("manual"):
                     continue
-                if not self.plain_plus0(l["item"]) or l["instant_price"] <= 0:
+                if not self.comparable(iid, l["item"]) or l["instant_price"] <= 0:
                     continue
                 is_sys = aid in mine or b.is_npc_name(l["owner_name"])
                 norm = l["instant_price"] * float(t["ref"]) / ci["ref"]
@@ -268,8 +346,9 @@ class EquipRunner:
             new_ids[idx] = (aid, iid, px)
             self.hourly_new.append(time.time())
             res["new_done"] += 1
-            b.log("list", "装备上架[%s] %s（%s）一口价 %d（拍卖号 %d，封装 %d，耐久 %d）" % (
-                n["seller"], b.item_name(iid), n["item_id"], px, aid, f["seal"], f["endurance"]), auction_id=aid, item_id=iid)
+            b.log("list", "装备上架[%s] %s（%s）一口价 %d（拍卖号 %d，封装 %d，耐久 %d%s）" % (
+                n["seller"], b.item_name(iid), n["item_id"], px, aid, f["seal"], f["endurance"],
+                ("，随机属性 " + f["random_option"]) if f.get("random_option") else ""), auction_id=aid, item_id=iid)
         # 成交
         _, _, t0 = self.runner.today_counts()
         vc = c.get("virtual_fill") or {}
@@ -303,7 +382,7 @@ class EquipRunner:
                     b.log("buy", "模型想买玩家装备 %s 一口价 %d（拍卖号 %d），未执行：%s" % (b.item_name(iid), inst, aid, why))
                     continue
                 live = [l for l in await b.client.search_items([iid]) if l["auction_id"] == aid]
-                if not live or not self.plain_plus0(live[0]["item"]) or live[0]["instant_price"] != inst:
+                if not live or not self.comparable(iid, live[0]["item"]) or live[0]["instant_price"] != inst:
                     b.log("buy", "玩家装备挂单 %d 已变化或不是 +0 普通装备，跳过" % aid)
                     continue
                 r = await b.client.buy_now(FAKE_BUYER, buyer_name, aid, inst)
@@ -369,6 +448,9 @@ class EquipRunner:
         uc = c.get("user_fill") or {}
         return {"listing_enabled": self.listing_enabled, "format_verified": bool(c.get("format_verified")),
                 "manual_enabled": self.manual_enabled, "items": len(self.catalog), "tiers": tiers,
+                "random_option": {"allowed": self.ro_allowed, "enabled": bool(self.ro_cfg.get("enabled")),
+                                  "verified": bool(self.ro_cfg.get("verified")), "mode": self.ro_mode,
+                                  "items": sum(1 for x in self.catalog.values() if x["ro"]), "error": self.ro_error},
                 "skipped": reasons, "user_fill_enabled": bool(uc.get("enabled", False)),
                 "user_gold_per_day": int(uc.get("max_gold_per_day", 0)), "user_gold_today": self.day_spent_user(t0),
                 "max_listings_per_tier": c.get("max_listings_per_tier")}

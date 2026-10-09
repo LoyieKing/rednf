@@ -172,15 +172,18 @@ def make_item_guid(server_id, ts, seq):
     return struct.pack("<iiH", int(server_id), int(ts), int(seq) & 0xffff)
 
 
-def equipment_item_info(item_id, seal, endurance, add_info, guid):
+def equipment_item_info(item_id, seal, endurance, add_info, guid, random_option=None):
     """装备挂单用的 DnfItemInfo：与 ORIG 游戏端从背包格子拷贝的字段一一对应（dispatch_sig_144 / CEquipItem::make_item）。
     +0 强化、无封装次数、无增幅、无随机属性、无分离强化；count 不适用（add_info 是物品自身的随机种子）。"""
     if not (0 <= int(add_info) <= 0x7fffffff):
         raise ProtocolError("装备 add_info 必须在 0..2^31-1")
     if not (0 <= int(endurance) <= 0xffff):
         raise ProtocolError("耐久超出 u16")
+    ro = bytes(random_option or b"")
+    if ro and len(ro) != RANDOM_OPTION_SIZE:
+        raise ProtocolError("random_option 必须是 14 字节")
     return pack_item_info(item_id, add_info=int(add_info), seal=1 if seal else 0, upgrade=0, endurance=int(endurance),
-                          extend_info=0, guid=guid, random_option=b"")
+                          extend_info=0, guid=guid, random_option=ro)
 
 
 def unpack_item_info(buf, off=0):
@@ -215,7 +218,7 @@ def build_ask_registed_item_num(char_idx, character_id, item_id, add_info=1, pri
 
 
 def build_regist_item(char_idx, owner_id, owner_name, item_id, count, price, instant_price, unit_price,
-                      user_type=0, endurance=0, item_info=None):
+                      user_type=0, endurance=0, item_info=None, roi=None):
     """PCK_AUCTION_REGIST_ITEM_GA（0xc5）。
     char_idx@18 owner_id@22 owner_name[13]@26 user_type@39 price@40 instant_price@44
     item_info[53]@48 jewel_info[30]@101 expansion[4]@131 black_point@135 guid[10]@139
@@ -239,7 +242,10 @@ def build_regist_item(char_idx, owner_id, owner_name, item_id, count, price, ins
     body += struct.pack("<I", 0)              # black_point
     body += b"\0" * GUID_SIZE                 # guid
     body += struct.pack("<i", unit_price)
-    body += b"\0" * ROI_SIZE                  # ROI 为空（非随机属性装备）
+    roi = bytes(roi or b"")
+    if roi and len(roi) != ROI_SIZE:
+        raise ProtocolError("ROI 必须是 12 字节")
+    body += roi.ljust(ROI_SIZE, b"\0")       # ROI_Category：非随机属性装备全 0；随机属性装备 high[3]=30000（游戏端补值）
     body += b"\0" * 32                        # owner_nexon_id（必须 NUL 结尾，拍卖服用 strlen）
     return _finish(GA_REGIST_ITEM, body)
 

@@ -118,7 +118,7 @@ class PVF:
 
     def item_fields(self, path, wanted=("[name]", "[stackable type]", "[grade]", "[price]", "[stack limit]",
                                         "[minimum level]", "[rarity]", "[equipment type]", "[attach type]",
-                                        "[durability]", "[random option]")):
+                                        "[durability]", "[random option]", "[item group name]")):
         try:
             us = self.units(self.read(path))
         except KeyError:
@@ -161,6 +161,9 @@ def build_item_index(pvf_path):
                 "attach": fields.get("[attach type]") if isinstance(fields.get("[attach type]"), str) else None,
                 # 装备：[durability] 满耐久（首饰等没有这个字段 → None）；[random option] 非 0 = 随机属性装备（假紫）
                 "durability": fields.get("[durability]") if isinstance(fields.get("[durability]"), int) else None,
+                # 随机属性 give_option 的入参：[item group name]（部位组名）、[random option] 的值（RandomOptionGrade）
+                "item_group": fields.get("[item group name]") if isinstance(fields.get("[item group name]"), str) else None,
+                "ro_grade": fields.get("[random option]") if isinstance(fields.get("[random option]"), int) else None,
                 "random_option": (kind == "equipment" and (bool(fields.get("[random option]"))
                                                             or ("[random option]" in fields.get("_tags", ()) and "[random option]" not in fields))),
             }
@@ -169,7 +172,7 @@ def build_item_index(pvf_path):
 
 def load_item_index(pvf_path, cache_path):
     st = os.stat(pvf_path)
-    sig = "v2:%d:%d" % (st.st_size, int(st.st_mtime))   # v2：增加 durability / random_option 字段
+    sig = "v3:%d:%d" % (st.st_size, int(st.st_mtime))   # v3：增加 item_group / ro_grade 字段
     if os.path.exists(cache_path):
         try:
             with open(cache_path, "r", encoding="utf-8") as fh:

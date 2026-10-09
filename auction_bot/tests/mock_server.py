@@ -105,7 +105,7 @@ class MockAuction:
                 self.listings[aid] = {"auction_id": aid, "owner": owner,
                                       "owner_name": NPC_NAME if owner == -1 else name, "price": price,
                                       "instant_price": instant, "unit_price": unit, "item_id": it["item_id"],
-                                      "count": it["add_info"], "expire": time.time() + 7200, "raw": bytes(b[48:101])}
+                                      "count": it["add_info"], "expire": time.time() + 7200, "raw": bytes(b[48:101]), "roi": bytes(b[153:165])}
             log = struct.pack("<iBQiiIBiHIB", char_idx, 0 if not because else 1, aid, owner, price, it["item_id"], 0,
                               it["add_info"], 0, 0, because)
             res = struct.pack("<iiBB", char_idx, owner, 0 if because else 1, because)
