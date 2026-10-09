@@ -21,7 +21,7 @@ import time
 
 from . import protocol as P
 from . import randopt
-from .engine import Engine, round_price
+from .engine import Engine, round_price, online_mean
 
 FAKE_BUYER = 1999999999
 ATTACH_SEAL = {"[sealing]": 1, "[free]": 0, "[sealing trade]": 0}   # 拍卖服/游戏端允许登记的 attach type
@@ -48,6 +48,9 @@ class EquipRunner:
         self._guid_last = (0, GUID_SEQ_MIN - 1)
         self.ro_tables = None
         self.ro_error = None
+        self.shelf_defaults = {}
+        self.online_mean = None
+        self.last_shelf = {}
 
     # ---------------- 配置 ----------------
     @property
@@ -63,6 +66,27 @@ class EquipRunner:
     def manual_enabled(self):
         c = self.cfg
         return bool(c.get("manual_enabled")) and bool(c.get("format_verified"))
+
+    @property
+    def shelf_enabled(self):
+        """v4.2 上架时长模型（层级带 shelf 参数时）。engine.equipment.shelf.enabled=false 时退回 v4.1 的代理人模型。"""
+        return bool((self.cfg.get("shelf") or {}).get("enabled", True))
+
+    def shelf(self, tier):
+        """层级的 shelf 参数（模型 tiers[t].shelf，缺省值取 shelf_defaults，可被 engine.equipment.shelf.override 覆盖）。"""
+        p = self.tiers.get(tier) or {}
+        if not self.shelf_enabled or not p.get("shelf"):
+            return None
+        sh = dict(self.shelf_defaults)
+        sh.update(p["shelf"])
+        sh.update((self.cfg.get("shelf") or {}).get("override") or {})
+        sh.setdefault("price_sensitivity", 5.0 * float(p.get("epsilon", 1.5)))
+        tv = int(sh.get("target_visible_listings", p.get("target_listings", 2)))
+        maxpt = self.cfg.get("max_listings_per_tier")
+        if maxpt is not None:
+            tv = min(tv, int(maxpt))
+        sh["target_visible_listings"] = max(0, tv)
+        return sh
 
     @property
     def ro_cfg(self):
@@ -105,6 +129,9 @@ class EquipRunner:
         self.catalog, self.skipped, self.tiers, self.engine = {}, {}, {}, None
         eq = (model or {}).get("equipment") or {}
         tiers = eq.get("tiers") or {}
+        self.shelf_defaults = {k: v for k, v in (eq.get("shelf_defaults") or {}).items()
+                               if k in ("min_shelf_minutes", "target_sell_through", "listing_expire_minutes")}
+        self.online_mean = None
         if self.ro_allowed:
             self.load_ro_tables()
         for k, it in (eq.get("items") or {}).items():
@@ -139,6 +166,8 @@ class EquipRunner:
             ecfg = dict(self.runner.cfg)
             ecfg["listing_cap_scale"] = 0.5          # 层级挂单上限 = target_listings（引擎默认是 ×2）
             ecfg["volume_scale"] = float(self.cfg.get("volume_scale", 1.0))
+            ecfg["shelf_mode"] = self.shelf_enabled
+            self.online_mean = online_mean(self.runner.model["global"])
             self.engine = Engine({"global": self.runner.model["global"]}, self.tiers, ecfg, state=state, rng=self.rng)
         if self.listing_enabled:
             b.watch_ids |= set(self.catalog)
@@ -158,9 +187,10 @@ class EquipRunner:
         if ro is not False and not self.ro_allowed:
             return "随机属性装备（假紫）：engine.equipment.random_option 未开启/未验证"
         lst = it.get("listing") or {}
-        if int(lst.get("upgrade") or 0) != 0 or lst.get("random_option") not in (None, "none", "") \
-                or int(lst.get("separate_upgrade") or 0) != 0:
-            return "只挂 +0、无随机属性、无分离强化的装备"
+        # listing.random_option：普通装备必须为空；假紫（v4.2 起）是说明文字「机器人按服务器规则生成」，属性由 randopt 生成
+        ro_ok = lst.get("random_option") in (None, "none", "") or (ro is True and isinstance(lst.get("random_option"), str))
+        if int(lst.get("upgrade") or 0) != 0 or not ro_ok or int(lst.get("separate_upgrade") or 0) != 0:
+            return "只挂 +0、无预设随机属性、无分离强化的装备"
         meta = b.item_meta(iid)
         if not meta:
             return "PVF 中找不到"
@@ -305,6 +335,8 @@ class EquipRunner:
         book, where = {}, {}
         for iid, ci in self.catalog.items():
             t = self.tiers[ci["tier"]]
+            if self.shelf(ci["tier"]):
+                continue
             for l in b.snapshot.get(iid, []):
                 aid = l["auction_id"]
                 row = mine.get(aid)
@@ -413,11 +445,167 @@ class EquipRunner:
             else:
                 res["errors"] += 1
                 b.log("error", "装备虚拟成交失败 拍卖号 %d：%s" % (aid, r.get("because_text")), level="warn")
+        # v4.2 上架时长模型（sim.step_shelf）
+        await self._step_shelf(now, dt_h, plan, res, vc, uc, buyer_name, t0)
         b.store.kv_set("equip_engine_state", self.engine.state)
         self.last_plan = plan
-        b.log("engine", "装备模型步进：上架 %d/%d，虚拟成交 %d，收购玩家装备 %d（%d 金），错误 %d"
-              % (res["new_done"], res["new_planned"], res["vf_done"], res["uf_done"], res["user_gold"], res["errors"]))
+        b.log("engine", "装备模型步进：上架 %d/%d，虚拟成交 %d，收购玩家装备 %d（%d 金），错误 %d；可见系统挂单 %d/%d"
+              % (res["new_done"], res["new_planned"], res["vf_done"], res["uf_done"], res["user_gold"], res["errors"],
+                 sum(v["visible"] for v in self.last_shelf.values()), sum(v["target"] for v in self.last_shelf.values())))
         return res
+
+    def visible(self, now=None):
+        """每个层级当前可见的系统挂单（bot_listings 里 active、未到期、非手动的装备挂单）。返回 {tier: [row...]}。"""
+        now = now or time.time()
+        out = {}
+        ids = list(self.catalog) or [0]
+        for r in self.bot.store.query(
+                "SELECT auction_id, item_id, unit_price, instant_price, listed_at, expire_at, note FROM bot_listings "
+                "WHERE status='active' AND count_now>0 AND note LIKE 'eq:%%' AND item_id IN (%s)" % ",".join(map(str, ids))):
+            if r["expire_at"] - 90 <= now:
+                continue
+            t = self.tier_of(r["item_id"])
+            if t:
+                out.setdefault(t, []).append(r)
+        return out
+
+    async def _step_shelf(self, now, dt_h, plan, res, vc, uc, buyer_name, t0):
+        """逐层级复刻 sim.step_shelf：
+          1) 补挂：可见系统挂单少于 target_visible_listings 时，在层级内按 supply_weight 抽一件，
+             层级价 = 公允价 × exp(N(0.02, 0.05))，不低于 c×price_mult×0.9，取整；单件价 = item.ref × 层级价 / 层级 ref（夹在单件价格带内）；
+          2) 虚拟买家：挂出满 min_shelf_minutes 的系统挂单，每步被买走的概率 = 1-exp(-h·attr·k_on·dt_h)，
+             attr = exp(-price_sensitivity·(层级化挂单价/公允价-1))，k_on = 当前虚拟在线 / 一周平均在线；
+          3) 到期（7200 秒）由拍卖服回收，下一步自动补挂。真人挂单只有 user_fill 开启时才按同样的概率收购。"""
+        b = self.bot
+        self.last_shelf = {}
+        if not self.engine or not self.online_mean:
+            return
+        dt = min(max(float(dt_h), 1 / 60.0), float(self.runner.cfg.get("max_dt_minutes", 30)) / 60.0)
+        k_on = float(plan.get("online") or 0) / self.online_mean
+        per_step, per_hour = int(self.cfg.get("max_new_per_step", 2)), int(self.cfg.get("max_new_per_hour", 8))
+        vis = self.visible(time.time())
+        vf_today = b.store.query("SELECT COUNT(*) n FROM deals WHERE ts>=? AND side='virtual' AND source='engine-eq'", (t0,))[0]["n"]
+        spent = self.day_spent_user(t0)
+        # 1) 补挂：各层级轮流补一张（起点随机），避免放量上限总是先被前面几个层级用完
+        stt = {}
+        for t, p in self.tiers.items():
+            sh = self.shelf(t)
+            if not sh:
+                continue
+            info = plan["items"].get(t) or {}
+            fair = float(info.get("fair") or self.engine.fair(t)[0])
+            rows = vis.get(t, [])
+            stt[t] = {"target": sh["target_visible_listings"], "visible": len(rows), "listed": 0, "sold": 0, "fair": fair,
+                      "k_on": round(k_on, 3), "_rows": rows, "_sh": sh,
+                      "_need": sh["target_visible_listings"] - len(rows),
+                      "_cands": [i for i, ci in self.catalog.items() if ci["tier"] == t and i not in b.disabled_items]}
+        order = list(stt)
+        self.rng.shuffle(order)
+        stop = False
+        while not stop and any(stt[t]["_need"] > 0 and stt[t]["_cands"] for t in order):
+            for t in order:
+                st, p = stt[t], self.tiers[t]
+                if st["_need"] <= 0 or not st["_cands"]:
+                    continue
+                self.hourly_new = [x for x in self.hourly_new if time.time() - x < 3600]
+                if res["new_done"] >= per_step or len(self.hourly_new) >= per_hour:
+                    stop = True
+                    break
+                st["_need"] -= 1
+                cands = st["_cands"]
+                iid = self.rng.choices(cands, weights=[self.catalog[i]["weight"] for i in cands])[0]
+                if not await self.ensure_ok(iid):
+                    st["_cands"] = [i for i in cands if i not in b.disabled_items]
+                    continue
+                px_t = st["fair"] * math.exp(self.rng.gauss(0.02, 0.05))
+                px_t = round_price(max(px_t, float(p.get("c", 0)) * float(p.get("price_mult", 1.0)) * 0.9))
+                px = self.item_price(iid, px_t)
+                r, f = await self.list_one(iid, px, "eq:shelf")
+                res["new_planned"] += 1
+                if not r["ok"] or not r["auction_id"]:
+                    res["errors"] += 1
+                    b.log("error", "装备上架失败 %s @%d：%s" % (b.item_name(iid), px, r.get("because_text") or "拍卖号为 0"), level="warn")
+                    if r.get("because") in (0x9e, 0x31):
+                        stop = True
+                        break
+                    continue
+                self.hourly_new.append(time.time())
+                res["new_done"] += 1
+                st["listed"] += 1
+                b.log("list", "装备上架[shelf] %s（%s）一口价 %d（拍卖号 %d，封装 %d，耐久 %d%s）" % (
+                    b.item_name(iid), t, px, r["auction_id"], f["seal"], f["endurance"],
+                    ("，随机属性 " + f["random_option"]) if f.get("random_option") else ""),
+                    auction_id=r["auction_id"], item_id=iid)
+        for t, st in stt.items():
+            p = self.tiers[t]
+            sh, rows, fair = st.pop("_sh"), st.pop("_rows"), st["fair"]
+            st.pop("_need"), st.pop("_cands")
+            # 2) 虚拟买家（只买挂满 min_shelf_minutes 的）
+            min_s = float(sh.get("min_shelf_minutes", 30)) * 60.0
+            h = float(sh.get("buy_hazard_per_h", 0))
+            sens = float(sh["price_sensitivity"])
+            tnow = time.time()
+            for r in rows:
+                if tnow - r["listed_at"] < min_s:
+                    continue
+                ci = self.catalog.get(r["item_id"])
+                if not ci:
+                    continue
+                norm = r["instant_price"] * float(p["ref"]) / ci["ref"]
+                attr = math.exp(-sens * (norm / fair - 1.0))
+                prob = 1.0 - math.exp(-h * attr * k_on * dt)
+                if self.rng.random() >= prob:
+                    continue
+                if res["vf_done"] >= int(vc.get("max_per_step", 4)) or vf_today >= int(vc.get("max_per_day", 60)):
+                    b.log("engine", "装备虚拟成交达到上限（每步/每日），%s 拍卖号 %d 本步不买" % (b.item_name(r["item_id"]), r["auction_id"]),
+                          level="debug")
+                    continue
+                aid, inst = r["auction_id"], r["instant_price"]
+                rr = await b.client.buy_now(FAKE_BUYER, buyer_name, aid, inst)
+                if rr.get("ok"):
+                    vf_today += 1
+                    res["vf_done"] += 1
+                    st["sold"] += 1
+                    self.engine.state[str(t)]["last"] = norm          # sim: st.last = a.price
+                    b.store.execute("UPDATE bot_listings SET count_now=0, status='sold', closed_at=? WHERE auction_id=?", (time.time(), aid))
+                    b.store.add_deal(time.time(), r["item_id"], aid, 1, inst, inst, "virtual", -1, FAKE_BUYER, "engine-eq",
+                                     "eq-v:%d:%d" % (aid, int(time.time() * 1000)))
+                    b.log("deal", "装备虚拟成交 %s 一口价 %d（拍卖号 %d，挂了 %.0f 分钟，概率 %.3f）"
+                          % (b.item_name(r["item_id"]), inst, aid, (tnow - r["listed_at"]) / 60, prob), auction_id=aid)
+                else:
+                    res["errors"] += 1
+                    b.log("error", "装备虚拟成交失败 拍卖号 %d：%s" % (aid, rr.get("because_text")), level="warn")
+            # 3) 真人挂单：只有 user_fill 开启时才按同样的风险率收购（默认关闭）
+            if uc.get("enabled", False):
+                mine = {x["auction_id"] for x in rows}
+                for iid in [i for i, ci in self.catalog.items() if ci["tier"] == t]:
+                    for l in b.snapshot.get(iid, []):
+                        aid, inst = l["auction_id"], l["instant_price"]
+                        if aid in mine or b.is_npc_name(l["owner_name"]):
+                            continue
+                        if inst <= 0 or not self.comparable(iid, l["item"]):
+                            continue
+                        lo, hi = self.band(iid)
+                        norm = inst * float(p["ref"]) / self.catalog[iid]["ref"]
+                        prob = 1.0 - math.exp(-h * math.exp(-sens * (norm / fair - 1.0)) * k_on * dt)
+                        if self.rng.random() >= prob:
+                            continue
+                        if inst > hi or spent + inst > int(uc.get("max_gold_per_day", 0)):
+                            b.log("buy", "模型想买玩家装备 %s 一口价 %d（拍卖号 %d），未执行：超出价格带或每日上限" % (b.item_name(iid), inst, aid))
+                            continue
+                        live = [x for x in await b.client.search_items([iid]) if x["auction_id"] == aid]
+                        if not live or not self.comparable(iid, live[0]["item"]) or live[0]["instant_price"] != inst:
+                            continue
+                        rr = await b.client.buy_now(FAKE_BUYER, buyer_name, aid, inst)
+                        if rr.get("ok"):
+                            spent += inst
+                            res["uf_done"] += 1
+                            res["user_gold"] += inst
+                            b.store.add_deal(time.time(), iid, aid, 1, inst, inst, "bot_buy_human", None, FAKE_BUYER, "engine-eq",
+                                             "eq-u:%d:%d" % (aid, int(time.time() * 1000)))
+                            b.log("buy", "模型收购玩家装备 %s，一口价 %d（拍卖号 %d，卖家 %s）" % (b.item_name(iid), inst, aid, l["owner_name"]), auction_id=aid)
+            st["visible"] = len(rows) - st["sold"] + st["listed"]
+            self.last_shelf[t] = st
 
     # ---------------- 状态 ----------------
     def status(self):
@@ -436,11 +624,17 @@ class EquipRunner:
             t = self.tier_of(r["item_id"])
             vd[t] = vd.get(t, 0) + r["n"]
         tiers = []
+        vis = self.visible()
         for t, p in sorted(self.tiers.items(), key=lambda x: x[1]["ref"]):
             fair = self.engine.fair(t)[0] if self.engine else None
+            sh = self.shelf(t)
             tiers.append({"tier": t, "name": p.get("name"), "ref": p["ref"], "band": p.get("band"), "fair": fair,
-                          "target": p["target_listings"], "items": sum(1 for x in self.catalog.values() if x["tier"] == t),
-                          "sys_listings": act.get(t, 0), "virtual_today": vd.get(t, 0)})
+                          "target": sh["target_visible_listings"] if sh else p["target_listings"],
+                          "items": sum(1 for x in self.catalog.values() if x["tier"] == t),
+                          "sys_listings": act.get(t, 0), "visible": len(vis.get(t, [])), "virtual_today": vd.get(t, 0),
+                          "ro_items": sum(1 for x in self.catalog.values() if x["tier"] == t and x["ro"]),
+                          "shelf": {k: sh.get(k) for k in ("min_shelf_minutes", "buy_hazard_per_h", "price_sensitivity",
+                                                           "target_sell_through")} if sh else None})
         reasons = {}
         for v in self.skipped.values():
             k = v.split("：")[0]
@@ -453,4 +647,5 @@ class EquipRunner:
                                   "items": sum(1 for x in self.catalog.values() if x["ro"]), "error": self.ro_error},
                 "skipped": reasons, "user_fill_enabled": bool(uc.get("enabled", False)),
                 "user_gold_per_day": int(uc.get("max_gold_per_day", 0)), "user_gold_today": self.day_spent_user(t0),
-                "max_listings_per_tier": c.get("max_listings_per_tier")}
+                "max_listings_per_tier": c.get("max_listings_per_tier"), "shelf_enabled": self.shelf_enabled,
+                "visible_total": sum(x["visible"] for x in tiers), "visible_target": sum(x["target"] for x in tiers)}

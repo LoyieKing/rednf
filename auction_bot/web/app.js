@@ -3,7 +3,7 @@ const KIND={engine:'模型',connect:'连接',list:'上架',buy:'收购',deal:'�
 const LV={debug:'调试',info:'信息',warn:'警告',error:'错误'};
 const SIDE={human_buy_bot:'玩家买系统货',bot_buy_human:'模型买玩家挂单',human_human:'玩家间成交',virtual:'虚拟成交'};
 const STATUS={active:'在售',sold:'已售出',expired:'已到期'};
-const NOTE={manual:'手动上架','eq:producer':'装备·生产者','eq:dumper':'装备·抛售者','eq:flipper':'装备·倒爷','eq:relist':'装备·到期补挂',producer:'模型·生产者',dumper:'模型·抛售者',flipper:'模型·倒爷',relist:'模型·到期补挂',secret_shop_resale:'模型·神秘商店转卖'};
+const NOTE={manual:'手动上架','eq:producer':'装备·生产者','eq:dumper':'装备·抛售者','eq:flipper':'装备·倒爷','eq:relist':'装备·到期补挂','eq:shelf':'装备·上架时长模型',producer:'模型·生产者',dumper:'模型·抛售者',flipper:'模型·倒爷',relist:'模型·到期补挂',secret_shop_resale:'模型·神秘商店转卖'};
 function ts(t){if(!t)return '-';const d=new Date(t*1000);const p=n=>String(n).padStart(2,'0');return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`}
 function ago(t){if(!t)return '-';const s=Math.round(Date.now()/1000-t);if(s<60)return s+' 秒前';if(s<3600)return Math.round(s/60)+' 分钟前';if(s<86400)return (s/3600).toFixed(1)+' 小时前';return (s/86400).toFixed(1)+' 天前'}
 async function api(p,body){const r=await fetch('/api/'+p,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});const j=await r.json();if(j&&j.error)throw new Error(j.error);return j}
@@ -48,11 +48,12 @@ async function loadEngine(){const e=await api('engine');if(!e.enabled){$('#en-ca
   $('#en-items').querySelectorAll('tr').forEach((tr,i)=>{if(i>0){tr.style.cursor='pointer';tr.onclick=()=>{location.hash='market/'+e.items[i-1].item_id;$('#mk-q').value=e.items[i-1].item_id;document.querySelector('#tabs a[data-tab="market"]').click();loadMarket()}}});
   const Q=e.equipment;if(Q){
     $('#en-eq-cards').innerHTML=card('装备自动挂单',Q.listing_enabled?'已开启':(Q.format_verified?'关闭':'关闭（格式未验证）'))+card('可挂装备',Q.items+' 件 / '+Q.tiers.length+' 个层级')+
-      card('每层级挂单上限',Q.max_listings_per_tier==null?'按模型':Q.max_listings_per_tier)+card('手动上架装备',Q.manual_enabled?'允许':'不允许')+
+      card('可见系统挂单',(Q.visible_total??'-')+' / 目标 '+(Q.visible_target??'-'))+card('上架时长模型',Q.shelf_enabled?'开启（挂满最短时长后才会被虚拟买家买走）':'关闭')+card('每层级挂单上限',Q.max_listings_per_tier==null?'按模型':Q.max_listings_per_tier)+card('手动上架装备',Q.manual_enabled?'允许':'不允许')+
       card('收购玩家装备',(Q.user_fill_enabled?'已开启':'未开启')+'；今日 '+fmtN(Q.user_gold_today)+' / 日上限 '+fmtN(Q.user_gold_per_day)+' 金')+
       card('跳过',Object.entries(Q.skipped).map(([k,v])=>esc(k)+' '+v).join('；')||'无');
     table($('#en-eq-tiers'),[['层级',r=>esc(r.tier)+' '+esc(r.name||'')],['件数',r=>r.items,'n'],['层级参考价',r=>fmtN(r.ref),'n'],['价格带',r=>r.band?fmtN(r.band[0])+'~'+fmtN(r.band[1]):'-'],
-      ['公允价',r=>fmtN(r.fair),'n'],['偏离',r=>r.fair&&r.ref?((r.fair/r.ref-1)*100).toFixed(1)+'%':'-','n'],['挂单目标',r=>r.target,'n'],['系统挂单',r=>r.sys_listings,'n'],['今日虚拟成交',r=>r.virtual_today,'n']],Q.tiers)}
+      ['公允价',r=>fmtN(r.fair),'n'],['偏离',r=>r.fair&&r.ref?((r.fair/r.ref-1)*100).toFixed(1)+'%':'-','n'],['可见挂单',r=>(r.visible??'-')+' / '+r.target,'n'],['系统挂单(含待回收)',r=>r.sys_listings,'n'],['假紫',r=>r.ro_items||0,'n'],
+      ['最短上架/风险率/价格敏感',r=>r.shelf?r.shelf.min_shelf_minutes+' 分 / '+r.shelf.buy_hazard_per_h+' /时 / '+r.shelf.price_sensitivity:'-'],['今日虚拟成交',r=>r.virtual_today,'n']],Q.tiers)}
   table($('#en-steps'),[['时间',r=>ts(r.ts)],['dt(分钟)',r=>(r.dt_h*60).toFixed(1),'n'],['虚拟在线',r=>r.online,'n'],['上架',r=>r.new_done+'/'+r.new_planned,'n'],
     ['虚拟成交',r=>r.vf_done+'/'+r.vf_planned,'n'],['买玩家挂单',r=>r.uf_done+'/'+r.uf_planned,'n'],['花费金币',r=>fmtN(r.user_gold),'n'],['错误',r=>r.errors,'n'],['耗时(s)',r=>(r.elapsed||0).toFixed(1),'n']],e.steps);
   table($('#en-skipped'),[['道具',r=>esc(r.name)+' ('+r.item_id+')'],['原因',r=>esc(r.reason)]],e.skipped.concat(e.excluded.filter(x=>!e.skipped.find(y=>y.item_id===x.item_id))))}

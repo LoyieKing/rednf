@@ -60,6 +60,21 @@ def online_now(g, ts=None):
     return int(on)
 
 
+def online_mean(g):
+    """sim.run 的 g['_online_mean']：一周（10 分钟一格、第 5/6 天为周末）在线曲线的平均值。"""
+    oc = g['online_curve']
+    tm = g.get('tick_minutes', 10)
+    vals = []
+    for t in range(int(7 * 24 * 60 / tm)):
+        hour = (t * tm / 60.0) % 24
+        day = int(t * tm / 60.0 // 24)
+        on = oc['base'] + oc['amp'] * max(0.0, math.sin((hour - 8) / 24 * math.tau)) ** oc['power']
+        if day % 7 in (5, 6):
+            on *= oc['weekend_mult']
+        vals.append(int(on))
+    return sum(vals) / len(vals)
+
+
 def fair_price(p, st, g):
     sc = g['scarcity']
     F = max(p['faucet_per_h'], 1e-9)
@@ -127,6 +142,11 @@ class Engine:
             info = {"fair": fair, "scarcity": scar, "stock": st['stock'], "x": st['x'], "online": online,
                     "new": 0, "virtual_qty": 0, "user_qty": 0, "virtual_trades": 0, "user_trades": 0}
             new = []
+            if p.get('shelf') and self.ecfg.get("shelf_mode"):
+                # v4.2 上架时长模型（sim.step_shelf）：世界库存/OU 照常演化，挂单与虚拟购买由 equip.EquipRunner 按 shelf 参数处理
+                info["n_sys"] = n_sys
+                plan["items"][iid] = info
+                continue
 
             def add_new(px, qty, seller):
                 a = {"auction_id": None, "price": round_price(px), "qty": qty, "owner_id": -1, "seller": seller,

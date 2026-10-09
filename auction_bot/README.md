@@ -44,10 +44,10 @@ python3 -m auction_bot.cli buy-test --auction-id 1 --count 1   # 受控收购 1 
 - **自动收购**：只查询 `owner_id NOT IN (-1, 假买家)` 的挂单，永远不会买系统卖家的挂单（包括手动挂单）。
 - **记录**：每条挂单写 `logs/bot.log` 和 bot.db 操作日志（类型「上架」，内容以「手动上架」开头；汇总和被拒绝的操作记在「控制」），页面下方「手动上架记录」和「系统挂单 / 成交 → 来源」可查看。
 
-## 装备挂单（运营 v4.1 equipment 段）
+## 装备挂单（运营 v4.2 equipment 段）
 
-普通装备：PVF 里**没有** `[random option]` 的 +0 装备（v4.1 中 212 件：粉装、名品紫装、套装件、Lv30/40 白菜价粉装）。
-随机属性紫装（假紫，v4.1 中 171 件）：只有 `engine.equipment.random_option.enabled` 且 `verified` 时才挂（见下文「随机属性装备」），否则永不挂、永不买。
+普通装备：PVF 里**没有** `[random option]` 的 +0 装备（212 件：粉装、名品紫装、套装件、Lv30/40 白菜价粉装）。
+随机属性紫装（假紫，v4.2 中 283 件 = v4.1 的 171 件 Lv41-70 + 112 件 Lv30/40 `EQ_P_L30_40_bc`）：只有 `engine.equipment.random_option.enabled` 且 `verified` 时才挂（见下文「随机属性装备」），否则永不挂、永不买。
 判断同时看运营 csv 的 `random_option_in_pvf` 和机器人自己读的 PVF，两者不一致的一律跳过。
 
 ### 上架格式（ORIG 推导 + 实测）
@@ -70,7 +70,20 @@ python3 -m auction_bot.cli buy-test --auction-id 1 --count 1   # 受控收购 1 
 
 ### 模型
 层级（tiers）跑和材料相同的引擎，挂单时在层级里按 `supply_weight` 抽一件，单件价 = `items[id].ref × 层级价 / 层级 ref`，按价位取整后夹在单件 band 内。
-数量恒为 1；虚拟成交用一口价购买（BIDDING），不是 BUY_ITEM_APIECE。放量护栏：`engine.equipment.max_listings_per_tier`（初始 1）、`max_new_per_step`、`max_new_per_hour`。
+数量恒为 1；虚拟成交用一口价购买（BIDDING），不是 BUY_ITEM_APIECE。放量护栏：`engine.equipment.max_listings_per_tier`（null = 按模型）、`max_new_per_step`、`max_new_per_hour`、`virtual_fill`。
+
+#### 上架时长模型（v4.2，层级带 `shelf` 参数时；`engine.equipment.shelf.enabled`，默认开）
+逐层级复刻运营 `sim.py step_shelf`（v4.1 的代理人模型会在挂出的同一步就成交，玩家几乎看不到装备挂单）：
+1. 世界库存与 OU 噪声照常演化得到层级公允价；生产者/抛售者/倒爷/消费者代理人**不跑**。
+2. **补挂**：层级内可见系统挂单（bot_listings 中 active、未到期、非手动的 `eq:*` 挂单）少于 `target_visible_listings`（2~8，合计 29；`max_listings_per_tier` 非 null 时取较小者）就补：
+   按 `supply_weight` 抽一件，层级价 = 公允价 × exp(N(0.02, 0.05))，不低于 c×price_mult×0.9，取整；单件价 = item.ref × 层级价 / 层级 ref，夹在单件 band 内。备注 `eq:shelf`。
+3. **虚拟买家**：只看挂出已满 `min_shelf_minutes`（30 分钟）的系统挂单；每步被买走的概率 = 1-exp(-h·attr·k_on·dt_h)，
+   h = `buy_hazard_per_h`，attr = exp(-`price_sensitivity`·(层级化挂单价/公允价-1))，k_on = 当前虚拟在线 / 一周平均在线（与 sim 的 `_online_mean` 相同，≈1177），dt_h = 步进小时数（夹在 1 分钟~30 分钟）。
+   买家 1999999999，受 `virtual_fill.max_per_step/max_per_day` 限制。卖出的挂单下一步再补（与 sim 一致）。
+4. 没卖掉的挂单 7200 秒到期由拍卖服回收（ownerId=-1），对账标记过期后下一步补挂。
+5. 真人挂的装备只有 `user_fill.enabled` 时才按同样的概率收购（无最短上架时间，仍受价格带/日上限/实时复核限制）；默认关闭。
+6. 所有 shelf 参数可用 `engine.equipment.shelf.override` 统一覆盖；`shelf.enabled: false` 退回 v4.1 代理人模型。堆叠品的可选 `shelf`（模型默认不启用）机器人目前不支持。
+网页「引擎」页的装备层级表显示每层「可见挂单 / 目标」和 shelf 参数。
 收购真人挂的装备（`engine.equipment.user_fill`）默认关闭，有自己独立的每日金币上限，不占材料的 2,000,000/天；只收清单内、+0、无随机属性、无增幅的装备。
 扫描/对账/成交记录里装备数量一律按 1 计（add_info 不是数量）。
 

@@ -58,24 +58,27 @@ engine:                              # 经济模型引擎（运营 agent 校准�
     max_gold_per_day: 2000000        # 护栏：每日最多花费金币（假买家支付，金币实际进入卖家邮箱）
     # 护栏：单价高于 价格带上限×(1+price_band_slack) 的不买；排除名单内的道具永不买；买家 = 1999999999
     # 可选（默认不启用）：max_price_ratio（只买低于 min(参考价,公允价)×此值）、probability、max_gold_per_buy
-  equipment:                         # 装备挂单（运营 v4.1 equipment 段：粉装/名品紫装/套装件/白菜价粉装，按层级定价，数量恒为 1）
+  equipment:                         # 装备挂单（运营 v4.2 equipment 段：粉装/名品紫装/套装件/白菜价粉装/假紫，按层级定价，数量恒为 1）
     enabled: true                    # 模型自动挂装备。需要 format_verified 也为 true 才会生效（2026-10-10 实测后开启）
     format_verified: true            # 2026-10-10 已用 1 件真实挂单+假买家购买验证（拍卖号 8069 → postal 4240，逐字段一致，见 README「装备挂单」）
     manual_enabled: true             # 网页「手动上架」允许装备（只限模型清单内、无随机属性的 +0 装备；同样需要 format_verified）
     guid_server_id: 3011             # 生成装备 guid 用的 serverId（库里真实装备的 guid 都是 3011）；seq 用 60000..65535，永不与游戏端重复
-    max_listings_per_tier: 1         # 放量护栏：每个层级最多几张系统挂单（模型 target_listings 为 2~6，逐步放开）
-    max_new_per_step: 2              # 每步最多新挂几件装备
-    max_new_per_hour: 8
+    max_listings_per_tier: null      # 放量护栏：每个层级最多几张可见系统挂单；null = 用模型 shelf.target_visible_listings（2~8，合计 29）
+    max_new_per_step: 8              # 每步最多新挂几件装备（各层级轮流补；从 0 补到 29 张约需 4 步）
+    max_new_per_hour: 40
+    shelf:                           # v4.2 上架时长模型（层级带 shelf 参数时生效，见 README「上架时长模型」）
+      enabled: true                  # false = 退回 v4.1 代理人模型（同一步内可能挂出即成交）
+      override: {}                   # 覆盖所有层级的 shelf 参数，例如 {min_shelf_minutes: 45}；默认空 = 全用运营模型
     price_band_slack: 0.0            # 单件价格夹在 items[id].band×(1±此值) 内
     volume_scale: 1.0
     virtual_fill:                    # 假买家买走机器人自己的装备挂单（每件 = 1 条 postal + 1 条 letter，由孤儿清理删除）
-      max_per_step: 4
-      max_per_day: 60
+      max_per_step: 6                # v4.2 预计约 137 笔/天（运营样本外拟合），上限留余量
+      max_per_day: 300
     user_fill:                       # 模型收购真人挂的装备：默认关闭，需要用户决定是否开启以及每日上限
       enabled: false
       max_gold_per_day: 20000000     # 独立于材料的 2,000,000/天；只收清单内、+0、无随机属性、无增幅的装备
     random_option:                   # 随机属性装备（假紫，PVF [random option]；v4.1 的 171 件 P_L41_50/P_L51_70）
-      enabled: true                  # 关闭时假紫一律不挂、不买（2026-10-10 实测通过后开启，放量仍受 max_listings_per_tier 限制）
+      enabled: true                  # 关闭时假紫一律不挂、不买（2026-10-10 实测通过后开启；v4.2 起含 Lv30/40 共 283 件）
       verified: true                 # 2026-10-10 实测：拍卖号 8080（2290110 野蛮逆击胸甲）→ postal 4262 随机属性/耐久/封装/guid 逐字节一致，见 README
       mode: unsealed                 # unsealed = 用服务器「随机属性解封」同一算法生成属性（randopt.py 复刻 give_option）
                                      # sealed   = 属性全 0（服务器掉落时的真实状态，玩家买到后自己花金币解封）

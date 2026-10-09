@@ -226,6 +226,11 @@ class TestEquipRandomOption(unittest.TestCase):
         eq = bot.runner.equip
         self.assertIn(20203, eq.catalog)
         self.assertNotIn(2200110, eq.catalog)                          # csv 与 PVF 不一致 → 不挂
+        # v4.2 的假紫 listing.random_option 是说明文字，不能因此被跳过；普通装备带预设属性仍跳过
+        it = dict(ITEMS["20203"], listing=dict(ITEMS["20203"]["listing"], random_option="机器人按服务器规则生成"))
+        self.assertIsNone(eq._check(20203, it, {"EQ_A": TIERS["EQ_A"]}))
+        it = dict(ITEMS["10478"], listing=dict(ITEMS["10478"]["listing"], random_option="机器人按服务器规则生成"))
+        self.assertIn("预设随机属性", eq._check(10478, it, {"EQ_A": TIERS["EQ_A"]}))
         self.assertEqual(eq.catalog[20203]["ro_args"], (2, 50, 51, 1))
         info, f = eq.item_info(20203)
         u = P.unpack_item_info(info)
@@ -270,6 +275,101 @@ class TestEquipRandomOption(unittest.TestCase):
         for l in m.listings.values():
             if l["owner"] == -1 and l["item_id"] != 20203:
                 self.assertEqual(l["roi"], b"\0" * 12)
+        await bot.client.close()
+        srv.close()
+        self.assertEqual(m.violations, [])
+
+
+class TestEquipShelf(unittest.TestCase):
+    """v4.2 上架时长模型：补挂到 target_visible_listings；挂出不满 min_shelf_minutes 绝不会被虚拟买家买；之后按风险率买。"""
+
+    SHELF = {"min_shelf_minutes": 30, "buy_hazard_per_h": 0.33, "price_sensitivity": 7.5, "target_sell_through": 0.35,
+             "target_visible_listings": 3}
+
+    def _bot(self, port, shelf=None, extra=None):
+        import copy
+        global TIERS
+        saved = TIERS
+        TIERS = copy.deepcopy(saved)
+        TIERS["EQ_A"]["shelf"] = dict(self.SHELF, **(shelf or {}))
+        try:
+            cfg = {"enabled": True, "format_verified": True, "max_listings_per_tier": None, "volume_scale": 1.0,
+                   "max_new_per_step": 10, "max_new_per_hour": 100, "virtual_fill": {"max_per_step": 10, "max_per_day": 100},
+                   "user_fill": {"enabled": False}}
+            cfg.update(extra or {})
+            return TestEquipRunner._bot(self, port, cfg)
+        finally:
+            TIERS = saved
+
+    def test_formula_and_target(self):
+        from auction_bot.engine import online_mean
+        bot = self._bot(1)
+        eq = bot.runner.equip
+        sh = eq.shelf("EQ_A")
+        self.assertEqual(sh["target_visible_listings"], 3)
+        self.assertEqual(sh["price_sensitivity"], 7.5)
+        self.assertIsNone(eq.shelf("EQ_HI"))                       # 没有 shelf 参数的层级走旧模型
+        self.assertGreater(eq.online_mean, 0)
+        self.assertAlmostEqual(eq.online_mean, online_mean(bot.runner.model["global"]))
+        bot.cfg["engine"]["equipment"]["max_listings_per_tier"] = 1
+        self.assertEqual(eq.shelf("EQ_A")["target_visible_listings"], 1)
+        bot.cfg["engine"]["equipment"]["shelf"] = {"enabled": False}
+        self.assertIsNone(eq.shelf("EQ_A"))
+        self.assertEqual(self._bot(1, extra={"shelf": {"override": {"min_shelf_minutes": 45}}}).runner.equip.shelf("EQ_A")["min_shelf_minutes"], 45)
+
+    def test_shelf_against_mock(self):
+        asyncio.run(self._run())
+
+    async def _run(self):
+        from auction_bot.client import AuctionClient
+        for k in (10478, 20066, 31119, 20203, 2200110, 3274):
+            mock_server.KNOWN_ITEMS[k] = k == 3274
+        m, srv, port = await mock_server.start()
+        bot = self._bot(port, {"buy_hazard_per_h": 1e6})          # 风险率极大：只要过了最短上架时间就必买
+        bot.loop = asyncio.get_running_loop()
+        bot.client = AuctionClient("127.0.0.1", port, lambda *a, **k: None, 3, 0)
+        await bot.client.connect()
+        eq = bot.runner.equip
+
+        def sys_a():
+            return [l for l in m.listings.values() if l["owner"] == -1 and eq.tier_of(l["item_id"]) == "EQ_A"]
+        await bot.runner.step()
+        self.assertEqual(len(sys_a()), 3)                          # 补到目标
+        self.assertEqual(m.history, [])                            # 同一步不成交
+        for _ in range(3):
+            await bot.runner.step()
+        self.assertEqual(len(sys_a()), 3)                          # 不会超挂
+        self.assertEqual(m.history, [])                            # 不满 30 分钟，风险率再大也不买
+        st = eq.status()
+        self.assertEqual([x for x in st["tiers"] if x["tier"] == "EQ_A"][0]["visible"], 3)
+        self.assertEqual(st["visible_total"], 3 + [x for x in st["tiers"] if x["tier"] == "EQ_HI"][0]["visible"])
+        for l in sys_a():
+            lo, hi = eq.band(l["item_id"])
+            self.assertTrue(lo <= l["instant_price"] <= hi)
+            self.assertEqual(l["price"], -1)
+        # 把其中两张的上架时间往前拨 31 分钟 → 下一步被买走，再补挂两张新的
+        old = sorted(l["auction_id"] for l in sys_a())[:2]
+        bot.store.execute("UPDATE bot_listings SET listed_at=listed_at-1860 WHERE auction_id IN (%d,%d)" % tuple(old))
+        await bot.runner.step()
+        self.assertEqual(sorted(h[1] for h in m.history), old)
+        self.assertTrue(all(h[2] == 1999999999 for h in m.history))
+        self.assertEqual(len(sys_a()), 1)
+        self.assertEqual(eq.last_shelf["EQ_A"]["sold"], 2)
+        self.assertEqual(eq.last_shelf["EQ_A"]["listed"], 0)    # 卖出的下一步才补
+        await bot.runner.step()
+        self.assertEqual(eq.last_shelf["EQ_A"]["listed"], 2)
+        self.assertEqual(len(sys_a()), 3)
+        # 价格过高 → attr 极小 → 不买（价格敏感度）
+        for l in sys_a():
+            bot.store.execute("UPDATE bot_listings SET listed_at=listed_at-1860, instant_price=instant_price*100 WHERE auction_id=?",
+                              (l["auction_id"],))
+        bot.runner.equip.rng.seed(1)
+        n = len(m.history)
+        eq.cfg["shelf"] = {"override": {"buy_hazard_per_h": 0.33}}
+        await bot.runner.step()
+        self.assertEqual(len(m.history), n)
+        # 虚拟成交只买系统挂单，从不碰玩家的
+        self.assertTrue(all(m.sold[h[1]]["owner"] == -1 for h in m.history))
         await bot.client.close()
         srv.close()
         self.assertEqual(m.violations, [])
