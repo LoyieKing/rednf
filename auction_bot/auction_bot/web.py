@@ -205,7 +205,7 @@ def make_handler(bot, web_dir, cfg_path):
             ls = bot.call(lambda: bot.client.search_items(ids), timeout=60)
             rows = []
             for l in ls:
-                cnt = l["item"]["add_info"]
+                cnt = bot.count_of(l["item_id"], l["item"]["add_info"])
                 rows.append({"auction_id": l["auction_id"], "item_id": l["item_id"], "name": bot.item_name(l["item_id"]),
                              "count": cnt, "price": l["price"], "instant_price": l["instant_price"],
                              "unit_price": l["unit_price"], "average_price": l["average_price"],
@@ -218,7 +218,7 @@ def make_handler(bot, web_dir, cfg_path):
 
         def _dbrow(self, r, mine):
             return {"auction_id": r["auction_id"], "item_id": r["item_id"], "name": bot.item_name(r["item_id"]),
-                    "count": r["add_info"], "price": r["price"], "instant_price": r["instant_price"],
+                    "count": bot.count_of(r["item_id"], r["add_info"]), "price": r["price"], "instant_price": r["instant_price"],
                     "unit_price": r["unit_price"], "owner_name": r["owner_name"], "owner_id": r["owner_id"],
                     "expire_time": r["expire_time"], "upgrade": r["upgrade"], "buyer_id": r["buyer_id"],
                     "is_bot": r["owner_id"] == -1}

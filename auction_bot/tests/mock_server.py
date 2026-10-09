@@ -23,7 +23,10 @@ def pack_auction_item_info(l):
     name = l["owner_name"][:12]
     b += name + b"\0" * (13 - len(name))
     b += struct.pack("<d", 0.0) + bytes([2])
-    b += P.pack_item_info(l["item_id"], add_info=l["count"])
+    raw = l.get("raw")
+    if raw and KNOWN_ITEMS.get(l["item_id"]) is not False:          # 堆叠品：add_info 跟随剩余数量
+        raw = raw[:6] + struct.pack("<i", l["count"]) + raw[10:]
+    b += raw if raw else P.pack_item_info(l["item_id"], add_info=l["count"])
     b += b"\0" * P.EMBLEM_SIZE + b"\0" * P.EXPANSION_SIZE
     b += struct.pack("<Ii", 0, l["unit_price"])
     assert len(b) == P.AUCTION_ITEM_INFO_SIZE
@@ -37,6 +40,7 @@ class MockAuction:
         self.violations = []
         self.received = []
         self.history = []
+        self.sold = {}
         self.ready = True
 
     async def handle(self, reader, writer):
@@ -101,7 +105,7 @@ class MockAuction:
                 self.listings[aid] = {"auction_id": aid, "owner": owner,
                                       "owner_name": NPC_NAME if owner == -1 else name, "price": price,
                                       "instant_price": instant, "unit_price": unit, "item_id": it["item_id"],
-                                      "count": it["add_info"], "expire": time.time() + 7200}
+                                      "count": it["add_info"], "expire": time.time() + 7200, "raw": bytes(b[48:101])}
             log = struct.pack("<iBQiiIBiHIB", char_idx, 0 if not because else 1, aid, owner, price, it["item_id"], 0,
                               it["add_info"], 0, 0, because)
             res = struct.pack("<iiBB", char_idx, owner, 0 if because else 1, because)
@@ -141,7 +145,8 @@ class MockAuction:
             l = self.listings.get(aid)
             because = 0 if (l and price == l["instant_price"]) else 0x1c
             if not because:
-                del self.listings[aid]
+                self.history.append(("bid", aid, buyer, 1))
+                self.sold[aid] = self.listings.pop(aid)
             log = struct.pack("<iBQiiIBiHIB", char_idx, 2, aid, 0, price, 0, 0, 0, 0, 0, 0)
             res = struct.pack("<iiiBBQ", char_idx, buyer, price, 0 if because else 1, because, aid)
             return [ag(P.AG_LOG_MESSAGE, log), ag(P.AG_BIDDING_RESULT, res)]

@@ -39,7 +39,7 @@ market:
 
 engine:                              # 经济模型引擎（运营 agent 校准的代理人模型），开启后取代下面的简单补货 seller
   enabled: true
-  model_config: ref/model_config.json      # 89 个建模道具（v3 起含尖晶石、锆石等基础材料）的参数（c/v、产出/消耗、ε、κ、σ、活跃度、挂单/买单数量）
+  model_config: ref/model_config.json      # 89 个建模堆叠道具（v3 起含尖晶石、锆石等基础材料）+ v4.1 装备段（383 件，只挂无随机属性的 212 件）的参数（c/v、产出/消耗、ε、κ、σ、活跃度、挂单/买单数量）
   excluded_items: ref/excluded_items.json  # 排除名单：NPC 可兑换的晶块类 + 无价格锚点道具，机器人永不买卖
   excluded_extra: []                 # 额外排除的道具 ID
   volume_scale: 1.0                  # 总量系数：1.0 = 模型校准量（全部 89 个：运营 v3 14 天模拟约 3500 次虚拟成交/天，神秘商店活动日约 5000+）
@@ -58,6 +58,22 @@ engine:                              # 经济模型引擎（运营 agent 校准�
     max_gold_per_day: 2000000        # 护栏：每日最多花费金币（假买家支付，金币实际进入卖家邮箱）
     # 护栏：单价高于 价格带上限×(1+price_band_slack) 的不买；排除名单内的道具永不买；买家 = 1999999999
     # 可选（默认不启用）：max_price_ratio（只买低于 min(参考价,公允价)×此值）、probability、max_gold_per_buy
+  equipment:                         # 装备挂单（运营 v4.1 equipment 段：粉装/名品紫装/套装件/白菜价粉装，按层级定价，数量恒为 1）
+    enabled: true                    # 模型自动挂装备。需要 format_verified 也为 true 才会生效（2026-10-10 实测后开启）
+    format_verified: true            # 2026-10-10 已用 1 件真实挂单+假买家购买验证（拍卖号 8069 → postal 4240，逐字段一致，见 README「装备挂单」）
+    manual_enabled: true             # 网页「手动上架」允许装备（只限模型清单内、无随机属性的 +0 装备；同样需要 format_verified）
+    guid_server_id: 3011             # 生成装备 guid 用的 serverId（库里真实装备的 guid 都是 3011）；seq 用 60000..65535，永不与游戏端重复
+    max_listings_per_tier: 1         # 放量护栏：每个层级最多几张系统挂单（模型 target_listings 为 2~6，逐步放开）
+    max_new_per_step: 2              # 每步最多新挂几件装备
+    max_new_per_hour: 8
+    price_band_slack: 0.0            # 单件价格夹在 items[id].band×(1±此值) 内
+    volume_scale: 1.0
+    virtual_fill:                    # 假买家买走机器人自己的装备挂单（每件 = 1 条 postal + 1 条 letter，由孤儿清理删除）
+      max_per_step: 4
+      max_per_day: 60
+    user_fill:                       # 模型收购真人挂的装备：默认关闭，需要用户决定是否开启以及每日上限
+      enabled: false
+      max_gold_per_day: 20000000     # 独立于材料的 2,000,000/天；只收清单内、+0、无随机属性、无增幅的装备
 
 seller:                              # 简单补货（engine.enabled=false 时才使用）
   enabled: false

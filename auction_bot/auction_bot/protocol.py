@@ -146,27 +146,53 @@ ROI_SIZE = 12
 EMBLEM_SIZE = 30
 EXPANSION_SIZE = 4
 GUID_SIZE = 10
+RANDOM_OPTION_SIZE = 14
+INT32_MAX = 0x7fffffff
 
 
-def pack_item_info(item_id, add_info=0, seal=0, upgrade=0, endurance=0, extend_info=0):
+def pack_item_info(item_id, add_info=0, seal=0, upgrade=0, endurance=0, extend_info=0, guid=None, random_option=None):
     """DnfItemInfo（53 字节，pack(1)）：
-    seal u8@0, item_id u32@1, uniItemAttr u8@5(低5位强化), add_info i32@6(堆叠品=数量),
+    seal u8@0, item_id u32@1, uniItemAttr u8@5(低5位强化), add_info i32@6(堆叠品=数量；装备=物品随机种子 m_addInfo2),
     endurance u16@10, extendInfo u32@12, abilityType u8@16, abilityValue u16@17,
     guid[10]@19, RandomOption[14]@29, separate_info u8@43, reserved[9]@44
     """
+    guid = bytes(guid or b"")
+    random_option = bytes(random_option or b"")
+    if len(guid) not in (0, GUID_SIZE) or len(random_option) not in (0, RANDOM_OPTION_SIZE):
+        raise ProtocolError("guid / random_option 长度不对")
     b = struct.pack("<BIBiHIBH", seal & 1, item_id, upgrade & 0x1f, add_info, endurance, extend_info, 0, 0)
-    b += b"\0" * GUID_SIZE + b"\0" * 14 + b"\0" + b"\0" * 9
+    b += guid.ljust(GUID_SIZE, b"\0") + random_option.ljust(RANDOM_OPTION_SIZE, b"\0") + b"\0" + b"\0" * 9
     assert len(b) == DNF_ITEM_INFO_SIZE
     return b
 
 
+def make_item_guid(server_id, ts, seq):
+    """itemGloballyUniqueIdentifier_t 的 10 字节形式（ORIG CItemGloballyUniqueIdentifierGenerator::generate）：
+    serverId i32 + datetime i32 + sequenceNo u16。"""
+    return struct.pack("<iiH", int(server_id), int(ts), int(seq) & 0xffff)
+
+
+def equipment_item_info(item_id, seal, endurance, add_info, guid):
+    """装备挂单用的 DnfItemInfo：与 ORIG 游戏端从背包格子拷贝的字段一一对应（dispatch_sig_144 / CEquipItem::make_item）。
+    +0 强化、无封装次数、无增幅、无随机属性、无分离强化；count 不适用（add_info 是物品自身的随机种子）。"""
+    if not (0 <= int(add_info) <= 0x7fffffff):
+        raise ProtocolError("装备 add_info 必须在 0..2^31-1")
+    if not (0 <= int(endurance) <= 0xffff):
+        raise ProtocolError("耐久超出 u16")
+    return pack_item_info(item_id, add_info=int(add_info), seal=1 if seal else 0, upgrade=0, endurance=int(endurance),
+                          extend_info=0, guid=guid, random_option=b"")
+
+
 def unpack_item_info(buf, off=0):
     seal, item_id, attr, add_info, endurance, extend_info, ab_t, ab_v = struct.unpack_from("<BIBiHIBH", buf, off)
+    guid = bytes(buf[off + 19: off + 29])
+    ro = bytes(buf[off + 29: off + 43])
     return {
         "seal": seal, "item_id": item_id, "upgrade": attr & 0x1f, "seal_cnt": attr >> 5,
         "add_info": add_info, "endurance": endurance, "extend_info": extend_info,
         "ability_type": ab_t, "ability_value": ab_v,
-        "separate_upgrade": buf[off + 43] & 0x1f,
+        "guid": guid.hex(), "random_option": ro.hex(), "random_empty": not any(ro),
+        "separate_upgrade": buf[off + 43] & 0x1f, "separate_raw": buf[off + 43],
     }
 
 
@@ -189,16 +215,26 @@ def build_ask_registed_item_num(char_idx, character_id, item_id, add_info=1, pri
 
 
 def build_regist_item(char_idx, owner_id, owner_name, item_id, count, price, instant_price, unit_price,
-                      user_type=0, endurance=0):
+                      user_type=0, endurance=0, item_info=None):
     """PCK_AUCTION_REGIST_ITEM_GA（0xc5）。
     char_idx@18 owner_id@22 owner_name[13]@26 user_type@39 price@40 instant_price@44
     item_info[53]@48 jewel_info[30]@101 expansion[4]@131 black_point@135 guid[10]@139
     unit_price@149 roi[12]@153 owner_nexon_id[32]@165
+    item_info：装备分支传入 equipment_item_info(...) 的 53 字节；None = 堆叠品（add_info=数量）。
+    外层 guid@139 ORIG 游戏端从不填写（构造函数 memset 0），保持 0。价格字段是 int32。
     """
+    for v in (price, instant_price, unit_price):
+        if not (-1 <= int(v) <= INT32_MAX):
+            raise ProtocolError("价格超出 int32 范围")
     body = struct.pack("<ii", char_idx, owner_id)
     body += _cstr(owner_name, 13)
     body += struct.pack("<Bii", user_type, price, instant_price)
-    body += pack_item_info(item_id, add_info=count, endurance=endurance)
+    if item_info is not None:
+        if len(item_info) != DNF_ITEM_INFO_SIZE:
+            raise ProtocolError("item_info 必须是 53 字节")
+        body += bytes(item_info)
+    else:
+        body += pack_item_info(item_id, add_info=count, endurance=endurance)
     body += b"\0" * EMBLEM_SIZE + b"\0" * EXPANSION_SIZE
     body += struct.pack("<I", 0)              # black_point
     body += b"\0" * GUID_SIZE                 # guid

@@ -117,7 +117,8 @@ class PVF:
         return m
 
     def item_fields(self, path, wanted=("[name]", "[stackable type]", "[grade]", "[price]", "[stack limit]",
-                                        "[minimum level]", "[rarity]", "[equipment type]", "[attach type]")):
+                                        "[minimum level]", "[rarity]", "[equipment type]", "[attach type]",
+                                        "[durability]", "[random option]")):
         try:
             us = self.units(self.read(path))
         except KeyError:
@@ -127,6 +128,8 @@ class PVF:
         for t, v in us:
             if t == 5:
                 cur = v.lower() if isinstance(v, str) else None
+                if cur:
+                    out.setdefault("_tags", set()).add(cur)
                 continue
             if cur in wanted and cur not in out:
                 out[cur] = v
@@ -156,13 +159,17 @@ def build_item_index(pvf_path):
                 "rarity": fields.get("[rarity]") if isinstance(fields.get("[rarity]"), int) else None,
                 "level": fields.get("[minimum level]") if isinstance(fields.get("[minimum level]"), int) else None,
                 "attach": fields.get("[attach type]") if isinstance(fields.get("[attach type]"), str) else None,
+                # 装备：[durability] 满耐久（首饰等没有这个字段 → None）；[random option] 非 0 = 随机属性装备（假紫）
+                "durability": fields.get("[durability]") if isinstance(fields.get("[durability]"), int) else None,
+                "random_option": (kind == "equipment" and (bool(fields.get("[random option]"))
+                                                            or ("[random option]" in fields.get("_tags", ()) and "[random option]" not in fields))),
             }
     return items
 
 
 def load_item_index(pvf_path, cache_path):
     st = os.stat(pvf_path)
-    sig = "%d:%d" % (st.st_size, int(st.st_mtime))
+    sig = "v2:%d:%d" % (st.st_size, int(st.st_mtime))   # v2：增加 durability / random_option 字段
     if os.path.exists(cache_path):
         try:
             with open(cache_path, "r", encoding="utf-8") as fh:

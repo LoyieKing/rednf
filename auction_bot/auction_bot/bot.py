@@ -31,6 +31,8 @@ def load_reference_prices(path):
                 continue
             if not iid:
                 continue
+            if str(row.get("强化等级(空=+0)") or "").strip() not in ("", "0"):
+                continue          # 强化装备的史料行（如冰焰左轮枪 +7..+11）不是 +0 参考价
 
             def num(*keys):
                 for k in keys:
@@ -97,6 +99,12 @@ class Bot:
         if m and "is_avatar" not in m:
             m["is_avatar"] = "avatar" in (m.get("path") or "") or "avatar" in str(m.get("equipment_type") or "")
         return m
+
+    def count_of(self, iid, add_info):
+        """挂单数量：堆叠品 = add_info；装备等不可堆叠物品的 add_info 是物品自身的随机种子，数量永远是 1。"""
+        if (self.item_meta(iid) or {}).get("kind") == "equipment":
+            return 1
+        return add_info if add_info and add_info > 0 else 1
 
     def reload_config(self, cfg):
         self.cfg = cfg
@@ -239,7 +247,7 @@ class Bot:
         npc_name = self.store.kv_get("npc_name")
         for l in listings:
             aid = l["auction_id"]
-            cnt = l["item"]["add_info"] if l["item"]["add_info"] > 0 else 1
+            cnt = self.count_of(l["item"]["item_id"], l["item"]["add_info"])
             unit = l["unit_price"] or (l["instant_price"] // cnt if l["instant_price"] > 0 else l["price"] // cnt)
             is_bot = 1 if aid in known or self.is_npc_name(l["owner_name"]) else 0
             obs.append((now, l["item"]["item_id"], aid, l["owner_name"], is_bot, unit, cnt))
@@ -251,7 +259,7 @@ class Bot:
                 continue
             l = seen.get(aid)
             if l is not None:
-                cnt = l["item"]["add_info"]
+                cnt = self.count_of(r["item_id"], l["item"]["add_info"])
                 if 0 < cnt < r["count_now"]:
                     sold = r["count_now"] - cnt
                     self.store.add_deal(now, r["item_id"], aid, sold, r["unit_price"], sold * r["unit_price"],
@@ -268,6 +276,9 @@ class Bot:
                 if self.runner is not None and r["count_now"] > 0 and r["item_id"] in self.runner.items \
                         and not str(r["note"] or "").startswith("manual"):
                     self.runner.expired_pending.setdefault(r["item_id"], []).append(r["count_now"])
+                elif self.runner is not None and r["count_now"] > 0 and self.runner.equip.tier_of(r["item_id"]) \
+                        and not str(r["note"] or "").startswith("manual"):
+                    self.runner.equip.expired_pending.setdefault(self.runner.equip.tier_of(r["item_id"]), []).append(1)
                 self.log("expire", "系统挂单到期下架：%s ×%d（单价 %d，拍卖号 %d）"
                          % (self.item_name(r["item_id"]), r["count_now"], r["unit_price"], aid))
             else:
@@ -300,7 +311,7 @@ class Bot:
                             self.store.execute("DELETE FROM deals WHERE uniq=?", ("snap:%d:0" % h["auction_id"],))
                             self.log("expire", "按拍卖记录更正：拍卖号 %d 实为到期下架，非售出" % h["auction_id"])
                     continue
-                cnt = h["add_info"] if h["add_info"] and h["add_info"] > 0 else 1
+                cnt = self.count_of(h["item_id"], h["add_info"])
                 unit = h["unit_price"] or (h["price"] // cnt if h["price"] else 0)
                 if h["owner_id"] == SYSTEM_OWNER:
                     self.store.execute("UPDATE deals SET buyer_id=? WHERE auction_id=? AND buyer_id IS NULL",
@@ -484,8 +495,8 @@ class Bot:
                     continue
             meta = self.item_meta(iid)
             stackable = meta.get("kind") == "stackable"
-            if meta.get("kind") not in ("stackable", "equipment") or meta.get("is_avatar"):
-                continue
+            if not stackable:
+                continue        # 旧版收购只收堆叠品；装备只由经济模型的装备分支收购（独立开关和上限，永不收随机属性装备）
             # 以协议实时检索确认挂单当前状态
             live = [l for l in await self.client.search_items([iid]) if l["auction_id"] == c["auction_id"]]
             if not live:

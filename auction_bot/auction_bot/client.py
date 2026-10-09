@@ -228,6 +228,17 @@ class AuctionClient:
         return {"ok": res["ok"], "because": res.get("because"), "because_text": res.get("because_text"),
                 "auction_id": log["auction_id"] if log else 0, "instant_price": instant}
 
+    async def regist_equipment(self, owner_id, owner_name, item_id, instant_price, item_info):
+        """装备挂单：数量 1，竞价 -1（只有一口价），单价 = 一口价。item_info 由 protocol.equipment_item_info 生成。"""
+        instant = int(instant_price)
+        r = await self.request(
+            lambda i: P.build_regist_item(i, owner_id, owner_name, item_id, 1, -1, instant, instant, item_info=item_info),
+            ["LOG_MESSAGE", "REGIST_RESULT"])
+        log = next((m for m in r if m["type"] == "LOG_MESSAGE"), None)
+        res = r[-1]
+        return {"ok": res["ok"], "because": res.get("because"), "because_text": res.get("because_text"),
+                "auction_id": log["auction_id"] if log else 0, "instant_price": instant}
+
     async def buy_apiece(self, buyer_id, auction_id, unit_price, count):
         price = unit_price * count
         r = await self.request(lambda i: P.build_buy_item_apiece(i, buyer_id, price, auction_id, count),

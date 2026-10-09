@@ -8,6 +8,7 @@ import time
 import traceback
 
 from .engine import Engine
+from .equip import EquipRunner
 
 FAKE_BUYER = 1999999999
 
@@ -42,6 +43,7 @@ class EngineRunner:
         self.last_plan = None
         self.expired_pending = {}    # iid -> [剩余数量]
         self.hourly_new = []
+        self.equip = EquipRunner(self)
         self.reload()
 
     @property
@@ -66,6 +68,7 @@ class EngineRunner:
         if not c.get("enabled"):
             self.engine = None
             self.items = {}
+            self.equip.reload(None)
             return
         mp = self._path(c.get("model_config", "ref/model_config.json"))
         self.model = load_json(mp)
@@ -99,6 +102,7 @@ class EngineRunner:
         b.watch_ids |= set(items)
         b.log("engine", "经济模型已加载：%d 个道具参与（共 %d 个建模道具，跳过 %d 个），总量系数 volume_scale=%s"
               % (len(items), len(self.model["items"]), len(skipped), c.get("volume_scale", 1.0)))
+        self.equip.reload(self.model)
 
     def band(self, iid):
         p = self.items[iid]
@@ -190,7 +194,9 @@ class EngineRunner:
         counts, _, _ = self.today_counts()
         uc = c.get("user_fill", {}) or {}
         vc = c.get("virtual_fill", {}) or {}
-        user_gold_today = (counts.get("bot_buy_human") or {}).get("g") or 0
+        # 材料的每日金币上限只算材料（装备收购有自己独立的上限，见 equip.py）
+        user_gold_today = b.store.query("SELECT SUM(total) g FROM deals WHERE ts>=? AND side='bot_buy_human' "
+                                        "AND source<>'engine-eq'", (self.today_counts()[2],))[0]["g"] or 0
         vf_today = (counts.get("virtual") or {}).get("n") or 0
         vf_step_cap = int(vc.get("max_per_step", 60))
         vf_day_cap = int(vc.get("max_per_day", 5000))
@@ -273,7 +279,15 @@ class EngineRunner:
                 b.log("error", "虚拟成交失败 拍卖号 %d ×%d：%s" % (aid, qty, r.get("because_text")), level="warn")
                 if r.get("because") in (0x9e, 0x31):
                     break
-        # ---- 3) 记录 ----
+        # ---- 3) 装备（v4.1 equipment 段；独立层级引擎，默认关闭） ----
+        try:
+            eq = await self.equip.step(now, dt_h)
+            res["equip"] = eq
+        except (ConnectionError, OSError):
+            raise
+        except Exception as e:
+            b.log("error", "装备模型步进异常：%s" % e, level="error", tb=traceback.format_exc()[-1500:])
+        # ---- 4) 记录 ----
         b.store.kv_set("engine_state", self.engine.state)
         ts = time.time()
         b.store.execute("INSERT INTO engine_steps(ts,dt_h,online,items,new_planned,new_done,vf_planned,vf_done,uf_planned,"
@@ -348,7 +362,7 @@ class EngineRunner:
                          "user_gold_per_buy": int((c.get("user_fill") or {}).get("max_gold_per_buy", (c.get("user_fill") or {}).get("max_gold_per_day", 2000000))),
                          "new_per_step": int(c.get("max_new_listings_per_step", 40)),
                          "new_per_hour": int(c.get("max_new_listings_per_hour", 200))},
-                "steps": steps}
+                "steps": steps, "equipment": self.equip.status()}
 
 
 # ---------------- 手动上架（网页操作） ----------------
@@ -379,6 +393,9 @@ def suggest_price(bot, iid):
     没有价格锚点时返回 (None, None)，必须由用户填写。"""
     from .engine import round_price
     r = bot.runner
+    if r and r.equip.engine is not None and iid in r.equip.catalog:
+        t = r.equip.tier_of(iid)
+        return r.equip.item_price(iid, r.equip.engine.fair(t)[0]), "装备模型公允价"
     if r and r.engine is not None and iid in r.items:
         fair, _ = r.engine.fair(iid)
         lo, hi = r.band(iid)
@@ -405,8 +422,14 @@ def manual_preview(bot, iid):
         stack, src = 1, "不可堆叠，每件一条"
     px, psrc = suggest_price(bot, iid)
     blocked = None
+    eq = bot.runner.equip if bot.runner else None
     if kind == "equipment":
-        blocked = "装备等不可堆叠物品暂不支持手动上架（耐久、随机属性等字段的上架格式未在真服验证，机器人从不上架装备）"
+        if not eq or not eq.manual_enabled:
+            blocked = "装备手动上架未开启（engine.equipment.manual_enabled / format_verified）"
+        elif iid not in eq.catalog:
+            blocked = "只允许手动上架装备模型清单里的 +0 无随机属性装备（%s）" % (eq.skipped.get(iid) or "不在 v4.1 装备清单")
+    elif kind not in (None, "stackable"):
+        blocked = "不支持此类物品"
     return {"item_id": iid, "name": bot.item_name(iid), "known_in_pvf": bool(meta), "kind": kind,
             "stackable": kind == "stackable", "stack_size": stack, "stack_source": src, "stack_limit": lim or None,
             "suggested_price": px, "price_source": psrc, "excluded": (bot.excluded or {}).get(iid),
@@ -430,6 +453,10 @@ async def manual_list(bot, iid, total, unit_price=None, stack_size=None, confirm
     if not unit_price:
         return {"ok": False, "error": "该物品没有价格锚点，请填写单价"}
     unit = int(unit_price)
+    if info["kind"] == "equipment":
+        lo, hi = bot.runner.equip.band(iid)
+        if not (lo * 0.5 <= unit <= hi * 2):
+            return {"ok": False, "error": "装备单价 %d 偏离价格带 %d~%d 太多（允许 ×0.5~×2）" % (unit, lo, hi)}
     if unit < 1 or unit > MAX_PRICE:
         return {"ok": False, "error": "单价必须在 1 到 %d 之间" % MAX_PRICE}
     size = int(stack_size or info["stack_size"] or 1)
@@ -449,7 +476,10 @@ async def manual_list(bot, iid, total, unit_price=None, stack_size=None, confirm
     for q in stacks:
         if unit * q > MAX_PRICE:
             q = max(1, MAX_PRICE // unit)
-        r = await bot.client.regist_item(SYSTEM_OWNER, "", iid, q, unit)
+        if info["kind"] == "equipment":
+            r, _f = await bot.runner.equip.list_one(iid, unit, "manual")
+        else:
+            r = await bot.client.regist_item(SYSTEM_OWNER, "", iid, q, unit)
         if not r["ok"] or not r["auction_id"]:
             failed.append({"count": q, "because": r.get("because_text") or "拍卖号为 0（物品不在拍卖服 iteminfo.dat）"})
             bot.log("error", "手动上架失败 %s ×%d @%d：%s" % (bot.item_name(iid), q, unit, failed[-1]["because"]),
@@ -459,9 +489,10 @@ async def manual_list(bot, iid, total, unit_price=None, stack_size=None, confirm
             continue
         aid = r["auction_id"]
         t = time.time()
-        bot.store.execute("INSERT OR REPLACE INTO bot_listings(auction_id,item_id,count0,count_now,unit_price,instant_price,"
-                          "listed_at,expire_at,status,last_seen,note) VALUES(?,?,?,?,?,?,?,?,'active',?,?)",
-                          (aid, iid, q, q, unit, unit * q, t, t + LISTING_EXPIRE_S, t, "manual"))
+        if info["kind"] != "equipment":      # 装备由 list_one 写 bot_listings
+            bot.store.execute("INSERT OR REPLACE INTO bot_listings(auction_id,item_id,count0,count_now,unit_price,instant_price,"
+                              "listed_at,expire_at,status,last_seen,note) VALUES(?,?,?,?,?,?,?,?,'active',?,?)",
+                              (aid, iid, q, q, unit, unit * q, t, t + LISTING_EXPIRE_S, t, "manual"))
         created.append({"auction_id": aid, "count": q, "unit_price": unit})
         bot.log("list", "手动上架 %s ×%d，单价 %d（拍卖号 %d）" % (bot.item_name(iid), q, unit, aid),
                 auction_id=aid, item_id=iid)

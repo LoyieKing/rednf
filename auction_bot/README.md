@@ -44,6 +44,35 @@ python3 -m auction_bot.cli buy-test --auction-id 1 --count 1   # 受控收购 1 
 - **自动收购**：只查询 `owner_id NOT IN (-1, 假买家)` 的挂单，永远不会买系统卖家的挂单（包括手动挂单）。
 - **记录**：每条挂单写 `logs/bot.log` 和 bot.db 操作日志（类型「上架」，内容以「手动上架」开头；汇总和被拒绝的操作记在「控制」），页面下方「手动上架记录」和「系统挂单 / 成交 → 来源」可查看。
 
+## 装备挂单（运营 v4.1 equipment 段）
+
+只挂 PVF 里**没有** `[random option]` 的 +0 装备（v4.1 中 212 件：粉装、名品紫装、套装件、Lv30/40 白菜价粉装）。
+随机属性紫装（假紫，171 件）被跳过，永不挂、永不买。判断同时看运营 csv 的 `random_option_in_pvf` 和机器人自己读的 PVF。
+
+### 上架格式（ORIG 推导 + 实测）
+游戏端登记拍卖（`Inter_AuctionResultAskRegistedItemNum::dispatch_sig`，ORIG 0x084d5930）把背包格子 `Inven_Item`（61 字节）逐字段拷进 `DnfItemInfo`；
+拍卖服 `insertPackageData` 把这些字段原样写进买家 postal；取件时 `CMailBoxHelper::SetMailBoxInfo` 先 `make_item` 再用 postal 的字段覆盖。
+所以挂出去的东西 = 一件刚掉落（`CEquipItem::make_item`）、未解封的 +0 装备：
+
+| 字段 | 值 | 依据 |
+|---|---|---|
+| seal | `[sealing]`=1；`[free]`/`[sealing trade]`=0 | make_item 只给 attach type 3 封装；登记时 attach 3 必须是封装状态，attach 1/2/5 不能登记 |
+| add_info | 随机 0..2^31-1 | 装备的 `m_addInfo2` 是 make_item 时的 `rand()`，不是数量（运营提议的 0 不对） |
+| endurance | PVF `[durability]`，没有该字段 = 0 | make_item；库里真实首饰耐久都是 0 |
+| guid（item_info+19，10 字节） | serverId=3011、datetime=当前时间、seq=60000..65535 | make_item 给装备类型 10..21 生成 guid；库里真实装备 serverId 都是 3011；游戏端 seq 在 59999 归零，机器人用 60000+ 永不重复。guid 只用于日志，没有唯一性校验（库里也有大量 guid=0 的合法装备） |
+| random_option | 全 0 | 无随机属性装备 |
+| 外层 guid@139 | 0 | ORIG 构造函数 memset 0，之后从不写 |
+| 价格 | price=-1、instant=unit=一口价 | 拍卖服价格是 int32（不是 u32），最大 2,147,483,647；4 亿没问题 |
+
+实测（2026-10-10 00:18）：爆麟夹克 10478 一口价 30000，拍卖号 8069 → 检索回包、auction_main、假买家买下后的 postal 4240 逐字段与发送一致
+（seal 1、耐久 33、guid、随机属性全 0、type 4，信件「恭喜您成功竞拍到[爆麟夹克]」）。脚本：`ops/equip_live_test/live_test.py`。
+
+### 模型
+层级（tiers）跑和材料相同的引擎，挂单时在层级里按 `supply_weight` 抽一件，单件价 = `items[id].ref × 层级价 / 层级 ref`，按价位取整后夹在单件 band 内。
+数量恒为 1；虚拟成交用一口价购买（BIDDING），不是 BUY_ITEM_APIECE。放量护栏：`engine.equipment.max_listings_per_tier`（初始 1）、`max_new_per_step`、`max_new_per_hour`。
+收购真人挂的装备（`engine.equipment.user_fill`）默认关闭，有自己独立的每日金币上限，不占材料的 2,000,000/天；只收清单内、+0、无随机属性、无增幅的装备。
+扫描/对账/成交记录里装备数量一律按 1 计（add_info 不是数量）。
+
 ## 配置（config.yaml）
 
 | 项 | 说明 |
