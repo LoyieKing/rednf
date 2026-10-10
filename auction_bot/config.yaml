@@ -83,6 +83,23 @@ engine:                              # 经济模型引擎（运营 agent 校准�
       mode: unsealed                 # unsealed = 用服务器「随机属性解封」同一算法生成属性（randopt.py 复刻 give_option）
                                      # sealed   = 属性全 0（服务器掉落时的真实状态，玩家买到后自己花金币解封）
 
+  floor:                             # 保底挂单：每个建模道具至少 min_visible 张可见系统挂单（无上限），见 README「保底挂单」
+    enabled: false                   # 默认关闭；全量上线需用户确认
+    min_visible: 10
+    scope:                           # 覆盖范围：all=true 为全部建模道具（89 材料 + 495 装备）；否则只覆盖下列装备层级 / 道具
+      all: false
+      tiers: []                      # 例如 [EQ_P_named]：整个层级交给 floor（该层级的 shelf 不再补挂/虚拟购买）
+      items: []                      # 材料或装备的 item_id
+    interval_sec: 20                 # 每 20 秒检查一次缺口（补挂时间因此均匀，不跟引擎 5~15 分钟的步进扎堆）
+    lead_minutes: 10                 # 到期前 10 分钟就补挂新单 → 不出现可见空档（每个道具可见 10~11 张）
+    ramp_minutes: 110                # 首次铺货分散在 110 分钟内（= 120 - lead），之后到期/补挂时间保持均匀
+    max_new_per_min: 60              # 硬护栏。全量 5840 张稳态需 ≈53 张/分钟；拍卖服系统挂单到期处理上限 90 张/分钟（每 2 秒 3 张），与引擎共用
+    equipment:
+      target_sell_through: 0.004     # 到期前约 0.4% 被虚拟买家买走：全量 4950 张时约 240 笔/天（仍受 virtual_fill.max_per_day=300 限制）
+      min_shelf_minutes: 30          # 挂满 30 分钟才可能被买
+    stackable:
+      buy_hazard_per_h: 0            # 材料保底挂单不被虚拟买家买（材料市场活跃度保持不变；玩家可以正常买）
+
 seller:                              # 简单补货（engine.enabled=false 时才使用）
   enabled: false
   restock_interval: 120

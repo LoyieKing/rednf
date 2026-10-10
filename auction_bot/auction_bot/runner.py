@@ -9,6 +9,7 @@ import traceback
 
 from .engine import Engine
 from .equip import EquipRunner
+from .floor import FloorRunner, is_floor
 
 FAKE_BUYER = 1999999999
 
@@ -44,6 +45,7 @@ class EngineRunner:
         self.expired_pending = {}    # iid -> [剩余数量]
         self.hourly_new = []
         self.equip = EquipRunner(self)
+        self.floor = FloorRunner(self)
         self.reload()
 
     @property
@@ -139,8 +141,8 @@ class EngineRunner:
                 aid = l["auction_id"]
                 cnt = l["item"]["add_info"]
                 row = mine.get(aid)
-                if row is not None and str(row.get("note") or "").startswith("manual"):
-                    continue        # 手动上架：模型完全看不到（不计入挂单数/上限，虚拟买家不买，到期不补挂）
+                if row is not None and (str(row.get("note") or "").startswith("manual") or is_floor(row.get("note"))):
+                    continue        # 手动上架 / 保底挂单：模型完全看不到（不计入挂单数/上限，虚拟买家不买，到期不补挂）
                 is_sys = aid in mine or b.is_npc_name(l["owner_name"])
                 apiece = l["price"] == -1 and l["unit_price"] > 0 and cnt > 0
                 asks.append({"auction_id": aid, "price": l["unit_price"] or (l["instant_price"] // max(1, cnt)),
@@ -362,7 +364,7 @@ class EngineRunner:
                          "user_gold_per_buy": int((c.get("user_fill") or {}).get("max_gold_per_buy", (c.get("user_fill") or {}).get("max_gold_per_day", 2000000))),
                          "new_per_step": int(c.get("max_new_listings_per_step", 40)),
                          "new_per_hour": int(c.get("max_new_listings_per_hour", 200))},
-                "steps": steps, "equipment": self.equip.status()}
+                "steps": steps, "equipment": self.equip.status(), "floor": self.floor.status()}
 
 
 # ---------------- 手动上架（网页操作） ----------------

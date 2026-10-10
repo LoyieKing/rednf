@@ -125,6 +125,32 @@ seperate_upgrade=0` 的行；拍卖服只在启动时读这张表。
 拍卖号 8080 → 检索回包、auction_main（roi_high_key 128850984990000）、假买家买下后的 postal 4262 逐字节一致（seal 1、耐久 40、guid、随机属性），
 信件「恭喜您成功竞拍到[@2290110,71,14,8,0,0,0,0,0,0,146,-1@]」与拍卖服 GetRandomOptionName 格式一致。
 
+## 保底挂单（`engine.floor`，默认关闭）
+
+目标：每个有金融数据的道具（89 材料 + 495 装备）在拍卖行里始终至少有 `min_visible`（10）张可见系统挂单，没有上限。代码在 `auction_bot/floor.py`。
+
+- **覆盖数**：该道具 active、非手动的系统挂单中，距离 7200 秒到期还超过 `lead_minutes`（10 分钟）的张数；引擎、shelf、floor 挂单都算。覆盖数不足就补挂 → 旧单下架前新单已在，**没有可见空档**（每个道具可见 10~11 张）。
+- **均匀**：独立的 20 秒小循环（不跟引擎 5~15 分钟步进扎堆）+ 令牌桶 `rate = min(max_new_per_min, 1.15 × 目标总张数 / ramp_minutes)`；每轮先补覆盖数最少的道具，一个道具一次一张。
+  首次铺货因此分散在 `ramp_minutes` 内，之后到期/补挂时间保持均匀，稳态约 `总张数 / (120 - lead)` 张/分钟（全量 5840 张 ≈ 53 张/分钟）。
+- **材料**：floor 挂单（note `floor`）对材料引擎完全不可见——不进挂单簿、不占 `target_listings`、到期不触发引擎补挂，所以引擎的挂单/虚拟成交活跃度不变；
+  floor 挂单价 = 公允价 × exp(N(0.03, 0.04))（夹在价格带），数量按模型 `lot_qty` 抽；默认不被虚拟买家买（`stackable.buy_hazard_per_h: 0`），玩家可以正常买。
+- **装备**：floor 覆盖的层级整体交给 floor（该层级 shelf 不再补挂/虚拟购买；原有 shelf 挂单计入覆盖并改用 floor 风险率）。
+  价格同 shelf；假紫每张独立按服务器规则生成随机属性。虚拟买家只买挂满 30 分钟的单，风险率 `h = -ln(1 - target_sell_through) / 1.5h`，
+  默认 `target_sell_through = 0.4%`（全量约 240 笔/天），仍受 `engine.equipment.virtual_fill.max_per_day`（300）限制。
+- floor 挂单不写 `listing_obs`（否则全量时每分钟数千行）。行情检索翻页上限提高到 200 页，若仍被截断，本轮对账不把「看不到」当作售出。
+- 范围：`scope.all: true` = 全部；试点用 `scope.tiers`（装备层级）/ `scope.items`（item_id）。网页「引擎」页装备卡片显示保底挂单的覆盖情况。
+
+**拍卖服容量（ORIG df_auction_r 反汇编 + 重建源码；2026-10-10 起线上换成 remake 构建，同一份源码，以下常量不变，见 `ops/remake_auction/README.md`）**：
+| 项 | 结论 | 依据 |
+|---|---|---|
+| 挂单存储 | 无固定上限：`std::map<auction_id, data*>` + boost 对象池（按需扩容），每张约 132 字节 + 检索索引 | AuctionDictionary::RegistItem |
+| 系统挂单到期处理 | **每 2 秒最多 3 张 = 90 张/分钟**（玩家挂单另有 100 张/2 秒） | `Auction::ProcessMostRecentExpireItem` 0x805ac5d `cmpl $0x2`；定时器 `regist(0x19, 0x7d0=2000ms)` 0x8079c75 |
+| 系统挂单寿命 | 7200 秒（`mSYSTEM_AUCTION_EXPIRE_TIME=0x1c20`） | Auction::Auction 0x805b1d9 |
+| 到期队列 | FIFO（按登记顺序，不排序）；系统挂单寿命相同，所以顺序 = 到期顺序；重启时按 `order by expire_time` 重新载入 | ExpireTimeDictionary、HandlerFor_DB_ |
+| 检索 | 每页 60 条（`numberOfFound > 0x3b`），首查计数到 9999 为止；一次最多 20 个道具 ID | Search::IsFindEnough 0x8081706、IsRequireStopSearch 0x808174b |
+| 系统挂单到期的库写入 | 删 auction_main + 写/改 auction_history；**不写 postal**（owner -1 跳过 insertPackageData） | onGAME_DB_SEND_PACKAGE_BY_EXPIRE |
+| 卖家 -1 的挂单列表 | `std::vector`，下架时线性查找删除（6000 张时可忽略） | CharacterDictionary::SubAuctionId |
+
 ## 配置（config.yaml）
 
 | 项 | 说明 |

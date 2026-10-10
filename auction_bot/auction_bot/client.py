@@ -17,6 +17,7 @@ from . import protocol as P
 
 class AuctionClient:
     def __init__(self, host, port, log, request_timeout=8.0, min_interval=0.15):
+        self.last_search_complete = True
         self.host = host
         self.port = port
         self.log = log                      # callable(kind, msg, level="info", **extra)
@@ -198,10 +199,11 @@ class AuctionClient:
         return {"item_id": m["item_id"], "num": m["now_registed_num"],
                 "missing": m["item_id"] == 0 or m["now_registed_num"] == -2}
 
-    async def search_items(self, item_ids, max_pages=20):
-        """按道具 ID 检索当前全部挂单（真人+系统），自动翻页。"""
+    async def search_items(self, item_ids, max_pages=200):
+        """按道具 ID 检索当前全部挂单（真人+系统），自动翻页。翻到 max_pages 还没取完时 last_search_complete=False。"""
         ids = list(dict.fromkeys(int(x) for x in item_ids))
         results = []
+        self.last_search_complete = True
         for k in range(0, len(ids), P.MAX_ITEM_ID_PER_SEARCH):
             chunk = ids[k: k + P.MAX_ITEM_ID_PER_SEARCH]
             start = 0
@@ -216,6 +218,8 @@ class AuctionClient:
                 start += len(m["items"])
                 if len(m["items"]) < P.SEARCH_PAGE or start >= total:
                     break
+            else:
+                self.last_search_complete = False
         return results
 
     async def regist_item(self, owner_id, owner_name, item_id, count, unit_price, price=-1):

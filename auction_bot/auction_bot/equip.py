@@ -490,8 +490,8 @@ class EquipRunner:
         stt = {}
         for t, p in self.tiers.items():
             sh = self.shelf(t)
-            if not sh:
-                continue
+            if not sh or self.runner.floor.covers_tier(t):
+                continue                     # 由保底挂单（engine.floor）整体维护的层级：shelf 不补挂、不买
             info = plan["items"].get(t) or {}
             fair = float(info.get("fair") or self.engine.fair(t)[0])
             rows = vis.get(t, [])

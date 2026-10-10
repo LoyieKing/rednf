@@ -207,6 +207,10 @@ class Bot:
                     if not self.paused:
                         if self.runner.engine is not None and self.runner.due():
                             await self.runner.step()
+                        fc = (self.cfg.get("engine") or {}).get("floor") or {}
+                        if fc.get("enabled") and self.runner.engine is not None \
+                                and self._due("floor", float(fc.get("interval_sec", 20))):
+                            await self.runner.floor.tick()
                         elif self.runner.engine is None and se.get("enabled", True) and self._due("restock", float(se.get("restock_interval", 120))):
                             await self.restock()
                         if self.buyer_cfg.get("enabled") and self._due("buy", float(self.buyer_cfg.get("scan_interval", 120))):
@@ -235,6 +239,9 @@ class Bot:
         if not ids:
             return
         listings = await self.client.search_items(ids)
+        complete = self.client.last_search_complete
+        if not complete:
+            self.log("scan", "行情检索被截断（某组道具挂单超过翻页上限），本轮不把「看不到」当作售出", level="warn")
         now = time.time()
         snap = {}
         for l in listings:
@@ -250,6 +257,8 @@ class Bot:
             cnt = self.count_of(l["item"]["item_id"], l["item"]["add_info"])
             unit = l["unit_price"] or (l["instant_price"] // cnt if l["instant_price"] > 0 else l["price"] // cnt)
             is_bot = 1 if aid in known or self.is_npc_name(l["owner_name"]) else 0
+            if aid in known and str(known[aid]["note"] or "").startswith("floor"):
+                continue                                   # 保底挂单不写 listing_obs（数千张 × 每分钟会让 bot.db 暴涨）
             obs.append((now, l["item"]["item_id"], aid, l["owner_name"], is_bot, unit, cnt))
         self.store.executemany("INSERT INTO listing_obs VALUES(?,?,?,?,?,?,?)", obs)
         # 对账：机器人挂单
@@ -258,6 +267,8 @@ class Bot:
             if r["item_id"] not in scan_ids:
                 continue
             l = seen.get(aid)
+            if l is None and not complete and now < r["expire_at"] - 90:
+                continue                                   # 检索被截断：看不到 ≠ 被买走，本轮不对账
             if l is not None:
                 cnt = self.count_of(r["item_id"], l["item"]["add_info"])
                 if 0 < cnt < r["count_now"]:
@@ -273,7 +284,9 @@ class Bot:
             if now >= r["expire_at"] - 90:
                 self.store.execute("UPDATE bot_listings SET status='expired', closed_at=? WHERE auction_id=?", (now, aid))
                 # 手动上架（note 以 manual 开头）到期不补挂：那是一次性注入，不是模型的货
-                if self.runner is not None and r["count_now"] > 0 and r["item_id"] in self.runner.items \
+                if str(r["note"] or "").startswith("floor"):
+                    pass                                   # 保底挂单到期由 floor 自己补（提前 lead_minutes），不交给引擎
+                elif self.runner is not None and r["count_now"] > 0 and r["item_id"] in self.runner.items \
                         and not str(r["note"] or "").startswith("manual"):
                     self.runner.expired_pending.setdefault(r["item_id"], []).append(r["count_now"])
                 elif self.runner is not None and r["count_now"] > 0 and self.runner.equip.tier_of(r["item_id"]) \
