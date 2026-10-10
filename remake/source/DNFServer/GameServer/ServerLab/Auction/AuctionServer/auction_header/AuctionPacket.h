@@ -10,6 +10,17 @@ typedef unsigned int memberIdentificationNumber_t;
 
 typedef unsigned char BYTE;
 
+#if !remake_verify
+// DNF-MOD 2026-10-11 auction-bot owner：拍卖行网页机器人专用的固定角色号（负数，不会与真实角色冲突）。
+//  - 规则上是普通玩家卖家/买家：用户到期时长与用户到期队列（每 2 秒 100 张）、竞价/一口价/分购规则都与玩家相同，
+//    不归入 owner -1 的系统队列；
+//  - 显示：卖家名与系统卖家相同（服务器字符串 101「拍卖行」，SENDER_NPC_NAME）；
+//  - 黑洞：发给它的邮件（到期/取消退还物品、售出货款、购买到货、被超价退款）一律不写 postal/letter、不通知 monitor；
+//    对方照常收信（它作为发件人时 postal.send_charac_no 写 -1，与系统卖家的信完全相同）；
+//  - 便利：不受每人挂单数上限（10/30）限制；可以买自己的挂单（虚拟成交）。
+#define AUCTION_BOT_OWNER_ID (-114514)
+#endif
+
 #pragma pack(push, 1)
 struct TSearchByItemId_
 {

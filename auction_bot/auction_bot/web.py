@@ -221,7 +221,7 @@ def make_handler(bot, web_dir, cfg_path):
                     "count": bot.count_of(r["item_id"], r["add_info"]), "price": r["price"], "instant_price": r["instant_price"],
                     "unit_price": r["unit_price"], "owner_name": r["owner_name"], "owner_id": r["owner_id"],
                     "expire_time": r["expire_time"], "upgrade": r["upgrade"], "buyer_id": r["buyer_id"],
-                    "is_bot": r["owner_id"] == -1}
+                    "is_bot": r["owner_id"] in bot.bot_owner_ids}
 
         def api_manual_preview(self, qs):
             q = (qs.get("q") or "").strip()

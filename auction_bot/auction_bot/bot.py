@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""机器人主循环：自动上架（系统 -1 卖家）、可选自动收购、行情采集、孤儿邮件清理。"""
+"""机器人主循环：自动上架（机器人卖家 -114514，显示为「拍卖行」；旧版为系统卖家 -1）、可选自动收购、行情采集、孤儿邮件清理。"""
 import asyncio
 import csv
 import json
@@ -14,8 +14,11 @@ from .client import AuctionClient
 from .gamedb import GameDB
 from .store import Store
 
-SYSTEM_OWNER = -1
+SYSTEM_OWNER = -1                 # 旧系统卖家（拍卖服 owner -1：系统到期队列 2 小时、每 2 秒最多 3 张）
 SYSTEM_EXPIRE_SEC = 7200          # 拍卖服硬编码（Auction 构造函数 mSYSTEM_AUCTION_EXPIRE_TIME，不可配置）
+BOT_OWNER = -114514               # 机器人卖家/买家（remake 拍卖服 DNF-MOD 2026-10-11）：规则同玩家，显示「拍卖行」，邮件黑洞
+USER_EXPIRE_SEC = 864000          # 玩家（及 -114514）挂单时长：拍卖服 mAUCTION_EXPIRE_TIME = 10 天
+LEGACY_FAKE_BUYER = 1999999999    # 旧假买家（收到的邮件由孤儿清理删除）
 MAX_PRICE = 2000000000
 
 
@@ -125,6 +128,14 @@ class Bot:
                 continue
             self.seller_items[iid] = dict(it, base_price=int(base))
         self.buyer_cfg = cfg.get("buyer", {}) or {}
+        bo = cfg.get("bot_owner") or {}
+        self.bot_owner_cfg = bo
+        self.seller_id = int(bo.get("id", BOT_OWNER))          # -1 = 旧模式（系统卖家 -1 + 假买家 1999999999）
+        self.legacy_owner = self.seller_id == SYSTEM_OWNER
+        self.vbuyer_id = int(self.buyer_cfg.get("buyer_id", LEGACY_FAKE_BUYER)) if self.legacy_owner else self.seller_id
+        self.vbuyer_name = str(self.buyer_cfg.get("buyer_name", "收购商")) if self.legacy_owner else str(bo.get("name", "拍卖行"))
+        self.bot_owner_ids = {SYSTEM_OWNER, self.seller_id}
+        self.bot_buyer_ids = {LEGACY_FAKE_BUYER, self.vbuyer_id, int(self.buyer_cfg.get("buyer_id", LEGACY_FAKE_BUYER))}
         self.watch_ids = set(self.seller_items)
         if cfg.get("market", {}).get("watch_reference_items", True):
             self.watch_ids |= set(self.ref)
@@ -176,7 +187,7 @@ class Bot:
             self.loop.call_soon_threadsafe(self._stop.set)
 
     def _check_buyer_id(self):
-        bid = int(self.buyer_cfg.get("buyer_id", 1999999999))
+        bid = int(self.vbuyer_id)
         try:
             if self.db.charac_exists(bid):
                 self.log("error", "收购用的假角色 ID %d 在 charac_info 里真实存在！自动收购已强制关闭" % bid, level="error")
@@ -211,6 +222,8 @@ class Bot:
                         if fc.get("enabled") and self.runner.engine is not None \
                                 and self._due("floor", float(fc.get("interval_sec", 20))):
                             await self.runner.floor.tick()
+                        if not self.legacy_owner and self._due("retire", float(self.bot_owner_cfg.get("retire_interval_sec", 20))):
+                            await self.retire_tick()
                         elif self.runner.engine is None and se.get("enabled", True) and self._due("restock", float(se.get("restock_interval", 120))):
                             await self.restock()
                         if self.buyer_cfg.get("enabled") and self._due("buy", float(self.buyer_cfg.get("scan_interval", 120))):
@@ -229,6 +242,68 @@ class Bot:
                 await asyncio.wait_for(self._stop.wait(), 2)
             except asyncio.TimeoutError:
                 pass
+
+    # ---------------- 机器人挂单记录 / 轮换 ----------------
+    def listing_life(self, aid, note):
+        """bot_listings.expire_at - listed_at。-1 卖家 = 拍卖服 7200 秒。-114514 在拍卖服上是 10 天（玩家时长），
+        机器人自己按下面的「退役时间」取消再补挂，让模型的 2 小时语义和价格跟随不变：
+          引擎/shelf 挂单 = retire_sec（默认 7200，与旧系统挂单相同）；
+          floor 挂单 = floor_max_age_hours × (0.5 + {拍卖号 × 0.618}) 小时（默认 12~36 小时，按拍卖号错开 → 轮换均匀）；
+          手动上架 = 不取消，到拍卖服 10 天到期为止。"""
+        if self.legacy_owner:
+            return SYSTEM_EXPIRE_SEC
+        n = str(note or "")
+        bo = self.bot_owner_cfg
+        if n.startswith("manual"):
+            return USER_EXPIRE_SEC
+        if n.startswith("floor"):
+            h = float(bo.get("floor_max_age_hours", 24)) * 3600
+            return min(h * (0.5 + (int(aid) * 0.6180339887498949) % 1.0), USER_EXPIRE_SEC - 3600)
+        return min(float(bo.get("retire_sec", SYSTEM_EXPIRE_SEC)), USER_EXPIRE_SEC - 3600)
+
+    def record_listing(self, aid, iid, count, unit, instant, note=None, now=None):
+        t = time.time() if now is None else now
+        self.store.execute("INSERT OR REPLACE INTO bot_listings(auction_id,item_id,count0,count_now,unit_price,instant_price,"
+                           "listed_at,expire_at,status,last_seen,note,owner_id) VALUES(?,?,?,?,?,?,?,?,'active',?,?,?)",
+                           (int(aid), int(iid), int(count), int(count), int(unit), int(instant), t,
+                            t + self.listing_life(aid, note), t, note, self.seller_id))
+
+    def on_listing_expired(self, r, now, why="expire"):
+        """到期（拍卖服回收 -1 挂单 / 机器人取消到退役时间的 -114514 挂单）：标记 expired，交给引擎补挂（floor 自己补）。"""
+        self.store.execute("UPDATE bot_listings SET status='expired', closed_at=? WHERE auction_id=?", (now, r["auction_id"]))
+        # 手动上架（note 以 manual 开头）到期不补挂：那是一次性注入，不是模型的货
+        if str(r["note"] or "").startswith("floor"):
+            pass                                   # 保底挂单到期由 floor 自己补（提前 lead_minutes），不交给引擎
+        elif self.runner is not None and r["count_now"] > 0 and r["item_id"] in self.runner.items \
+                and not str(r["note"] or "").startswith("manual"):
+            self.runner.expired_pending.setdefault(r["item_id"], []).append(r["count_now"])
+        elif self.runner is not None and r["count_now"] > 0 and self.runner.equip.tier_of(r["item_id"]) \
+                and not str(r["note"] or "").startswith("manual"):
+            self.runner.equip.expired_pending.setdefault(self.runner.equip.tier_of(r["item_id"]), []).append(1)
+        self.log("expire", "%s：%s ×%d（单价 %d，拍卖号 %d）"
+                 % ("系统挂单到期下架" if why == "expire" else "机器人挂单到退役时间，已取消", self.item_name(r["item_id"]),
+                    r["count_now"], r["unit_price"], r["auction_id"]), level="info" if why == "expire" else "debug")
+
+    async def retire_tick(self):
+        """-114514 挂单到 expire_at（退役时间）就取消（取消 = 拍卖服把物品退回 -114514 = 黑洞，无邮件）。每轮最多 cancel_per_tick 张。"""
+        if self.legacy_owner:
+            return 0
+        now = time.time()
+        n = int(self.bot_owner_cfg.get("cancel_per_tick", 20))
+        rows = self.store.query("SELECT * FROM bot_listings WHERE status='active' AND owner_id=? AND expire_at<=? "
+                                "AND COALESCE(note,'') NOT LIKE 'manual%' ORDER BY expire_at LIMIT ?", (self.seller_id, now, n))
+        done = 0
+        for r in rows:
+            res = await self.client.regist_cancel(self.seller_id, r["auction_id"])
+            if res["ok"]:
+                self.on_listing_expired(r, time.time(), "retire")
+                done += 1
+            elif res.get("because") == 0x24:       # 拍卖服里已经没有（刚被买走）：留给行情对账判定
+                self.store.execute("UPDATE bot_listings SET expire_at=? WHERE auction_id=?", (now + 300, r["auction_id"]))
+            else:
+                self.log("error", "取消退役挂单失败 拍卖号 %d：%s" % (r["auction_id"], res.get("because_text")), level="warn")
+                self.store.execute("UPDATE bot_listings SET expire_at=? WHERE auction_id=?", (now + 600, r["auction_id"]))
+        return done
 
     # ---------------- 行情采集 / 对账 ----------------
     async def scan_market(self):
@@ -274,7 +349,7 @@ class Bot:
                 if 0 < cnt < r["count_now"]:
                     sold = r["count_now"] - cnt
                     self.store.add_deal(now, r["item_id"], aid, sold, r["unit_price"], sold * r["unit_price"],
-                                        "human_buy_bot", SYSTEM_OWNER, None, "snapshot", "snap:%d:%d" % (aid, cnt))
+                                        "human_buy_bot", r["owner_id"] if r["owner_id"] is not None else SYSTEM_OWNER, None, "snapshot", "snap:%d:%d" % (aid, cnt))
                     self.store.execute("UPDATE bot_listings SET count_now=?, last_seen=? WHERE auction_id=?", (cnt, now, aid))
                     self.log("deal", "玩家买走系统挂单 %s ×%d（单价 %d，拍卖号 %d，剩余 %d）"
                              % (self.item_name(r["item_id"]), sold, r["unit_price"], aid, cnt))
@@ -282,22 +357,11 @@ class Bot:
                     self.store.execute("UPDATE bot_listings SET last_seen=? WHERE auction_id=?", (now, aid))
                 continue
             if now >= r["expire_at"] - 90:
-                self.store.execute("UPDATE bot_listings SET status='expired', closed_at=? WHERE auction_id=?", (now, aid))
-                # 手动上架（note 以 manual 开头）到期不补挂：那是一次性注入，不是模型的货
-                if str(r["note"] or "").startswith("floor"):
-                    pass                                   # 保底挂单到期由 floor 自己补（提前 lead_minutes），不交给引擎
-                elif self.runner is not None and r["count_now"] > 0 and r["item_id"] in self.runner.items \
-                        and not str(r["note"] or "").startswith("manual"):
-                    self.runner.expired_pending.setdefault(r["item_id"], []).append(r["count_now"])
-                elif self.runner is not None and r["count_now"] > 0 and self.runner.equip.tier_of(r["item_id"]) \
-                        and not str(r["note"] or "").startswith("manual"):
-                    self.runner.equip.expired_pending.setdefault(self.runner.equip.tier_of(r["item_id"]), []).append(1)
-                self.log("expire", "系统挂单到期下架：%s ×%d（单价 %d，拍卖号 %d）"
-                         % (self.item_name(r["item_id"]), r["count_now"], r["unit_price"], aid))
+                self.on_listing_expired(r, now)
             else:
                 self.store.execute("UPDATE bot_listings SET status='sold', closed_at=?, count_now=0 WHERE auction_id=?", (now, aid))
                 self.store.add_deal(now, r["item_id"], aid, r["count_now"], r["unit_price"], r["count_now"] * r["unit_price"],
-                                    "human_buy_bot", SYSTEM_OWNER, None, "snapshot", "snap:%d:0" % aid)
+                                    "human_buy_bot", r["owner_id"] if r["owner_id"] is not None else SYSTEM_OWNER, None, "snapshot", "snap:%d:0" % aid)
                 self.log("deal", "玩家买走系统挂单 %s ×%d（单价 %d，拍卖号 %d，整单售罄）"
                          % (self.item_name(r["item_id"]), r["count_now"], r["unit_price"], aid))
         self.store.kv_set("last_scan", {"ts": now, "listings": len(listings), "items": len(ids)})
@@ -307,7 +371,6 @@ class Bot:
     def poll_history(self):
         """读取 auction_history_YYYYMM（只读）：补充玩家之间的成交、给系统挂单成交补买家 ID。"""
         last = self.store.kv_get("history_since", time.time() - 3 * 86400)
-        bid = int(self.buyer_cfg.get("buyer_id", 1999999999))
         newest = last
         tables = self.db.history_tables()
         months = {time.strftime("auction_history_%Y%m", time.localtime(last)), time.strftime("auction_history_%Y%m")}
@@ -317,7 +380,7 @@ class Bot:
             for h in self.db.history_since(t, last - 5):
                 newest = max(newest, h["ts"] or 0)
                 if h["event_type"] == 0:                 # 0=到期下架
-                    if h["owner_id"] == SYSTEM_OWNER:
+                    if h["owner_id"] in self.bot_owner_ids:
                         cur = self.store.execute("UPDATE bot_listings SET status='expired' WHERE auction_id=? AND status='sold'",
                                                  (h["auction_id"],))
                         if cur.rowcount:
@@ -326,11 +389,11 @@ class Bot:
                     continue
                 cnt = self.count_of(h["item_id"], h["add_info"])
                 unit = h["unit_price"] or (h["price"] // cnt if h["price"] else 0)
-                if h["owner_id"] == SYSTEM_OWNER:
+                if h["owner_id"] in self.bot_owner_ids:
                     self.store.execute("UPDATE deals SET buyer_id=? WHERE auction_id=? AND buyer_id IS NULL",
                                        (h["buyer_id"], h["auction_id"]))
                     continue
-                if h["buyer_id"] == bid:
+                if h["buyer_id"] in self.bot_buyer_ids:
                     continue
                 if self.store.add_deal(h["ts"], h["item_id"], h["auction_id"], cnt, unit, h["price"] or 0, "human_human",
                                        h["owner_id"], h["buyer_id"], "history",
@@ -430,7 +493,7 @@ class Bot:
                 unit = self._price_for(iid)
                 if unit * cnt > MAX_PRICE:
                     cnt = max(1, MAX_PRICE // unit)
-                res = await self.client.regist_item(SYSTEM_OWNER, "", iid, cnt, unit)
+                res = await self.client.regist_item(self.seller_id, "", iid, cnt, unit)
                 if not res["ok"]:
                     self.log("error", "上架失败 %s ×%d 单价 %d：%s" % (self.item_name(iid), cnt, unit, res["because_text"]),
                              level="warn", because=res["because"])
@@ -442,13 +505,11 @@ class Bot:
                     self.log("error", "物品 %d %s：%s" % (iid, self.item_name(iid), self.disabled_items[iid]), level="error")
                     break
                 now = time.time()
-                self.store.execute("INSERT OR REPLACE INTO bot_listings(auction_id,item_id,count0,count_now,unit_price,"
-                                   "instant_price,listed_at,expire_at,status,last_seen) VALUES(?,?,?,?,?,?,?,?,'active',?)",
-                                   (aid, iid, cnt, cnt, unit, unit * cnt, now, now + SYSTEM_EXPIRE_SEC, now))
+                self.record_listing(aid, iid, cnt, unit, unit * cnt, None, now)
                 self.hourly.append(now)
                 made += 1
                 have += 1
-                self.log("list", "系统上架 %s ×%d，单价 %d，总价 %d（拍卖号 %d，2 小时后到期）"
+                self.log("list", "系统上架 %s ×%d，单价 %d，总价 %d（拍卖号 %d）"
                          % (self.item_name(iid), cnt, unit, unit * cnt, aid), auction_id=aid, item_id=iid)
         if made and not self.store.kv_get("npc_name"):
             self.last["scan"] = 0       # 下一轮马上扫描，学习系统卖家显示名
@@ -478,8 +539,8 @@ class Bot:
         bc = self.buyer_cfg
         if bc.get("_blocked"):
             return []
-        bid = int(bc.get("buyer_id", 1999999999))
-        name = str(bc.get("buyer_name", "收购商"))
+        bid = int(self.vbuyer_id)
+        name = self.vbuyer_name
         now = time.time()
         self.buy_hist = [x for x in self.buy_hist if now - x[0] < 86400]
         spent_day = sum(g for _, g in self.buy_hist)
@@ -490,7 +551,7 @@ class Bot:
         prob = float(bc.get("probability", 0.3))
         excl_owner = set(int(x) for x in bc.get("exclude_owner_ids", []) or [])
         excl_item = set(int(x) for x in bc.get("exclude_items", []) or [])
-        where = "owner_id NOT IN (-1, %d) AND buyer_id IN (-1,0) AND instant_price > 0" % bid
+        where = "owner_id NOT IN (-1, %d, %d) AND buyer_id IN (-1,0) AND instant_price > 0" % (bid, self.seller_id)
         if force_auction_id:
             where += " AND auction_id=%d" % int(force_auction_id)
         cands = await asyncio.to_thread(self.db.auction_main, where)
@@ -634,4 +695,7 @@ class Bot:
             "engine_enabled": self.runner is not None and self.runner.engine is not None,
             "engine_items": len(self.runner.items) if self.runner else 0,
             "engine_next_step": self.runner.next_step_at if self.runner else None,
+            "bot_owner": {"id": self.seller_id, "buyer_id": self.vbuyer_id, "legacy": self.legacy_owner,
+                          "active_by_owner": {str(r["o"]): r["n"] for r in self.store.query(
+                              "SELECT COALESCE(owner_id,-1) o, COUNT(*) n FROM bot_listings WHERE status='active' GROUP BY 1")}},
         }

@@ -699,6 +699,16 @@ unsigned int HandlerFor_DB_::insertPackageData(nsl::DBConnection* db,
     unsigned int letter_id;
     int ret;
 
+#if !remake_verify
+    if ((int)sendPackageInfo->receiver == AUCTION_BOT_OWNER_ID)
+    {
+        // DNF-MOD 2026-10-11 auction-bot owner: 黑洞——发给机器人的物品/金币/信件全部丢弃（不写 letter/postal）
+        G_TraceLog()->sysLog(6, "insertPackageData(): receiver is auction bot owner, dropped (item %u, money %u)",
+                             sendPackageInfo->item_info.item_id, sendPackageInfo->money);
+        postal_id = 0;
+        return 0;
+    }
+#endif
     time(&nInsertTime);
     tmCurTime = localtime(&nInsertTime);
     tmCurTime->tm_hour = tmCurTime->tm_hour + 1;
@@ -793,7 +803,13 @@ unsigned int HandlerFor_DB_::insertPackageData(nsl::DBConnection* db,
                         randomOption);
     db->set_query(
         "inSert into postal(occ_time,send_charac_no,receive_charac_no,seal_flag,item_id,add_info,endurance,upgrade,amplify_option,amplify_value,gold,send_charac_name,creature_flag,avata_flag,letter_id,extend_info,unlimit_flag,item_guid,random_option,seperate_upgrade, type) values(from_unixtime(%d),%d,%d,%d,%u,%d,%d,%d,%d,%d,%d,\'%s\',%d,%d,%d,%d,%d,\'%s\',0x%s,%d,%d)",
+#if !remake_verify
+        // DNF-MOD 2026-10-11 auction-bot owner: 机器人作为发件人时写 -1，玩家收到的信与系统卖家的完全相同
+        nInsertTime, sendPackageInfo->owner_id == AUCTION_BOT_OWNER_ID ? -1 : sendPackageInfo->owner_id,
+        sendPackageInfo->receiver,
+#else
         nInsertTime, sendPackageInfo->owner_id, sendPackageInfo->receiver,
+#endif
         (int)sendPackageInfo->item_info.seal, sendPackageInfo->item_info.item_id,
         sendPackageInfo->item_info.add_info, (int)sendPackageInfo->item_info.endurance,
         (int)sendPackageInfo->item_info.uniItemAttr,

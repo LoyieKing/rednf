@@ -22,7 +22,6 @@ import time
 
 from .engine import lot, round_price
 
-FAKE_BUYER = 1999999999
 NOTE_STACK = "floor"
 NOTE_EQ = "floor:eq"
 
@@ -82,7 +81,8 @@ class FloorRunner:
         return max(0, int(self.cfg.get("min_visible", 10)))
 
     def eq_hazard(self, tier):
-        """装备 floor 的风险率（每小时）：按 target_sell_through 在 (7200 秒 - min_shelf) 内卖出的比例反推。"""
+        """装备 floor 的风险率（每小时）：按 target_sell_through 在 (7200 秒 - min_shelf) 内卖出的比例反推。
+        （-114514 挂单在架 12~36 小时，但风险率按小时计、在架张数不变，所以每天的虚拟成交笔数与 2 小时挂单时相同。）"""
         ec = self.cfg.get("equipment") or {}
         if ec.get("buy_hazard_per_h") is not None:
             return float(ec["buy_hazard_per_h"])
@@ -209,12 +209,9 @@ class FloorRunner:
             lim = int(b.item_meta(iid).get("stack_limit") or 0)
             if lim > 0:
                 qty = min(qty, lim)
-            r = await b.client.regist_item(-1, "", iid, qty, unit)
+            r = await b.client.regist_item(b.seller_id, "", iid, qty, unit)
             if r["ok"] and r["auction_id"]:
-                t = time.time()
-                b.store.execute("INSERT OR REPLACE INTO bot_listings(auction_id,item_id,count0,count_now,unit_price,instant_price,"
-                                "listed_at,expire_at,status,last_seen,note) VALUES(?,?,?,?,?,?,?,?,'active',?,?)",
-                                (r["auction_id"], iid, qty, qty, unit, unit * qty, t, t + 7200, t, NOTE_STACK))
+                b.record_listing(r["auction_id"], iid, qty, unit, unit * qty, NOTE_STACK)
             what = "%s ×%d 单价 %d" % (b.item_name(iid), qty, unit)
         if not r["ok"] or not r["auction_id"]:
             res["errors"] += 1
@@ -261,8 +258,7 @@ class FloorRunner:
                         continue
                     if vf_today >= day_cap:
                         return
-                    rr = await b.client.buy_now(FAKE_BUYER, str((b.buyer_cfg or {}).get("buyer_name", "收购商")),
-                                                r["auction_id"], r["instant_price"])
+                    rr = await b.client.buy_now(b.vbuyer_id, b.vbuyer_name, r["auction_id"], r["instant_price"])
                     src, qty, unit, total = "engine-eq", 1, r["instant_price"], r["instant_price"]
                 else:
                     if sh_stack <= 0 or not is_floor(r["note"]):
@@ -272,7 +268,7 @@ class FloorRunner:
                     if self.rng.random() >= 1 - math.exp(-sh_stack * k_on * dt_h):
                         continue
                     qty, unit = r["count_now"], r["unit_price"]
-                    rr = await b.client.buy_apiece(FAKE_BUYER, r["auction_id"], unit, qty)
+                    rr = await b.client.buy_apiece(b.vbuyer_id, r["auction_id"], unit, qty)
                     src, total = "floor", unit * qty
                 if rr.get("ok"):
                     if src == "engine-eq":
@@ -280,7 +276,7 @@ class FloorRunner:
                     res["sold"] += 1
                     b.store.execute("UPDATE bot_listings SET count_now=0, status='sold', closed_at=? WHERE auction_id=?",
                                     (time.time(), r["auction_id"]))
-                    b.store.add_deal(time.time(), iid, r["auction_id"], qty, unit, total, "virtual", -1, FAKE_BUYER, src,
+                    b.store.add_deal(time.time(), iid, r["auction_id"], qty, unit, total, "virtual", b.seller_id, b.vbuyer_id, src,
                                      "fl-v:%d:%d" % (r["auction_id"], int(time.time() * 1000)))
                     b.log("deal", "保底挂单虚拟成交 %s ×%d 单价 %d（拍卖号 %d，挂了 %.0f 分钟）"
                           % (b.item_name(iid), qty, unit, r["auction_id"], (now - r["listed_at"]) / 60), auction_id=r["auction_id"])

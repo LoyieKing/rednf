@@ -254,6 +254,12 @@ class AuctionClient:
                                ["LOG_MESSAGE", "BIDDING_RESULT"])
         return r[-1]
 
+    async def regist_cancel(self, owner_id, auction_id):
+        """REGIST_CANCEL_GA：卖家取消自己的挂单（-114514 的挂单取消后物品退回 = 黑洞，无邮件）。"""
+        r = await self.request(lambda i: P.build_regist_cancel(i, owner_id, auction_id), ["REGIST_CANCEL_RESULT"])
+        m = r[-1]
+        return {"ok": m["ok"], "because": m.get("because"), "because_text": m.get("because_text")}
+
     async def my_registed(self, owner_id):
         r = await self.request(lambda i: P.build_my_registed_item_info(i, owner_id), ["MY_REGISTED_ITEM_INFO"])
         return r[-1]["items"]

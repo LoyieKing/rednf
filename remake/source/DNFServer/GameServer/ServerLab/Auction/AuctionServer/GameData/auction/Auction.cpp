@@ -306,6 +306,12 @@ void Auction::SendMessageToMonitor(unsigned int characId, unsigned char messageI
 {
     G_TraceLog()->sysLog(8, "SendMessageToMonitor(), characId(%u), messageId(%hhu), itemId(%u)",
                          characId, (unsigned int)messageId, itemId);
+#if !remake_verify
+    if ((int)characId == AUCTION_BOT_OWNER_ID)
+    {
+        return;   // DNF-MOD 2026-10-11 auction-bot owner: 黑洞，不通知
+    }
+#endif
     Packet_Monitor_Notify_Auction_Mail packet;
     packet.m_nCharacNo = characId;
     packet.iIdByChannel = 0;
@@ -429,7 +435,11 @@ __attribute__((target("arch=i586"))) int Auction::RegistItem(
         dbtr_regist_item.auction_id = auctionId;
         dbtr_regist_item.expire_time = expireTime;
         dbtr_regist_item.owner_id = ownerId;
+#if !remake_verify
+        if ((ownerId == -1) || (ownerId == AUCTION_BOT_OWNER_ID))   // DNF-MOD 2026-10-11 auction-bot owner: auction_main.owner_name = 拍卖行
+#else
         if (ownerId == -1)
+#endif
         {
             strncpy(dbtr_regist_item.owner_name, SENDER_NPC_NAME, 0xd);
         }

@@ -62,7 +62,7 @@ class TestFloor(unittest.TestCase):
         sc = fl.scope()
 
         def sys_of(iid):
-            return [l for l in m.listings.values() if l["owner"] == -1 and l["item_id"] == iid]
+            return [l for l in m.listings.values() if l["owner"] in (-1, -114514) and l["item_id"] == iid]
         r = await fl.tick()
         self.assertEqual(r["listed"], 3 * len(sc), (r, fl.tokens))
         for iid in sc:
@@ -109,7 +109,7 @@ class TestFloor(unittest.TestCase):
         r = await fl.tick()
         n_eq = sum(1 for k in sc.values() if k == "eq") * 3
         self.assertEqual(r["sold"], n_eq)
-        self.assertTrue(all(h[2] == 1999999999 for h in m.history))
+        self.assertTrue(all(h[2] == -114514 for h in m.history))
         self.assertTrue(all(m.sold[h[1]]["item_id"] != 3274 for h in m.history))
         # 到期的 floor 挂单不交给引擎补挂
         bot.store.execute("UPDATE bot_listings SET expire_at=? WHERE note='floor'", (time.time() + 30,))

@@ -23,7 +23,6 @@ from . import protocol as P
 from . import randopt
 from .engine import Engine, round_price, online_mean
 
-FAKE_BUYER = 1999999999
 ATTACH_SEAL = {"[sealing]": 1, "[free]": 0, "[sealing trade]": 0}   # 拍卖服/游戏端允许登记的 attach type
 GUID_SEQ_MIN = 60000          # 游戏端 getSeq 在 0xea5f(59999) 处归零，60000..65535 永远不会与游戏生成的 guid 重复
 GUID_SEQ_MAX = 0xffff
@@ -293,15 +292,12 @@ class EquipRunner:
         return True
 
     async def list_one(self, iid, price, note):
-        """以系统卖家（-1）挂 1 件装备，写 bot_listings。返回 (结果, 字段)。"""
+        """以机器人卖家（-114514；旧模式 -1）挂 1 件装备，写 bot_listings。返回 (结果, 字段)。"""
         b = self.bot
         info, f = self.item_info(iid)
-        r = await b.client.regist_equipment(-1, "", iid, int(price), info, roi=f["roi"])
+        r = await b.client.regist_equipment(b.seller_id, "", iid, int(price), info, roi=f["roi"])
         if r["ok"] and r["auction_id"]:
-            t = time.time()
-            b.store.execute("INSERT OR REPLACE INTO bot_listings(auction_id,item_id,count0,count_now,unit_price,instant_price,"
-                            "listed_at,expire_at,status,last_seen,note) VALUES(?,?,1,1,?,?,?,?,'active',?,?)",
-                            (r["auction_id"], iid, int(price), int(price), t, t + 7200, t, note))
+            b.record_listing(r["auction_id"], iid, 1, int(price), int(price), note)
         return r, f
 
     @staticmethod
@@ -387,7 +383,7 @@ class EquipRunner:
         uc = c.get("user_fill") or {}
         vf_today = b.store.query("SELECT COUNT(*) n FROM deals WHERE ts>=? AND side='virtual' AND source='engine-eq'", (t0,))[0]["n"]
         spent = self.day_spent_user(t0)
-        buyer_name = str((b.buyer_cfg or {}).get("buyer_name", "收购商"))
+        buyer_name = b.vbuyer_name
         for f in sorted(plan["fills"], key=lambda x: (not x["user"],)):
             if f["auction_id"]:
                 aid = f["auction_id"]
@@ -417,12 +413,12 @@ class EquipRunner:
                 if not live or not self.comparable(iid, live[0]["item"]) or live[0]["instant_price"] != inst:
                     b.log("buy", "玩家装备挂单 %d 已变化或不是 +0 普通装备，跳过" % aid)
                     continue
-                r = await b.client.buy_now(FAKE_BUYER, buyer_name, aid, inst)
+                r = await b.client.buy_now(b.vbuyer_id, buyer_name, aid, inst)
                 if r.get("ok"):
                     spent += inst
                     res["uf_done"] += 1
                     res["user_gold"] += inst
-                    b.store.add_deal(time.time(), iid, aid, 1, inst, inst, "bot_buy_human", None, FAKE_BUYER, "engine-eq",
+                    b.store.add_deal(time.time(), iid, aid, 1, inst, inst, "bot_buy_human", None, b.vbuyer_id, "engine-eq",
                                      "eq-u:%d:%d" % (aid, int(time.time() * 1000)))
                     b.log("buy", "模型收购玩家装备 %s，一口价 %d（拍卖号 %d，卖家 %s）" % (b.item_name(iid), inst, aid, owner), auction_id=aid)
                 else:
@@ -434,12 +430,12 @@ class EquipRunner:
             row = b.store.query("SELECT count_now FROM bot_listings WHERE auction_id=? AND status='active'", (aid,))
             if not row or row[0]["count_now"] < 1:
                 continue
-            r = await b.client.buy_now(FAKE_BUYER, buyer_name, aid, inst)
+            r = await b.client.buy_now(b.vbuyer_id, buyer_name, aid, inst)
             if r.get("ok"):
                 vf_today += 1
                 res["vf_done"] += 1
                 b.store.execute("UPDATE bot_listings SET count_now=0, status='sold', closed_at=? WHERE auction_id=?", (time.time(), aid))
-                b.store.add_deal(time.time(), iid, aid, 1, inst, inst, "virtual", -1, FAKE_BUYER, "engine-eq",
+                b.store.add_deal(time.time(), iid, aid, 1, inst, inst, "virtual", b.seller_id, b.vbuyer_id, "engine-eq",
                                  "eq-v:%d:%d" % (aid, int(time.time() * 1000)))
                 b.log("deal", "装备虚拟成交 %s 一口价 %d（拍卖号 %d）" % (b.item_name(iid), inst, aid), level="debug", auction_id=aid)
             else:
@@ -561,14 +557,14 @@ class EquipRunner:
                           level="debug")
                     continue
                 aid, inst = r["auction_id"], r["instant_price"]
-                rr = await b.client.buy_now(FAKE_BUYER, buyer_name, aid, inst)
+                rr = await b.client.buy_now(b.vbuyer_id, buyer_name, aid, inst)
                 if rr.get("ok"):
                     vf_today += 1
                     res["vf_done"] += 1
                     st["sold"] += 1
                     self.engine.state[str(t)]["last"] = norm          # sim: st.last = a.price
                     b.store.execute("UPDATE bot_listings SET count_now=0, status='sold', closed_at=? WHERE auction_id=?", (time.time(), aid))
-                    b.store.add_deal(time.time(), r["item_id"], aid, 1, inst, inst, "virtual", -1, FAKE_BUYER, "engine-eq",
+                    b.store.add_deal(time.time(), r["item_id"], aid, 1, inst, inst, "virtual", b.seller_id, b.vbuyer_id, "engine-eq",
                                      "eq-v:%d:%d" % (aid, int(time.time() * 1000)))
                     b.log("deal", "装备虚拟成交 %s 一口价 %d（拍卖号 %d，挂了 %.0f 分钟，概率 %.3f）"
                           % (b.item_name(r["item_id"]), inst, aid, (tnow - r["listed_at"]) / 60, prob), auction_id=aid)
@@ -596,12 +592,12 @@ class EquipRunner:
                         live = [x for x in await b.client.search_items([iid]) if x["auction_id"] == aid]
                         if not live or not self.comparable(iid, live[0]["item"]) or live[0]["instant_price"] != inst:
                             continue
-                        rr = await b.client.buy_now(FAKE_BUYER, buyer_name, aid, inst)
+                        rr = await b.client.buy_now(b.vbuyer_id, buyer_name, aid, inst)
                         if rr.get("ok"):
                             spent += inst
                             res["uf_done"] += 1
                             res["user_gold"] += inst
-                            b.store.add_deal(time.time(), iid, aid, 1, inst, inst, "bot_buy_human", None, FAKE_BUYER, "engine-eq",
+                            b.store.add_deal(time.time(), iid, aid, 1, inst, inst, "bot_buy_human", None, b.vbuyer_id, "engine-eq",
                                              "eq-u:%d:%d" % (aid, int(time.time() * 1000)))
                             b.log("buy", "模型收购玩家装备 %s，一口价 %d（拍卖号 %d，卖家 %s）" % (b.item_name(iid), inst, aid, l["owner_name"]), auction_id=aid)
             st["visible"] = len(rows) - st["sold"] + st["listed"]

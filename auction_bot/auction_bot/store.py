@@ -52,6 +52,9 @@ class Store:
         self._wlock = threading.Lock()
         c = self.conn()
         c.executescript(SCHEMA)
+        cols = {r[1] for r in c.execute("PRAGMA table_info(bot_listings)")}
+        if "owner_id" not in cols:           # 2026-10-11：机器人卖家 -114514；旧行（NULL）= 系统卖家 -1
+            c.execute("ALTER TABLE bot_listings ADD COLUMN owner_id INTEGER")
         c.commit()
 
     def conn(self):

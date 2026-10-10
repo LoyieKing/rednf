@@ -50,12 +50,12 @@ engine:                              # 经济模型引擎（运营 agent 校准�
   price_band_slack: 0.25             # 价格护栏：挂单单价限制在 历史价格带×(1±此值)
   max_new_listings_per_step: 80      # 护栏：每步最多新上架
   max_new_listings_per_hour: 400
-  virtual_fill:                      # 虚拟玩家之间的成交（假买家 1999999999 买机器人自己的 -1 挂单）
+  virtual_fill:                      # 虚拟玩家之间的成交（机器人 -114514 买自己的挂单；黑洞，无邮件。旧模式：假买家 1999999999 买 -1 挂单）
     max_per_step: 150                # 护栏：每步最多几次购买（同一挂单同一步合并为一次）
     max_per_day: 5000                # 护栏：每天上限（v3 模拟约 3500 笔成交/天，同一挂单同一步合并后购买次数更少）；每次购买 = 1 条 postal + 1 条 letter，由孤儿清理删除
   user_fill:                         # 模型需求吃到玩家（真人）挂单时的真实购买：买什么、买多少由模型决定（用户 2026-10-08 决定）
     enabled: true
-    max_gold_per_day: 2000000        # 护栏：每日最多花费金币（假买家支付，金币实际进入卖家邮箱）
+    max_gold_per_day: 2000000        # 护栏：每日最多花费金币（机器人自买自卖，金币两边都丢弃）
     # 护栏：单价高于 价格带上限×(1+price_band_slack) 的不买；排除名单内的道具永不买；买家 = 1999999999
     # 可选（默认不启用）：max_price_ratio（只买低于 min(参考价,公允价)×此值）、probability、max_gold_per_buy
   equipment:                         # 装备挂单（运营 v4.2 equipment 段：粉装/名品紫装/套装件/白菜价粉装/假紫，按层级定价，数量恒为 1）
@@ -71,7 +71,7 @@ engine:                              # 经济模型引擎（运营 agent 校准�
       override: {}                   # 覆盖所有层级的 shelf 参数，例如 {min_shelf_minutes: 45}；默认空 = 全用运营模型
     price_band_slack: 0.0            # 单件价格夹在 items[id].band×(1±此值) 内
     volume_scale: 1.0
-    virtual_fill:                    # 假买家买走机器人自己的装备挂单（每件 = 1 条 postal + 1 条 letter，由孤儿清理删除）
+    virtual_fill:                    # 机器人 -114514 买走自己的装备挂单（黑洞，无邮件；旧模式每件 = 1 条 postal + 1 条 letter）
       max_per_step: 6                # v4.2 预计约 137 笔/天（运营样本外拟合），上限留余量
       max_per_day: 300
     user_fill:                       # 模型收购真人挂的装备：默认关闭，需要用户决定是否开启以及每日上限
@@ -109,12 +109,20 @@ seller:                              # 简单补货（engine.enabled=false 时�
   default_drift: 0.05
   mean_revert_days: 3
   clamp_to_reference_band: true
-  # 注意：系统挂单的有效期由拍卖服写死为 2 小时（7200 秒），无法配置。
+  # 注意：-1 系统挂单的有效期由拍卖服写死为 2 小时（7200 秒）；-114514 挂单 = 玩家时长 10 天，机器人按 bot_owner.retire_sec 取消轮换。
   items: []                          # 例：- {item_id: 3180, target_listings: 1, count_min: 10, count_max: 30}
+
+bot_owner:                           # 机器人角色号（remake 拍卖服 DNF-MOD 2026-10-11，见 README「机器人卖家 -114514」）
+  id: -114514                        # 卖家 = 买家；规则同玩家（10 天时长、用户到期队列），显示「拍卖行」，发给它的邮件一律丢弃。-1 = 旧模式（系统卖家 -1 + 假买家 buyer.buyer_id）
+  name: "拍卖行"                      # 一口价购买时写入的买家名
+  retire_sec: 7200                   # 引擎/shelf 挂单在架多久后由机器人取消再补挂（保持模型的 2 小时语义）
+  floor_max_age_hours: 24            # 保底挂单轮换：在架 24×(0.5~1.5) 小时后取消（按拍卖号错开），价格跟随模型
+  retire_interval_sec: 20            # 每 20 秒检查一次到退役时间的挂单
+  cancel_per_tick: 20                # 每次最多取消 20 张（≤60 张/分钟）
 
 buyer:                               # 旧版随机收购玩家挂单（默认关闭；模型模式下由 engine.user_fill 负责）
   enabled: false
-  buyer_id: 1999999999               # 假买家角色 ID（不存在于 charac_info；收到的物品/邮件为孤儿邮件）
+  buyer_id: 1999999999               # 旧假买家角色 ID（bot_owner.id=-1 时用；不存在于 charac_info；收到的物品/邮件为孤儿邮件，由 orphan_cleanup 删除）
   buyer_name: "收购商"                # 一口价购买（非堆叠品）时写入的买家名，UTF-8 ≤12 字节
   scan_interval: 120                 # 收购检查间隔（秒）
   only_configured_items: true        # 只收购有基础价（上架列表/参考价表/base_prices）的物品
@@ -127,7 +135,7 @@ buyer:                               # 旧版随机收购玩家挂单（默认�
   exclude_items: []
   base_prices: {}                    # 额外的收购基础价，如 {1047: 5000}
 
-orphan_cleanup:                      # 清理假买家 1999999999 的邮件（postal/letter）。用户 2026-10-08 批准真实删除
+orphan_cleanup:                      # 清理旧假买家 1999999999 的邮件（postal/letter）。用户 2026-10-08 批准真实删除；改用 -114514 后只剩旧邮件，基本空转
   enabled: true
   dry_run: false                     # false = 真实删除；只删 receive_charac_no / charac_no = buyer_id 的行，逐行记日志（logs/orphan_deletes.log）
   interval: 1800                     # 每 30 分钟一次

@@ -75,6 +75,12 @@ int AuctionDictionary::GetNowRegistedItemNum(int ownerId)
     {
         return 0;
     }
+#if !remake_verify
+    if (ownerId == AUCTION_BOT_OWNER_ID)
+    {
+        return 0;   // DNF-MOD 2026-10-11 auction-bot owner: 不受每人挂单数上限限制
+    }
+#endif
     return mRegisterDic.NowItemNum(ownerId);
 }
 
@@ -913,7 +919,11 @@ int AuctionDictionary::Bidding(const unsigned long long& auctionId, int buyerId,
     {
         return 0x24;
     }
+#if !remake_verify
+    if ((ptr_data->owner_id == buyerId) && (buyerId != AUCTION_BOT_OWNER_ID))   // DNF-MOD 2026-10-11 auction-bot owner: 机器人可以买自己的挂单
+#else
     if (ptr_data->owner_id == buyerId)
+#endif
     {
         return 0x2d;
     }
@@ -1175,7 +1185,11 @@ int AuctionDictionary::BuyItemApiece(unsigned long long& auctionId, int buyerId,
     {
         return 0x26;
     }
+#if !remake_verify
+    if ((ptr_data->owner_id == buyerId) && (buyerId != AUCTION_BOT_OWNER_ID))   // DNF-MOD 2026-10-11 auction-bot owner: 机器人可以买自己的挂单
+#else
     if (ptr_data->owner_id == buyerId)
+#endif
     {
         return 0x2d;
     }
@@ -1390,7 +1404,11 @@ int AuctionDictionary::RegistItem(
                 {
                     CharacterNameStruct* new_character_name =
                         mCharacterNamePool.malloc();
+#if !remake_verify
+                    if ((ownerId == -1) || (ownerId == AUCTION_BOT_OWNER_ID))   // DNF-MOD 2026-10-11 auction-bot owner: 卖家名 = 拍卖行
+#else
                     if (ownerId == -1)
+#endif
                     {
                         strncpy(new_character_name->char_name,
                                 SENDER_NPC_NAME, 0xd);
@@ -1405,7 +1423,11 @@ int AuctionDictionary::RegistItem(
                         std::make_pair<const int&, CharacterNameStruct*&>(
                             ownerId, new_character_name));
                 }
+#if !remake_verify
+                else if ((ownerId == -1) || (ownerId == AUCTION_BOT_OWNER_ID))
+#else
                 else if (ownerId == -1)
+#endif
                 {
                     strncpy(char_name_iter->second->char_name,
                             SENDER_NPC_NAME, 0xd);

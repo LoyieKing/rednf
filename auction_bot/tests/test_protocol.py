@@ -138,7 +138,7 @@ class TestAgainstMock(unittest.TestCase):
                          "instant_price": 150000, "unit_price": 5000, "item_id": 1047, "count": 30, "expire": 0}
         self.assertEqual(await bot.client.probe_item(99999), -2)
         await bot.restock()
-        mine = [l for l in m.listings.values() if l["owner"] == -1]
+        mine = [l for l in m.listings.values() if l["owner"] in (-1, -114514)]
         self.assertEqual(len(mine), 2)
         for l in mine:
             self.assertEqual(l["price"], -1)
@@ -159,7 +159,7 @@ class TestAgainstMock(unittest.TestCase):
         r = await bot.auto_buy(force_auction_id=1, force_count=1)
         self.assertEqual(r[0]["count"], 1)
         self.assertEqual(m.listings[1]["count"], 29)
-        self.assertEqual(m.history[-1], ("apiece", 1, 1999999999, 1))
+        self.assertEqual(m.history[-1], ("apiece", 1, -114514, 1))
         # 检索分页（> 60 条）
         for i in range(70):
             m.listings[1000 + i] = dict(m.listings[1], auction_id=1000 + i)

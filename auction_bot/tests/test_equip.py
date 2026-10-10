@@ -151,7 +151,7 @@ class TestEquipRunner(unittest.TestCase):
             await bot.runner.step()
         self.assertIn(1, m.listings)                                # 收购关闭：玩家装备没被买
         self.assertIn(2, m.listings)                                # 假紫从不买
-        mine = [l for l in list(m.listings.values()) + list(m.sold.values()) if l["owner"] == -1]
+        mine = [l for l in list(m.listings.values()) + list(m.sold.values()) if l["owner"] in (-1, -114514)]
         self.assertGreater(len(mine), 0)
         for l in mine:
             u = P.unpack_item_info(l["raw"])
@@ -168,10 +168,10 @@ class TestEquipRunner(unittest.TestCase):
         self.assertEqual(len(set(guids)), len(guids))
         # 每层级挂单不超过放量上限
         for t in eq.tiers:
-            n = sum(1 for l in m.listings.values() if l["owner"] == -1 and eq.tier_of(l["item_id"]) == t)
+            n = sum(1 for l in m.listings.values() if l["owner"] in (-1, -114514) and eq.tier_of(l["item_id"]) == t)
             self.assertLessEqual(n, 2)
-        # 虚拟成交只买机器人自己的装备，买家 1999999999
-        self.assertTrue(all(h[2] == 1999999999 for h in m.history))
+        # 虚拟成交只买机器人自己的装备，买家 = 机器人 -114514
+        self.assertTrue(all(h[2] == -114514 for h in m.history))
         self.assertTrue(all(h[1] not in (1, 2) for h in m.history))
         # 开启收购后可以买 +0 玩家装备（受独立日上限），假紫依旧不买；材料 2M 上限不受影响
         bot.cfg["engine"]["equipment"]["user_fill"] = {"enabled": True, "max_gold_per_day": 30000}
@@ -265,7 +265,7 @@ class TestEquipRandomOption(unittest.TestCase):
         self.assertTrue(r["ok"], r)
         for _ in range(4):
             await bot.runner.step()
-        ro = [l for l in list(m.listings.values()) + list(m.sold.values()) if l["owner"] == -1 and l["item_id"] == 20203]
+        ro = [l for l in list(m.listings.values()) + list(m.sold.values()) if l["owner"] in (-1, -114514) and l["item_id"] == 20203]
         self.assertGreaterEqual(len(ro), 2)
         for l in ro:
             u = P.unpack_item_info(l["raw"])
@@ -273,7 +273,7 @@ class TestEquipRandomOption(unittest.TestCase):
             self.assertEqual(eq.ro_tables.explain(bytes.fromhex(u["random_option"]), 2, 50, 51, 1), [])
             self.assertEqual(l["roi"][:6], struct.pack("<hhh", 30000, 30000, 30000))
         for l in m.listings.values():
-            if l["owner"] == -1 and l["item_id"] != 20203:
+            if l["owner"] in (-1, -114514) and l["item_id"] != 20203:
                 self.assertEqual(l["roi"], b"\0" * 12)
         await bot.client.close()
         srv.close()
@@ -332,7 +332,7 @@ class TestEquipShelf(unittest.TestCase):
         eq = bot.runner.equip
 
         def sys_a():
-            return [l for l in m.listings.values() if l["owner"] == -1 and eq.tier_of(l["item_id"]) == "EQ_A"]
+            return [l for l in m.listings.values() if l["owner"] in (-1, -114514) and eq.tier_of(l["item_id"]) == "EQ_A"]
         await bot.runner.step()
         self.assertEqual(len(sys_a()), 3)                          # 补到目标
         self.assertEqual(m.history, [])                            # 同一步不成交
@@ -352,7 +352,7 @@ class TestEquipShelf(unittest.TestCase):
         bot.store.execute("UPDATE bot_listings SET listed_at=listed_at-1860 WHERE auction_id IN (%d,%d)" % tuple(old))
         await bot.runner.step()
         self.assertEqual(sorted(h[1] for h in m.history), old)
-        self.assertTrue(all(h[2] == 1999999999 for h in m.history))
+        self.assertTrue(all(h[2] == -114514 for h in m.history))
         self.assertEqual(len(sys_a()), 1)
         self.assertEqual(eq.last_shelf["EQ_A"]["sold"], 2)
         self.assertEqual(eq.last_shelf["EQ_A"]["listed"], 0)    # 卖出的下一步才补
@@ -369,7 +369,7 @@ class TestEquipShelf(unittest.TestCase):
         await bot.runner.step()
         self.assertEqual(len(m.history), n)
         # 虚拟成交只买系统挂单，从不碰玩家的
-        self.assertTrue(all(m.sold[h[1]]["owner"] == -1 for h in m.history))
+        self.assertTrue(all(m.sold[h[1]]["owner"] in (-1, -114514) for h in m.history))
         await bot.client.close()
         srv.close()
         self.assertEqual(m.violations, [])

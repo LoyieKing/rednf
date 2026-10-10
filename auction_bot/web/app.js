@@ -24,6 +24,8 @@ async function loadOverview(){try{const s=await api('status');
     card('自动上架',s.paused?'已暂停':(s.seller_enabled?'运行中':'关闭'))+card('自动收购',s.buyer_blocked?'已强制关闭':(s.buyer_enabled?(s.paused?'已暂停':'运行中'):'关闭（默认）'))+
     card('孤儿邮件清理',s.orphan_enabled?(s.orphan_dry_run?'演练模式':'实删模式'):'关闭')+card('近1小时上架',s.listings_last_hour)+
     card('上次行情扫描',s.last_scan?ago(s.last_scan.ts)+'（'+s.last_scan.listings+' 条）':'-')+card('系统卖家显示名',esc(s.npc_name||'-'))+
+    (s.bot_owner?card('机器人角色号',s.bot_owner.legacy?'-1（旧系统卖家）+ 假买家 '+s.bot_owner.buyer_id:s.bot_owner.id+'（卖家=买家，显示「拍卖行」，邮件黑洞）')+
+      card('在售挂单（按卖家）',Object.entries(s.bot_owner.active_by_owner||{}).map(([k,v])=>(k=='-1'?'旧 -1':k)+'：'+fmtN(v)).join('；')||'-'):'')+
     card('收发包',`${s.stats.tx} / ${s.stats.rx}`)+card('超时/重连',`${s.stats.timeouts} / ${s.stats.reconnects}`)+(s.db_error?card('数据库错误',esc(s.db_error)):'');
   table($('#ov-items'),[['道具ID',r=>r.item_id],['名称',r=>esc(r.name)],['基础单价',r=>fmtN(r.base_price),'n'],['目标挂单数',r=>r.target_listings,'n'],
     ['在售挂单',r=>r.active,'n'],['在售数量',r=>fmtN(r.active_qty||0),'n'],['状态',r=>r.disabled?'<span style="color:#ef5350">停用：'+esc(r.disabled)+'</span>':'正常']],s.seller_items);

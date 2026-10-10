@@ -158,7 +158,7 @@ class TestRunnerMock(unittest.TestCase):
         for r in bot.store.query("SELECT * FROM bot_listings WHERE status='sold'"):
             self.assertNotIn(r["auction_id"], m.listings)
         buyers = {h[2] for h in m.history}
-        self.assertEqual(buyers, {1999999999})
+        self.assertEqual(buyers, {-114514})
         # 扫描对账：不应把虚拟成交误判为“玩家买系统货”
         await bot.scan_market()
         self.assertEqual(bot.store.query("SELECT COUNT(*) n FROM deals WHERE side='human_buy_bot'")[0]["n"], 0)
@@ -241,7 +241,7 @@ class TestManualListing(unittest.TestCase):
         self.assertEqual([c["count"] for c in r["created"]], [120, 120, 10])
         for c in r["created"]:
             l = m.listings[c["auction_id"]]
-            self.assertEqual(l["owner"], -1)
+            self.assertIn(l["owner"], (-1, -114514))
             self.assertEqual(l["item_id"], 3274)
             self.assertEqual(l["count"], c["count"])
             self.assertEqual(l["unit_price"], r["unit_price"])

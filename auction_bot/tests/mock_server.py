@@ -11,6 +11,8 @@ from auction_bot import protocol as P
 
 KNOWN_ITEMS = {3037: True, 3036: True, 3180: True, 1047: True, 3187: True}   # iteminfo.dat（True=可堆叠）
 NPC_NAME = "拍卖行".encode("utf-8")
+BOT = -114514
+SYS_OWNERS = (-1, BOT)          # remake 拍卖服 DNF-MOD 2026-10-11：-114514 也显示「拍卖行」
 
 
 def ag(msg_no, body, ack=0):
@@ -103,9 +105,9 @@ class MockAuction:
                 aid = self.next_id
                 self.next_id += 1
                 self.listings[aid] = {"auction_id": aid, "owner": owner,
-                                      "owner_name": NPC_NAME if owner == -1 else name, "price": price,
+                                      "owner_name": NPC_NAME if owner in SYS_OWNERS else name, "price": price,
                                       "instant_price": instant, "unit_price": unit, "item_id": it["item_id"],
-                                      "count": it["add_info"], "expire": time.time() + 7200, "raw": bytes(b[48:101]), "roi": bytes(b[153:165])}
+                                      "count": it["add_info"], "expire": time.time() + (7200 if owner == -1 else 864000), "raw": bytes(b[48:101]), "roi": bytes(b[153:165])}
             log = struct.pack("<iBQiiIBiHIB", char_idx, 0 if not because else 1, aid, owner, price, it["item_id"], 0,
                               it["add_info"], 0, 0, because)
             res = struct.pack("<iiBB", char_idx, owner, 0 if because else 1, because)
@@ -128,6 +130,8 @@ class MockAuction:
             because = 0
             if not l:
                 because = 0x0b
+            elif l["owner"] == buyer and buyer != BOT:
+                because = 0x2d                    # 不能买自己的挂单（-114514 例外）
             elif l["price"] != -1 or price != l["unit_price"] * cnt or cnt > l["count"] or cnt <= 0:
                 because = 0x1c
             else:
@@ -144,12 +148,23 @@ class MockAuction:
             price, aid = struct.unpack_from("<iQ", b, 39)
             l = self.listings.get(aid)
             because = 0 if (l and price == l["instant_price"]) else 0x1c
+            if l and l["owner"] == buyer and buyer != BOT:
+                because = 0x2d
             if not because:
                 self.history.append(("bid", aid, buyer, 1))
                 self.sold[aid] = self.listings.pop(aid)
             log = struct.pack("<iBQiiIBiHIB", char_idx, 2, aid, 0, price, 0, 0, 0, 0, 0, 0)
             res = struct.pack("<iiiBBQ", char_idx, buyer, price, 0 if because else 1, because, aid)
             return [ag(P.AG_LOG_MESSAGE, log), ag(P.AG_BIDDING_RESULT, res)]
+        if m == P.GA_REGIST_CANCEL:
+            char_idx, owner, aid = struct.unpack_from("<iiQ", b, 18)
+            l = self.listings.get(aid)
+            because = 0x24 if not l else (0x2b if l["owner"] != owner else 0)
+            if not because:
+                self.history.append(("cancel", aid, owner, l["count"]))
+                del self.listings[aid]
+            res = struct.pack("<iiBB", char_idx, owner, 0 if because else 1, because)
+            return [ag(P.AG_REGIST_CANCEL_RESULT, res)]
         return []
 
 

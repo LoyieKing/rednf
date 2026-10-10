@@ -11,7 +11,6 @@ from .engine import Engine
 from .equip import EquipRunner
 from .floor import FloorRunner, is_floor
 
-FAKE_BUYER = 1999999999
 
 
 def load_json(path):
@@ -173,7 +172,7 @@ class EngineRunner:
             lim = int(b.item_meta(iid).get("stack_limit") or 0)
             if lim > 0:
                 qty = min(qty, lim)
-            r = await b.client.regist_item(-1, "", iid, qty, unit)
+            r = await b.client.regist_item(b.seller_id, "", iid, qty, unit)
             if not r["ok"] or not r["auction_id"]:
                 res["errors"] += 1
                 b.log("error", "模型上架失败 %s ×%d @%d：%s" % (b.item_name(iid), qty, unit, r.get("because_text") or "拍卖号为 0"),
@@ -183,9 +182,7 @@ class EngineRunner:
                 continue
             aid = r["auction_id"]
             t = time.time()
-            b.store.execute("INSERT OR REPLACE INTO bot_listings(auction_id,item_id,count0,count_now,unit_price,instant_price,"
-                            "listed_at,expire_at,status,last_seen,note) VALUES(?,?,?,?,?,?,?,?,'active',?,?)",
-                            (aid, iid, qty, qty, unit, unit * qty, t, t + 7200, t, n["seller"]))
+            b.record_listing(aid, iid, qty, unit, unit * qty, n["seller"], t)
             new_ids[idx] = (aid, qty, unit)
             self.hourly_new.append(t)
             res["new_done"] += 1
@@ -230,12 +227,12 @@ class EngineRunner:
                 if why:
                     b.log("buy", "模型想买玩家挂单 %s ×%d @%d（拍卖号 %d），未执行：%s" % (b.item_name(iid), f["qty"], unit, aid, why))
                     continue
-                r = await b.client.buy_apiece(FAKE_BUYER, aid, unit, qty)
+                r = await b.client.buy_apiece(b.vbuyer_id, aid, unit, qty)
                 if r.get("ok"):
                     user_gold_today += cost
                     res["uf_done"] += 1
                     res["user_gold"] += cost
-                    b.store.add_deal(time.time(), iid, aid, qty, unit, cost, "bot_buy_human", None, FAKE_BUYER, "engine",
+                    b.store.add_deal(time.time(), iid, aid, qty, unit, cost, "bot_buy_human", None, b.vbuyer_id, "engine",
                                      "eng-u:%d:%d:%d" % (aid, qty, int(time.time() * 1000)))
                     b.log("buy", "模型成交玩家挂单 %s ×%d，单价 %d，花费 %d（拍卖号 %d，卖家 %s）"
                           % (b.item_name(iid), qty, unit, cost, aid, f.get("owner_name", "")), auction_id=aid)
@@ -263,14 +260,14 @@ class EngineRunner:
             qty = min(int(f["qty"]), have)
             if qty < 1:
                 continue
-            r = await b.client.buy_apiece(FAKE_BUYER, aid, unit, qty)
+            r = await b.client.buy_apiece(b.vbuyer_id, aid, unit, qty)
             if r.get("ok"):
                 vf_today += 1
                 res["vf_done"] += 1
                 left = have - qty
                 b.store.execute("UPDATE bot_listings SET count_now=?, status=?, closed_at=? WHERE auction_id=?",
                                 (left, "active" if left > 0 else "sold", None if left > 0 else time.time(), aid))
-                b.store.add_deal(time.time(), iid, aid, qty, unit, unit * qty, "virtual", -1, FAKE_BUYER, "engine",
+                b.store.add_deal(time.time(), iid, aid, qty, unit, unit * qty, "virtual", b.seller_id, b.vbuyer_id, "engine",
                                  "eng-v:%d:%d:%d" % (aid, left, int(time.time() * 1000)))
                 b.log("deal", "虚拟成交 %s ×%d，单价 %d（拍卖号 %d，%s）" % (
                     b.item_name(iid), qty, unit, aid,
@@ -481,7 +478,7 @@ async def manual_list(bot, iid, total, unit_price=None, stack_size=None, confirm
         if info["kind"] == "equipment":
             r, _f = await bot.runner.equip.list_one(iid, unit, "manual")
         else:
-            r = await bot.client.regist_item(SYSTEM_OWNER, "", iid, q, unit)
+            r = await bot.client.regist_item(bot.seller_id, "", iid, q, unit)
         if not r["ok"] or not r["auction_id"]:
             failed.append({"count": q, "because": r.get("because_text") or "拍卖号为 0（物品不在拍卖服 iteminfo.dat）"})
             bot.log("error", "手动上架失败 %s ×%d @%d：%s" % (bot.item_name(iid), q, unit, failed[-1]["because"]),
@@ -492,9 +489,7 @@ async def manual_list(bot, iid, total, unit_price=None, stack_size=None, confirm
         aid = r["auction_id"]
         t = time.time()
         if info["kind"] != "equipment":      # 装备由 list_one 写 bot_listings
-            bot.store.execute("INSERT OR REPLACE INTO bot_listings(auction_id,item_id,count0,count_now,unit_price,instant_price,"
-                              "listed_at,expire_at,status,last_seen,note) VALUES(?,?,?,?,?,?,?,?,'active',?,?)",
-                              (aid, iid, q, q, unit, unit * q, t, t + LISTING_EXPIRE_S, t, "manual"))
+            bot.record_listing(aid, iid, q, unit, unit * q, "manual", t)
         created.append({"auction_id": aid, "count": q, "unit_price": unit})
         bot.log("list", "手动上架 %s ×%d，单价 %d（拍卖号 %d）" % (bot.item_name(iid), q, unit, aid),
                 auction_id=aid, item_id=iid)
