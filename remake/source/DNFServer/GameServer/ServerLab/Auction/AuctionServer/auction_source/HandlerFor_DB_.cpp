@@ -184,12 +184,24 @@ bool HandlerFor_DB_::GetAuctionMainFetchResult(nsl::DBConnection* db,
     if (!bRet) return false;
     bRet = db->get_int(i++, pContext->owner_id);
     if (!bRet) return false;
+#if remake_verify
     bRet = db->get_str(i++, pContext->owner_name, 0xc);
+#else
+    // DNF-FIX 2026-10-10: ORIG 这里 get_str(..., 12) 只留 11 字节，4 个汉字（UTF-8 12 字节）的角色名启动载入后被截断
+    //   （与线上 ORIG 二进制补丁 0x26ae2/0x26b61 0c→0d 等价；owner_name 缓冲 13 字节，get_str 写 buf[12]=0）
+    bRet = db->get_str(i++, pContext->owner_name, 0xd);
+#endif
     if (!bRet) return false;
     pContext->owner_name[13] = 0;
     bRet = db->get_int(i++, pContext->buyer_id);
     if (!bRet) return false;
+#if remake_verify
     bRet = db->get_str(i++, pContext->buyer_name, 0xc);
+#else
+    // DNF-FIX 2026-10-10: ORIG 这里 get_str(..., 12) 只留 11 字节，4 个汉字（UTF-8 12 字节）的角色名启动载入后被截断
+    //   （与线上 ORIG 二进制补丁 0x26ae2/0x26b61 0c→0d 等价；buyer_name 缓冲 13 字节，get_str 写 buf[12]=0）
+    bRet = db->get_str(i++, pContext->buyer_name, 0xd);
+#endif
     if (!bRet) return false;
     pContext->buyer_name[13] = 0;
     bRet = db->get_int(i++, pContext->price);
