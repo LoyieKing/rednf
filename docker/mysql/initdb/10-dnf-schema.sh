@@ -24,6 +24,6 @@ load "taiwan_${D}_web"         taiwan_cain_web.sql
 load "taiwan_${D}_auction_gold" taiwan_cain_auction_gold.sql
 load "taiwan_${D}_auction_cera" taiwan_cain_auction_cera.sql
 for db in taiwan_login taiwan_prod taiwan_game_event taiwan_se_event taiwan_login_play taiwan_billing; do load $db $db.sql; done
-sed "s/taiwan_cain\./taiwan_${D}./g" /docker-entrypoint-initdb.d/remake-extra.sql.in | "${M[@]}"
+sed "s/taiwan_cain\([._]\)/taiwan_${D}\1/g" /docker-entrypoint-initdb.d/remake-extra.sql.in | "${M[@]}"
 rm -rf "$T"
 echo "[dnf-init] 完成"

@@ -8,3 +8,527 @@ CREATE TABLE IF NOT EXISTS taiwan_cain.cube_premium (
   cube_type tinyint(3) unsigned NOT NULL DEFAULT '0',
   PRIMARY KEY (charac_no)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- =====================================================================
+-- 以下为“服务端引用、但上游 init_sql 与线上库都没有”的表（rednf 按 SQL 反推）。
+-- 库的选择：GetDBHandle(N)/m_handles[N] 的 N 即 d_taiwan.db_connect.db_type
+--   （GlobalData/QueryConnInfo.inc），1=d_taiwan 2=taiwan_cain 3=_2nd 4=_log 6=taiwan_login
+--   8=d_guild 9=taiwan_game_event 10=d_taiwan_secu 13=taiwan_se_event 15/dbmw[0]=d_technical_report。
+-- 字符集/引擎跟随同库邻居（utf8；_log/_secu/_se_event/technical_report 用 MyISAM，其余 InnoDB）。
+-- 行尾“-- 猜测”的列：类型/长度无法从绑定直接确定，按命名与邻表惯例取值。
+-- “仅查询目录”：只出现在 CQueryCounter 的 ORIG 查询目录里（统计用字符串表），
+--   remake 与 ORIG 当前代码路径都不执行；建表只为完整与避免将来报错。
+-- =====================================================================
+
+-- ---------- d_technical_report（dbmw_stat 的 m_handles[0]） ----------
+-- DBMW/DBManager.cpp:3589 InsertDailyBadSpecStatistics
+CREATE TABLE IF NOT EXISTS d_technical_report.daily_bad_spec (
+  occ_date date NOT NULL DEFAULT '0000-00-00',
+  spec_id int(11) NOT NULL DEFAULT '0',
+  server_group tinyint(4) NOT NULL DEFAULT '0',            -- %hhd
+  KEY idx_date (occ_date, spec_id)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+-- ---------- taiwan_cain_log（db_type 4 / dbmw m_handles[4]） ----------
+-- DBMW/DBManager.cpp:1494/1505 OnGoldcardEventStatistic（按天+等级 upsert）
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.log_goldcard_event (
+  occ_date date NOT NULL DEFAULT '0000-00-00',
+  level int(11) NOT NULL DEFAULT '0',
+  create_cnt int(11) NOT NULL DEFAULT '0',
+  open_cnt int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (occ_date, level)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- DBMW/DBManager.cpp:1647 QueryHellPartyStatisticItemCreate
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.log_hellparty_value (
+  occ_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  hellparty_type int(11) NOT NULL DEFAULT '0',
+  dungeon_index int(11) NOT NULL DEFAULT '0',
+  dungeon_diff int(11) NOT NULL DEFAULT '0',
+  party_count int(11) NOT NULL DEFAULT '0',
+  hellparty_diff int(11) NOT NULL DEFAULT '0',
+  update_count int(11) NOT NULL DEFAULT '0',
+  uncommon_count int(11) NOT NULL DEFAULT '0',
+  rare_count int(11) NOT NULL DEFAULT '0',
+  uniq_count int(11) NOT NULL DEFAULT '0',
+  epic_count int(11) NOT NULL DEFAULT '0',
+  KEY idx_time (occ_time)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- DBMW/DBManager.cpp:1757 QueryTowerOfDespairStatistic
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.log_tower_despair_layer_stat (
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',  -- 写入 now()
+  server_id int(11) NOT NULL DEFAULT '0',
+  layer int(11) NOT NULL DEFAULT '0',
+  enter int(11) NOT NULL DEFAULT '0',
+  success int(11) NOT NULL DEFAULT '0',
+  KEY idx_date (occ_date)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- DBMW/DBManager.cpp:1978 UpdateRandomboxStatistic（box_kind = 'randombox'/'emeraldbox'）
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.log_randombox (
+  occ_date date NOT NULL DEFAULT '0000-00-00',
+  box_kind varchar(16) NOT NULL DEFAULT '',                -- 源码缓冲 11 字节，取 16
+  create_count int(11) NOT NULL DEFAULT '0',
+  open_count int(11) NOT NULL DEFAULT '0',
+  KEY idx_date (occ_date, box_kind)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- DBMW/DBManager.cpp:2198/2203 OnSaveFatigueBattery（两条语句分别写 occ_date / occ_time，两列都建）
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.log_fatigue_battery (
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  occ_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  server_id int(11) NOT NULL DEFAULT '0',
+  money int(11) NOT NULL DEFAULT '0',
+  buff int(11) NOT NULL DEFAULT '0',
+  KEY idx_date (occ_date)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- DBMW/DBManager.cpp:5323/5331 （按 occ_time+3 级分类 upsert）
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.log_hardware_ting_low (
+  occ_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  category1 int(11) NOT NULL DEFAULT '0',
+  category2 int(11) NOT NULL DEFAULT '0',
+  category3 int(11) NOT NULL DEFAULT '0',
+  total int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (occ_time, category1, category2, category3)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- Statics/Statistics.cpp:1348 → dbmw GetDBMWStatistic（DBManager.cpp:2042, m_handles[4]）
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.log_blood_dungeon (
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  level int(11) NOT NULL DEFAULT '0',
+  try_count int(11) NOT NULL DEFAULT '0',
+  clear_count int(11) NOT NULL DEFAULT '0',
+  KEY idx_date (occ_date)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- Game/W8LT_DBTask.cpp:1747 DB_InsertAchieveEvent（DB_HANDLE_4）
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.log_charac_lev_log (
+  occ_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  achieve_type int(11) NOT NULL DEFAULT '0',
+  KEY idx_mid (m_id, charac_no)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- Game/W8LT_DBTask/dispatch_229.inc:47（DB_HANDLE_4；VALUES 由调用方拼）
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.charac_accusation (
+  accusation_type int(11) NOT NULL DEFAULT '0',
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  server_id int(11) NOT NULL DEFAULT '0',
+  charac_name varchar(30) NOT NULL DEFAULT '',             -- 猜测（同 charac_info.charac_name）
+  server_id_accu int(11) NOT NULL DEFAULT '0',
+  charac_name_accu varchar(30) NOT NULL DEFAULT '',        -- 猜测
+  occ_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  chatting_msg varchar(512) NOT NULL DEFAULT '',           -- 猜测
+  KEY idx_mid (m_id)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- Game/W8LT_DBTask/dispatch_248.inc:22/27（DB_HANDLE_4，按天 upsert）
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.expert_job_product_cnt (
+  expert_job_type int(11) NOT NULL DEFAULT '0',
+  occ_date date NOT NULL DEFAULT '0000-00-00',
+  item_id int(11) NOT NULL DEFAULT '0',
+  item_cnt int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (expert_job_type, occ_date, item_id)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- Game/W8LT_DBTask/dispatch_207.inc:17/22（DB_HANDLE_4）
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.log_fighter_event (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  event_id varchar(32) NOT NULL DEFAULT '',                -- 猜测（'%s'）
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  occ_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  occ_cnt int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (m_id, event_id, charac_no)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- Game/W8LT_DBTask/dispatch_217.inc:20（DB_HANDLE_4）
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.log_in_game_ad (
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  state int(11) NOT NULL DEFAULT '0',
+  view_code int(11) NOT NULL DEFAULT '0',
+  type_code int(11) NOT NULL DEFAULT '0',
+  banner_id int(10) unsigned NOT NULL DEFAULT '0',
+  dungeon_index int(11) NOT NULL DEFAULT '0',
+  village_index int(11) NOT NULL DEFAULT '0',
+  area_index int(11) NOT NULL DEFAULT '0',
+  KEY idx_date (occ_date)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- Game/W8LT_DBTask/dispatch_193.inc:27/41（DB_HANDLE_4）
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.log_vending_stat (
+  occ_date date NOT NULL DEFAULT '0000-00-00',
+  channel_no int(11) NOT NULL DEFAULT '0',
+  item_id int(11) NOT NULL DEFAULT '0',
+  cnt int(11) NOT NULL DEFAULT '0',
+  KEY idx_date (occ_date, channel_no, item_id)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- 仅查询目录：Game/CQueryCounter.cpp:386/387（库为猜测：按 log_ 前缀放日志库）
+CREATE TABLE IF NOT EXISTS taiwan_cain_log.log_vacation_event_0612 (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  occ_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  occ_cnt int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (m_id, charac_no)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+-- ---------- taiwan_cain_2nd（db_type 3） ----------
+-- Game/W8LT_DBTask.cpp:2607 （DB_HANDLE_3，与 user_items_history 同库）
+CREATE TABLE IF NOT EXISTS taiwan_cain_2nd.user_items_change_history (
+  ui_id int(10) unsigned NOT NULL DEFAULT '0',
+  from_charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  to_charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  change_type int(10) unsigned NOT NULL DEFAULT '0',
+  KEY idx_ui (ui_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- ---------- d_guild（db_type 8 / dbmw m_handles[8]） ----------
+-- DBMW/DBManager.cpp:686/717/740/3791/3821/4820/4844（cargo 为 get_binary/blob_to_str，0x18d8 字节）
+CREATE TABLE IF NOT EXISTS d_guild.guild_agit (
+  guild_id int(10) unsigned NOT NULL DEFAULT '0',
+  upgrade int(11) NOT NULL DEFAULT '0',
+  cargo_capacity int(10) unsigned NOT NULL DEFAULT '0',
+  cargo blob,
+  PRIMARY KEY (guild_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- ---------- taiwan_game_event（db_type 9 / dbmw m_handles[9]） ----------
+-- DBMW/DBManager.cpp:2111/2124 OnServerMatchData（按 server_id+天 upsert）
+CREATE TABLE IF NOT EXISTS taiwan_game_event.pvp_score (
+  server_id int(11) NOT NULL DEFAULT '0',
+  occ_date date NOT NULL DEFAULT '0000-00-00',
+  win_count int(11) NOT NULL DEFAULT '0',
+  lose_count int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (server_id, occ_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- DBMW/DBManager.cpp:4784/4789 ChangePvPBuddyName
+CREATE TABLE IF NOT EXISTS taiwan_game_event.pvp_buddy (
+  server_id int(11) NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  charac_name varchar(30) NOT NULL DEFAULT '',             -- 猜测
+  buddy_server_id int(11) NOT NULL DEFAULT '0',
+  buddy_charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  buddy_charac_name varchar(30) NOT NULL DEFAULT '',       -- 猜测
+  PRIMARY KEY (server_id, charac_no, buddy_server_id, buddy_charac_no),
+  KEY idx_buddy (buddy_server_id, buddy_charac_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- DBMW/DBManager.cpp:5575/5617 updateNexonPinPcRoomPlayTimeEvent（取一个未发放的 PIN）
+CREATE TABLE IF NOT EXISTS taiwan_game_event.event_pcroom_time_nexon_cash (
+  no int(10) unsigned NOT NULL AUTO_INCREMENT,
+  server_info int(11) NOT NULL DEFAULT '0',
+  nexon_pin varchar(32) NOT NULL DEFAULT '',               -- 猜测
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  PRIMARY KEY (no),
+  KEY idx_free (server_info, m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- Game/W8LT_DBTask.cpp:2352/2360 DB_UpdateChuseokPackagePurchase（handle 9）
+CREATE TABLE IF NOT EXISTS taiwan_game_event.event_1009_package_count (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  purchase_cnt int(10) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- Game/W8LT_DBTask/dispatch_177.inc:28（handle 9）
+CREATE TABLE IF NOT EXISTS taiwan_game_event.dnf_event_accept_list (
+  event_id int(11) NOT NULL DEFAULT '0',
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  server_info int(11) NOT NULL DEFAULT '0',
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  stage int(11) NOT NULL DEFAULT '0',
+  stage_result varchar(64) NOT NULL DEFAULT '',            -- 猜测（'%s'）
+  KEY idx_ev (event_id, m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- Game/DB_LoadEtc/LoadPcRoomPlayTimeInfo.inc:24（handle 9；只见 SELECT）
+CREATE TABLE IF NOT EXISTS taiwan_game_event.event_1204_pcroom_play_time (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  play_time int(11) NOT NULL DEFAULT '0',
+  reward_cnt int(11) NOT NULL DEFAULT '0',
+  KEY idx_mid (m_id, occ_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- Game/DB_LoadEtc/LoadAttendanceInfo.inc:19 + W8LT_DBTask/dispatch_159.inc:20（handle 9）
+CREATE TABLE IF NOT EXISTS taiwan_game_event.event_1207_attendance (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  KEY idx_mid (m_id, occ_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- Game/DB_Login/GetGrowthCreatureEvent.inc:17（charac_name get_str 0x1d）+ dispatch_255/256（handle 9）
+CREATE TABLE IF NOT EXISTS taiwan_game_event.event_1208_growthcreature (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  server_id int(11) NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  job_type int(11) NOT NULL DEFAULT '0',
+  charac_name varchar(29) NOT NULL DEFAULT '',
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  PRIMARY KEY (m_id, server_id, charac_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- Game/DB_Login/GetAccountCharacterLevelUpOnceGift.inc:15 + dispatch_254.inc:24（handle 9）
+CREATE TABLE IF NOT EXISTS taiwan_game_event.event_1208_level_achieve (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  server_id int(11) NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  job_type int(11) NOT NULL DEFAULT '0',
+  level int(11) NOT NULL DEFAULT '0',
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  KEY idx_mid (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- Game/DB_LoadEtc/LoadSeriaRoomAniDeco.inc:15 + SeriaRoomAniDecoEvent/dispatch.inc:23/30（handle 9）
+CREATE TABLE IF NOT EXISTS taiwan_game_event.event_1208_seriaroom_anideco (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  server_id int(11) NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  receive_flow int(11) NOT NULL DEFAULT '0',
+  deco_flow int(11) NOT NULL DEFAULT '0',
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  PRIMARY KEY (m_id, server_id, charac_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- ---------- taiwan_login（db_type 6） ----------
+-- Game/W8LT_DBTask.cpp:1779 DB_InsertUnlimitSupportLog（DB_HANDLE_6）
+CREATE TABLE IF NOT EXISTS taiwan_login.event_unlimitsupport_lev (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  occ_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  server_id int(11) NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  charac_name varchar(30) NOT NULL DEFAULT '',             -- 猜测
+  KEY idx_mid (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- Game/W8LT_DBTask/dispatch_82.inc:16/24（DB_HANDLE_6）
+CREATE TABLE IF NOT EXISTS taiwan_login.event_1111_charac_day (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  entries_count int(10) unsigned NOT NULL DEFAULT '0',
+  update_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  PRIMARY KEY (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- Game/DB_Login/_isJoinedSchoolPointEvent.inc:8 + dispatch_163.inc:17（DB_HANDLE_6）
+CREATE TABLE IF NOT EXISTS taiwan_login.event_school_point (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  school_id int(11) NOT NULL DEFAULT '0',
+  point int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- ---------- taiwan_se_event（db_type 13 = DB_HANDLE_D） ----------
+-- Game/W8LT_DBTask/dispatch_17.inc:16
+CREATE TABLE IF NOT EXISTS taiwan_se_event.cerashop_err_log (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  server_id int(10) unsigned NOT NULL DEFAULT '0',
+  channel_no int(10) unsigned NOT NULL DEFAULT '0',
+  type int(11) NOT NULL DEFAULT '0',
+  err_code int(10) unsigned NOT NULL DEFAULT '0',
+  goods_id int(11) NOT NULL DEFAULT '0',
+  time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  KEY idx_mid (m_id)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+-- ---------- d_taiwan_secu（db_type 10）：决斗场“学院”----------
+-- Game/W8LT_DBTask.cpp:4017/4096（DB_HANDLE_10；rating 为 get_float）+ DB_Login/GetSchoolName.inc:4（get_str 0x28）
+CREATE TABLE IF NOT EXISTS d_taiwan_secu.school_info (
+  school_id int(11) NOT NULL DEFAULT '0',
+  school_name varchar(40) NOT NULL DEFAULT '',
+  rating float NOT NULL DEFAULT '0',
+  fight_cnt int(11) NOT NULL DEFAULT '0',
+  fight_cnt_prev int(11) NOT NULL DEFAULT '0',
+  school_point int(11) NOT NULL DEFAULT '0',
+  school_point_prev int(11) NOT NULL DEFAULT '0',
+  last_update_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  PRIMARY KEY (school_id)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+-- Game/W8LT_DBTask.cpp:4148、dispatch_200.inc:25、DB_Login/GetBadgeCount.inc:10（DB_HANDLE_10）、
+-- DB_LoadCharac/_UpdateSchoolCharac.inc:15（handle 0x10，db_connect 中无 16 → 该路径取不到句柄）
+CREATE TABLE IF NOT EXISTS d_taiwan_secu.school_member (
+  school_id int(11) NOT NULL DEFAULT '0',
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  job tinyint(4) NOT NULL DEFAULT '0',
+  grow_type tinyint(4) NOT NULL DEFAULT '0',
+  lev smallint(6) NOT NULL DEFAULT '0',
+  contribute int(11) NOT NULL DEFAULT '0',
+  green_badge int(11) NOT NULL DEFAULT '0',
+  red_badge int(11) NOT NULL DEFAULT '0',
+  blue_badge int(11) NOT NULL DEFAULT '0',
+  daily_green_badge int(11) NOT NULL DEFAULT '0',
+  daily_red_badge int(11) NOT NULL DEFAULT '0',
+  daily_blue_badge int(11) NOT NULL DEFAULT '0',
+  last_play_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  PRIMARY KEY (school_id, m_id)
+) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+
+-- ---------- d_taiwan（db_type 1）：账号级活动 ----------
+-- Game/W8LT_DBTask.cpp:1312/1317（DB_HANDLE_1）
+CREATE TABLE IF NOT EXISTS d_taiwan.event_happybean_log (
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  cnt int(11) NOT NULL DEFAULT '0',
+  KEY idx_mid (m_id, occ_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- 下列 6 张“领奖记录”表同一模式（WongWorkEvents_A / LinkClosureB_Misc，DB_HANDLE_1）：
+--   按 m_id + occ_check!=0 列出，按 id 读/写 *_check=unix_timestamp(now())
+-- WongWorkEvents_A.cpp:269 + CheckAlready/Update*
+CREATE TABLE IF NOT EXISTS d_taiwan.event_everland_info (
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  server_id int(11) NOT NULL DEFAULT '0',
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  coin int(11) NOT NULL DEFAULT '0',
+  coin_check int(11) NOT NULL DEFAULT '0',
+  occ_check int(11) NOT NULL DEFAULT '0',                   -- 猜测（只出现在 where occ_check!=0）
+  PRIMARY KEY (id), KEY idx_mid (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- LinkClosureB_Misc/ArrangeATIEventItem.inc:25 / CheckAlreadyGetATIItem / UpdateEventATIInfo
+CREATE TABLE IF NOT EXISTS d_taiwan.event_ati_info (
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  cera int(11) NOT NULL DEFAULT '0',
+  cera_check int(11) NOT NULL DEFAULT '0',
+  item_no int(11) NOT NULL DEFAULT '0',
+  item_server_id int(11) NOT NULL DEFAULT '0',
+  item_charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  item_check int(11) NOT NULL DEFAULT '0',
+  avata_no1 int(11) NOT NULL DEFAULT '0',
+  avata_no2 int(11) NOT NULL DEFAULT '0',
+  avata_server_id int(11) NOT NULL DEFAULT '0',
+  avata_charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  avata_check1 int(11) NOT NULL DEFAULT '0',
+  avata_check2 int(11) NOT NULL DEFAULT '0',
+  occ_check int(11) NOT NULL DEFAULT '0',                   -- 猜测
+  PRIMARY KEY (id), KEY idx_mid (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- WongWorkEvents_A.cpp:167 / CheckAlreadyGetSigongItem / UpdateEventSigongInfo
+CREATE TABLE IF NOT EXISTS d_taiwan.event_sigong_info (
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  item1_no int(11) NOT NULL DEFAULT '0',
+  item1_server_id int(11) NOT NULL DEFAULT '0',
+  item1_charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  item1_check int(11) NOT NULL DEFAULT '0',
+  item2_no int(11) NOT NULL DEFAULT '0',
+  item2_server_id int(11) NOT NULL DEFAULT '0',
+  item2_charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  item2_check int(11) NOT NULL DEFAULT '0',
+  occ_check int(11) NOT NULL DEFAULT '0',                   -- 猜测
+  PRIMARY KEY (id), KEY idx_mid (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- APsystemOnlyOrig/_CheckAlreadyGetYegamItem.inc / _UpdateEventYegamInfo.inc（列表查询未还原，列按 check 列推）
+CREATE TABLE IF NOT EXISTS d_taiwan.event_yegam_info (
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  server_id int(11) NOT NULL DEFAULT '0',                   -- 猜测
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',          -- 猜测
+  coin int(11) NOT NULL DEFAULT '0',                        -- 猜测
+  coin_check int(11) NOT NULL DEFAULT '0',
+  item int(11) NOT NULL DEFAULT '0',
+  item_check int(11) NOT NULL DEFAULT '0',
+  occ_check int(11) NOT NULL DEFAULT '0',                   -- 猜测
+  PRIMARY KEY (id), KEY idx_mid (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- WongWorkEvents_A.cpp:87 / CheckAlreadyGetAlttleItem（按 m_id）/ UpdateEventAlttleInfo
+CREATE TABLE IF NOT EXISTS d_taiwan.event_alttle_info (
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,               -- 猜测（本表按 m_id 读写）
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  item_server_id int(11) NOT NULL DEFAULT '0',
+  item_charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  item_no int(11) NOT NULL DEFAULT '0',
+  item_check int(11) NOT NULL DEFAULT '0',
+  item_cnt int(11) NOT NULL DEFAULT '0',
+  occ_check int(11) NOT NULL DEFAULT '0',                   -- 猜测
+  PRIMARY KEY (id), KEY idx_mid (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- WongWorkEvents_A.cpp:349 / CheckAlreadyFCComboEventItem / UpdateFCComboEventInfo（库按同族猜测）
+CREATE TABLE IF NOT EXISTS d_taiwan.event_combo_entry (
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  item_server_id int(11) NOT NULL DEFAULT '0',
+  item_charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  item_no int(11) NOT NULL DEFAULT '0',
+  item_check int(11) NOT NULL DEFAULT '0',
+  item_cnt int(11) NOT NULL DEFAULT '0',
+  occ_check int(11) NOT NULL DEFAULT '0',                   -- 猜测
+  PRIMARY KEY (id), KEY idx_mid (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- LinkClosureB_Misc/ArrangeMuzEventItem.inc:20 / CheckAlreadyGetMuzItem / UpdateEventMuzInfo
+CREATE TABLE IF NOT EXISTS d_taiwan.event_muz_entry (
+  id int(10) unsigned NOT NULL AUTO_INCREMENT,
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  item_server_id int(11) NOT NULL DEFAULT '0',
+  item_charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  item_no int(11) NOT NULL DEFAULT '0',
+  item_check int(11) NOT NULL DEFAULT '0',
+  item_cnt int(11) NOT NULL DEFAULT '0',
+  occ_check int(11) NOT NULL DEFAULT '0',                   -- 猜测
+  PRIMARY KEY (id), KEY idx_mid (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- 仅查询目录（库均为猜测：账号级 m_id 表放 d_taiwan）
+-- CQueryCounter.cpp:267/282-285（%s.active_user）
+CREATE TABLE IF NOT EXISTS d_taiwan.active_user (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  occ_date datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  PRIMARY KEY (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- CQueryCounter.cpp:173/174
+CREATE TABLE IF NOT EXISTS d_taiwan.user_cera_ticket (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  ticket_id varchar(64) NOT NULL DEFAULT '',               -- 猜测
+  ticketKey int(11) NOT NULL DEFAULT '0',
+  expire_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  PRIMARY KEY (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- CQueryCounter.cpp:266
+CREATE TABLE IF NOT EXISTS d_taiwan.member_reliable (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  apply_flag tinyint(4) NOT NULL DEFAULT '0',               -- 猜测
+  PRIMARY KEY (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- CQueryCounter.cpp:126
+CREATE TABLE IF NOT EXISTS d_taiwan.tester_info (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  tester_flag char(1) NOT NULL DEFAULT 'n',
+  PRIMARY KEY (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- CQueryCounter.cpp:368
+CREATE TABLE IF NOT EXISTS d_taiwan.dnf_hack_mac (
+  mac_addr varchar(32) NOT NULL DEFAULT '',                -- 猜测
+  PRIMARY KEY (mac_addr)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- CQueryCounter.cpp:356-358
+CREATE TABLE IF NOT EXISTS d_taiwan.world_cup_event_log (
+  m_id int(10) unsigned NOT NULL DEFAULT '0',
+  up_time datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  cnt int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (m_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- ---------- taiwan_cain（角色级；仅查询目录，库为猜测） ----------
+-- CQueryCounter.cpp:244/259/271/298/307/311（%s.charac_property 在两服库间复制）
+CREATE TABLE IF NOT EXISTS taiwan_cain.charac_property (
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  element_resist varchar(255) NOT NULL DEFAULT '',         -- 猜测
+  spec_property varchar(255) NOT NULL DEFAULT '',          -- 猜测
+  PRIMARY KEY (charac_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- CQueryCounter.cpp:165/167/168/275/294
+CREATE TABLE IF NOT EXISTS taiwan_cain.dungeon_clear (
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  dungeon_no int(11) NOT NULL DEFAULT '0',
+  dungeon_lev int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (charac_no, dungeon_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- CQueryCounter.cpp:123/160/161（列名 trigger 为保留字，必须反引号）
+CREATE TABLE IF NOT EXISTS taiwan_cain.quest (
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  quest_no int(11) NOT NULL DEFAULT '0',
+  `trigger` int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (charac_no, quest_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- CQueryCounter.cpp:117
+CREATE TABLE IF NOT EXISTS taiwan_cain.pvp_point_base (
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  point int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (charac_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+-- CQueryCounter.cpp:99/166
+CREATE TABLE IF NOT EXISTS taiwan_cain.tester_point (
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  point int(11) NOT NULL DEFAULT '0',
+  PRIMARY KEY (charac_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+-- ---------- taiwan_prod ----------
+-- 仅查询目录：CQueryCounter.cpp:381/382；与同库 prod_sale_entry_073 等分月表同构
+CREATE TABLE IF NOT EXISTS taiwan_prod.prod_sale_entry_064 LIKE taiwan_prod.prod_sale_entry_073;
