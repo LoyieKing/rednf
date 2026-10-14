@@ -1,0 +1,14 @@
+.git
+**/.git
+remake/build
+remake/build-*
+toolchains/*
+!toolchains/bootstrap.sh
+!toolchains/src
+auction_bot
+docs
+.origin_1031/*
+!.origin_1031/build
+.origin_1031/build/*
+!.origin_1031/build/dnf_data
+docker/.env

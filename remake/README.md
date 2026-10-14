@@ -1,11 +1,11 @@
-# DNF 服务端逆向重建工程（dnf_remake）
+# remake —— DNF 1031 服务端源码重建
 
 ## 项目定位
 
 本工程是 **DNF（地下城与勇士）服务端逆向分析与源码重建工作区**，与 `.origin_1031`（DNF 服务端一键安装部署仓库，本仓库的 git submodule）配套使用：
 
 - `.origin_1031/` 提供部署资源与**原始服务器 ELF 运行时文件**，位于 `.origin_1031/build/dnf_data/home/template/neople/<服务名>/df_<服务名>_r`。
-- `dnf_remake/` 对这些 ELF 进行 Ghidra 逆向，并结合 DWARF 调试信息渐进式重建可维护的 C++ 源码。
+- `remake/` 对这些 ELF 进行 Ghidra 逆向，并结合 DWARF 调试信息渐进式重建可维护的 C++ 源码。
 - 重建产物统一放在 `source/` 下，通过 CMake 构建，两条路线并存（见下节与
   `docs/df_modern_route.md`）：
   * **现代路线（默认，`remake_verify=OFF`）**：宿主最新 LTS GCC + `-m32`，
@@ -31,42 +31,9 @@ cmake --build build -j$(nproc)
 现代路线的完整说明（兼容层清单、GeoIP、验证记录、已知限制）见
 **[docs/df_modern_route.md](docs/df_modern_route.md)**。
 
-## 运行（本机 WSL chroot）
+## 运行
 
-当前可跑环境不是 Docker。从零启动、客户端、部署 `df_game_r`、IP 约束的现行文档是
-`D:\Docs\dnf_client_test\使用手册.md`。仓库根的 `SOP-WSL-chroot-1031-服务端启动.md` 只保留跳转，不要按旧步骤操作。
-
----
-
-## 工作区布局
-
-```
-dnf_workspace/                      # git 仓库根
-├── .github/copilot-instructions.md # 协作规则（逆向、构建、对比模式、沟通风格）
-├── .origin_1031/                  # submodule：部署仓库，含原始 ELF 运行时
-└── dnf_remake/                  # 本工程：Ghidra 工程 + 重建源码
-    ├── dnf_project.rep/            # Ghidra 工程数据（projectState / idata / user / versioned）
-    ├── README.md                   # 本文档
-    ├── source/
-        ├── CMakeLists.txt          # 重建构建定义（全部服务目标）
-        ├── Community/              # df_community_r 真实重建实现（37 文件 / 约 2.5k 行）
-        ├── shared/                 # 包结构与通用头（185 文件 / 约 3.1k 行，早期重建成果）
-        ├── ChannelOld/             # df_channel_r 真实重建实现（25 TU，见 docs/df_channel_r_progress.md）
-        │                           #   + df_bridge_r 的 DWARF 桩（DNFChannelBridge/）
-        ├── DNFServer/              # ServerCommon / GameServer(ServerLab) / StunServer 的 DWARF 桩
-        ├── DNFShared/ Library/     # 共享脚本与工具库的 DWARF 桩
-        ├── compare_df_community_functions.py  # 符号/字符串/助记符对比脚本
-        └── toolchain/              # 可复现构建/逐 TU 对比脚本；compat/（OFF 兼容层）、geoip/（真实 GeoIP）
-    ├── tests/                      # 独立编译验证 TU（packets/ layout/ probes/，不参与服务构建）
-    ├── attic/                      # 已退役文件（历史快照、被合并 TU、实验与中间产物；见 attic/README.md）
-    └── docs/                       # 分析/验收文档（progress/ 进度报告、assets/ 图件、class_func_reports/ 等）
-```
-
-> 说明：`build/community/` 是 df_community_r 的验证构建目录；全部构建产物统一收在 `dnf_remake/build/` 下（按服务分子目录），已被 `.gitignore` 忽略，未纳入版本管理。
-> `dnf_project.gpr` / `dnf_project.rep/` 为 Ghidra 工程文件（已忽略），非重建产物。
-> 2026-09-17 目录整理：仓库根目录下错放的 packet 转发壳（54 个，与
-> `source/DNFServer/GameServer/Game/Packet_*.h` 重复）、测试 TU、文档已归位或删除；
-> `source/` 下确认不参与构建的死文件移入 `attic/`（清单与判据见 `attic/README.md`）。
+见仓库根目录 [README](../README.md) 与 [docs/从零构建与启动.md](../docs/从零构建与启动.md)。
 
 ## 服务端组件架构
 

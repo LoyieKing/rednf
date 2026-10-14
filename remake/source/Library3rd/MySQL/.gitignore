@@ -1,2 +1,1 @@
-extlib/yassl/include/config.h
-include/my_config.h
+# my_config.h / yassl config.h 是 32 位 Linux 预生成的配置头，随源码入库
