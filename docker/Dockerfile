@@ -20,6 +20,13 @@ COPY toolchains/src toolchains/src
 COPY .origin_1031/build/dnf_data/home/template/neople/game/libnxencryption.so \
      .origin_1031/build/dnf_data/home/template/neople/game/libnxencryption.so
 RUN DNF_MIRROR=${DNF_MIRROR} bash toolchains/bootstrap.sh
+# 登录网关 dnf-gate-server（llnut/dnf-login 发布包，校验 sha256；不进仓库）
+ARG GATE_VERSION=0.2.1
+RUN A=dnf-gate-server-${GATE_VERSION}-x86_64-unknown-linux-musl \
+ && U=https://github.com/llnut/dnf-login/releases/download/${GATE_VERSION}/$A.tar.gz \
+ && mkdir -p /out && curl -fsSL -o /tmp/g.tgz "$U" && curl -fsSL -o /tmp/g.sha "$U.sha256" \
+ && [ "$(awk '{print $1}' /tmp/g.sha)" = "$(sha256sum /tmp/g.tgz | awk '{print $1}')" ] \
+ && tar -xzf /tmp/g.tgz --strip-components=1 -C /out "$A/dnf-gate-server" && rm -f /tmp/g.tgz /tmp/g.sha
 COPY remake remake
 RUN cmake -S remake/source -B remake/build \
  && cmake --build remake/build -j"$(nproc)" \
@@ -35,6 +42,7 @@ RUN dpkg --add-architecture i386 && apt-get update && apt-get install -y --no-in
         libc6:i386 libgcc-s1:i386 libstdc++6:i386 zlib1g:i386 libjemalloc2:i386 \
         bash procps psmisc socat netcat-openbsd mariadb-client tzdata ca-certificates openssl geoip-database \
     && rm -rf /var/lib/apt/lists/*
+COPY --from=build /out/dnf-gate-server /usr/bin/dnf-gate-server
 # 上游（llnut/dnf 清风 1031）运行时：配置模板、secsvr、TSS SDK、PVF 等
 COPY .origin_1031/build/dnf_data/home/template /home/template
 COPY .origin_1031/build/dnf_data/TeaEncrypt /usr/local/bin/TeaEncrypt

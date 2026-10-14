@@ -24,6 +24,10 @@ start_game() { # start_game <频道号>
   ( cd $N/game && rm -f pid/$name.pid && LD_PRELOAD=$N/game/libtss_shmfix.so LD_LIBRARY_PATH=$N/game exec ./df_game_r $name start ) >>"$LOGD/game_$name.out" 2>&1 &
   echo "[dnfctl] start game $name"
 }
+start_secagent() {
+  ( cd $N/secsvr/zergsvr && rm -f secagent.pid && LD_PRELOAD=$N/game/libtss_shmfix.so exec ./secagent ) >>"$LOGD/secagent.out" 2>&1 &
+  echo "[dnfctl] start secagent"
+}
 case "${1:-run}" in
 run)
   sed -e "s/MAIN_BRIDGE_IP/${MAIN_BRIDGE_IP:-127.0.0.1}/g" -e "s/PUBLIC_IP/$(cat /data/monitor_ip/MONITOR_PUBLIC_IP)/g" \
@@ -43,19 +47,41 @@ run)
   svc statics   $N/statics   ./df_statics_r server start
   svc coserver  $N/coserver  ./df_coserver_r server start
   svc community $N/community ./df_community_r server start
-  # secsvr（TSS 反外挂）：ORIG ELF，来自 .origin_1031；与 df_game_r 同容器共享 IPC/shm
-  ( cd $N/secsvr/gunnersvr && exec ./gunnersvr -t30 -i1 ) >>"$LOGD/gunnersvr.out" 2>&1 &
-  ( cd $N/secsvr/zergsvr && exec ./zergsvr -t30 -i1 ) >>"$LOGD/zergsvr.out" 2>&1 &
-  sleep 3
-  ( cd $N/secsvr/zergsvr && exec ./secagent ) >>"$LOGD/secagent.out" 2>&1 &
+  # secsvr（TSS 反外挂）：ORIG ELF，来自 .origin_1031；与 df_game_r 同容器共享 IPC/shm。
+  # secagent 用 shm_open("sec/tss_sdk_bus_N")，新版 glibc 对含 / 的名字返回 EINVAL，
+  # 所以 secsvr 与 game 一样要预加载 libtss_shmfix.so，双方才会落到同一个 /dev/shm/sec_tss_sdk_bus_N。
+  # 顺序：gunnersvr → zergsvr → secagent → game（与线上 s6 依赖一致）
+  SHMFIX=$N/game/libtss_shmfix.so
+  ( cd $N/secsvr/gunnersvr && LD_PRELOAD=$SHMFIX exec ./gunnersvr -t30 -i1 ) >>"$LOGD/gunnersvr.out" 2>&1 &
+  ( cd $N/secsvr/zergsvr && LD_PRELOAD=$SHMFIX exec ./zergsvr -t30 -i1 ) >>"$LOGD/zergsvr.out" 2>&1 &
+  wait_port 9000
+  start_secagent
   sleep 5
+  # 登录网关（llnut/dnf-login 的 dnf-gate-server，构建时下载；客户端登录器连 5505）
+  if [ -x /usr/bin/dnf-gate-server ] && [ "${GATE_ENABLE:-1}" = 1 ]; then
+    # AES_KEY 必须是 64 位十六进制且与登录器一致；未设置时首次随机生成并保存在 /data/gate_aes_key
+    if [ -z "${GATE_AES_KEY:-}" ]; then
+      [ -s /data/gate_aes_key ] || openssl rand -hex 32 > /data/gate_aes_key
+      GATE_AES_KEY=$(cat /data/gate_aes_key); echo "[dnfctl] GATE_AES_KEY 未设置，使用 /data/gate_aes_key"
+    fi
+    ( cd /data && exec env DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=game DB_PASSWORD="$DNF_DB_GAME_PASSWORD" \
+        DB_NAME=d_taiwan AES_KEY="$GATE_AES_KEY" RSA_PRIVATE_KEY_PATH=/data/privatekey.pem \
+        BIND_ADDRESS="${GATE_BIND_ADDRESS:-0.0.0.0:5505}" INITIAL_CERA="${INITIAL_CERA:-1000}" \
+        INITIAL_CERA_POINT="${INITIAL_CERA_POINT:-0}" REGISTRATION_OPEN="${GATE_REGISTRATION_OPEN:-true}" \
+        RUST_LOG="${GATE_RUST_LOG:-info,dnf_gate_server=debug}" /usr/bin/dnf-gate-server ) >>"$LOGD/gate.out" 2>&1 &
+    echo "[dnfctl] start gate"
+  fi
   for ch in ${OPEN_CHANNEL//,/ }; do start_game "$ch"; done
   trap 'echo "[dnfctl] 收到停止信号"; bash "$0" stop; exit 0' TERM INT
-  while sleep 30; do :; done ;;
+  # 简易守护（相当于线上 s6 的自动重启）：secagent 在 df_game_r 建好 sec_tss_sdk_bus_N 之前/期间
+  # 映射的共享内存会被 game 重新截断，secagent 随即静默退出；game 起来后再拉一次即可长期稳定。
+  while sleep 30; do
+    pgrep -x secagent >/dev/null || { echo "[dnfctl] secagent 不在，重新拉起"; start_secagent; }
+  done ;;
 stop)
   term_wait 'df_game_r' 120          # 先停 game：TERM 后它会把在线角色存档
   for p in df_community_r df_coserver_r df_statics_r df_guild_r df_point_r df_auction_r df_dbmw_r \
-           df_channel_r df_bridge_r df_relay_r df_manager_r df_monitor_r df_stun_r secagent zergsvr gunnersvr; do
+           df_channel_r df_bridge_r df_relay_r df_manager_r df_monitor_r df_stun_r dnf-gate-server secagent zergsvr gunnersvr; do
     term_wait "$p" 30; done ;;
 restart-game)
   ch=${2:?频道号，如 11}; term_wait "df_game_r $G$ch " 120; start_game "$ch" ;;

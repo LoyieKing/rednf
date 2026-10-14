@@ -41,6 +41,7 @@ services:
     volumes:
       - dnf-data:/data
     ports:
+      - "5505:5505/tcp"          # 登录网关 dnf-gate-server
       - "7001:7001/tcp"
       - "7001:7001/udp"
       - "7200:7200/tcp"

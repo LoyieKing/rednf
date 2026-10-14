@@ -13,7 +13,7 @@ export OPEN_CHANNEL="${OPEN_CHANNEL:-11,52}"
 export DEC_GAME_PWD="$(/usr/local/bin/TeaEncrypt "$DNF_DB_GAME_PASSWORD")"
 R=/opt/remake/runtime
 # 供 docker exec 调用的 dnfctl.sh restart-game 等复用同一套变量
-export -p | grep -E ' (SERVER_GROUP|SERVER_GROUP_NAME|SERVER_GROUP_DB|MAIN_BRIDGE_IP|OPEN_CHANNEL|DEC_GAME_PWD)=' > /run/rednf.env
+export -p | grep -E ' (SERVER_GROUP|SERVER_GROUP_NAME|SERVER_GROUP_DB|MAIN_BRIDGE_IP|OPEN_CHANNEL|DEC_GAME_PWD|DNF_DB_GAME_PASSWORD|GATE_[A-Z_]*|INITIAL_CERA[A-Z_]*)=' > /run/rednf.env
 log() { echo "[rednf $(date +%T)] $*"; }
 
 # 1) 渲染 /home/template/neople → /home/neople（与上游 llnut/dnf 相同的占位符）
@@ -24,6 +24,16 @@ if [ ! -f /home/neople/.rendered ]; then
     -e "s/GAME_PASSWORD/$DNF_DB_GAME_PASSWORD/g" -e "s/DEC_GAME_PWD/$DEC_GAME_PWD/g" \
     -e "s/SERVER_GROUP_NAME/$SERVER_GROUP_NAME/g" -e "s/SERVER_GROUP_DB/$SERVER_GROUP_DB/g" \
     -e "s/SERVER_GROUP/$SERVER_GROUP/g"
+  # secsvr 配置修正（上游模板直接用会让 zergsvr/secagent 启动即退出）：
+  Z=/home/neople/secsvr/zergsvr/cfg
+  #  - zergsvrd.xml 要求从 cfgsvr 拉 IP，而镜像里没有 cfgsvr → 改为读本地 svcid.xml
+  sed -i 's#<get_svr_info_type>cfgsvr<#<get_svr_info_type>cfgfile<#' $Z/zergsvrd.xml
+  #  - svcid.xml 里 3 条服务定义重复了一遍（service_num 6）→ 只保留前 3 条
+  awk '/<service_info_>/{n++} n>3&&/<service_info_>/{k=1} k&&/<\/service_info_>/{k=0;next} !k' $Z/svcid.xml \
+    | sed 's#<service_num_> *[0-9]* *<#<service_num_> 3 <#' > $Z/svcid.xml.new && mv $Z/svcid.xml.new $Z/svcid.xml
+  #  - secagent 的 game 通道数必须等于实际开的频道数（每个 df_game_r 一条 sec_tss_sdk_bus_N）
+  nch=$(echo "$OPEN_CHANNEL" | tr ',' '\n' | grep -c .)
+  sed -i "s#<gamesvr_channel_num_>[0-9]*<#<gamesvr_channel_num_>$nch<#" $Z/secagent_config.xml
   touch /home/neople/.rendered
 fi
 mkdir -p /data /data/monitor_ip
