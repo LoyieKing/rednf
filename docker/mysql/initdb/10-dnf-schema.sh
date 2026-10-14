@@ -3,7 +3,7 @@
 #   1) 解开上游 llnut/dnf 的 init_sql.tgz（.origin_1031 只读挂载到 /dnf-origin）
 #   2) 按上游 init_main_db.sh / init_server_group_db.sh 的库清单建库导入
 #   3) 再执行 90-remake-extra.sql 补齐上游缺失的表（如 taiwan_cain.cube_premium）
-set -euo pipefail
+set -eo pipefail
 D="${SERVER_GROUP_DB:-cain}"
 SRC=/dnf-origin/build/dnf_data/home/template/init/init_sql.tgz
 [ -f "$SRC" ] || { echo "缺少 $SRC：请先 git submodule update --init .origin_1031"; exit 1; }

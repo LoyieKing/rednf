@@ -12,6 +12,8 @@ export DNF_DB_GAME_PASSWORD="${DNF_DB_GAME_PASSWORD:0:8}"   # 服务端只认 8 
 export OPEN_CHANNEL="${OPEN_CHANNEL:-11,52}"
 export DEC_GAME_PWD="$(/usr/local/bin/TeaEncrypt "$DNF_DB_GAME_PASSWORD")"
 R=/opt/remake/runtime
+# 供 docker exec 调用的 dnfctl.sh restart-game 等复用同一套变量
+export -p | grep -E ' (SERVER_GROUP|SERVER_GROUP_NAME|SERVER_GROUP_DB|MAIN_BRIDGE_IP|OPEN_CHANNEL|DEC_GAME_PWD)=' > /run/rednf.env
 log() { echo "[rednf $(date +%T)] $*"; }
 
 # 1) 渲染 /home/template/neople → /home/neople（与上游 llnut/dnf 相同的占位符）

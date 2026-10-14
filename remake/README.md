@@ -87,7 +87,7 @@ cmake --build build -j$(nproc)
 
 ### 验证方法
 
-`source/compare_df_community_functions.py` 以原始 ELF 与重建产物为输入：
+（原用于对比原始 ELF 与重建产物的脚本已随调查数据一并移除；方法如下）：
 
 1. `nm -S` 导出原始 ELF 的符号表（含大小），与重建对象文件符号对比，计算命中率；
 2. 对比重建二进制中出现的字符串是否存在于原始 ELF；
@@ -226,6 +226,6 @@ statics=c6446r、dbmw=c6444r、game/guild 用专用逐 TU 工具链、relay/cose
 - **有完整 DWARF 组**：沿用现有自动生成桩，按文件逐函数补全（签名、类布局、源文件路径均来自 DWARF）；secsvr 三件套共享 commlib 框架可交叉复用；注意 secsvr 为 GCC 4.1.0 SUSE 工具链。
 - **`game`（部分 DWARF）**：`../../Include/` 按 DWARF 补桩，GameServer 核心按 Ghidra 路线，FreeType 等静态库黑盒处理。
 - **无有效 DWARF 组**：走 Ghidra Headless 导出伪 C → 逐函数人工比对的社区流程；先做符号可读性最好的小目标（`relay`）积累经验，再按体量递增。
-- 每完成一个服务，用 `compare_df_community_functions.py` 同款方法（符号/字符串/助记符重叠）产出一份验证报告，再进入下一个。
+- 每完成一个服务，用同样的方法（符号/字符串/助记符重叠）产出一份验证报告，再进入下一个。
 
 > 完整排序依据、指标与策略见 `docs/remake_order.md`。

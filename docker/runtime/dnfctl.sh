@@ -1,6 +1,7 @@
 #!/bin/bash
 # dnfctl.sh run|stop|restart-game <频道>|status
 #   停服一律先 SIGTERM，等进程自己存档退出，超时才 SIGKILL（见 docs/运维.md）
+[ -f /run/rednf.env ] && . /run/rednf.env
 N=/home/neople; LOGD=/data/log; mkdir -p $LOGD
 G=${SERVER_GROUP_NAME:-siroco}
 svc() { # svc <name> <dir> <cmd...>

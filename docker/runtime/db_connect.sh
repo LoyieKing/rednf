@@ -2,11 +2,13 @@
 # 把 d_taiwan.db_connect 指向容器内 127.0.0.1:3306/3307 转发，并创建 game 账号
 set -euo pipefail
 G=$SERVER_GROUP; D=$SERVER_GROUP_DB; P=$DEC_GAME_PWD
+# 清风 1031 的服务端除 game 外还用 supergod/chhappy/cash 连库（同上游 DNF_DB_USER_EXTENDED_QF）
+USERS="game,${DNF_DB_USER_EXTENDED_QF:-supergod,chhappy,cash}"
+for u in ${USERS//,/ }; do
+  mysql -h"$DB_HOST" -P"$DB_PORT" -uroot -p"$DNF_DB_ROOT_PASSWORD" -e \
+    "CREATE USER IF NOT EXISTS '$u'@'%' IDENTIFIED BY '$DNF_DB_GAME_PASSWORD'; ALTER USER '$u'@'%' IDENTIFIED BY '$DNF_DB_GAME_PASSWORD'; GRANT ALL PRIVILEGES ON *.* TO '$u'@'%'; FLUSH PRIVILEGES;"
+done
 mysql -h"$DB_HOST" -P"$DB_PORT" -uroot -p"$DNF_DB_ROOT_PASSWORD" <<SQL
-CREATE USER IF NOT EXISTS 'game'@'%' IDENTIFIED BY '$DNF_DB_GAME_PASSWORD';
-ALTER USER 'game'@'%' IDENTIFIED BY '$DNF_DB_GAME_PASSWORD';
-GRANT ALL PRIVILEGES ON *.* TO 'game'@'%';
-FLUSH PRIVILEGES;
 USE d_taiwan;
 UPDATE db_connect SET db_ip='127.0.0.1', db_port='3307', db_passwd='$P', db_name='d_taiwan'           WHERE db_server_group=$G AND db_type=1;
 UPDATE db_connect SET db_ip='127.0.0.1', db_port='3307', db_passwd='$P', db_name='d_taiwan_secu'      WHERE db_server_group=$G AND db_type=10;

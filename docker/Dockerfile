@@ -33,7 +33,7 @@ FROM ${DEBIAN_IMAGE} AS runtime
 ENV DEBIAN_FRONTEND=noninteractive TZ=Asia/Shanghai
 RUN dpkg --add-architecture i386 && apt-get update && apt-get install -y --no-install-recommends \
         libc6:i386 libgcc-s1:i386 libstdc++6:i386 zlib1g:i386 libjemalloc2:i386 \
-        bash procps psmisc socat netcat-openbsd mariadb-client tzdata ca-certificates openssl \
+        bash procps psmisc socat netcat-openbsd mariadb-client tzdata ca-certificates openssl geoip-database \
     && rm -rf /var/lib/apt/lists/*
 # 上游（llnut/dnf 清风 1031）运行时：配置模板、secsvr、TSS SDK、PVF 等
 COPY .origin_1031/build/dnf_data/home/template /home/template
