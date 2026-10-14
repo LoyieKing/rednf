@@ -56,6 +56,7 @@ run)
   ( cd $N/secsvr/zergsvr && LD_PRELOAD=$SHMFIX exec ./zergsvr -t30 -i1 ) >>"$LOGD/zergsvr.out" 2>&1 &
   wait_port 9000
   start_secagent
+  bash /opt/remake/runtime/periodic_tables.sh >>"$LOGD/periodic_tables.out" 2>&1 || echo "[dnfctl] periodic_tables 失败，见 $LOGD/periodic_tables.out"
   sleep 5
   # 登录网关（llnut/dnf-login 的 dnf-gate-server，构建时下载；客户端登录器连 5505）
   if [ -x /usr/bin/dnf-gate-server ] && [ "${GATE_ENABLE:-1}" = 1 ]; then
@@ -75,7 +76,13 @@ run)
   trap 'echo "[dnfctl] 收到停止信号"; bash "$0" stop; exit 0' TERM INT
   # 简易守护（相当于线上 s6 的自动重启）：secagent 在 df_game_r 建好 sec_tss_sdk_bus_N 之前/期间
   # 映射的共享内存会被 game 重新截断，secagent 随即静默退出；game 起来后再拉一次即可长期稳定。
+  # 按日期分表：启动时与每天换日时各检查一次，提前建好当月起 3 个月的表（见 periodic_tables.sh）
+  last_day=""
   while sleep 30; do
+    today=$(date +%F)
+    if [ "$today" != "$last_day" ]; then
+      bash /opt/remake/runtime/periodic_tables.sh >>"$LOGD/periodic_tables.out" 2>&1 && last_day=$today
+    fi
     pgrep -x secagent >/dev/null || { echo "[dnfctl] secagent 不在，重新拉起"; start_secagent; }
   done ;;
 stop)

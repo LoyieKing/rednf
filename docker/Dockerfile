@@ -49,6 +49,7 @@ COPY .origin_1031/build/dnf_data/TeaEncrypt /usr/local/bin/TeaEncrypt
 # remake 产物覆盖上游 ORIG ELF
 COPY --from=build /out/bin /opt/remake/bin
 COPY docker/runtime/ /opt/remake/runtime/
+COPY docker/mysql/initdb/20-periodic-tables.sh /opt/remake/runtime/periodic_tables.sh
 RUN chmod +x /usr/local/bin/TeaEncrypt /opt/remake/runtime/*.sh \
  && for s in auction bridge channel community coserver guild manager monitor point relay statics stun; do \
         cp /opt/remake/bin/df_${s}_r /home/template/neople/$s/; done \
