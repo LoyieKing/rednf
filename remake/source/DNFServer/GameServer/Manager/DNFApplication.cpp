@@ -392,7 +392,7 @@ void ShowLogo()
     CommonTime t;
     t.SetCurTime();
     printf("[!] Service Date (%02d-%02d-%02d/%02d:%02d)\n",
-           t.m_year, t.m_mon, t.m_mday, t.m_hour, t.m_min);
+           t.m_year, t.m_month, t.m_day, t.m_hour, t.m_min);
 }
 
 // ---- CVersionMgr / CSourceVersionMgr（无独立 ORIG .o，随 DNFApplication.cpp）----

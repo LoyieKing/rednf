@@ -3,7 +3,7 @@
 
 // ThreadInterface —— 权威 ORIG 类（df_game_r 反汇编验证）。
 //
-// 反汇编证据（objdump -d /home/wangyilei/下载/df_game_r）：
+// 反汇编证据（objdump -d .origin_1031/build/dnf_data/home/template/neople/game/df_game_r）：
 //   C1  0x08630b38  置 vptr = 0x8ce6b98
 //   D1  0x08630b46  置 vptr（不 delete）
 //   D0  0x08630b6c  D1 + operator delete

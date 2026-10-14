@@ -1,7 +1,7 @@
 # 全部 df_* 二进制 identical 情况表
 
 > 生成时间：**2026-09-14**
-> 对照：`dnf_installer/build/dnf_data/home/template/` 下 ORIG ELF
+> 对照：`.origin_1031/build/dnf_data/home/template/` 下 ORIG ELF
 > 重建：`dnf_remake/build/<svc>/df_<svc>_r`
 >
 > **最新复测见 §1.1（2026-09-17）** —— 六服务权威口径合计 **122**（与 09-15 记录一致），

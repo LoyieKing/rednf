@@ -1161,13 +1161,13 @@ dnf_service(game
         ${DF_C5R52I}/usr/lib/gcc/i386-redhat-linux/4.1.1/libstdc++.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
-        ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/zlib32/lib/libz.a
+        ${CMAKE_CURRENT_LIST_DIR}/../../../../toolchains/zlib32/lib/libz.a
         # [b28d-Main·检查点22 → 2026-09-17] libGeoIP：原为链接桩（`-L<dir> -l:` 形），
         #   现已换成**本仓真实实现**（cmake/third_party 的 geoip 目标，见下方 LINK_FLAGS）。
         #   全路径输入不产生 DT_RUNPATH（该 .so 有 SONAME=libGeoIP.so.1 ⇒ NEEDED 记名不变，
         #   ON 路线逐字节 identical 已复核：14 产物 md5 全同）。此处只留静态库。
         # [b28d-Main·检查点22] libnxencryption：**厂商真实 .so**（自
-        #   dnf_installer/.../neople/game/libnxencryption.so 复制入仓）参与链接。
+        #   .origin_1031/.../neople/game/libnxencryption.so 复制入仓）参与链接。
         #   ORIG 对 Encryption::Adler32 / EncodeDressStringWide 只有 U 引用（运行时由
         #   该 .so 提供，故我方同样只留 U）。该 .so 无 SONAME ⇒ 用 `-L<dir>
         #   -lnxencryption`，ld 直接记 "libnxencryption.so"，与 ORIG readelf -d 逐字一致。
@@ -1188,9 +1188,9 @@ dnf_service(game
         #   BN_*/RSA_*/PEM_*/BIO_* 这些 C 符号由真库满足；yaSSL 里的同名 C 兼容符号由
         #   --allow-multiple-definition 容忍但不会被选中（此前两者混用 = RSA/BIGNUM 布局
         #   错位 ⇒ 首个登录包 SIGSEGV 的根因）。静态链入 ⇒ 不新增 DT_NEEDED，与 ORIG 一致。
-        ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/libcrypto32/lib/libcrypto.a
+        ${CMAKE_CURRENT_LIST_DIR}/../../../../toolchains/libcrypto32/lib/libcrypto.a
         # OpenSSL3 static needs ZSTD/secure_getenv stubs on C6-era link (verify already uses this .o)
-        ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/libcrypto32/stub/openssl3_c6_shim.o
+        ${CMAKE_CURRENT_LIST_DIR}/../../../../toolchains/libcrypto32/stub/openssl3_c6_shim.o
         -Wl,--whole-archive
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/mysqlclient/libmysqlclient.a
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/yassl/libyassl.a
@@ -1206,7 +1206,7 @@ dnf_service(game
         #   取代原先源码里手写的 `FT_*` dlopen 转发（那会自创 ft32_sym/ft32_sym_deps
         #   符号，且运行期依赖容器内 libfreetype.so.6）。
         #   源码/重建：source/toolchain/build-freetype248-static32.sh
-        ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/freetype32/lib/libfreetype.a
+        ${CMAKE_CURRENT_LIST_DIR}/../../../../toolchains/freetype32/lib/libfreetype.a
     LINK_FLAGS
         # [b28d-Main·检查点22] NEEDED 次序与 ORIG 逐位对齐：
         #   libpthread → librt → libnxencryption → libGeoIP.so.1 → libdl → libm → libc。
@@ -1215,7 +1215,7 @@ dnf_service(game
         -m32
         -lpthread
         -lrt
-        -L${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/nxencryption
+        -L${CMAKE_CURRENT_LIST_DIR}/../../../../toolchains/nxencryption
         -lnxencryption
         # [2026-09-17] 真实 GeoIP（本仓 source/toolchain/geoip/geoip_country.c 构建，
         #   见 cmake/third_party/CMakeLists.txt 的 geoip 目标）：全路径给出即可——

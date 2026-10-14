@@ -28,7 +28,7 @@ dnf_secsvr/
     └── gen_dwarf_stubs.py     # DWARF 桩生成器（自包含）
 ```
 
-## 目标二进制（原始 ELF 位于 dnf_installer）
+## 目标二进制（原始 ELF 位于 .origin_1031）
 
 | 二进制 | 原始路径 | 大小 | C++ CU | 源码树 tag |
 |---|---|---:|---:|---|
@@ -69,5 +69,5 @@ dwarf_restoration / thirdparty_restoration）。
 
 ## 关联外部资源
 
-- 原始 ELF：`../dnf_installer/build/dnf_data/home/template/neople/secsvr/...`
+- 原始 ELF：`../.origin_1031/build/dnf_data/home/template/neople/secsvr/...`
 - 主工程（已不含 secsvr 队列）：`../dnf_remake/`

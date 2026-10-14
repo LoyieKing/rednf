@@ -1,57 +1,49 @@
-# C/C++ build artifacts (reconstruction workspace)
-dnf_remake/build/
-dnf_remake/build-modern/
-dnf_remake/build-*/
-dnf_remake/source/build/
-dnf_remake/source/build-*/
-dnf_remake/source/cmake-build-*/
-dnf_remake/source/**/CMakeFiles/
-dnf_remake/source/**/CMakeCache.txt
-dnf_remake/source/**/compile_commands.json
-dnf_remake/source/**/cmake_install.cmake
-**/*.o
-**/*.obj
-**/*.so
-**/*.a
-**/*.la
-**/*.lo
-**/*.out
-
-# GCC toolchain build outputs
-gcc-4.1.2/
-gcc-4.1.2/build/
-gcc-4.1.2-install/
-
-# Logs and temp
+# 构建产物
+remake/build/
+remake/build-*/
+remake/source/build/
+remake/source/build-*/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/compile_commands.json
+**/cmake_install.cmake
+*.o
+*.obj
+*.so
+*.so.*
+*.a
+*.la
+*.lo
+*.out
+*.gch
+# 工具链（toolchains/bootstrap.sh 生成，见 toolchains/.gitignore）
+# 运行期
 **/*.log
-# 运行期日志目录（无扩展名：Log*.init/.error/.cri/.debug/.history）
-dnf_remake/log/
-**/.DS_Store
-dnf_remake/gccdump.s
+**/log/
+**/pid/
+*.pid
+core
+core.*
+# 本机配置与密钥
+.env
+docker/.env
+**/config.local.yaml
+*.pem
+!docs/**/*.pem
+# 抓包与临时
+*.pcap
+*.pcapng
 **/__pycache__/
 *.pyc
-dnf_secsvr/sizecheck.cpp.t01.class
-dnf_secsvr/tencrypt_new/test_hash
-
-# Ghidra project files
+.DS_Store
+# Ghidra / IDE
 *.gpr
-*.gpr.lock
 *.rep/
 *.gzf
 .ghidra/
-dnf_remake/toolchains/
-
-# Oversized single report (147MB) exceeds GitHub's 100MB/file limit;
-# the gzip-compressed copy (_lt_global_gt_.md.gz) is committed instead.
-dnf_remake/docs/class_func_reports/_lt_global_gt_.md
-
-# 逐函数拆分报告(体积大, 不入库; 主文件 _lt_global_gt_.md.gz 已提交)
-dnf_remake/docs/class_func_reports/_lt_global_gt_/
-
-# 运行期数据 / 本机配置 / 抓包（不入库）
+.idea/
+.vscode/
+# auction_bot 运行数据
 auction_bot/data/
 auction_bot/logs/
 auction_bot/**/*.db
-**/config.local.yaml
-*.pcap
-*.pcapng

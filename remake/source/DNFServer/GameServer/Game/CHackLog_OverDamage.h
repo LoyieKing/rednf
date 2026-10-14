@@ -4,7 +4,7 @@
 // ============================================================================
 // df_game_r 还原 —— CHackLog_OverDamage（全静态方法，无数据成员/this 参与）
 //
-// ORIG 符号（nm -S /home/wangyilei/下载/df_game_r 全 T）：
+// ORIG 符号（nm -S .origin_1031/build/dnf_data/home/template/neople/game/df_game_r 全 T）：
 //   GetDungeonLimitDamageAndHackType(CUser*, unsigned int&,
 //                                    WongWork::ENUM_HACKTYPE&)  T 0x08286790
 //   GetDeathTowerLimitDamage()      T 0x08286984

@@ -1202,7 +1202,7 @@ void ShowLogo()
     printf("[!] Service Date (%02d-%02d-%02d/%02d:%02d)\n",
            (int)(char)t.m_year, (int)(char)t.m_month,
            (int)(char)t.m_day, (int)(char)t.m_hour,
-           (int)(char)t.m_minute);
+           (int)(char)t.m_min);
 }
 
 CAppBase* CApplicationInstance()

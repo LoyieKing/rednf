@@ -6110,14 +6110,14 @@ static yyconst flex_int32_t yy_rule_can_match_eol[1800] =
 #define yymore() yymore_used_but_not_detected
 #define YY_MORE_ADJ 0
 #define YY_RESTORE_YY_MORE_OFFSET
-#line 1 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1 "DNFServer/GameServer/Game/slang_filter.l"
 /* slang_filter.l - SlangFilter / __slang_filter__FlexLexer
  * flex 2.5.35  -+ -P__slang_filter__  (default -Cem compression)
  * Rules recovered from ORIG yy_accept/base/def/nxt/chk + yylex actions.
  * Keyword actions return 1; `.` returns 0; <<EOF>> returns 2.
  */
 #define YY_NO_UNISTD_H 1
-#line 9 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 9 "DNFServer/GameServer/Game/slang_filter.l"
 #define YY_NO_UNISTD_H 1
 #ifndef yyFlexLexer
 #define yyFlexLexer __slang_filter__FlexLexer
@@ -6257,7 +6257,7 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	int yy_act;
     
-#line 16 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 16 "DNFServer/GameServer/Game/slang_filter.l"
 
 
 #line 6211 "/tmp/grok-goal-7c1153ba5fb7/implementer/slang_engine.gen.cpp"
@@ -6355,9001 +6355,9001 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 18 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 18 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 19 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 19 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 20 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 20 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 21 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 21 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 22 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 22 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 23 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 23 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 24 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 24 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 25 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 25 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 26 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 26 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 27 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 27 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 28 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 28 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 29 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 29 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 30 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 30 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 31 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 31 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 32 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 32 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 33 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 33 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 34 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 34 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 35 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 35 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 36 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 36 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 37 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 37 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 38 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 38 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 39 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 39 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 40 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 40 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 41 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 41 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 42 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 42 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 43 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 43 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 44 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 44 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 45 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 45 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 46 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 46 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 47 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 47 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 48 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 48 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 49 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 49 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 50 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 50 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 51 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 51 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 52 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 52 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 53 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 53 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 54 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 54 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 55 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 55 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 56 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 56 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 57 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 57 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 58 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 58 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 59 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 59 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 60 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 60 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 61 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 61 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 62 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 62 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 63 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 63 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 64 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 64 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 65 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 65 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 66 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 66 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 67 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 67 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 68 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 68 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 69 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 69 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 70 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 70 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 71 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 71 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 72 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 72 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 73 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 73 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 74 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 74 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 58:
 YY_RULE_SETUP
-#line 75 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 75 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
-#line 76 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 76 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 60:
 YY_RULE_SETUP
-#line 77 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 77 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 61:
 YY_RULE_SETUP
-#line 78 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 78 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 62:
 YY_RULE_SETUP
-#line 79 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 79 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 63:
 YY_RULE_SETUP
-#line 80 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 80 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 64:
 YY_RULE_SETUP
-#line 81 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 81 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 65:
 YY_RULE_SETUP
-#line 82 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 82 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 66:
 YY_RULE_SETUP
-#line 83 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 83 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 67:
 YY_RULE_SETUP
-#line 84 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 84 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 68:
 YY_RULE_SETUP
-#line 85 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 85 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 69:
 YY_RULE_SETUP
-#line 86 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 86 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 70:
 YY_RULE_SETUP
-#line 87 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 87 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 71:
 YY_RULE_SETUP
-#line 88 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 88 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 72:
 YY_RULE_SETUP
-#line 89 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 89 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 73:
 YY_RULE_SETUP
-#line 90 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 90 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 74:
 YY_RULE_SETUP
-#line 91 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 91 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 75:
 YY_RULE_SETUP
-#line 92 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 92 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 76:
 YY_RULE_SETUP
-#line 93 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 93 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 77:
 YY_RULE_SETUP
-#line 94 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 94 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 78:
 YY_RULE_SETUP
-#line 95 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 95 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 79:
 YY_RULE_SETUP
-#line 96 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 96 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 80:
 YY_RULE_SETUP
-#line 97 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 97 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 81:
 YY_RULE_SETUP
-#line 98 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 98 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 82:
 YY_RULE_SETUP
-#line 99 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 99 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 83:
 YY_RULE_SETUP
-#line 100 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 100 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 84:
 YY_RULE_SETUP
-#line 101 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 101 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 85:
 YY_RULE_SETUP
-#line 102 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 102 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 86:
 YY_RULE_SETUP
-#line 103 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 103 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 87:
 YY_RULE_SETUP
-#line 104 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 104 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 88:
 YY_RULE_SETUP
-#line 105 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 105 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 89:
 YY_RULE_SETUP
-#line 106 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 106 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 90:
 YY_RULE_SETUP
-#line 107 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 107 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 91:
 YY_RULE_SETUP
-#line 108 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 108 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 92:
 YY_RULE_SETUP
-#line 109 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 109 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 93:
 YY_RULE_SETUP
-#line 110 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 110 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 94:
 YY_RULE_SETUP
-#line 111 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 111 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 95:
 YY_RULE_SETUP
-#line 112 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 112 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 96:
 YY_RULE_SETUP
-#line 113 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 113 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 97:
 YY_RULE_SETUP
-#line 114 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 114 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 98:
 YY_RULE_SETUP
-#line 115 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 115 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 99:
 YY_RULE_SETUP
-#line 116 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 116 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 100:
 YY_RULE_SETUP
-#line 117 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 117 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 101:
 YY_RULE_SETUP
-#line 118 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 118 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 102:
 YY_RULE_SETUP
-#line 119 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 119 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 103:
 YY_RULE_SETUP
-#line 120 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 120 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 104:
 YY_RULE_SETUP
-#line 121 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 121 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 105:
 YY_RULE_SETUP
-#line 122 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 122 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 106:
 YY_RULE_SETUP
-#line 123 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 123 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 107:
 YY_RULE_SETUP
-#line 124 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 124 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 108:
 YY_RULE_SETUP
-#line 125 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 125 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 109:
 YY_RULE_SETUP
-#line 126 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 126 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 110:
 YY_RULE_SETUP
-#line 127 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 127 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 111:
 YY_RULE_SETUP
-#line 128 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 128 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 112:
 YY_RULE_SETUP
-#line 129 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 129 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 113:
 YY_RULE_SETUP
-#line 130 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 130 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 114:
 YY_RULE_SETUP
-#line 131 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 131 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 115:
 YY_RULE_SETUP
-#line 132 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 132 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 116:
 YY_RULE_SETUP
-#line 133 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 133 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 117:
 YY_RULE_SETUP
-#line 134 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 134 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 118:
 YY_RULE_SETUP
-#line 135 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 135 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 119:
 YY_RULE_SETUP
-#line 136 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 136 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 120:
 YY_RULE_SETUP
-#line 137 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 137 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 121:
 YY_RULE_SETUP
-#line 138 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 138 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 122:
 YY_RULE_SETUP
-#line 139 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 139 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 123:
 YY_RULE_SETUP
-#line 140 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 140 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 124:
 YY_RULE_SETUP
-#line 141 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 141 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 125:
 YY_RULE_SETUP
-#line 142 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 142 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 126:
 YY_RULE_SETUP
-#line 143 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 143 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 127:
 YY_RULE_SETUP
-#line 144 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 144 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 128:
 YY_RULE_SETUP
-#line 145 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 145 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 129:
 YY_RULE_SETUP
-#line 146 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 146 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 130:
 YY_RULE_SETUP
-#line 147 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 147 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 131:
 YY_RULE_SETUP
-#line 148 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 148 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 132:
 YY_RULE_SETUP
-#line 149 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 149 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 133:
 YY_RULE_SETUP
-#line 150 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 150 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 134:
 YY_RULE_SETUP
-#line 151 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 151 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 135:
 YY_RULE_SETUP
-#line 152 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 152 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 136:
 YY_RULE_SETUP
-#line 153 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 153 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 137:
 YY_RULE_SETUP
-#line 154 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 154 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 138:
 YY_RULE_SETUP
-#line 155 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 155 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 139:
 YY_RULE_SETUP
-#line 156 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 156 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 140:
 YY_RULE_SETUP
-#line 157 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 157 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 141:
 YY_RULE_SETUP
-#line 158 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 158 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 142:
 YY_RULE_SETUP
-#line 159 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 159 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 143:
 YY_RULE_SETUP
-#line 160 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 160 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 144:
 YY_RULE_SETUP
-#line 161 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 161 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 145:
 YY_RULE_SETUP
-#line 162 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 162 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 146:
 YY_RULE_SETUP
-#line 163 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 163 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 147:
 YY_RULE_SETUP
-#line 164 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 164 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 148:
 YY_RULE_SETUP
-#line 165 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 165 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 149:
 YY_RULE_SETUP
-#line 166 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 166 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 150:
 YY_RULE_SETUP
-#line 167 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 167 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 151:
 YY_RULE_SETUP
-#line 168 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 168 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 152:
 YY_RULE_SETUP
-#line 169 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 169 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 153:
 YY_RULE_SETUP
-#line 170 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 170 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 154:
 YY_RULE_SETUP
-#line 171 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 171 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 155:
 YY_RULE_SETUP
-#line 172 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 172 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 156:
 YY_RULE_SETUP
-#line 173 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 173 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 157:
 YY_RULE_SETUP
-#line 174 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 174 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 158:
 YY_RULE_SETUP
-#line 175 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 175 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 159:
 YY_RULE_SETUP
-#line 176 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 176 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 160:
 YY_RULE_SETUP
-#line 177 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 177 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 161:
 YY_RULE_SETUP
-#line 178 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 178 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 162:
 YY_RULE_SETUP
-#line 179 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 179 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 163:
 YY_RULE_SETUP
-#line 180 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 180 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 164:
 YY_RULE_SETUP
-#line 181 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 181 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 165:
 YY_RULE_SETUP
-#line 182 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 182 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 166:
 YY_RULE_SETUP
-#line 183 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 183 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 167:
 YY_RULE_SETUP
-#line 184 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 184 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 168:
 YY_RULE_SETUP
-#line 185 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 185 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 169:
 YY_RULE_SETUP
-#line 186 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 186 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 170:
 YY_RULE_SETUP
-#line 187 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 187 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 171:
 YY_RULE_SETUP
-#line 188 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 188 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 172:
 YY_RULE_SETUP
-#line 189 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 189 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 173:
 YY_RULE_SETUP
-#line 190 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 190 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 174:
 YY_RULE_SETUP
-#line 191 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 191 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 175:
 YY_RULE_SETUP
-#line 192 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 192 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 176:
 YY_RULE_SETUP
-#line 193 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 193 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 177:
 YY_RULE_SETUP
-#line 194 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 194 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 178:
 YY_RULE_SETUP
-#line 195 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 195 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 179:
 YY_RULE_SETUP
-#line 196 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 196 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 180:
 YY_RULE_SETUP
-#line 197 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 197 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 181:
 YY_RULE_SETUP
-#line 198 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 198 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 182:
 YY_RULE_SETUP
-#line 199 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 199 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 183:
 YY_RULE_SETUP
-#line 200 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 200 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 184:
 YY_RULE_SETUP
-#line 201 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 201 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 185:
 YY_RULE_SETUP
-#line 202 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 202 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 186:
 YY_RULE_SETUP
-#line 203 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 203 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 187:
 YY_RULE_SETUP
-#line 204 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 204 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 188:
 YY_RULE_SETUP
-#line 205 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 205 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 189:
 YY_RULE_SETUP
-#line 206 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 206 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 190:
 YY_RULE_SETUP
-#line 207 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 207 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 191:
 YY_RULE_SETUP
-#line 208 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 208 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 192:
 YY_RULE_SETUP
-#line 209 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 209 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 193:
 YY_RULE_SETUP
-#line 210 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 210 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 194:
 YY_RULE_SETUP
-#line 211 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 211 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 195:
 YY_RULE_SETUP
-#line 212 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 212 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 196:
 YY_RULE_SETUP
-#line 213 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 213 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 197:
 YY_RULE_SETUP
-#line 214 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 214 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 198:
 YY_RULE_SETUP
-#line 215 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 215 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 199:
 YY_RULE_SETUP
-#line 216 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 216 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 200:
 YY_RULE_SETUP
-#line 217 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 217 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 201:
 YY_RULE_SETUP
-#line 218 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 218 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 202:
 YY_RULE_SETUP
-#line 219 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 219 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 203:
 YY_RULE_SETUP
-#line 220 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 220 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 204:
 YY_RULE_SETUP
-#line 221 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 221 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 205:
 YY_RULE_SETUP
-#line 222 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 222 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 206:
 YY_RULE_SETUP
-#line 223 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 223 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 207:
 YY_RULE_SETUP
-#line 224 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 224 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 208:
 YY_RULE_SETUP
-#line 225 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 225 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 209:
 YY_RULE_SETUP
-#line 226 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 226 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 210:
 YY_RULE_SETUP
-#line 227 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 227 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 211:
 YY_RULE_SETUP
-#line 228 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 228 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 212:
 YY_RULE_SETUP
-#line 229 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 229 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 213:
 YY_RULE_SETUP
-#line 230 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 230 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 214:
 YY_RULE_SETUP
-#line 231 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 231 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 215:
 YY_RULE_SETUP
-#line 232 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 232 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 216:
 YY_RULE_SETUP
-#line 233 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 233 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 217:
 YY_RULE_SETUP
-#line 234 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 234 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 218:
 YY_RULE_SETUP
-#line 235 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 235 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 219:
 YY_RULE_SETUP
-#line 236 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 236 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 220:
 YY_RULE_SETUP
-#line 237 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 237 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 221:
 YY_RULE_SETUP
-#line 238 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 238 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 222:
 YY_RULE_SETUP
-#line 239 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 239 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 223:
 YY_RULE_SETUP
-#line 240 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 240 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 224:
 YY_RULE_SETUP
-#line 241 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 241 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 225:
 YY_RULE_SETUP
-#line 242 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 242 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 226:
 YY_RULE_SETUP
-#line 243 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 243 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 227:
 YY_RULE_SETUP
-#line 244 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 244 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 228:
 YY_RULE_SETUP
-#line 245 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 245 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 229:
 YY_RULE_SETUP
-#line 246 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 246 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 230:
 YY_RULE_SETUP
-#line 247 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 247 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 231:
 YY_RULE_SETUP
-#line 248 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 248 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 232:
 YY_RULE_SETUP
-#line 249 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 249 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 233:
 YY_RULE_SETUP
-#line 250 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 250 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 234:
 YY_RULE_SETUP
-#line 251 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 251 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 235:
 YY_RULE_SETUP
-#line 252 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 252 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 236:
 YY_RULE_SETUP
-#line 253 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 253 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 237:
 YY_RULE_SETUP
-#line 254 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 254 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 238:
 YY_RULE_SETUP
-#line 255 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 255 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 239:
 YY_RULE_SETUP
-#line 256 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 256 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 240:
 YY_RULE_SETUP
-#line 257 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 257 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 241:
 YY_RULE_SETUP
-#line 258 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 258 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 242:
 YY_RULE_SETUP
-#line 259 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 259 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 243:
 YY_RULE_SETUP
-#line 260 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 260 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 244:
 YY_RULE_SETUP
-#line 261 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 261 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 245:
 YY_RULE_SETUP
-#line 262 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 262 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 246:
 YY_RULE_SETUP
-#line 263 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 263 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 247:
 YY_RULE_SETUP
-#line 264 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 264 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 248:
 YY_RULE_SETUP
-#line 265 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 265 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 249:
 YY_RULE_SETUP
-#line 266 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 266 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 250:
 YY_RULE_SETUP
-#line 267 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 267 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 251:
 YY_RULE_SETUP
-#line 268 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 268 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 252:
 YY_RULE_SETUP
-#line 269 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 269 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 253:
 YY_RULE_SETUP
-#line 270 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 270 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 254:
 YY_RULE_SETUP
-#line 271 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 271 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 255:
 YY_RULE_SETUP
-#line 272 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 272 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 256:
 YY_RULE_SETUP
-#line 273 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 273 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 257:
 YY_RULE_SETUP
-#line 274 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 274 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 258:
 YY_RULE_SETUP
-#line 275 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 275 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 259:
 YY_RULE_SETUP
-#line 276 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 276 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 260:
 YY_RULE_SETUP
-#line 277 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 277 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 261:
 YY_RULE_SETUP
-#line 278 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 278 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 262:
 YY_RULE_SETUP
-#line 279 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 279 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 263:
 YY_RULE_SETUP
-#line 280 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 280 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 264:
 YY_RULE_SETUP
-#line 281 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 281 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 265:
 YY_RULE_SETUP
-#line 282 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 282 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 266:
 YY_RULE_SETUP
-#line 283 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 283 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 267:
 YY_RULE_SETUP
-#line 284 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 284 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 268:
 YY_RULE_SETUP
-#line 285 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 285 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 269:
 YY_RULE_SETUP
-#line 286 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 286 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 270:
 YY_RULE_SETUP
-#line 287 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 287 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 271:
 YY_RULE_SETUP
-#line 288 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 288 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 272:
 YY_RULE_SETUP
-#line 289 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 289 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 273:
 YY_RULE_SETUP
-#line 290 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 290 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 274:
 YY_RULE_SETUP
-#line 291 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 291 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 275:
 YY_RULE_SETUP
-#line 292 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 292 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 276:
 YY_RULE_SETUP
-#line 293 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 293 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 277:
 YY_RULE_SETUP
-#line 294 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 294 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 278:
 YY_RULE_SETUP
-#line 295 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 295 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 279:
 YY_RULE_SETUP
-#line 296 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 296 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 280:
 YY_RULE_SETUP
-#line 297 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 297 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 281:
 YY_RULE_SETUP
-#line 298 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 298 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 282:
 YY_RULE_SETUP
-#line 299 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 299 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 283:
 YY_RULE_SETUP
-#line 300 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 300 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 284:
 YY_RULE_SETUP
-#line 301 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 301 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 285:
 YY_RULE_SETUP
-#line 302 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 302 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 286:
 YY_RULE_SETUP
-#line 303 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 303 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 287:
 YY_RULE_SETUP
-#line 304 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 304 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 288:
 YY_RULE_SETUP
-#line 305 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 305 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 289:
 YY_RULE_SETUP
-#line 306 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 306 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 290:
 YY_RULE_SETUP
-#line 307 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 307 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 291:
 YY_RULE_SETUP
-#line 308 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 308 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 292:
 YY_RULE_SETUP
-#line 309 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 309 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 293:
 YY_RULE_SETUP
-#line 310 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 310 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 294:
 YY_RULE_SETUP
-#line 311 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 311 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 295:
 YY_RULE_SETUP
-#line 312 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 312 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 296:
 YY_RULE_SETUP
-#line 313 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 313 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 297:
 YY_RULE_SETUP
-#line 314 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 314 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 298:
 YY_RULE_SETUP
-#line 315 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 315 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 299:
 YY_RULE_SETUP
-#line 316 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 316 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 300:
 YY_RULE_SETUP
-#line 317 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 317 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 301:
 YY_RULE_SETUP
-#line 318 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 318 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 302:
 YY_RULE_SETUP
-#line 319 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 319 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 303:
 YY_RULE_SETUP
-#line 320 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 320 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 304:
 YY_RULE_SETUP
-#line 321 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 321 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 305:
 YY_RULE_SETUP
-#line 322 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 322 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 306:
 YY_RULE_SETUP
-#line 323 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 323 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 307:
 YY_RULE_SETUP
-#line 324 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 324 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 308:
 YY_RULE_SETUP
-#line 325 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 325 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 309:
 YY_RULE_SETUP
-#line 326 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 326 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 310:
 YY_RULE_SETUP
-#line 327 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 327 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 311:
 YY_RULE_SETUP
-#line 328 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 328 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 312:
 YY_RULE_SETUP
-#line 329 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 329 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 313:
 YY_RULE_SETUP
-#line 330 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 330 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 314:
 YY_RULE_SETUP
-#line 331 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 331 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 315:
 YY_RULE_SETUP
-#line 332 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 332 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 316:
 YY_RULE_SETUP
-#line 333 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 333 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 317:
 YY_RULE_SETUP
-#line 334 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 334 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 318:
 YY_RULE_SETUP
-#line 335 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 335 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 319:
 YY_RULE_SETUP
-#line 336 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 336 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 320:
 YY_RULE_SETUP
-#line 337 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 337 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 321:
 YY_RULE_SETUP
-#line 338 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 338 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 322:
 YY_RULE_SETUP
-#line 339 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 339 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 323:
 YY_RULE_SETUP
-#line 340 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 340 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 324:
 YY_RULE_SETUP
-#line 341 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 341 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 325:
 YY_RULE_SETUP
-#line 342 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 342 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 326:
 YY_RULE_SETUP
-#line 343 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 343 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 327:
 YY_RULE_SETUP
-#line 344 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 344 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 328:
 YY_RULE_SETUP
-#line 345 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 345 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 329:
 YY_RULE_SETUP
-#line 346 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 346 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 330:
 YY_RULE_SETUP
-#line 347 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 347 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 331:
 YY_RULE_SETUP
-#line 348 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 348 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 332:
 YY_RULE_SETUP
-#line 349 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 349 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 333:
 YY_RULE_SETUP
-#line 350 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 350 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 334:
 YY_RULE_SETUP
-#line 351 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 351 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 335:
 YY_RULE_SETUP
-#line 352 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 352 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 336:
 YY_RULE_SETUP
-#line 353 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 353 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 337:
 YY_RULE_SETUP
-#line 354 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 354 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 338:
 YY_RULE_SETUP
-#line 355 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 355 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 339:
 YY_RULE_SETUP
-#line 356 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 356 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 340:
 YY_RULE_SETUP
-#line 357 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 357 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 341:
 YY_RULE_SETUP
-#line 358 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 358 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 342:
 YY_RULE_SETUP
-#line 359 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 359 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 343:
 YY_RULE_SETUP
-#line 360 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 360 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 344:
 YY_RULE_SETUP
-#line 361 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 361 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 345:
 YY_RULE_SETUP
-#line 362 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 362 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 346:
 YY_RULE_SETUP
-#line 363 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 363 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 347:
 YY_RULE_SETUP
-#line 364 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 364 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 348:
 YY_RULE_SETUP
-#line 365 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 365 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 349:
 YY_RULE_SETUP
-#line 366 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 366 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 350:
 YY_RULE_SETUP
-#line 367 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 367 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 351:
 YY_RULE_SETUP
-#line 368 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 368 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 352:
 YY_RULE_SETUP
-#line 369 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 369 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 353:
 YY_RULE_SETUP
-#line 370 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 370 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 354:
 YY_RULE_SETUP
-#line 371 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 371 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 355:
 YY_RULE_SETUP
-#line 372 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 372 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 356:
 YY_RULE_SETUP
-#line 373 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 373 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 357:
 YY_RULE_SETUP
-#line 374 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 374 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 358:
 YY_RULE_SETUP
-#line 375 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 375 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 359:
 YY_RULE_SETUP
-#line 376 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 376 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 360:
 YY_RULE_SETUP
-#line 377 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 377 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 361:
 YY_RULE_SETUP
-#line 378 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 378 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 362:
 YY_RULE_SETUP
-#line 379 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 379 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 363:
 YY_RULE_SETUP
-#line 380 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 380 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 364:
 YY_RULE_SETUP
-#line 381 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 381 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 365:
 YY_RULE_SETUP
-#line 382 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 382 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 366:
 YY_RULE_SETUP
-#line 383 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 383 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 367:
 YY_RULE_SETUP
-#line 384 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 384 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 368:
 YY_RULE_SETUP
-#line 385 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 385 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 369:
 YY_RULE_SETUP
-#line 386 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 386 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 370:
 YY_RULE_SETUP
-#line 387 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 387 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 371:
 YY_RULE_SETUP
-#line 388 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 388 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 372:
 YY_RULE_SETUP
-#line 389 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 389 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 373:
 YY_RULE_SETUP
-#line 390 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 390 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 374:
 YY_RULE_SETUP
-#line 391 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 391 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 375:
 YY_RULE_SETUP
-#line 392 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 392 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 376:
 YY_RULE_SETUP
-#line 393 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 393 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 377:
 YY_RULE_SETUP
-#line 394 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 394 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 378:
 YY_RULE_SETUP
-#line 395 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 395 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 379:
 YY_RULE_SETUP
-#line 396 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 396 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 380:
 YY_RULE_SETUP
-#line 397 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 397 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 381:
 YY_RULE_SETUP
-#line 398 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 398 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 382:
 YY_RULE_SETUP
-#line 399 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 399 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 383:
 YY_RULE_SETUP
-#line 400 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 400 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 384:
 YY_RULE_SETUP
-#line 401 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 401 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 385:
 YY_RULE_SETUP
-#line 402 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 402 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 386:
 YY_RULE_SETUP
-#line 403 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 403 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 387:
 YY_RULE_SETUP
-#line 404 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 404 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 388:
 YY_RULE_SETUP
-#line 405 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 405 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 389:
 YY_RULE_SETUP
-#line 406 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 406 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 390:
 YY_RULE_SETUP
-#line 407 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 407 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 391:
 YY_RULE_SETUP
-#line 408 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 408 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 392:
 YY_RULE_SETUP
-#line 409 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 409 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 393:
 YY_RULE_SETUP
-#line 410 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 410 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 394:
 YY_RULE_SETUP
-#line 411 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 411 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 395:
 YY_RULE_SETUP
-#line 412 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 412 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 396:
 YY_RULE_SETUP
-#line 413 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 413 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 397:
 YY_RULE_SETUP
-#line 414 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 414 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 398:
 YY_RULE_SETUP
-#line 415 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 415 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 399:
 YY_RULE_SETUP
-#line 416 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 416 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 400:
 YY_RULE_SETUP
-#line 417 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 417 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 401:
 YY_RULE_SETUP
-#line 418 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 418 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 402:
 YY_RULE_SETUP
-#line 419 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 419 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 403:
 YY_RULE_SETUP
-#line 420 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 420 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 404:
 YY_RULE_SETUP
-#line 421 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 421 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 405:
 YY_RULE_SETUP
-#line 422 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 422 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 406:
 YY_RULE_SETUP
-#line 423 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 423 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 407:
 YY_RULE_SETUP
-#line 424 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 424 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 408:
 YY_RULE_SETUP
-#line 425 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 425 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 409:
 YY_RULE_SETUP
-#line 426 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 426 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 410:
 YY_RULE_SETUP
-#line 427 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 427 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 411:
 YY_RULE_SETUP
-#line 428 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 428 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 412:
 YY_RULE_SETUP
-#line 429 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 429 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 413:
 YY_RULE_SETUP
-#line 430 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 430 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 414:
 YY_RULE_SETUP
-#line 431 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 431 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 415:
 YY_RULE_SETUP
-#line 432 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 432 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 416:
 YY_RULE_SETUP
-#line 433 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 433 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 417:
 YY_RULE_SETUP
-#line 434 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 434 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 418:
 YY_RULE_SETUP
-#line 435 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 435 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 419:
 YY_RULE_SETUP
-#line 436 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 436 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 420:
 YY_RULE_SETUP
-#line 437 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 437 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 421:
 YY_RULE_SETUP
-#line 438 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 438 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 422:
 YY_RULE_SETUP
-#line 439 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 439 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 423:
 YY_RULE_SETUP
-#line 440 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 440 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 424:
 YY_RULE_SETUP
-#line 441 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 441 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 425:
 YY_RULE_SETUP
-#line 442 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 442 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 426:
 YY_RULE_SETUP
-#line 443 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 443 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 427:
 YY_RULE_SETUP
-#line 444 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 444 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 428:
 YY_RULE_SETUP
-#line 445 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 445 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 429:
 YY_RULE_SETUP
-#line 446 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 446 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 430:
 YY_RULE_SETUP
-#line 447 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 447 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 431:
 YY_RULE_SETUP
-#line 448 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 448 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 432:
 YY_RULE_SETUP
-#line 449 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 449 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 433:
 YY_RULE_SETUP
-#line 450 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 450 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 434:
 YY_RULE_SETUP
-#line 451 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 451 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 435:
 YY_RULE_SETUP
-#line 452 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 452 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 436:
 YY_RULE_SETUP
-#line 453 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 453 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 437:
 YY_RULE_SETUP
-#line 454 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 454 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 438:
 YY_RULE_SETUP
-#line 455 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 455 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 439:
 YY_RULE_SETUP
-#line 456 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 456 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 440:
 YY_RULE_SETUP
-#line 457 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 457 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 441:
 YY_RULE_SETUP
-#line 458 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 458 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 442:
 YY_RULE_SETUP
-#line 459 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 459 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 443:
 YY_RULE_SETUP
-#line 460 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 460 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 444:
 YY_RULE_SETUP
-#line 461 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 461 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 445:
 YY_RULE_SETUP
-#line 462 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 462 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 446:
 YY_RULE_SETUP
-#line 463 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 463 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 447:
 YY_RULE_SETUP
-#line 464 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 464 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 448:
 YY_RULE_SETUP
-#line 465 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 465 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 449:
 YY_RULE_SETUP
-#line 466 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 466 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 450:
 YY_RULE_SETUP
-#line 467 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 467 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 451:
 YY_RULE_SETUP
-#line 468 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 468 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 452:
 YY_RULE_SETUP
-#line 469 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 469 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 453:
 YY_RULE_SETUP
-#line 470 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 470 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 454:
 YY_RULE_SETUP
-#line 471 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 471 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 455:
 YY_RULE_SETUP
-#line 472 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 472 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 456:
 YY_RULE_SETUP
-#line 473 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 473 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 457:
 YY_RULE_SETUP
-#line 474 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 474 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 458:
 YY_RULE_SETUP
-#line 475 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 475 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 459:
 YY_RULE_SETUP
-#line 476 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 476 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 460:
 YY_RULE_SETUP
-#line 477 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 477 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 461:
 YY_RULE_SETUP
-#line 478 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 478 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 462:
 YY_RULE_SETUP
-#line 479 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 479 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 463:
 YY_RULE_SETUP
-#line 480 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 480 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 464:
 YY_RULE_SETUP
-#line 481 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 481 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 465:
 YY_RULE_SETUP
-#line 482 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 482 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 466:
 YY_RULE_SETUP
-#line 483 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 483 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 467:
 YY_RULE_SETUP
-#line 484 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 484 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 468:
 YY_RULE_SETUP
-#line 485 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 485 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 469:
 YY_RULE_SETUP
-#line 486 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 486 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 470:
 YY_RULE_SETUP
-#line 487 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 487 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 471:
 YY_RULE_SETUP
-#line 488 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 488 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 472:
 YY_RULE_SETUP
-#line 489 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 489 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 473:
 YY_RULE_SETUP
-#line 490 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 490 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 474:
 YY_RULE_SETUP
-#line 491 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 491 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 475:
 YY_RULE_SETUP
-#line 492 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 492 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 476:
 YY_RULE_SETUP
-#line 493 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 493 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 477:
 YY_RULE_SETUP
-#line 494 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 494 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 478:
 YY_RULE_SETUP
-#line 495 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 495 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 479:
 YY_RULE_SETUP
-#line 496 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 496 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 480:
 YY_RULE_SETUP
-#line 497 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 497 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 481:
 YY_RULE_SETUP
-#line 498 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 498 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 482:
 YY_RULE_SETUP
-#line 499 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 499 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 483:
 YY_RULE_SETUP
-#line 500 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 500 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 484:
 YY_RULE_SETUP
-#line 501 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 501 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 485:
 YY_RULE_SETUP
-#line 502 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 502 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 486:
 YY_RULE_SETUP
-#line 503 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 503 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 487:
 YY_RULE_SETUP
-#line 504 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 504 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 488:
 YY_RULE_SETUP
-#line 505 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 505 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 489:
 YY_RULE_SETUP
-#line 506 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 506 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 490:
 YY_RULE_SETUP
-#line 507 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 507 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 491:
 YY_RULE_SETUP
-#line 508 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 508 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 492:
 YY_RULE_SETUP
-#line 509 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 509 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 493:
 YY_RULE_SETUP
-#line 510 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 510 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 494:
 YY_RULE_SETUP
-#line 511 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 511 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 495:
 YY_RULE_SETUP
-#line 512 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 512 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 496:
 YY_RULE_SETUP
-#line 513 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 513 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 497:
 YY_RULE_SETUP
-#line 514 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 514 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 498:
 YY_RULE_SETUP
-#line 515 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 515 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 499:
 YY_RULE_SETUP
-#line 516 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 516 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 500:
 YY_RULE_SETUP
-#line 517 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 517 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 501:
 YY_RULE_SETUP
-#line 518 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 518 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 502:
 YY_RULE_SETUP
-#line 519 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 519 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 503:
 YY_RULE_SETUP
-#line 520 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 520 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 504:
 YY_RULE_SETUP
-#line 521 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 521 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 505:
 YY_RULE_SETUP
-#line 522 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 522 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 506:
 YY_RULE_SETUP
-#line 523 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 523 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 507:
 YY_RULE_SETUP
-#line 524 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 524 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 508:
 YY_RULE_SETUP
-#line 525 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 525 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 509:
 YY_RULE_SETUP
-#line 526 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 526 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 510:
 YY_RULE_SETUP
-#line 527 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 527 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 511:
 YY_RULE_SETUP
-#line 528 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 528 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 512:
 YY_RULE_SETUP
-#line 529 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 529 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 513:
 YY_RULE_SETUP
-#line 530 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 530 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 514:
 YY_RULE_SETUP
-#line 531 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 531 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 515:
 YY_RULE_SETUP
-#line 532 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 532 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 516:
 YY_RULE_SETUP
-#line 533 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 533 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 517:
 YY_RULE_SETUP
-#line 534 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 534 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 518:
 YY_RULE_SETUP
-#line 535 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 535 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 519:
 YY_RULE_SETUP
-#line 536 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 536 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 520:
 YY_RULE_SETUP
-#line 537 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 537 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 521:
 YY_RULE_SETUP
-#line 538 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 538 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 522:
 YY_RULE_SETUP
-#line 539 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 539 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 523:
 YY_RULE_SETUP
-#line 540 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 540 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 524:
 YY_RULE_SETUP
-#line 541 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 541 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 525:
 YY_RULE_SETUP
-#line 542 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 542 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 526:
 YY_RULE_SETUP
-#line 543 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 543 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 527:
 YY_RULE_SETUP
-#line 544 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 544 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 528:
 YY_RULE_SETUP
-#line 545 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 545 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 529:
 YY_RULE_SETUP
-#line 546 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 546 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 530:
 YY_RULE_SETUP
-#line 547 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 547 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 531:
 YY_RULE_SETUP
-#line 548 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 548 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 532:
 YY_RULE_SETUP
-#line 549 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 549 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 533:
 YY_RULE_SETUP
-#line 550 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 550 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 534:
 YY_RULE_SETUP
-#line 551 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 551 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 535:
 YY_RULE_SETUP
-#line 552 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 552 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 536:
 YY_RULE_SETUP
-#line 553 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 553 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 537:
 YY_RULE_SETUP
-#line 554 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 554 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 538:
 YY_RULE_SETUP
-#line 555 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 555 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 539:
 YY_RULE_SETUP
-#line 556 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 556 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 540:
 YY_RULE_SETUP
-#line 557 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 557 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 541:
 YY_RULE_SETUP
-#line 558 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 558 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 542:
 YY_RULE_SETUP
-#line 559 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 559 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 543:
 YY_RULE_SETUP
-#line 560 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 560 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 544:
 YY_RULE_SETUP
-#line 561 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 561 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 545:
 YY_RULE_SETUP
-#line 562 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 562 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 546:
 YY_RULE_SETUP
-#line 563 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 563 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 547:
 YY_RULE_SETUP
-#line 564 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 564 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 548:
 YY_RULE_SETUP
-#line 565 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 565 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 549:
 YY_RULE_SETUP
-#line 566 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 566 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 550:
 YY_RULE_SETUP
-#line 567 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 567 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 551:
 YY_RULE_SETUP
-#line 568 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 568 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 552:
 YY_RULE_SETUP
-#line 569 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 569 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 553:
 YY_RULE_SETUP
-#line 570 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 570 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 554:
 YY_RULE_SETUP
-#line 571 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 571 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 555:
 YY_RULE_SETUP
-#line 572 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 572 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 556:
 YY_RULE_SETUP
-#line 573 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 573 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 557:
 YY_RULE_SETUP
-#line 574 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 574 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 558:
 YY_RULE_SETUP
-#line 575 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 575 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 559:
 YY_RULE_SETUP
-#line 576 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 576 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 560:
 YY_RULE_SETUP
-#line 577 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 577 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 561:
 YY_RULE_SETUP
-#line 578 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 578 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 562:
 YY_RULE_SETUP
-#line 579 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 579 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 563:
 YY_RULE_SETUP
-#line 580 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 580 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 564:
 YY_RULE_SETUP
-#line 581 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 581 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 565:
 YY_RULE_SETUP
-#line 582 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 582 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 566:
 YY_RULE_SETUP
-#line 583 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 583 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 567:
 YY_RULE_SETUP
-#line 584 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 584 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 568:
 YY_RULE_SETUP
-#line 585 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 585 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 569:
 YY_RULE_SETUP
-#line 586 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 586 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 570:
 YY_RULE_SETUP
-#line 587 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 587 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 571:
 YY_RULE_SETUP
-#line 588 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 588 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 572:
 YY_RULE_SETUP
-#line 589 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 589 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 573:
 YY_RULE_SETUP
-#line 590 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 590 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 574:
 YY_RULE_SETUP
-#line 591 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 591 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 575:
 YY_RULE_SETUP
-#line 592 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 592 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 576:
 YY_RULE_SETUP
-#line 593 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 593 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 577:
 YY_RULE_SETUP
-#line 594 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 594 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 578:
 YY_RULE_SETUP
-#line 595 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 595 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 579:
 YY_RULE_SETUP
-#line 596 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 596 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 580:
 YY_RULE_SETUP
-#line 597 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 597 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 581:
 YY_RULE_SETUP
-#line 598 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 598 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 582:
 YY_RULE_SETUP
-#line 599 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 599 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 583:
 YY_RULE_SETUP
-#line 600 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 600 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 584:
 YY_RULE_SETUP
-#line 601 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 601 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 585:
 YY_RULE_SETUP
-#line 602 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 602 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 586:
 YY_RULE_SETUP
-#line 603 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 603 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 587:
 YY_RULE_SETUP
-#line 604 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 604 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 588:
 YY_RULE_SETUP
-#line 605 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 605 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 589:
 YY_RULE_SETUP
-#line 606 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 606 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 590:
 YY_RULE_SETUP
-#line 607 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 607 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 591:
 YY_RULE_SETUP
-#line 608 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 608 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 592:
 YY_RULE_SETUP
-#line 609 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 609 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 593:
 YY_RULE_SETUP
-#line 610 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 610 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 594:
 YY_RULE_SETUP
-#line 611 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 611 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 595:
 YY_RULE_SETUP
-#line 612 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 612 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 596:
 YY_RULE_SETUP
-#line 613 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 613 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 597:
 YY_RULE_SETUP
-#line 614 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 614 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 598:
 YY_RULE_SETUP
-#line 615 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 615 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 599:
 YY_RULE_SETUP
-#line 616 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 616 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 600:
 YY_RULE_SETUP
-#line 617 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 617 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 601:
 YY_RULE_SETUP
-#line 618 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 618 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 602:
 YY_RULE_SETUP
-#line 619 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 619 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 603:
 YY_RULE_SETUP
-#line 620 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 620 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 604:
 YY_RULE_SETUP
-#line 621 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 621 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 605:
 YY_RULE_SETUP
-#line 622 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 622 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 606:
 YY_RULE_SETUP
-#line 623 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 623 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 607:
 YY_RULE_SETUP
-#line 624 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 624 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 608:
 YY_RULE_SETUP
-#line 625 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 625 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 609:
 YY_RULE_SETUP
-#line 626 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 626 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 610:
 YY_RULE_SETUP
-#line 627 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 627 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 611:
 YY_RULE_SETUP
-#line 628 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 628 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 612:
 YY_RULE_SETUP
-#line 629 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 629 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 613:
 YY_RULE_SETUP
-#line 630 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 630 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 614:
 YY_RULE_SETUP
-#line 631 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 631 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 615:
 YY_RULE_SETUP
-#line 632 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 632 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 616:
 YY_RULE_SETUP
-#line 633 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 633 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 617:
 YY_RULE_SETUP
-#line 634 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 634 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 618:
 YY_RULE_SETUP
-#line 635 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 635 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 619:
 YY_RULE_SETUP
-#line 636 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 636 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 620:
 YY_RULE_SETUP
-#line 637 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 637 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 621:
 YY_RULE_SETUP
-#line 638 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 638 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 622:
 YY_RULE_SETUP
-#line 639 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 639 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 623:
 YY_RULE_SETUP
-#line 640 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 640 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 624:
 YY_RULE_SETUP
-#line 641 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 641 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 625:
 YY_RULE_SETUP
-#line 642 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 642 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 626:
 YY_RULE_SETUP
-#line 643 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 643 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 627:
 YY_RULE_SETUP
-#line 644 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 644 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 628:
 YY_RULE_SETUP
-#line 645 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 645 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 629:
 YY_RULE_SETUP
-#line 646 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 646 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 630:
 YY_RULE_SETUP
-#line 647 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 647 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 631:
 YY_RULE_SETUP
-#line 648 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 648 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 632:
 YY_RULE_SETUP
-#line 649 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 649 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 633:
 YY_RULE_SETUP
-#line 650 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 650 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 634:
 YY_RULE_SETUP
-#line 651 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 651 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 635:
 YY_RULE_SETUP
-#line 652 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 652 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 636:
 YY_RULE_SETUP
-#line 653 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 653 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 637:
 YY_RULE_SETUP
-#line 654 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 654 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 638:
 YY_RULE_SETUP
-#line 655 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 655 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 639:
 YY_RULE_SETUP
-#line 656 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 656 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 640:
 YY_RULE_SETUP
-#line 657 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 657 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 641:
 YY_RULE_SETUP
-#line 658 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 658 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 642:
 YY_RULE_SETUP
-#line 659 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 659 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 643:
 YY_RULE_SETUP
-#line 660 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 660 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 644:
 YY_RULE_SETUP
-#line 661 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 661 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 645:
 YY_RULE_SETUP
-#line 662 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 662 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 646:
 YY_RULE_SETUP
-#line 663 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 663 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 647:
 YY_RULE_SETUP
-#line 664 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 664 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 648:
 YY_RULE_SETUP
-#line 665 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 665 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 649:
 YY_RULE_SETUP
-#line 666 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 666 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 650:
 YY_RULE_SETUP
-#line 667 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 667 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 651:
 YY_RULE_SETUP
-#line 668 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 668 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 652:
 YY_RULE_SETUP
-#line 669 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 669 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 653:
 YY_RULE_SETUP
-#line 670 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 670 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 654:
 YY_RULE_SETUP
-#line 671 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 671 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 655:
 YY_RULE_SETUP
-#line 672 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 672 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 656:
 YY_RULE_SETUP
-#line 673 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 673 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 657:
 YY_RULE_SETUP
-#line 674 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 674 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 658:
 YY_RULE_SETUP
-#line 675 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 675 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 659:
 YY_RULE_SETUP
-#line 676 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 676 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 660:
 YY_RULE_SETUP
-#line 677 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 677 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 661:
 YY_RULE_SETUP
-#line 678 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 678 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 662:
 YY_RULE_SETUP
-#line 679 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 679 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 663:
 YY_RULE_SETUP
-#line 680 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 680 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 664:
 YY_RULE_SETUP
-#line 681 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 681 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 665:
 YY_RULE_SETUP
-#line 682 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 682 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 666:
 YY_RULE_SETUP
-#line 683 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 683 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 667:
 YY_RULE_SETUP
-#line 684 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 684 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 668:
 YY_RULE_SETUP
-#line 685 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 685 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 669:
 YY_RULE_SETUP
-#line 686 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 686 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 670:
 YY_RULE_SETUP
-#line 687 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 687 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 671:
 YY_RULE_SETUP
-#line 688 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 688 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 672:
 YY_RULE_SETUP
-#line 689 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 689 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 673:
 YY_RULE_SETUP
-#line 690 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 690 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 674:
 YY_RULE_SETUP
-#line 691 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 691 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 675:
 YY_RULE_SETUP
-#line 692 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 692 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 676:
 YY_RULE_SETUP
-#line 693 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 693 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 677:
 YY_RULE_SETUP
-#line 694 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 694 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 678:
 YY_RULE_SETUP
-#line 695 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 695 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 679:
 YY_RULE_SETUP
-#line 696 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 696 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 680:
 YY_RULE_SETUP
-#line 697 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 697 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 681:
 YY_RULE_SETUP
-#line 698 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 698 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 682:
 YY_RULE_SETUP
-#line 699 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 699 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 683:
 YY_RULE_SETUP
-#line 700 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 700 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 684:
 YY_RULE_SETUP
-#line 701 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 701 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 685:
 YY_RULE_SETUP
-#line 702 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 702 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 686:
 YY_RULE_SETUP
-#line 703 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 703 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 687:
 YY_RULE_SETUP
-#line 704 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 704 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 688:
 YY_RULE_SETUP
-#line 705 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 705 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 689:
 YY_RULE_SETUP
-#line 706 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 706 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 690:
 YY_RULE_SETUP
-#line 707 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 707 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 691:
 YY_RULE_SETUP
-#line 708 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 708 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 692:
 YY_RULE_SETUP
-#line 709 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 709 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 693:
 YY_RULE_SETUP
-#line 710 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 710 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 694:
 YY_RULE_SETUP
-#line 711 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 711 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 695:
 YY_RULE_SETUP
-#line 712 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 712 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 696:
 YY_RULE_SETUP
-#line 713 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 713 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 697:
 YY_RULE_SETUP
-#line 714 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 714 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 698:
 YY_RULE_SETUP
-#line 715 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 715 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 699:
 YY_RULE_SETUP
-#line 716 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 716 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 700:
 YY_RULE_SETUP
-#line 717 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 717 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 701:
 YY_RULE_SETUP
-#line 718 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 718 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 702:
 YY_RULE_SETUP
-#line 719 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 719 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 703:
 YY_RULE_SETUP
-#line 720 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 720 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 704:
 YY_RULE_SETUP
-#line 721 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 721 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 705:
 YY_RULE_SETUP
-#line 722 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 722 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 706:
 YY_RULE_SETUP
-#line 723 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 723 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 707:
 YY_RULE_SETUP
-#line 724 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 724 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 708:
 YY_RULE_SETUP
-#line 725 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 725 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 709:
 YY_RULE_SETUP
-#line 726 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 726 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 710:
 YY_RULE_SETUP
-#line 727 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 727 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 711:
 YY_RULE_SETUP
-#line 728 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 728 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 712:
 YY_RULE_SETUP
-#line 729 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 729 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 713:
 YY_RULE_SETUP
-#line 730 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 730 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 714:
 YY_RULE_SETUP
-#line 731 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 731 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 715:
 YY_RULE_SETUP
-#line 732 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 732 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 716:
 YY_RULE_SETUP
-#line 733 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 733 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 717:
 YY_RULE_SETUP
-#line 734 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 734 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 718:
 YY_RULE_SETUP
-#line 735 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 735 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 719:
 YY_RULE_SETUP
-#line 736 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 736 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 720:
 YY_RULE_SETUP
-#line 737 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 737 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 721:
 YY_RULE_SETUP
-#line 738 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 738 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 722:
 YY_RULE_SETUP
-#line 739 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 739 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 723:
 YY_RULE_SETUP
-#line 740 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 740 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 724:
 YY_RULE_SETUP
-#line 741 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 741 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 725:
 YY_RULE_SETUP
-#line 742 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 742 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 726:
 YY_RULE_SETUP
-#line 743 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 743 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 727:
 YY_RULE_SETUP
-#line 744 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 744 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 728:
 YY_RULE_SETUP
-#line 745 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 745 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 729:
 YY_RULE_SETUP
-#line 746 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 746 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 730:
 YY_RULE_SETUP
-#line 747 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 747 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 731:
 YY_RULE_SETUP
-#line 748 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 748 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 732:
 YY_RULE_SETUP
-#line 749 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 749 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 733:
 YY_RULE_SETUP
-#line 750 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 750 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 734:
 YY_RULE_SETUP
-#line 751 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 751 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 735:
 YY_RULE_SETUP
-#line 752 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 752 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 736:
 YY_RULE_SETUP
-#line 753 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 753 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 737:
 YY_RULE_SETUP
-#line 754 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 754 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 738:
 YY_RULE_SETUP
-#line 755 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 755 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 739:
 YY_RULE_SETUP
-#line 756 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 756 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 740:
 YY_RULE_SETUP
-#line 757 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 757 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 741:
 YY_RULE_SETUP
-#line 758 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 758 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 742:
 YY_RULE_SETUP
-#line 759 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 759 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 743:
 YY_RULE_SETUP
-#line 760 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 760 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 744:
 YY_RULE_SETUP
-#line 761 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 761 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 745:
 YY_RULE_SETUP
-#line 762 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 762 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 746:
 YY_RULE_SETUP
-#line 763 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 763 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 747:
 YY_RULE_SETUP
-#line 764 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 764 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 748:
 YY_RULE_SETUP
-#line 765 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 765 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 749:
 YY_RULE_SETUP
-#line 766 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 766 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 750:
 YY_RULE_SETUP
-#line 767 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 767 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 751:
 YY_RULE_SETUP
-#line 768 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 768 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 752:
 YY_RULE_SETUP
-#line 769 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 769 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 753:
 YY_RULE_SETUP
-#line 770 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 770 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 754:
 YY_RULE_SETUP
-#line 771 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 771 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 755:
 YY_RULE_SETUP
-#line 772 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 772 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 756:
 YY_RULE_SETUP
-#line 773 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 773 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 757:
 YY_RULE_SETUP
-#line 774 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 774 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 758:
 YY_RULE_SETUP
-#line 775 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 775 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 759:
 YY_RULE_SETUP
-#line 776 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 776 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 760:
 YY_RULE_SETUP
-#line 777 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 777 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 761:
 YY_RULE_SETUP
-#line 778 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 778 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 762:
 YY_RULE_SETUP
-#line 779 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 779 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 763:
 YY_RULE_SETUP
-#line 780 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 780 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 764:
 YY_RULE_SETUP
-#line 781 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 781 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 765:
 YY_RULE_SETUP
-#line 782 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 782 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 766:
 YY_RULE_SETUP
-#line 783 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 783 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 767:
 YY_RULE_SETUP
-#line 784 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 784 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 768:
 YY_RULE_SETUP
-#line 785 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 785 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 769:
 YY_RULE_SETUP
-#line 786 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 786 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 770:
 YY_RULE_SETUP
-#line 787 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 787 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 771:
 YY_RULE_SETUP
-#line 788 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 788 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 772:
 YY_RULE_SETUP
-#line 789 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 789 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 773:
 YY_RULE_SETUP
-#line 790 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 790 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 774:
 YY_RULE_SETUP
-#line 791 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 791 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 775:
 YY_RULE_SETUP
-#line 792 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 792 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 776:
 YY_RULE_SETUP
-#line 793 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 793 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 777:
 YY_RULE_SETUP
-#line 794 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 794 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 778:
 YY_RULE_SETUP
-#line 795 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 795 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 779:
 YY_RULE_SETUP
-#line 796 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 796 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 780:
 YY_RULE_SETUP
-#line 797 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 797 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 781:
 YY_RULE_SETUP
-#line 798 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 798 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 782:
 YY_RULE_SETUP
-#line 799 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 799 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 783:
 YY_RULE_SETUP
-#line 800 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 800 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 784:
 YY_RULE_SETUP
-#line 801 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 801 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 785:
 YY_RULE_SETUP
-#line 802 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 802 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 786:
 YY_RULE_SETUP
-#line 803 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 803 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 787:
 YY_RULE_SETUP
-#line 804 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 804 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 788:
 YY_RULE_SETUP
-#line 805 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 805 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 789:
 YY_RULE_SETUP
-#line 806 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 806 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 790:
 YY_RULE_SETUP
-#line 807 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 807 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 791:
 YY_RULE_SETUP
-#line 808 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 808 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 792:
 YY_RULE_SETUP
-#line 809 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 809 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 793:
 YY_RULE_SETUP
-#line 810 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 810 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 794:
 YY_RULE_SETUP
-#line 811 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 811 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 795:
 YY_RULE_SETUP
-#line 812 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 812 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 796:
 YY_RULE_SETUP
-#line 813 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 813 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 797:
 YY_RULE_SETUP
-#line 814 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 814 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 798:
 YY_RULE_SETUP
-#line 815 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 815 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 799:
 YY_RULE_SETUP
-#line 816 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 816 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 800:
 YY_RULE_SETUP
-#line 817 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 817 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 801:
 YY_RULE_SETUP
-#line 818 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 818 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 802:
 YY_RULE_SETUP
-#line 819 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 819 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 803:
 YY_RULE_SETUP
-#line 820 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 820 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 804:
 YY_RULE_SETUP
-#line 821 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 821 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 805:
 YY_RULE_SETUP
-#line 822 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 822 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 806:
 YY_RULE_SETUP
-#line 823 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 823 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 807:
 YY_RULE_SETUP
-#line 824 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 824 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 808:
 YY_RULE_SETUP
-#line 825 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 825 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 809:
 YY_RULE_SETUP
-#line 826 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 826 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 810:
 YY_RULE_SETUP
-#line 827 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 827 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 811:
 YY_RULE_SETUP
-#line 828 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 828 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 812:
 YY_RULE_SETUP
-#line 829 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 829 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 813:
 YY_RULE_SETUP
-#line 830 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 830 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 814:
 YY_RULE_SETUP
-#line 831 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 831 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 815:
 YY_RULE_SETUP
-#line 832 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 832 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 816:
 YY_RULE_SETUP
-#line 833 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 833 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 817:
 YY_RULE_SETUP
-#line 834 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 834 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 818:
 YY_RULE_SETUP
-#line 835 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 835 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 819:
 YY_RULE_SETUP
-#line 836 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 836 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 820:
 YY_RULE_SETUP
-#line 837 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 837 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 821:
 YY_RULE_SETUP
-#line 838 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 838 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 822:
 YY_RULE_SETUP
-#line 839 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 839 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 823:
 YY_RULE_SETUP
-#line 840 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 840 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 824:
 YY_RULE_SETUP
-#line 841 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 841 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 825:
 YY_RULE_SETUP
-#line 842 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 842 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 826:
 YY_RULE_SETUP
-#line 843 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 843 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 827:
 YY_RULE_SETUP
-#line 844 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 844 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 828:
 YY_RULE_SETUP
-#line 845 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 845 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 829:
 YY_RULE_SETUP
-#line 846 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 846 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 830:
 YY_RULE_SETUP
-#line 847 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 847 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 831:
 YY_RULE_SETUP
-#line 848 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 848 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 832:
 YY_RULE_SETUP
-#line 849 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 849 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 833:
 YY_RULE_SETUP
-#line 850 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 850 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 834:
 YY_RULE_SETUP
-#line 851 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 851 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 835:
 YY_RULE_SETUP
-#line 852 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 852 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 836:
 YY_RULE_SETUP
-#line 853 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 853 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 837:
 YY_RULE_SETUP
-#line 854 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 854 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 838:
 YY_RULE_SETUP
-#line 855 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 855 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 839:
 YY_RULE_SETUP
-#line 856 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 856 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 840:
 YY_RULE_SETUP
-#line 857 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 857 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 841:
 YY_RULE_SETUP
-#line 858 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 858 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 842:
 YY_RULE_SETUP
-#line 859 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 859 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 843:
 YY_RULE_SETUP
-#line 860 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 860 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 844:
 YY_RULE_SETUP
-#line 861 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 861 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 845:
 YY_RULE_SETUP
-#line 862 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 862 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 846:
 YY_RULE_SETUP
-#line 863 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 863 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 847:
 YY_RULE_SETUP
-#line 864 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 864 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 848:
 YY_RULE_SETUP
-#line 865 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 865 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 849:
 YY_RULE_SETUP
-#line 866 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 866 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 850:
 YY_RULE_SETUP
-#line 867 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 867 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 851:
 YY_RULE_SETUP
-#line 868 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 868 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 852:
 YY_RULE_SETUP
-#line 869 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 869 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 853:
 YY_RULE_SETUP
-#line 870 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 870 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 854:
 YY_RULE_SETUP
-#line 871 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 871 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 855:
 YY_RULE_SETUP
-#line 872 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 872 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 856:
 YY_RULE_SETUP
-#line 873 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 873 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 857:
 YY_RULE_SETUP
-#line 874 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 874 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 858:
 YY_RULE_SETUP
-#line 875 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 875 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 859:
 YY_RULE_SETUP
-#line 876 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 876 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 860:
 YY_RULE_SETUP
-#line 877 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 877 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 861:
 YY_RULE_SETUP
-#line 878 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 878 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 862:
 YY_RULE_SETUP
-#line 879 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 879 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 863:
 YY_RULE_SETUP
-#line 880 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 880 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 864:
 YY_RULE_SETUP
-#line 881 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 881 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 865:
 YY_RULE_SETUP
-#line 882 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 882 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 866:
 YY_RULE_SETUP
-#line 883 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 883 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 867:
 YY_RULE_SETUP
-#line 884 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 884 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 868:
 YY_RULE_SETUP
-#line 885 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 885 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 869:
 YY_RULE_SETUP
-#line 886 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 886 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 870:
 YY_RULE_SETUP
-#line 887 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 887 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 871:
 YY_RULE_SETUP
-#line 888 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 888 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 872:
 YY_RULE_SETUP
-#line 889 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 889 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 873:
 YY_RULE_SETUP
-#line 890 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 890 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 874:
 YY_RULE_SETUP
-#line 891 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 891 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 875:
 YY_RULE_SETUP
-#line 892 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 892 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 876:
 YY_RULE_SETUP
-#line 893 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 893 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 877:
 YY_RULE_SETUP
-#line 894 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 894 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 878:
 YY_RULE_SETUP
-#line 895 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 895 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 879:
 YY_RULE_SETUP
-#line 896 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 896 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 880:
 YY_RULE_SETUP
-#line 897 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 897 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 881:
 YY_RULE_SETUP
-#line 898 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 898 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 882:
 YY_RULE_SETUP
-#line 899 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 899 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 883:
 YY_RULE_SETUP
-#line 900 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 900 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 884:
 YY_RULE_SETUP
-#line 901 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 901 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 885:
 YY_RULE_SETUP
-#line 902 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 902 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 886:
 YY_RULE_SETUP
-#line 903 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 903 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 887:
 YY_RULE_SETUP
-#line 904 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 904 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 888:
 YY_RULE_SETUP
-#line 905 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 905 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 889:
 YY_RULE_SETUP
-#line 906 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 906 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 890:
 YY_RULE_SETUP
-#line 907 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 907 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 891:
 YY_RULE_SETUP
-#line 908 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 908 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 892:
 YY_RULE_SETUP
-#line 909 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 909 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 893:
 YY_RULE_SETUP
-#line 910 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 910 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 894:
 YY_RULE_SETUP
-#line 911 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 911 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 895:
 YY_RULE_SETUP
-#line 912 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 912 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 896:
 YY_RULE_SETUP
-#line 913 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 913 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 897:
 YY_RULE_SETUP
-#line 914 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 914 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 898:
 YY_RULE_SETUP
-#line 915 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 915 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 899:
 YY_RULE_SETUP
-#line 916 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 916 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 900:
 YY_RULE_SETUP
-#line 917 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 917 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 901:
 YY_RULE_SETUP
-#line 918 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 918 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 902:
 YY_RULE_SETUP
-#line 919 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 919 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 903:
 YY_RULE_SETUP
-#line 920 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 920 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 904:
 YY_RULE_SETUP
-#line 921 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 921 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 905:
 YY_RULE_SETUP
-#line 922 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 922 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 906:
 YY_RULE_SETUP
-#line 923 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 923 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 907:
 YY_RULE_SETUP
-#line 924 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 924 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 908:
 YY_RULE_SETUP
-#line 925 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 925 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 909:
 YY_RULE_SETUP
-#line 926 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 926 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 910:
 YY_RULE_SETUP
-#line 927 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 927 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 911:
 YY_RULE_SETUP
-#line 928 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 928 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 912:
 YY_RULE_SETUP
-#line 929 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 929 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 913:
 YY_RULE_SETUP
-#line 930 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 930 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 914:
 YY_RULE_SETUP
-#line 931 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 931 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 915:
 YY_RULE_SETUP
-#line 932 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 932 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 916:
 YY_RULE_SETUP
-#line 933 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 933 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 917:
 YY_RULE_SETUP
-#line 934 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 934 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 918:
 YY_RULE_SETUP
-#line 935 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 935 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 919:
 YY_RULE_SETUP
-#line 936 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 936 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 920:
 YY_RULE_SETUP
-#line 937 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 937 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 921:
 YY_RULE_SETUP
-#line 938 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 938 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 922:
 YY_RULE_SETUP
-#line 939 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 939 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 923:
 YY_RULE_SETUP
-#line 940 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 940 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 924:
 YY_RULE_SETUP
-#line 941 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 941 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 925:
 YY_RULE_SETUP
-#line 942 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 942 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 926:
 YY_RULE_SETUP
-#line 943 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 943 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 927:
 YY_RULE_SETUP
-#line 944 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 944 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 928:
 YY_RULE_SETUP
-#line 945 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 945 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 929:
 YY_RULE_SETUP
-#line 946 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 946 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 930:
 YY_RULE_SETUP
-#line 947 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 947 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 931:
 YY_RULE_SETUP
-#line 948 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 948 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 932:
 YY_RULE_SETUP
-#line 949 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 949 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 933:
 YY_RULE_SETUP
-#line 950 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 950 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 934:
 YY_RULE_SETUP
-#line 951 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 951 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 935:
 YY_RULE_SETUP
-#line 952 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 952 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 936:
 YY_RULE_SETUP
-#line 953 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 953 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 937:
 YY_RULE_SETUP
-#line 954 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 954 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 938:
 YY_RULE_SETUP
-#line 955 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 955 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 939:
 YY_RULE_SETUP
-#line 956 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 956 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 940:
 YY_RULE_SETUP
-#line 957 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 957 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 941:
 YY_RULE_SETUP
-#line 958 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 958 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 942:
 YY_RULE_SETUP
-#line 959 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 959 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 943:
 YY_RULE_SETUP
-#line 960 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 960 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 944:
 YY_RULE_SETUP
-#line 961 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 961 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 945:
 YY_RULE_SETUP
-#line 962 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 962 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 946:
 YY_RULE_SETUP
-#line 963 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 963 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 947:
 YY_RULE_SETUP
-#line 964 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 964 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 948:
 YY_RULE_SETUP
-#line 965 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 965 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 949:
 YY_RULE_SETUP
-#line 966 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 966 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 950:
 YY_RULE_SETUP
-#line 967 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 967 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 951:
 YY_RULE_SETUP
-#line 968 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 968 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 952:
 YY_RULE_SETUP
-#line 969 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 969 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 953:
 YY_RULE_SETUP
-#line 970 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 970 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 954:
 YY_RULE_SETUP
-#line 971 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 971 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 955:
 YY_RULE_SETUP
-#line 972 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 972 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 956:
 YY_RULE_SETUP
-#line 973 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 973 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 957:
 YY_RULE_SETUP
-#line 974 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 974 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 958:
 YY_RULE_SETUP
-#line 975 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 975 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 959:
 YY_RULE_SETUP
-#line 976 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 976 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 960:
 YY_RULE_SETUP
-#line 977 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 977 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 961:
 YY_RULE_SETUP
-#line 978 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 978 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 962:
 YY_RULE_SETUP
-#line 979 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 979 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 963:
 YY_RULE_SETUP
-#line 980 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 980 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 964:
 YY_RULE_SETUP
-#line 981 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 981 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 965:
 YY_RULE_SETUP
-#line 982 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 982 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 966:
 YY_RULE_SETUP
-#line 983 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 983 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 967:
 YY_RULE_SETUP
-#line 984 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 984 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 968:
 YY_RULE_SETUP
-#line 985 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 985 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 969:
 YY_RULE_SETUP
-#line 986 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 986 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 970:
 YY_RULE_SETUP
-#line 987 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 987 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 971:
 YY_RULE_SETUP
-#line 988 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 988 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 972:
 YY_RULE_SETUP
-#line 989 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 989 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 973:
 YY_RULE_SETUP
-#line 990 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 990 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 974:
 YY_RULE_SETUP
-#line 991 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 991 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 975:
 YY_RULE_SETUP
-#line 992 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 992 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 976:
 YY_RULE_SETUP
-#line 993 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 993 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 977:
 YY_RULE_SETUP
-#line 994 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 994 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 978:
 YY_RULE_SETUP
-#line 995 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 995 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 979:
 YY_RULE_SETUP
-#line 996 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 996 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 980:
 YY_RULE_SETUP
-#line 997 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 997 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 981:
 YY_RULE_SETUP
-#line 998 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 998 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 982:
 YY_RULE_SETUP
-#line 999 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 999 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 983:
 YY_RULE_SETUP
-#line 1000 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1000 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 984:
 YY_RULE_SETUP
-#line 1001 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1001 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 985:
 YY_RULE_SETUP
-#line 1002 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1002 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 986:
 YY_RULE_SETUP
-#line 1003 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1003 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 987:
 YY_RULE_SETUP
-#line 1004 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1004 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 988:
 YY_RULE_SETUP
-#line 1005 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1005 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 989:
 YY_RULE_SETUP
-#line 1006 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1006 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 990:
 YY_RULE_SETUP
-#line 1007 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1007 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 991:
 YY_RULE_SETUP
-#line 1008 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1008 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 992:
 YY_RULE_SETUP
-#line 1009 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1009 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 993:
 YY_RULE_SETUP
-#line 1010 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1010 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 994:
 YY_RULE_SETUP
-#line 1011 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1011 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 995:
 YY_RULE_SETUP
-#line 1012 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1012 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 996:
 YY_RULE_SETUP
-#line 1013 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1013 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 997:
 YY_RULE_SETUP
-#line 1014 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1014 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 998:
 YY_RULE_SETUP
-#line 1015 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1015 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 999:
 YY_RULE_SETUP
-#line 1016 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1016 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1000:
 YY_RULE_SETUP
-#line 1017 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1017 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1001:
 YY_RULE_SETUP
-#line 1018 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1018 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1002:
 YY_RULE_SETUP
-#line 1019 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1019 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1003:
 YY_RULE_SETUP
-#line 1020 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1020 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1004:
 YY_RULE_SETUP
-#line 1021 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1021 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1005:
 YY_RULE_SETUP
-#line 1022 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1022 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1006:
 YY_RULE_SETUP
-#line 1023 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1023 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1007:
 YY_RULE_SETUP
-#line 1024 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1024 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1008:
 YY_RULE_SETUP
-#line 1025 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1025 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1009:
 YY_RULE_SETUP
-#line 1026 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1026 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1010:
 YY_RULE_SETUP
-#line 1027 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1027 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1011:
 YY_RULE_SETUP
-#line 1028 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1028 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1012:
 YY_RULE_SETUP
-#line 1029 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1029 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1013:
 YY_RULE_SETUP
-#line 1030 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1030 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1014:
 YY_RULE_SETUP
-#line 1031 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1031 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1015:
 YY_RULE_SETUP
-#line 1032 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1032 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1016:
 YY_RULE_SETUP
-#line 1033 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1033 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1017:
 YY_RULE_SETUP
-#line 1034 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1034 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1018:
 YY_RULE_SETUP
-#line 1035 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1035 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1019:
 YY_RULE_SETUP
-#line 1036 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1036 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1020:
 YY_RULE_SETUP
-#line 1037 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1037 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1021:
 YY_RULE_SETUP
-#line 1038 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1038 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1022:
 YY_RULE_SETUP
-#line 1039 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1039 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1023:
 YY_RULE_SETUP
-#line 1040 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1040 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1024:
 YY_RULE_SETUP
-#line 1041 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1041 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1025:
 YY_RULE_SETUP
-#line 1042 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1042 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1026:
 YY_RULE_SETUP
-#line 1043 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1043 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1027:
 YY_RULE_SETUP
-#line 1044 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1044 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1028:
 YY_RULE_SETUP
-#line 1045 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1045 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1029:
 YY_RULE_SETUP
-#line 1046 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1046 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1030:
 YY_RULE_SETUP
-#line 1047 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1047 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1031:
 YY_RULE_SETUP
-#line 1048 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1048 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1032:
 YY_RULE_SETUP
-#line 1049 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1049 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1033:
 YY_RULE_SETUP
-#line 1050 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1050 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1034:
 YY_RULE_SETUP
-#line 1051 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1051 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1035:
 YY_RULE_SETUP
-#line 1052 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1052 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1036:
 YY_RULE_SETUP
-#line 1053 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1053 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1037:
 YY_RULE_SETUP
-#line 1054 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1054 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1038:
 YY_RULE_SETUP
-#line 1055 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1055 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1039:
 YY_RULE_SETUP
-#line 1056 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1056 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1040:
 YY_RULE_SETUP
-#line 1057 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1057 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1041:
 YY_RULE_SETUP
-#line 1058 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1058 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1042:
 YY_RULE_SETUP
-#line 1059 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1059 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1043:
 YY_RULE_SETUP
-#line 1060 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1060 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1044:
 YY_RULE_SETUP
-#line 1061 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1061 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1045:
 YY_RULE_SETUP
-#line 1062 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1062 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1046:
 YY_RULE_SETUP
-#line 1063 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1063 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1047:
 YY_RULE_SETUP
-#line 1064 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1064 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1048:
 YY_RULE_SETUP
-#line 1065 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1065 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1049:
 YY_RULE_SETUP
-#line 1066 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1066 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1050:
 YY_RULE_SETUP
-#line 1067 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1067 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1051:
 YY_RULE_SETUP
-#line 1068 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1068 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1052:
 YY_RULE_SETUP
-#line 1069 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1069 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1053:
 YY_RULE_SETUP
-#line 1070 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1070 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1054:
 YY_RULE_SETUP
-#line 1071 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1071 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1055:
 YY_RULE_SETUP
-#line 1072 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1072 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1056:
 YY_RULE_SETUP
-#line 1073 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1073 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1057:
 YY_RULE_SETUP
-#line 1074 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1074 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1058:
 YY_RULE_SETUP
-#line 1075 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1075 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1059:
 YY_RULE_SETUP
-#line 1076 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1076 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1060:
 YY_RULE_SETUP
-#line 1077 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1077 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1061:
 YY_RULE_SETUP
-#line 1078 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1078 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1062:
 YY_RULE_SETUP
-#line 1079 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1079 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1063:
 YY_RULE_SETUP
-#line 1080 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1080 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1064:
 YY_RULE_SETUP
-#line 1081 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1081 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1065:
 YY_RULE_SETUP
-#line 1082 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1082 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1066:
 YY_RULE_SETUP
-#line 1083 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1083 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1067:
 YY_RULE_SETUP
-#line 1084 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1084 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1068:
 YY_RULE_SETUP
-#line 1085 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1085 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1069:
 YY_RULE_SETUP
-#line 1086 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1086 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1070:
 YY_RULE_SETUP
-#line 1087 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1087 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1071:
 YY_RULE_SETUP
-#line 1088 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1088 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1072:
 YY_RULE_SETUP
-#line 1089 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1089 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1073:
 YY_RULE_SETUP
-#line 1090 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1090 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1074:
 YY_RULE_SETUP
-#line 1091 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1091 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1075:
 YY_RULE_SETUP
-#line 1092 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1092 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1076:
 YY_RULE_SETUP
-#line 1093 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1093 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1077:
 YY_RULE_SETUP
-#line 1094 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1094 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1078:
 YY_RULE_SETUP
-#line 1095 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1095 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1079:
 YY_RULE_SETUP
-#line 1096 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1096 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1080:
 YY_RULE_SETUP
-#line 1097 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1097 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1081:
 YY_RULE_SETUP
-#line 1098 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1098 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1082:
 YY_RULE_SETUP
-#line 1099 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1099 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1083:
 YY_RULE_SETUP
-#line 1100 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1100 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1084:
 YY_RULE_SETUP
-#line 1101 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1101 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1085:
 YY_RULE_SETUP
-#line 1102 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1102 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1086:
 YY_RULE_SETUP
-#line 1103 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1103 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1087:
 YY_RULE_SETUP
-#line 1104 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1104 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1088:
 YY_RULE_SETUP
-#line 1105 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1105 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1089:
 YY_RULE_SETUP
-#line 1106 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1106 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1090:
 YY_RULE_SETUP
-#line 1107 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1107 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1091:
 YY_RULE_SETUP
-#line 1108 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1108 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1092:
 YY_RULE_SETUP
-#line 1109 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1109 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1093:
 YY_RULE_SETUP
-#line 1110 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1110 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1094:
 YY_RULE_SETUP
-#line 1111 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1111 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1095:
 YY_RULE_SETUP
-#line 1112 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1112 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1096:
 YY_RULE_SETUP
-#line 1113 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1113 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1097:
 YY_RULE_SETUP
-#line 1114 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1114 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1098:
 YY_RULE_SETUP
-#line 1115 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1115 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1099:
 YY_RULE_SETUP
-#line 1116 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1116 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1100:
 YY_RULE_SETUP
-#line 1117 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1117 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1101:
 YY_RULE_SETUP
-#line 1118 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1118 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1102:
 YY_RULE_SETUP
-#line 1119 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1119 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1103:
 YY_RULE_SETUP
-#line 1120 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1120 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1104:
 YY_RULE_SETUP
-#line 1121 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1121 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1105:
 YY_RULE_SETUP
-#line 1122 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1122 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1106:
 YY_RULE_SETUP
-#line 1123 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1123 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1107:
 YY_RULE_SETUP
-#line 1124 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1124 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1108:
 YY_RULE_SETUP
-#line 1125 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1125 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1109:
 YY_RULE_SETUP
-#line 1126 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1126 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1110:
 YY_RULE_SETUP
-#line 1127 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1127 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1111:
 YY_RULE_SETUP
-#line 1128 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1128 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1112:
 YY_RULE_SETUP
-#line 1129 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1129 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1113:
 YY_RULE_SETUP
-#line 1130 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1130 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1114:
 YY_RULE_SETUP
-#line 1131 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1131 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1115:
 YY_RULE_SETUP
-#line 1132 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1132 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1116:
 YY_RULE_SETUP
-#line 1133 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1133 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1117:
 YY_RULE_SETUP
-#line 1134 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1134 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1118:
 YY_RULE_SETUP
-#line 1135 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1135 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1119:
 YY_RULE_SETUP
-#line 1136 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1136 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1120:
 YY_RULE_SETUP
-#line 1137 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1137 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1121:
 YY_RULE_SETUP
-#line 1138 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1138 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1122:
 YY_RULE_SETUP
-#line 1139 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1139 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1123:
 YY_RULE_SETUP
-#line 1140 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1140 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1124:
 YY_RULE_SETUP
-#line 1141 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1141 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1125:
 YY_RULE_SETUP
-#line 1142 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1142 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1126:
 YY_RULE_SETUP
-#line 1143 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1143 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1127:
 YY_RULE_SETUP
-#line 1144 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1144 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1128:
 YY_RULE_SETUP
-#line 1145 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1145 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1129:
 YY_RULE_SETUP
-#line 1146 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1146 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1130:
 YY_RULE_SETUP
-#line 1147 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1147 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1131:
 YY_RULE_SETUP
-#line 1148 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1148 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1132:
 YY_RULE_SETUP
-#line 1149 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1149 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1133:
 YY_RULE_SETUP
-#line 1150 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1150 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1134:
 YY_RULE_SETUP
-#line 1151 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1151 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1135:
 YY_RULE_SETUP
-#line 1152 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1152 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1136:
 YY_RULE_SETUP
-#line 1153 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1153 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1137:
 YY_RULE_SETUP
-#line 1154 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1154 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1138:
 YY_RULE_SETUP
-#line 1155 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1155 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1139:
 YY_RULE_SETUP
-#line 1156 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1156 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1140:
 YY_RULE_SETUP
-#line 1157 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1157 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1141:
 YY_RULE_SETUP
-#line 1158 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1158 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1142:
 YY_RULE_SETUP
-#line 1159 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1159 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1143:
 YY_RULE_SETUP
-#line 1160 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1160 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1144:
 YY_RULE_SETUP
-#line 1161 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1161 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1145:
 YY_RULE_SETUP
-#line 1162 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1162 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1146:
 YY_RULE_SETUP
-#line 1163 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1163 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1147:
 YY_RULE_SETUP
-#line 1164 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1164 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1148:
 YY_RULE_SETUP
-#line 1165 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1165 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1149:
 YY_RULE_SETUP
-#line 1166 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1166 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1150:
 YY_RULE_SETUP
-#line 1167 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1167 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1151:
 YY_RULE_SETUP
-#line 1168 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1168 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1152:
 YY_RULE_SETUP
-#line 1169 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1169 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1153:
 YY_RULE_SETUP
-#line 1170 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1170 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1154:
 YY_RULE_SETUP
-#line 1171 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1171 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1155:
 YY_RULE_SETUP
-#line 1172 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1172 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1156:
 YY_RULE_SETUP
-#line 1173 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1173 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1157:
 YY_RULE_SETUP
-#line 1174 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1174 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1158:
 YY_RULE_SETUP
-#line 1175 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1175 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1159:
 YY_RULE_SETUP
-#line 1176 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1176 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1160:
 YY_RULE_SETUP
-#line 1177 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1177 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1161:
 YY_RULE_SETUP
-#line 1178 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1178 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1162:
 YY_RULE_SETUP
-#line 1179 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1179 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1163:
 YY_RULE_SETUP
-#line 1180 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1180 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1164:
 YY_RULE_SETUP
-#line 1181 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1181 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1165:
 YY_RULE_SETUP
-#line 1182 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1182 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1166:
 YY_RULE_SETUP
-#line 1183 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1183 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1167:
 YY_RULE_SETUP
-#line 1184 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1184 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1168:
 YY_RULE_SETUP
-#line 1185 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1185 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1169:
 YY_RULE_SETUP
-#line 1186 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1186 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1170:
 YY_RULE_SETUP
-#line 1187 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1187 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1171:
 YY_RULE_SETUP
-#line 1188 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1188 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1172:
 YY_RULE_SETUP
-#line 1189 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1189 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1173:
 YY_RULE_SETUP
-#line 1190 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1190 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1174:
 YY_RULE_SETUP
-#line 1191 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1191 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1175:
 YY_RULE_SETUP
-#line 1192 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1192 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1176:
 YY_RULE_SETUP
-#line 1193 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1193 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1177:
 YY_RULE_SETUP
-#line 1194 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1194 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1178:
 YY_RULE_SETUP
-#line 1195 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1195 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1179:
 YY_RULE_SETUP
-#line 1196 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1196 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1180:
 YY_RULE_SETUP
-#line 1197 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1197 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1181:
 YY_RULE_SETUP
-#line 1198 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1198 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1182:
 YY_RULE_SETUP
-#line 1199 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1199 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1183:
 YY_RULE_SETUP
-#line 1200 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1200 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1184:
 YY_RULE_SETUP
-#line 1201 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1201 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1185:
 YY_RULE_SETUP
-#line 1202 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1202 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1186:
 YY_RULE_SETUP
-#line 1203 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1203 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1187:
 YY_RULE_SETUP
-#line 1204 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1204 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1188:
 YY_RULE_SETUP
-#line 1205 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1205 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1189:
 YY_RULE_SETUP
-#line 1206 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1206 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1190:
 YY_RULE_SETUP
-#line 1207 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1207 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1191:
 YY_RULE_SETUP
-#line 1208 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1208 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1192:
 YY_RULE_SETUP
-#line 1209 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1209 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1193:
 YY_RULE_SETUP
-#line 1210 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1210 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1194:
 YY_RULE_SETUP
-#line 1211 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1211 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1195:
 YY_RULE_SETUP
-#line 1212 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1212 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1196:
 YY_RULE_SETUP
-#line 1213 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1213 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1197:
 YY_RULE_SETUP
-#line 1214 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1214 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1198:
 YY_RULE_SETUP
-#line 1215 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1215 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1199:
 YY_RULE_SETUP
-#line 1216 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1216 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1200:
 YY_RULE_SETUP
-#line 1217 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1217 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1201:
 YY_RULE_SETUP
-#line 1218 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1218 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1202:
 YY_RULE_SETUP
-#line 1219 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1219 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1203:
 YY_RULE_SETUP
-#line 1220 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1220 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1204:
 YY_RULE_SETUP
-#line 1221 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1221 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1205:
 YY_RULE_SETUP
-#line 1222 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1222 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1206:
 YY_RULE_SETUP
-#line 1223 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1223 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1207:
 YY_RULE_SETUP
-#line 1224 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1224 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1208:
 YY_RULE_SETUP
-#line 1225 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1225 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1209:
 YY_RULE_SETUP
-#line 1226 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1226 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1210:
 YY_RULE_SETUP
-#line 1227 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1227 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1211:
 YY_RULE_SETUP
-#line 1228 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1228 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1212:
 YY_RULE_SETUP
-#line 1229 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1229 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1213:
 YY_RULE_SETUP
-#line 1230 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1230 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1214:
 YY_RULE_SETUP
-#line 1231 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1231 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1215:
 YY_RULE_SETUP
-#line 1232 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1232 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1216:
 YY_RULE_SETUP
-#line 1233 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1233 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1217:
 YY_RULE_SETUP
-#line 1234 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1234 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1218:
 YY_RULE_SETUP
-#line 1235 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1235 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1219:
 YY_RULE_SETUP
-#line 1236 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1236 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1220:
 YY_RULE_SETUP
-#line 1237 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1237 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1221:
 YY_RULE_SETUP
-#line 1238 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1238 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1222:
 YY_RULE_SETUP
-#line 1239 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1239 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1223:
 YY_RULE_SETUP
-#line 1240 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1240 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1224:
 YY_RULE_SETUP
-#line 1241 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1241 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1225:
 YY_RULE_SETUP
-#line 1242 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1242 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1226:
 YY_RULE_SETUP
-#line 1243 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1243 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1227:
 YY_RULE_SETUP
-#line 1244 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1244 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1228:
 YY_RULE_SETUP
-#line 1245 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1245 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1229:
 YY_RULE_SETUP
-#line 1246 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1246 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1230:
 YY_RULE_SETUP
-#line 1247 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1247 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1231:
 YY_RULE_SETUP
-#line 1248 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1248 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1232:
 YY_RULE_SETUP
-#line 1249 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1249 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1233:
 YY_RULE_SETUP
-#line 1250 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1250 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1234:
 YY_RULE_SETUP
-#line 1251 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1251 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1235:
 YY_RULE_SETUP
-#line 1252 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1252 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1236:
 YY_RULE_SETUP
-#line 1253 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1253 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1237:
 YY_RULE_SETUP
-#line 1254 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1254 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1238:
 YY_RULE_SETUP
-#line 1255 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1255 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1239:
 YY_RULE_SETUP
-#line 1256 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1256 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1240:
 YY_RULE_SETUP
-#line 1257 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1257 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1241:
 YY_RULE_SETUP
-#line 1258 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1258 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1242:
 YY_RULE_SETUP
-#line 1259 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1259 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1243:
 YY_RULE_SETUP
-#line 1260 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1260 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1244:
 YY_RULE_SETUP
-#line 1261 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1261 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1245:
 YY_RULE_SETUP
-#line 1262 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1262 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1246:
 YY_RULE_SETUP
-#line 1263 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1263 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1247:
 YY_RULE_SETUP
-#line 1264 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1264 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1248:
 YY_RULE_SETUP
-#line 1265 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1265 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1249:
 YY_RULE_SETUP
-#line 1266 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1266 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1250:
 YY_RULE_SETUP
-#line 1267 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1267 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1251:
 YY_RULE_SETUP
-#line 1268 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1268 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1252:
 YY_RULE_SETUP
-#line 1269 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1269 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1253:
 YY_RULE_SETUP
-#line 1270 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1270 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1254:
 YY_RULE_SETUP
-#line 1271 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1271 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1255:
 YY_RULE_SETUP
-#line 1272 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1272 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1256:
 YY_RULE_SETUP
-#line 1273 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1273 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1257:
 YY_RULE_SETUP
-#line 1274 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1274 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1258:
 YY_RULE_SETUP
-#line 1275 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1275 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1259:
 YY_RULE_SETUP
-#line 1276 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1276 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1260:
 YY_RULE_SETUP
-#line 1277 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1277 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1261:
 YY_RULE_SETUP
-#line 1278 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1278 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1262:
 YY_RULE_SETUP
-#line 1279 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1279 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1263:
 YY_RULE_SETUP
-#line 1280 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1280 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1264:
 YY_RULE_SETUP
-#line 1281 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1281 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1265:
 YY_RULE_SETUP
-#line 1282 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1282 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1266:
 YY_RULE_SETUP
-#line 1283 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1283 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1267:
 YY_RULE_SETUP
-#line 1284 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1284 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1268:
 YY_RULE_SETUP
-#line 1285 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1285 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1269:
 YY_RULE_SETUP
-#line 1286 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1286 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1270:
 YY_RULE_SETUP
-#line 1287 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1287 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1271:
 YY_RULE_SETUP
-#line 1288 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1288 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1272:
 YY_RULE_SETUP
-#line 1289 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1289 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1273:
 YY_RULE_SETUP
-#line 1290 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1290 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1274:
 YY_RULE_SETUP
-#line 1291 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1291 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1275:
 YY_RULE_SETUP
-#line 1292 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1292 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1276:
 YY_RULE_SETUP
-#line 1293 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1293 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1277:
 YY_RULE_SETUP
-#line 1294 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1294 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1278:
 YY_RULE_SETUP
-#line 1295 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1295 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1279:
 YY_RULE_SETUP
-#line 1296 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1296 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1280:
 YY_RULE_SETUP
-#line 1297 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1297 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1281:
 YY_RULE_SETUP
-#line 1298 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1298 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1282:
 YY_RULE_SETUP
-#line 1299 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1299 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1283:
 YY_RULE_SETUP
-#line 1300 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1300 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1284:
 YY_RULE_SETUP
-#line 1301 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1301 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1285:
 YY_RULE_SETUP
-#line 1302 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1302 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1286:
 YY_RULE_SETUP
-#line 1303 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1303 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1287:
 YY_RULE_SETUP
-#line 1304 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1304 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1288:
 YY_RULE_SETUP
-#line 1305 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1305 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1289:
 YY_RULE_SETUP
-#line 1306 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1306 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1290:
 YY_RULE_SETUP
-#line 1307 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1307 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1291:
 YY_RULE_SETUP
-#line 1308 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1308 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1292:
 YY_RULE_SETUP
-#line 1309 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1309 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1293:
 YY_RULE_SETUP
-#line 1310 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1310 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1294:
 YY_RULE_SETUP
-#line 1311 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1311 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1295:
 YY_RULE_SETUP
-#line 1312 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1312 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1296:
 YY_RULE_SETUP
-#line 1313 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1313 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1297:
 YY_RULE_SETUP
-#line 1314 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1314 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1298:
 YY_RULE_SETUP
-#line 1315 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1315 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1299:
 YY_RULE_SETUP
-#line 1316 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1316 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1300:
 YY_RULE_SETUP
-#line 1317 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1317 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1301:
 YY_RULE_SETUP
-#line 1318 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1318 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1302:
 YY_RULE_SETUP
-#line 1319 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1319 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1303:
 YY_RULE_SETUP
-#line 1320 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1320 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1304:
 YY_RULE_SETUP
-#line 1321 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1321 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1305:
 YY_RULE_SETUP
-#line 1322 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1322 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1306:
 YY_RULE_SETUP
-#line 1323 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1323 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1307:
 YY_RULE_SETUP
-#line 1324 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1324 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1308:
 YY_RULE_SETUP
-#line 1325 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1325 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1309:
 YY_RULE_SETUP
-#line 1326 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1326 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1310:
 YY_RULE_SETUP
-#line 1327 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1327 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1311:
 YY_RULE_SETUP
-#line 1328 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1328 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1312:
 YY_RULE_SETUP
-#line 1329 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1329 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1313:
 YY_RULE_SETUP
-#line 1330 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1330 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1314:
 YY_RULE_SETUP
-#line 1331 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1331 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1315:
 YY_RULE_SETUP
-#line 1332 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1332 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1316:
 YY_RULE_SETUP
-#line 1333 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1333 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1317:
 YY_RULE_SETUP
-#line 1334 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1334 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1318:
 YY_RULE_SETUP
-#line 1335 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1335 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1319:
 YY_RULE_SETUP
-#line 1336 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1336 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1320:
 YY_RULE_SETUP
-#line 1337 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1337 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1321:
 YY_RULE_SETUP
-#line 1338 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1338 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1322:
 YY_RULE_SETUP
-#line 1339 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1339 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1323:
 YY_RULE_SETUP
-#line 1340 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1340 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1324:
 YY_RULE_SETUP
-#line 1341 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1341 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1325:
 YY_RULE_SETUP
-#line 1342 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1342 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1326:
 YY_RULE_SETUP
-#line 1343 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1343 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1327:
 YY_RULE_SETUP
-#line 1344 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1344 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1328:
 YY_RULE_SETUP
-#line 1345 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1345 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1329:
 YY_RULE_SETUP
-#line 1346 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1346 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1330:
 YY_RULE_SETUP
-#line 1347 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1347 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1331:
 YY_RULE_SETUP
-#line 1348 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1348 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1332:
 YY_RULE_SETUP
-#line 1349 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1349 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1333:
 YY_RULE_SETUP
-#line 1350 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1350 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1334:
 YY_RULE_SETUP
-#line 1351 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1351 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1335:
 YY_RULE_SETUP
-#line 1352 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1352 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1336:
 YY_RULE_SETUP
-#line 1353 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1353 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1337:
 YY_RULE_SETUP
-#line 1354 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1354 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1338:
 YY_RULE_SETUP
-#line 1355 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1355 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1339:
 YY_RULE_SETUP
-#line 1356 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1356 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1340:
 YY_RULE_SETUP
-#line 1357 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1357 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1341:
 YY_RULE_SETUP
-#line 1358 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1358 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1342:
 YY_RULE_SETUP
-#line 1359 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1359 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1343:
 YY_RULE_SETUP
-#line 1360 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1360 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1344:
 YY_RULE_SETUP
-#line 1361 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1361 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1345:
 YY_RULE_SETUP
-#line 1362 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1362 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1346:
 YY_RULE_SETUP
-#line 1363 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1363 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1347:
 YY_RULE_SETUP
-#line 1364 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1364 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1348:
 YY_RULE_SETUP
-#line 1365 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1365 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1349:
 YY_RULE_SETUP
-#line 1366 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1366 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1350:
 YY_RULE_SETUP
-#line 1367 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1367 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1351:
 YY_RULE_SETUP
-#line 1368 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1368 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1352:
 YY_RULE_SETUP
-#line 1369 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1369 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1353:
 YY_RULE_SETUP
-#line 1370 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1370 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1354:
 YY_RULE_SETUP
-#line 1371 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1371 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1355:
 YY_RULE_SETUP
-#line 1372 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1372 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1356:
 YY_RULE_SETUP
-#line 1373 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1373 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1357:
 YY_RULE_SETUP
-#line 1374 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1374 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1358:
 YY_RULE_SETUP
-#line 1375 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1375 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1359:
 YY_RULE_SETUP
-#line 1376 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1376 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1360:
 YY_RULE_SETUP
-#line 1377 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1377 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1361:
 YY_RULE_SETUP
-#line 1378 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1378 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1362:
 YY_RULE_SETUP
-#line 1379 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1379 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1363:
 YY_RULE_SETUP
-#line 1380 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1380 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1364:
 YY_RULE_SETUP
-#line 1381 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1381 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1365:
 YY_RULE_SETUP
-#line 1382 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1382 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1366:
 YY_RULE_SETUP
-#line 1383 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1383 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1367:
 YY_RULE_SETUP
-#line 1384 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1384 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1368:
 YY_RULE_SETUP
-#line 1385 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1385 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1369:
 YY_RULE_SETUP
-#line 1386 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1386 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1370:
 YY_RULE_SETUP
-#line 1387 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1387 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1371:
 YY_RULE_SETUP
-#line 1388 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1388 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1372:
 YY_RULE_SETUP
-#line 1389 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1389 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1373:
 YY_RULE_SETUP
-#line 1390 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1390 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1374:
 YY_RULE_SETUP
-#line 1391 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1391 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1375:
 YY_RULE_SETUP
-#line 1392 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1392 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1376:
 YY_RULE_SETUP
-#line 1393 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1393 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1377:
 YY_RULE_SETUP
-#line 1394 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1394 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1378:
 YY_RULE_SETUP
-#line 1395 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1395 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1379:
 YY_RULE_SETUP
-#line 1396 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1396 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1380:
 YY_RULE_SETUP
-#line 1397 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1397 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1381:
 YY_RULE_SETUP
-#line 1398 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1398 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1382:
 YY_RULE_SETUP
-#line 1399 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1399 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1383:
 YY_RULE_SETUP
-#line 1400 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1400 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1384:
 YY_RULE_SETUP
-#line 1401 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1401 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1385:
 YY_RULE_SETUP
-#line 1402 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1402 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1386:
 YY_RULE_SETUP
-#line 1403 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1403 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1387:
 YY_RULE_SETUP
-#line 1404 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1404 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1388:
 YY_RULE_SETUP
-#line 1405 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1405 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1389:
 YY_RULE_SETUP
-#line 1406 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1406 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1390:
 YY_RULE_SETUP
-#line 1407 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1407 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1391:
 YY_RULE_SETUP
-#line 1408 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1408 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1392:
 YY_RULE_SETUP
-#line 1409 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1409 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1393:
 YY_RULE_SETUP
-#line 1410 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1410 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1394:
 YY_RULE_SETUP
-#line 1411 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1411 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1395:
 YY_RULE_SETUP
-#line 1412 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1412 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1396:
 YY_RULE_SETUP
-#line 1413 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1413 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1397:
 YY_RULE_SETUP
-#line 1414 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1414 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1398:
 YY_RULE_SETUP
-#line 1415 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1415 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1399:
 YY_RULE_SETUP
-#line 1416 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1416 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1400:
 YY_RULE_SETUP
-#line 1417 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1417 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1401:
 YY_RULE_SETUP
-#line 1418 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1418 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1402:
 YY_RULE_SETUP
-#line 1419 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1419 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1403:
 YY_RULE_SETUP
-#line 1420 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1420 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1404:
 YY_RULE_SETUP
-#line 1421 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1421 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1405:
 YY_RULE_SETUP
-#line 1422 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1422 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1406:
 YY_RULE_SETUP
-#line 1423 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1423 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1407:
 YY_RULE_SETUP
-#line 1424 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1424 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1408:
 YY_RULE_SETUP
-#line 1425 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1425 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1409:
 YY_RULE_SETUP
-#line 1426 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1426 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1410:
 YY_RULE_SETUP
-#line 1427 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1427 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1411:
 YY_RULE_SETUP
-#line 1428 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1428 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1412:
 YY_RULE_SETUP
-#line 1429 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1429 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1413:
 YY_RULE_SETUP
-#line 1430 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1430 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1414:
 YY_RULE_SETUP
-#line 1431 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1431 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1415:
 YY_RULE_SETUP
-#line 1432 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1432 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1416:
 YY_RULE_SETUP
-#line 1433 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1433 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1417:
 YY_RULE_SETUP
-#line 1434 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1434 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1418:
 YY_RULE_SETUP
-#line 1435 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1435 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1419:
 YY_RULE_SETUP
-#line 1436 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1436 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1420:
 YY_RULE_SETUP
-#line 1437 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1437 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1421:
 YY_RULE_SETUP
-#line 1438 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1438 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1422:
 YY_RULE_SETUP
-#line 1439 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1439 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1423:
 YY_RULE_SETUP
-#line 1440 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1440 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1424:
 YY_RULE_SETUP
-#line 1441 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1441 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1425:
 YY_RULE_SETUP
-#line 1442 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1442 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1426:
 YY_RULE_SETUP
-#line 1443 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1443 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1427:
 YY_RULE_SETUP
-#line 1444 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1444 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1428:
 YY_RULE_SETUP
-#line 1445 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1445 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1429:
 YY_RULE_SETUP
-#line 1446 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1446 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1430:
 YY_RULE_SETUP
-#line 1447 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1447 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1431:
 YY_RULE_SETUP
-#line 1448 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1448 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1432:
 YY_RULE_SETUP
-#line 1449 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1449 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1433:
 YY_RULE_SETUP
-#line 1450 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1450 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1434:
 YY_RULE_SETUP
-#line 1451 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1451 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1435:
 YY_RULE_SETUP
-#line 1452 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1452 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1436:
 YY_RULE_SETUP
-#line 1453 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1453 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1437:
 YY_RULE_SETUP
-#line 1454 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1454 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1438:
 YY_RULE_SETUP
-#line 1455 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1455 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1439:
 YY_RULE_SETUP
-#line 1456 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1456 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1440:
 YY_RULE_SETUP
-#line 1457 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1457 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1441:
 YY_RULE_SETUP
-#line 1458 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1458 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1442:
 YY_RULE_SETUP
-#line 1459 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1459 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1443:
 YY_RULE_SETUP
-#line 1460 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1460 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1444:
 YY_RULE_SETUP
-#line 1461 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1461 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1445:
 YY_RULE_SETUP
-#line 1462 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1462 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1446:
 YY_RULE_SETUP
-#line 1463 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1463 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1447:
 YY_RULE_SETUP
-#line 1464 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1464 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1448:
 YY_RULE_SETUP
-#line 1465 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1465 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1449:
 YY_RULE_SETUP
-#line 1466 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1466 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1450:
 YY_RULE_SETUP
-#line 1467 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1467 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1451:
 YY_RULE_SETUP
-#line 1468 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1468 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1452:
 YY_RULE_SETUP
-#line 1469 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1469 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1453:
 YY_RULE_SETUP
-#line 1470 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1470 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1454:
 YY_RULE_SETUP
-#line 1471 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1471 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1455:
 YY_RULE_SETUP
-#line 1472 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1472 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1456:
 YY_RULE_SETUP
-#line 1473 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1473 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1457:
 YY_RULE_SETUP
-#line 1474 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1474 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1458:
 YY_RULE_SETUP
-#line 1475 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1475 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1459:
 YY_RULE_SETUP
-#line 1476 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1476 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1460:
 YY_RULE_SETUP
-#line 1477 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1477 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1461:
 YY_RULE_SETUP
-#line 1478 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1478 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1462:
 YY_RULE_SETUP
-#line 1479 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1479 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1463:
 YY_RULE_SETUP
-#line 1480 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1480 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1464:
 YY_RULE_SETUP
-#line 1481 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1481 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1465:
 YY_RULE_SETUP
-#line 1482 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1482 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1466:
 YY_RULE_SETUP
-#line 1483 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1483 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1467:
 YY_RULE_SETUP
-#line 1484 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1484 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1468:
 YY_RULE_SETUP
-#line 1485 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1485 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1469:
 YY_RULE_SETUP
-#line 1486 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1486 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1470:
 YY_RULE_SETUP
-#line 1487 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1487 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1471:
 YY_RULE_SETUP
-#line 1488 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1488 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1472:
 YY_RULE_SETUP
-#line 1489 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1489 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1473:
 YY_RULE_SETUP
-#line 1490 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1490 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1474:
 YY_RULE_SETUP
-#line 1491 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1491 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1475:
 YY_RULE_SETUP
-#line 1492 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1492 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1476:
 YY_RULE_SETUP
-#line 1493 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1493 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1477:
 YY_RULE_SETUP
-#line 1494 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1494 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1478:
 YY_RULE_SETUP
-#line 1495 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1495 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1479:
 YY_RULE_SETUP
-#line 1496 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1496 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1480:
 YY_RULE_SETUP
-#line 1497 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1497 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1481:
 YY_RULE_SETUP
-#line 1498 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1498 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1482:
 YY_RULE_SETUP
-#line 1499 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1499 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1483:
 YY_RULE_SETUP
-#line 1500 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1500 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1484:
 YY_RULE_SETUP
-#line 1501 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1501 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1485:
 YY_RULE_SETUP
-#line 1502 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1502 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1486:
 YY_RULE_SETUP
-#line 1503 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1503 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1487:
 YY_RULE_SETUP
-#line 1504 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1504 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1488:
 YY_RULE_SETUP
-#line 1505 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1505 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1489:
 YY_RULE_SETUP
-#line 1506 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1506 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1490:
 YY_RULE_SETUP
-#line 1507 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1507 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1491:
 YY_RULE_SETUP
-#line 1508 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1508 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1492:
 YY_RULE_SETUP
-#line 1509 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1509 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1493:
 YY_RULE_SETUP
-#line 1510 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1510 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1494:
 YY_RULE_SETUP
-#line 1511 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1511 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1495:
 YY_RULE_SETUP
-#line 1512 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1512 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1496:
 YY_RULE_SETUP
-#line 1513 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1513 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1497:
 YY_RULE_SETUP
-#line 1514 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1514 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1498:
 YY_RULE_SETUP
-#line 1515 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1515 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1499:
 YY_RULE_SETUP
-#line 1516 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1516 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1500:
 YY_RULE_SETUP
-#line 1517 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1517 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1501:
 YY_RULE_SETUP
-#line 1518 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1518 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1502:
 YY_RULE_SETUP
-#line 1519 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1519 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1503:
 YY_RULE_SETUP
-#line 1520 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1520 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1504:
 YY_RULE_SETUP
-#line 1521 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1521 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1505:
 YY_RULE_SETUP
-#line 1522 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1522 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1506:
 YY_RULE_SETUP
-#line 1523 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1523 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1507:
 YY_RULE_SETUP
-#line 1524 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1524 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1508:
 YY_RULE_SETUP
-#line 1525 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1525 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1509:
 YY_RULE_SETUP
-#line 1526 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1526 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1510:
 YY_RULE_SETUP
-#line 1527 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1527 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1511:
 YY_RULE_SETUP
-#line 1528 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1528 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1512:
 YY_RULE_SETUP
-#line 1529 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1529 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1513:
 YY_RULE_SETUP
-#line 1530 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1530 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1514:
 YY_RULE_SETUP
-#line 1531 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1531 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1515:
 YY_RULE_SETUP
-#line 1532 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1532 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1516:
 YY_RULE_SETUP
-#line 1533 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1533 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1517:
 YY_RULE_SETUP
-#line 1534 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1534 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1518:
 YY_RULE_SETUP
-#line 1535 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1535 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1519:
 YY_RULE_SETUP
-#line 1536 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1536 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1520:
 YY_RULE_SETUP
-#line 1537 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1537 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1521:
 YY_RULE_SETUP
-#line 1538 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1538 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1522:
 YY_RULE_SETUP
-#line 1539 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1539 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1523:
 YY_RULE_SETUP
-#line 1540 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1540 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1524:
 YY_RULE_SETUP
-#line 1541 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1541 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1525:
 YY_RULE_SETUP
-#line 1542 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1542 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1526:
 YY_RULE_SETUP
-#line 1543 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1543 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1527:
 YY_RULE_SETUP
-#line 1544 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1544 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1528:
 YY_RULE_SETUP
-#line 1545 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1545 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1529:
 YY_RULE_SETUP
-#line 1546 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1546 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1530:
 YY_RULE_SETUP
-#line 1547 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1547 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1531:
 YY_RULE_SETUP
-#line 1548 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1548 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1532:
 YY_RULE_SETUP
-#line 1549 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1549 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1533:
 YY_RULE_SETUP
-#line 1550 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1550 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1534:
 YY_RULE_SETUP
-#line 1551 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1551 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1535:
 YY_RULE_SETUP
-#line 1552 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1552 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1536:
 YY_RULE_SETUP
-#line 1553 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1553 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1537:
 YY_RULE_SETUP
-#line 1554 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1554 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1538:
 YY_RULE_SETUP
-#line 1555 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1555 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1539:
 YY_RULE_SETUP
-#line 1556 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1556 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1540:
 YY_RULE_SETUP
-#line 1557 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1557 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1541:
 YY_RULE_SETUP
-#line 1558 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1558 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1542:
 YY_RULE_SETUP
-#line 1559 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1559 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1543:
 YY_RULE_SETUP
-#line 1560 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1560 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1544:
 YY_RULE_SETUP
-#line 1561 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1561 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1545:
 YY_RULE_SETUP
-#line 1562 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1562 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1546:
 YY_RULE_SETUP
-#line 1563 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1563 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1547:
 YY_RULE_SETUP
-#line 1564 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1564 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1548:
 YY_RULE_SETUP
-#line 1565 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1565 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1549:
 YY_RULE_SETUP
-#line 1566 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1566 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1550:
 YY_RULE_SETUP
-#line 1567 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1567 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1551:
 YY_RULE_SETUP
-#line 1568 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1568 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1552:
 YY_RULE_SETUP
-#line 1569 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1569 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1553:
 YY_RULE_SETUP
-#line 1570 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1570 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1554:
 YY_RULE_SETUP
-#line 1571 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1571 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1555:
 YY_RULE_SETUP
-#line 1572 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1572 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1556:
 YY_RULE_SETUP
-#line 1573 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1573 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1557:
 YY_RULE_SETUP
-#line 1574 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1574 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1558:
 YY_RULE_SETUP
-#line 1575 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1575 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1559:
 YY_RULE_SETUP
-#line 1576 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1576 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1560:
 YY_RULE_SETUP
-#line 1577 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1577 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1561:
 YY_RULE_SETUP
-#line 1578 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1578 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1562:
 YY_RULE_SETUP
-#line 1579 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1579 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1563:
 YY_RULE_SETUP
-#line 1580 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1580 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1564:
 YY_RULE_SETUP
-#line 1581 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1581 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1565:
 YY_RULE_SETUP
-#line 1582 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1582 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1566:
 YY_RULE_SETUP
-#line 1583 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1583 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1567:
 YY_RULE_SETUP
-#line 1584 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1584 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1568:
 YY_RULE_SETUP
-#line 1585 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1585 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1569:
 YY_RULE_SETUP
-#line 1586 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1586 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1570:
 YY_RULE_SETUP
-#line 1587 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1587 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1571:
 YY_RULE_SETUP
-#line 1588 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1588 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1572:
 YY_RULE_SETUP
-#line 1589 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1589 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1573:
 YY_RULE_SETUP
-#line 1590 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1590 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1574:
 YY_RULE_SETUP
-#line 1591 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1591 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1575:
 YY_RULE_SETUP
-#line 1592 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1592 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1576:
 YY_RULE_SETUP
-#line 1593 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1593 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1577:
 YY_RULE_SETUP
-#line 1594 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1594 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1578:
 YY_RULE_SETUP
-#line 1595 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1595 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1579:
 YY_RULE_SETUP
-#line 1596 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1596 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1580:
 YY_RULE_SETUP
-#line 1597 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1597 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1581:
 YY_RULE_SETUP
-#line 1598 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1598 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1582:
 YY_RULE_SETUP
-#line 1599 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1599 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1583:
 YY_RULE_SETUP
-#line 1600 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1600 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1584:
 YY_RULE_SETUP
-#line 1601 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1601 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1585:
 YY_RULE_SETUP
-#line 1602 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1602 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1586:
 YY_RULE_SETUP
-#line 1603 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1603 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1587:
 YY_RULE_SETUP
-#line 1604 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1604 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1588:
 YY_RULE_SETUP
-#line 1605 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1605 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1589:
 YY_RULE_SETUP
-#line 1606 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1606 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1590:
 YY_RULE_SETUP
-#line 1607 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1607 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1591:
 YY_RULE_SETUP
-#line 1608 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1608 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1592:
 YY_RULE_SETUP
-#line 1609 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1609 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1593:
 YY_RULE_SETUP
-#line 1610 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1610 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1594:
 YY_RULE_SETUP
-#line 1611 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1611 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1595:
 YY_RULE_SETUP
-#line 1612 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1612 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1596:
 YY_RULE_SETUP
-#line 1613 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1613 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1597:
 YY_RULE_SETUP
-#line 1614 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1614 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1598:
 YY_RULE_SETUP
-#line 1615 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1615 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1599:
 YY_RULE_SETUP
-#line 1616 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1616 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1600:
 YY_RULE_SETUP
-#line 1617 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1617 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1601:
 YY_RULE_SETUP
-#line 1618 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1618 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1602:
 YY_RULE_SETUP
-#line 1619 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1619 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1603:
 YY_RULE_SETUP
-#line 1620 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1620 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1604:
 YY_RULE_SETUP
-#line 1621 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1621 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1605:
 YY_RULE_SETUP
-#line 1622 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1622 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1606:
 YY_RULE_SETUP
-#line 1623 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1623 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1607:
 YY_RULE_SETUP
-#line 1624 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1624 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1608:
 YY_RULE_SETUP
-#line 1625 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1625 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1609:
 YY_RULE_SETUP
-#line 1626 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1626 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1610:
 YY_RULE_SETUP
-#line 1627 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1627 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1611:
 YY_RULE_SETUP
-#line 1628 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1628 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1612:
 YY_RULE_SETUP
-#line 1629 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1629 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1613:
 YY_RULE_SETUP
-#line 1630 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1630 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1614:
 YY_RULE_SETUP
-#line 1631 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1631 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1615:
 YY_RULE_SETUP
-#line 1632 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1632 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1616:
 YY_RULE_SETUP
-#line 1633 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1633 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1617:
 YY_RULE_SETUP
-#line 1634 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1634 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1618:
 YY_RULE_SETUP
-#line 1635 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1635 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1619:
 YY_RULE_SETUP
-#line 1636 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1636 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1620:
 YY_RULE_SETUP
-#line 1637 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1637 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1621:
 YY_RULE_SETUP
-#line 1638 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1638 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1622:
 YY_RULE_SETUP
-#line 1639 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1639 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1623:
 YY_RULE_SETUP
-#line 1640 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1640 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1624:
 YY_RULE_SETUP
-#line 1641 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1641 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1625:
 YY_RULE_SETUP
-#line 1642 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1642 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1626:
 YY_RULE_SETUP
-#line 1643 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1643 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1627:
 YY_RULE_SETUP
-#line 1644 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1644 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1628:
 YY_RULE_SETUP
-#line 1645 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1645 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1629:
 YY_RULE_SETUP
-#line 1646 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1646 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1630:
 YY_RULE_SETUP
-#line 1647 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1647 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1631:
 YY_RULE_SETUP
-#line 1648 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1648 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1632:
 YY_RULE_SETUP
-#line 1649 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1649 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1633:
 YY_RULE_SETUP
-#line 1650 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1650 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1634:
 YY_RULE_SETUP
-#line 1651 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1651 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1635:
 YY_RULE_SETUP
-#line 1652 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1652 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1636:
 YY_RULE_SETUP
-#line 1653 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1653 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1637:
 YY_RULE_SETUP
-#line 1654 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1654 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1638:
 YY_RULE_SETUP
-#line 1655 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1655 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1639:
 YY_RULE_SETUP
-#line 1656 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1656 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1640:
 YY_RULE_SETUP
-#line 1657 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1657 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1641:
 YY_RULE_SETUP
-#line 1658 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1658 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1642:
 YY_RULE_SETUP
-#line 1659 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1659 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1643:
 YY_RULE_SETUP
-#line 1660 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1660 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1644:
 YY_RULE_SETUP
-#line 1661 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1661 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1645:
 YY_RULE_SETUP
-#line 1662 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1662 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1646:
 YY_RULE_SETUP
-#line 1663 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1663 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1647:
 YY_RULE_SETUP
-#line 1664 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1664 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1648:
 YY_RULE_SETUP
-#line 1665 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1665 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1649:
 YY_RULE_SETUP
-#line 1666 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1666 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1650:
 YY_RULE_SETUP
-#line 1667 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1667 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1651:
 YY_RULE_SETUP
-#line 1668 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1668 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1652:
 YY_RULE_SETUP
-#line 1669 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1669 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1653:
 YY_RULE_SETUP
-#line 1670 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1670 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1654:
 YY_RULE_SETUP
-#line 1671 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1671 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1655:
 YY_RULE_SETUP
-#line 1672 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1672 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1656:
 YY_RULE_SETUP
-#line 1673 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1673 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1657:
 YY_RULE_SETUP
-#line 1674 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1674 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1658:
 YY_RULE_SETUP
-#line 1675 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1675 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1659:
 YY_RULE_SETUP
-#line 1676 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1676 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1660:
 YY_RULE_SETUP
-#line 1677 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1677 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1661:
 YY_RULE_SETUP
-#line 1678 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1678 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1662:
 YY_RULE_SETUP
-#line 1679 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1679 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1663:
 YY_RULE_SETUP
-#line 1680 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1680 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1664:
 YY_RULE_SETUP
-#line 1681 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1681 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1665:
 YY_RULE_SETUP
-#line 1682 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1682 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1666:
 YY_RULE_SETUP
-#line 1683 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1683 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1667:
 YY_RULE_SETUP
-#line 1684 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1684 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1668:
 YY_RULE_SETUP
-#line 1685 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1685 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1669:
 YY_RULE_SETUP
-#line 1686 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1686 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1670:
 YY_RULE_SETUP
-#line 1687 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1687 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1671:
 YY_RULE_SETUP
-#line 1688 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1688 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1672:
 YY_RULE_SETUP
-#line 1689 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1689 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1673:
 YY_RULE_SETUP
-#line 1690 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1690 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1674:
 YY_RULE_SETUP
-#line 1691 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1691 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1675:
 YY_RULE_SETUP
-#line 1692 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1692 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1676:
 YY_RULE_SETUP
-#line 1693 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1693 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1677:
 YY_RULE_SETUP
-#line 1694 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1694 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1678:
 YY_RULE_SETUP
-#line 1695 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1695 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1679:
 YY_RULE_SETUP
-#line 1696 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1696 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1680:
 YY_RULE_SETUP
-#line 1697 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1697 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1681:
 YY_RULE_SETUP
-#line 1698 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1698 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1682:
 YY_RULE_SETUP
-#line 1699 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1699 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1683:
 YY_RULE_SETUP
-#line 1700 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1700 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1684:
 YY_RULE_SETUP
-#line 1701 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1701 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1685:
 YY_RULE_SETUP
-#line 1702 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1702 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1686:
 YY_RULE_SETUP
-#line 1703 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1703 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1687:
 YY_RULE_SETUP
-#line 1704 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1704 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1688:
 YY_RULE_SETUP
-#line 1705 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1705 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1689:
 YY_RULE_SETUP
-#line 1706 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1706 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1690:
 YY_RULE_SETUP
-#line 1707 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1707 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1691:
 YY_RULE_SETUP
-#line 1708 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1708 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1692:
 YY_RULE_SETUP
-#line 1709 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1709 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1693:
 YY_RULE_SETUP
-#line 1710 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1710 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1694:
 YY_RULE_SETUP
-#line 1711 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1711 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1695:
 YY_RULE_SETUP
-#line 1712 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1712 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1696:
 YY_RULE_SETUP
-#line 1713 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1713 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1697:
 YY_RULE_SETUP
-#line 1714 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1714 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1698:
 YY_RULE_SETUP
-#line 1715 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1715 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1699:
 YY_RULE_SETUP
-#line 1716 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1716 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1700:
 YY_RULE_SETUP
-#line 1717 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1717 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1701:
 YY_RULE_SETUP
-#line 1718 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1718 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1702:
 YY_RULE_SETUP
-#line 1719 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1719 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1703:
 YY_RULE_SETUP
-#line 1720 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1720 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1704:
 YY_RULE_SETUP
-#line 1721 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1721 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1705:
 YY_RULE_SETUP
-#line 1722 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1722 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1706:
 YY_RULE_SETUP
-#line 1723 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1723 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1707:
 YY_RULE_SETUP
-#line 1724 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1724 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1708:
 YY_RULE_SETUP
-#line 1725 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1725 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1709:
 YY_RULE_SETUP
-#line 1726 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1726 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1710:
 YY_RULE_SETUP
-#line 1727 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1727 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1711:
 YY_RULE_SETUP
-#line 1728 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1728 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1712:
 YY_RULE_SETUP
-#line 1729 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1729 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1713:
 YY_RULE_SETUP
-#line 1730 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1730 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1714:
 YY_RULE_SETUP
-#line 1731 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1731 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1715:
 YY_RULE_SETUP
-#line 1732 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1732 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1716:
 YY_RULE_SETUP
-#line 1733 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1733 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1717:
 YY_RULE_SETUP
-#line 1734 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1734 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1718:
 YY_RULE_SETUP
-#line 1735 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1735 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1719:
 YY_RULE_SETUP
-#line 1736 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1736 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1720:
 YY_RULE_SETUP
-#line 1737 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1737 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1721:
 YY_RULE_SETUP
-#line 1738 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1738 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1722:
 YY_RULE_SETUP
-#line 1739 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1739 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1723:
 YY_RULE_SETUP
-#line 1740 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1740 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1724:
 YY_RULE_SETUP
-#line 1741 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1741 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1725:
 YY_RULE_SETUP
-#line 1742 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1742 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1726:
 YY_RULE_SETUP
-#line 1743 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1743 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1727:
 YY_RULE_SETUP
-#line 1744 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1744 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1728:
 YY_RULE_SETUP
-#line 1745 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1745 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1729:
 YY_RULE_SETUP
-#line 1746 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1746 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1730:
 YY_RULE_SETUP
-#line 1747 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1747 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1731:
 YY_RULE_SETUP
-#line 1748 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1748 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1732:
 YY_RULE_SETUP
-#line 1749 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1749 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1733:
 YY_RULE_SETUP
-#line 1750 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1750 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1734:
 YY_RULE_SETUP
-#line 1751 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1751 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1735:
 YY_RULE_SETUP
-#line 1752 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1752 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1736:
 YY_RULE_SETUP
-#line 1753 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1753 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1737:
 YY_RULE_SETUP
-#line 1754 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1754 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1738:
 YY_RULE_SETUP
-#line 1755 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1755 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1739:
 YY_RULE_SETUP
-#line 1756 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1756 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1740:
 YY_RULE_SETUP
-#line 1757 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1757 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1741:
 YY_RULE_SETUP
-#line 1758 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1758 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1742:
 YY_RULE_SETUP
-#line 1759 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1759 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1743:
 YY_RULE_SETUP
-#line 1760 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1760 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1744:
 YY_RULE_SETUP
-#line 1761 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1761 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1745:
 YY_RULE_SETUP
-#line 1762 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1762 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1746:
 YY_RULE_SETUP
-#line 1763 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1763 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1747:
 YY_RULE_SETUP
-#line 1764 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1764 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1748:
 YY_RULE_SETUP
-#line 1765 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1765 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1749:
 YY_RULE_SETUP
-#line 1766 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1766 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1750:
 YY_RULE_SETUP
-#line 1767 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1767 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1751:
 YY_RULE_SETUP
-#line 1768 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1768 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1752:
 YY_RULE_SETUP
-#line 1769 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1769 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1753:
 YY_RULE_SETUP
-#line 1770 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1770 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1754:
 YY_RULE_SETUP
-#line 1771 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1771 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1755:
 YY_RULE_SETUP
-#line 1772 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1772 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1756:
 YY_RULE_SETUP
-#line 1773 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1773 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1757:
 YY_RULE_SETUP
-#line 1774 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1774 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1758:
 YY_RULE_SETUP
-#line 1775 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1775 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1759:
 YY_RULE_SETUP
-#line 1776 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1776 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1760:
 YY_RULE_SETUP
-#line 1777 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1777 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1761:
 YY_RULE_SETUP
-#line 1778 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1778 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1762:
 YY_RULE_SETUP
-#line 1779 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1779 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1763:
 YY_RULE_SETUP
-#line 1780 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1780 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1764:
 YY_RULE_SETUP
-#line 1781 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1781 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1765:
 YY_RULE_SETUP
-#line 1782 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1782 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1766:
 YY_RULE_SETUP
-#line 1783 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1783 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1767:
 YY_RULE_SETUP
-#line 1784 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1784 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1768:
 YY_RULE_SETUP
-#line 1785 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1785 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1769:
 YY_RULE_SETUP
-#line 1786 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1786 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1770:
 YY_RULE_SETUP
-#line 1787 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1787 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1771:
 YY_RULE_SETUP
-#line 1788 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1788 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1772:
 YY_RULE_SETUP
-#line 1789 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1789 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1773:
 YY_RULE_SETUP
-#line 1790 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1790 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1774:
 YY_RULE_SETUP
-#line 1791 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1791 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1775:
 YY_RULE_SETUP
-#line 1792 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1792 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1776:
 YY_RULE_SETUP
-#line 1793 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1793 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1777:
 YY_RULE_SETUP
-#line 1794 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1794 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1778:
 YY_RULE_SETUP
-#line 1795 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1795 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1779:
 YY_RULE_SETUP
-#line 1796 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1796 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1780:
 YY_RULE_SETUP
-#line 1797 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1797 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1781:
 YY_RULE_SETUP
-#line 1798 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1798 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1782:
 YY_RULE_SETUP
-#line 1799 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1799 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1783:
 YY_RULE_SETUP
-#line 1800 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1800 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1784:
 YY_RULE_SETUP
-#line 1801 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1801 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1785:
 YY_RULE_SETUP
-#line 1802 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1802 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1786:
 YY_RULE_SETUP
-#line 1803 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1803 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1787:
 YY_RULE_SETUP
-#line 1804 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1804 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1788:
 YY_RULE_SETUP
-#line 1805 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1805 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1789:
 YY_RULE_SETUP
-#line 1806 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1806 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1790:
 YY_RULE_SETUP
-#line 1807 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1807 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1791:
 YY_RULE_SETUP
-#line 1808 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1808 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1792:
 YY_RULE_SETUP
-#line 1809 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1809 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1793:
 YY_RULE_SETUP
-#line 1810 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1810 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1794:
 YY_RULE_SETUP
-#line 1811 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1811 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1795:
 YY_RULE_SETUP
-#line 1812 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1812 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1796:
 YY_RULE_SETUP
-#line 1813 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1813 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1797:
 YY_RULE_SETUP
-#line 1814 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1814 "DNFServer/GameServer/Game/slang_filter.l"
 { return 1; }
 	YY_BREAK
 case 1798:
 YY_RULE_SETUP
-#line 1815 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1815 "DNFServer/GameServer/Game/slang_filter.l"
 { return 0; }
 	YY_BREAK
 case YY_STATE_EOF(INITIAL):
-#line 1816 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1816 "DNFServer/GameServer/Game/slang_filter.l"
 { return 2; }
 	YY_BREAK
 case 1799:
 YY_RULE_SETUP
-#line 1818 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1818 "DNFServer/GameServer/Game/slang_filter.l"
 ECHO;
 	YY_BREAK
 #line 15299 "/tmp/grok-goal-7c1153ba5fb7/implementer/slang_engine.gen.cpp"
@@ -16239,7 +16239,7 @@ void __slang_filter__free (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 1818 "/home/wangyilei/dnf_workspace/dnf_remake/source/DNFServer/GameServer/Game/slang_filter.l"
+#line 1818 "DNFServer/GameServer/Game/slang_filter.l"
 
 
 

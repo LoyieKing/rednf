@@ -1,7 +1,7 @@
 #!/bin/sh
 # c6444r 变体：c6root 4.4.7 驱动 + Red Hat 4.4.4-13 cc1plus（monitor ORIG .comment 主体编译器）。
 # 等价旧 /tmp/c6-g++-444r；头文件用 /tmp/lsd44/v4.4.4（dnf_helpers 按变体分发）。
-ROOT="${DNF_TC_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)/toolchains}"
+ROOT="${DNF_TC_ROOT:-$(cd "$(dirname "$0")/../../../.." && pwd)/toolchains}"
 export LD_LIBRARY_PATH="${ROOT}/c6root/usr/lib64:${ROOT}/c6root/usr/lib"
 # 2026-09-15 dbmw 泳道路由修订（A/B 实证，唯一变量=后端/头集；TU 四数 + nm 符号集见回报）：
 #   DNFMySql.cpp       4.1.2(C5) tot=5  near=3  diff=35  -> 4.4.4 tot=39 near=0 diff=5  （+33 件）

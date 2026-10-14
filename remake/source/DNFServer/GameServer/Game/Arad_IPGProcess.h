@@ -1,5 +1,5 @@
 // df_game_r 还原 —— Arad_IPGProcess（全局类，非 ARAD:: 命名空间；ORIG nm 实证）。
-// ORIG 符号（nm -S /home/wangyilei/下载/df_game_r）：
+// ORIG 符号（nm -S .origin_1031/build/dnf_data/home/template/neople/game/df_game_r）：
 //   W 0x0817a2ba _ZN15Arad_IPGProcessC1EP18ItemVendingMachine   （ctor：*(this)=vm）
 //   W 0x0817a2c8 _ZN15Arad_IPGProcessD1Ev                        （空体；无 D0 → 非虚析构，无 vtable）
 //   T 0x0819c2b4 CashShopModeAvatar(CUser*, m, i, i, c, c, PKc, Ri, j, i, c)

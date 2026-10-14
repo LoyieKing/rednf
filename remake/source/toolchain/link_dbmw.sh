@@ -13,13 +13,13 @@ set -e
 #   （ORIG 只要 GLIBC_2.4）。改用 c6root 4.4.7 驱动 + --sysroot 显式 crt/运行时
 #   （与 toolchain/cmake/dnf_game_link.sh 同一套）。
 _SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
-C6ROOT="${DNF_TC_ROOT:-$_SELF_DIR/../../toolchains}/c6root"
+C6ROOT="${DNF_TC_ROOT:-$_SELF_DIR/../../../toolchains}/c6root"
 CXX="${C6ROOT_DRIVER:-$C6ROOT/usr/bin/g++}"
 G32="$C6ROOT/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32"
 export GCC_EXEC_PREFIX="$C6ROOT/usr/libexec/gcc/"
 export LD_LIBRARY_PATH="$C6ROOT/usr/lib64:$C6ROOT/usr/lib"
 DRIVER_OPTS="-m32 --sysroot=$C6ROOT -B$G32 -L$C6ROOT/usr/lib -L$C6ROOT/lib -nostdlib"
-C6ROOT="$(cd "$(dirname "$0")/../../toolchains" && pwd)/c6root"
+C6ROOT="$(cd "$(dirname "$0")/../../../toolchains" && pwd)/c6root"
 ARCHIVE="$C6ROOT/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a"
 
 args=""

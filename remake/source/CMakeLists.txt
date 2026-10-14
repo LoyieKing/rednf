@@ -47,7 +47,7 @@ set(DNF_CMAKE_DIR      ${DNF_SOURCE_DIR}/cmake)
 set(DNF_TOOLCHAIN_DIR  ${DNF_SOURCE_DIR}/toolchain/cmake)
 set(DNF_TOOLCHAIN_FILE ${DNF_TOOLCHAIN_DIR}/dnf_toolchain_44.cmake)
 
-set(DNF_TOOLCHAINS ${DNF_ROOT}/toolchains CACHE PATH "GCC 4.x 工具链根（c5root/c6root/cc1plus* 等）")
+set(DNF_TOOLCHAINS ${DNF_ROOT}/../toolchains CACHE PATH "GCC 4.x 工具链根（c5root/c6root/cc1plus* 等）")
 get_filename_component(DNF_TOOLCHAINS ${DNF_TOOLCHAINS} ABSOLUTE)
 if(NOT EXISTS ${DNF_TOOLCHAINS}/c6root)
     message(FATAL_ERROR "未找到工具链根 ${DNF_TOOLCHAINS}（-DDNF_TOOLCHAINS=<path> 指定）")

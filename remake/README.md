@@ -2,9 +2,9 @@
 
 ## 项目定位
 
-本工程是 **DNF（地下城与勇士）服务端逆向分析与源码重建工作区**，与 `dnf_installer`（DNF 服务端一键安装部署仓库，本仓库的 git submodule）配套使用：
+本工程是 **DNF（地下城与勇士）服务端逆向分析与源码重建工作区**，与 `.origin_1031`（DNF 服务端一键安装部署仓库，本仓库的 git submodule）配套使用：
 
-- `dnf_installer/` 提供部署资源与**原始服务器 ELF 运行时文件**，位于 `dnf_installer/build/dnf_data/home/template/neople/<服务名>/df_<服务名>_r`。
+- `.origin_1031/` 提供部署资源与**原始服务器 ELF 运行时文件**，位于 `.origin_1031/build/dnf_data/home/template/neople/<服务名>/df_<服务名>_r`。
 - `dnf_remake/` 对这些 ELF 进行 Ghidra 逆向，并结合 DWARF 调试信息渐进式重建可维护的 C++ 源码。
 - 重建产物统一放在 `source/` 下，通过 CMake 构建，两条路线并存（见下节与
   `docs/df_modern_route.md`）：
@@ -43,7 +43,7 @@ cmake --build build -j$(nproc)
 ```
 dnf_workspace/                      # git 仓库根
 ├── .github/copilot-instructions.md # 协作规则（逆向、构建、对比模式、沟通风格）
-├── dnf_installer/                  # submodule：部署仓库，含原始 ELF 运行时
+├── .origin_1031/                  # submodule：部署仓库，含原始 ELF 运行时
 └── dnf_remake/                  # 本工程：Ghidra 工程 + 重建源码
     ├── dnf_project.rep/            # Ghidra 工程数据（projectState / idata / user / versioned）
     ├── README.md                   # 本文档
@@ -70,7 +70,7 @@ dnf_workspace/                      # git 仓库根
 
 ## 服务端组件架构
 
-原始运行时目录 `neople/` 下共 17 个组件，角色整理自 `dnf_installer/doc/ArchitectureDiagram.md`：
+原始运行时目录 `neople/` 下共 17 个组件，角色整理自 `.origin_1031/doc/ArchitectureDiagram.md`：
 
 | 组件 | 职责 | 主要端口 |
 |---|---|---|

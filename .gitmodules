@@ -1,0 +1,3 @@
+[submodule ".origin_1031"]
+	path = .origin_1031
+	url = https://github.com/llnut/dnf

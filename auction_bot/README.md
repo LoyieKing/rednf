@@ -37,7 +37,7 @@
 ## 使用
 
 ```bash
-cd /home/loyieking/dnf_workspace/auction_bot
+cd auction_bot
 ./start.sh        # 后台启动；网页 http://localhost:8088/ （Windows 浏览器可直接打开）
 ./status.sh       # 状态
 ./stop.sh         # 停止（已上架的系统挂单保留，2 小时后由拍卖服自动下架）

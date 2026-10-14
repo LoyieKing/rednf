@@ -1,0 +1,10 @@
+-- rednf 对上游 init_sql 的补充表（库名 taiwan_cain 会被替换为 taiwan_${SERVER_GROUP_DB}）
+-- 来源：线上 remake 环境 mysqldump --no-data 与上游 init_sql 的差集，以及服务端 SQL 字符串检索。
+
+-- 选角/魔盒高级功能：df_game_r 登录时查询，缺表会报 SQL 错误
+CREATE TABLE IF NOT EXISTS taiwan_cain.cube_premium (
+  charac_no int(10) unsigned NOT NULL DEFAULT '0',
+  selected  tinyint(3) unsigned NOT NULL DEFAULT '0',
+  cube_type tinyint(3) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (charac_no)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8;

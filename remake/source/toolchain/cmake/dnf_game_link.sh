@@ -11,7 +11,7 @@
 #   dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LIBRARIES>
 # ============================================================
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"   # .../dnf_remake
-TOOLCHAIN="${DNF_TC_ROOT:-$ROOT/toolchains}"
+TOOLCHAIN="${DNF_TC_ROOT:-$ROOT/../toolchains}"
 C6="$TOOLCHAIN/c6root"
 G32="$C6/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32"
 

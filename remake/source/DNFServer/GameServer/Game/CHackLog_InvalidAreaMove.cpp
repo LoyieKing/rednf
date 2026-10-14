@@ -18,7 +18,7 @@
 #include "CHackLog_InvalidAreaMove.h"
 
 // 全部方法按 ORIG df_game_r（elf32-i386）逐指令反汇编转写。
-// 反汇编命令：objdump -d /home/wangyilei/下载/df_game_r
+// 反汇编命令：objdump -d .origin_1031/build/dnf_data/home/template/neople/game/df_game_r
 // 地址与符号见各方法注释。
 
 #include "CHackLog_InvalidAreaMove/checkSeriaRoom.inc"

@@ -2457,7 +2457,7 @@ void STBreakAwayRewards::operator=(const STBreakAwayRewards& other)
 
 
 // ===================== GameStubs 迁移（ORIG 强符号 T；最小正确语义） =====================
-// 全部签名经 nm -C /home/wangyilei/下载/df_game_r 核实。
+// 全部签名经 nm -C .origin_1031/build/dnf_data/home/template/neople/game/df_game_r 核实。
 
 #include "CUser/DisConnSig.inc"
 

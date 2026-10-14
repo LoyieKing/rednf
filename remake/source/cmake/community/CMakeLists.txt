@@ -24,7 +24,7 @@ if(NOT remake_verify)
     message(STATUS "remake_verify=OFF：community 使用宿主最新 LTS GCC（跳过 4.x 工具链）")
 else()
 if(NOT DEFINED DF_TC_ROOT)
-    get_filename_component(_DNF_TC_DEFAULT "${CMAKE_CURRENT_LIST_DIR}/../../../toolchains" REALPATH)
+    get_filename_component(_DNF_TC_DEFAULT "${CMAKE_CURRENT_LIST_DIR}/../../../../toolchains" REALPATH)
     set(DF_TC_ROOT "${_DNF_TC_DEFAULT}" CACHE PATH "GCC 4.x 工具链根")
     unset(_DNF_TC_DEFAULT)
 endif()
@@ -43,7 +43,7 @@ if(NOT IS_DIRECTORY "${_DNF_TC_NEED}")
     message(FATAL_ERROR
         "GCC 4.x 工具链根不存在: ${_DNF_TC_NEED}\n"
         "  请用 -DDF_TC_ROOT=<含 c6root/c5root 的目录> 指定（仓库内为 "
-        "${CMAKE_CURRENT_LIST_DIR}/../../../toolchains），"
+        "${CMAKE_CURRENT_LIST_DIR}/../../../../toolchains），"
         "或见 docs/toolchain_bootstrap.md 重建工具链。")
 endif()
 unset(_DNF_TC_NEED)

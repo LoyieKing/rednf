@@ -3,7 +3,7 @@
 # 即 ORIG .comment 中的 "Red Hat 4.1.2-52"）。
 # 由 dnf_dbmw_c5_gxx.sh 同源派生：剥离 4.4/c6 include，换 c5 gcc 内建头 + c5root C++ 头，
 # -std=gnu++0x → gnu++98（4.1.2 无 C++0x 模式）。
-ROOT="${DNF_TC_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)/toolchains}"
+ROOT="${DNF_TC_ROOT:-$(cd "$(dirname "$0")/../../../.." && pwd)/toolchains}"
 export LD_LIBRARY_PATH="${ROOT}/c5r52tool/usr/lib64:${ROOT}/c5r52tool/usr/lib:${ROOT}/c5root/usr/lib64:${ROOT}/c5root/usr/lib"
 
 C5_GCC="${ROOT}/c5r52tool/usr/lib/gcc/x86_64-redhat-linux/4.1.2/include"

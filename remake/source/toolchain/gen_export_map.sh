@@ -4,7 +4,7 @@
 #         使 EXE 的 .dynsym 导出面 = ORIG（消除 onlyNEW 的 libstdc++ 库实例，
 #         并保证 --whole-archive 引入的 MySQL/yaSSL 符号按 ORIG 导出）。
 #   用法：bash source/toolchain/gen_export_map.sh [ORIG路径] [输出]
-ORIG="${1:-../dnf_installer/build/dnf_data/home/template/init/df_game_r}"
+ORIG="${1:-../.origin_1031/build/dnf_data/home/template/init/df_game_r}"
 OUT="${2:-$(dirname "$0")/game_export.map}"
 {
   echo "{"

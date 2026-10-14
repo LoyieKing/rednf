@@ -1,0 +1,8 @@
+[mysqld]
+# 老服务端依赖非严格模式与旧式 GROUP BY
+sql_mode = NO_ENGINE_SUBSTITUTION
+character-set-server = utf8
+skip-name-resolve
+max_connections = 2000
+max_allowed_packet = 64M
+explicit_defaults_for_timestamp = 0

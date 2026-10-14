@@ -1,0 +1,57 @@
+# rednf：MySQL 5.7 + remake 服务端
+#   cp docker/.env.example docker/.env   # 改 PUBLIC_IP 和密码
+#   docker compose -f docker/compose.yaml --env-file docker/.env up -d --build
+name: rednf
+services:
+  mysql:
+    image: mysql:5.7
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DNF_DB_ROOT_PASSWORD:?}
+      SERVER_GROUP_DB: ${SERVER_GROUP_DB:-cain}
+    command: ["--default-authentication-plugin=mysql_native_password"]
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/conf/dnf.cnf:/etc/mysql/conf.d/dnf.cnf:ro
+      - ./mysql/initdb:/docker-entrypoint-initdb.d:ro
+      - ../.origin_1031:/dnf-origin:ro
+    ports:
+      - "${MYSQL_PUBLISH:-127.0.0.1:3000}:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-p${DNF_DB_ROOT_PASSWORD}"]
+      interval: 10s
+      retries: 60
+  dnf:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        DNF_MIRROR: ${DNF_MIRROR:-https://vault.centos.org}
+    image: rednf:latest
+    restart: unless-stopped
+    depends_on:
+      mysql: { condition: service_healthy }
+    env_file: .env
+    environment:
+      DB_HOST: mysql
+      DB_PORT: 3306
+    # 单容器内 game 与 secsvr 共享 IPC/shm；8G shm 与上游一致
+    shm_size: 8g
+    stop_grace_period: 3m        # 给 df_game_r 留足 TERM 后存档时间
+    volumes:
+      - dnf-data:/data
+    ports:
+      - "7001:7001/tcp"
+      - "7001:7001/udp"
+      - "7200:7200/tcp"
+      - "7200:7200/udp"
+      - "7300:7300/tcp"
+      - "7300:7300/udp"
+      - "2311-2313:2311-2313/udp"
+      - "30011:30011/tcp"
+      - "31011:31011/udp"
+      - "30052:30052/tcp"
+      - "31052:31052/udp"
+volumes:
+  mysql-data:
+  dnf-data:

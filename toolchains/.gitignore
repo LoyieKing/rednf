@@ -1,0 +1,7 @@
+# 工具链全部由 bootstrap.sh 下载/生成，不入库
+*
+!.gitignore
+!bootstrap.sh
+!README.md
+!src/
+!src/*.c
