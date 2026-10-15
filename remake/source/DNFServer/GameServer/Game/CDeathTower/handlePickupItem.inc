@@ -100,7 +100,7 @@ bool CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
             WongWork::CGenUniqueNo::genIPGNo(
                 (WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)5, characNo, ipgNo);
             slot = targetUser->addAvatarItem(
-                item.m_item.m_addInfo, 0, (char)item.m_item.m_fieldb,
+                item.m_item.m_addInfo, 0, (char)item.m_item.m_endurance,
                 ipgNo, (eAvatarItemAddReason)0x10);
         }
         else

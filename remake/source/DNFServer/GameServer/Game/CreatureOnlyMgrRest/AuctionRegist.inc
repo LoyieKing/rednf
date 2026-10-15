@@ -9,7 +9,7 @@ bool CCreatureMgr::AuctionRegist(Inven_Item* item, int param_2, int param_3)
 {
     if (!IsCreatureEquipmentScope(param_2))
         return true;
-    if (item->m_field1 != 5)
+    if (item->m_itemType != 5)
         return true;
 
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, m_user);

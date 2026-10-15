@@ -4,15 +4,15 @@ int CInventory::insertItemIntoCreature(Inven_Item& item, eItemAddReason reason, 
     // reload；error 路径 `mov $-1; jmp` 跳过 reload）。gap 6→0，AE 级闭合（残差
     // 仅为 .o 切片 call/jmp 目标渲染，助记符序列全等）。
     int result = 0;
-    if (item.m_field1 == 7)
+    if (item.m_itemType == 7)
     {
         result = insertItemIntoCreatureStackable(item, reason, bLog);
     }
-    else if (item.m_field1 == 5)
+    else if (item.m_itemType == 5)
     {
         result = insertItemIntoCreatureEquipment(item, reason, bLog);
     }
-    else if (item.m_field1 == 6)
+    else if (item.m_itemType == 6)
     {
         result = insertItemIntoArtifactEquipment(item, reason, bLog);
     }

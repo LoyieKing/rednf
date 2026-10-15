@@ -1,6 +1,6 @@
 void RandomOptionField::reset()
 {
-    m_field0 = 0;
-    m_field1 = 0;
-    m_field2 = 0;
+    m_optionIndex = 0;
+    m_firstValue = 0;
+    m_secondValue = 0;
 }

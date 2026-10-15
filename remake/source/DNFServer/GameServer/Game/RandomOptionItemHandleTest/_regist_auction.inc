@@ -40,7 +40,7 @@ int CRandomOptionItemHandleTest::_regist_auction(Inven_Item& item, long long auc
         "",
         1,
         2,
-        (unsigned char)item.m_field0,
+        (unsigned char)item.m_seal,
         item.m_addInfo,
         item.m_addInfo2,
         // [b28e-S4] /tmp 探针（同旗标 c6root 4.4.7）实证：位域读
@@ -51,8 +51,8 @@ int CRandomOptionItemHandleTest::_regist_auction(Inven_Item& item, long long auc
         //   两者对 unsigned char 语义等价（非负），仅 lowering 不同。
         (int)item.m_attrBits.m_attrLo,
         (int)(item.m_attr / 32),
-        item.m_fieldb,
-        item.m_fieldd,
+        item.m_endurance,
+        item.m_extendInfo,
         (int)ampType,
         (int)ampValue,
         0,

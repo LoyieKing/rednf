@@ -112,9 +112,9 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
     int copyAddInfo = 0;           // ORIG movl $0x0,-0x28
     if (!source->is_stackable())
     {
-        outField0 = invA.m_field0;             // ORIG 0x081d410d movzbl -0xf9
+        outField0 = invA.m_seal;             // ORIG 0x081d410d movzbl -0xf9
         resealCount = invA.GetReSealCount();   // ORIG 0x081d4125 movzbl %al（uchar→int 零扩展）
-        outFieldD = invA.m_fieldd;             // ORIG 0x081d412b mov -0xec(%ebp)（invA+0x0d）
+        outFieldD = invA.m_extendInfo;             // ORIG 0x081d412b mov -0xec(%ebp)（invA+0x0d）
         copyAddInfo = invA.get_add_info();
     }
 
@@ -191,9 +191,9 @@ int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& para
     }
     else
     {
-        resultItem.m_field0 = outField0;                    // +0x00
+        resultItem.m_seal = outField0;                    // +0x00
         resultItem.SetReSealCount((unsigned char)resealCount);
-        resultItem.m_fieldd = outFieldD;                    // +0x0d
+        resultItem.m_extendInfo = outFieldD;                    // +0x0d
         resultItem.set_add_info(copyAddInfo);
     }
 

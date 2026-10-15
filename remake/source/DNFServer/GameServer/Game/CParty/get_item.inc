@@ -669,7 +669,7 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
         return 0;
     }
 
-    G_Store()->GetSellItemPrice(mi.m_item, item, (short)mi.m_item.m_fieldb,
+    G_Store()->GetSellItemPrice(mi.m_item, item, (short)mi.m_item.m_endurance,
                                 false, sellPrice);
 
     if (item->IsRandomOption() && !winner->getCheckPickUpRandomOptionItem())
@@ -705,7 +705,7 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
         WongWork::CGenUniqueNo::genIPGNo((WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)5,
                                          winner->getCurCharacNo(), ipg);
         slot = winner->addAvatarItem(mi.m_item.m_addInfo, 0,
-                                     (char)mi.m_item.m_fieldb, ipg,
+                                     (char)mi.m_item.m_endurance, ipg,
                                      (eAvatarItemAddReason)0xf);
     }
 
@@ -761,7 +761,7 @@ bool CParty::get_item(CUser* user, int itemIdx, bool flag, char c, int& outIdx,
         outUpgrade = 0;
     }
 
-    if (mi.m_count != 0 && mi.m_item.m_field1 == 2)
+    if (mi.m_count != 0 && mi.m_item.m_itemType == 2)
     {
         winner->SendAradEventItemLog((unsigned long)mi.m_item.m_addInfo,
                                      mi.m_item.get_add_info());

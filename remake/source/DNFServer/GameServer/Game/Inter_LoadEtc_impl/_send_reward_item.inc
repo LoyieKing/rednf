@@ -1,7 +1,7 @@
 // ORIG T _ZN27Inter_VillageAttackedReward17_send_reward_itemEP5CUsermii
 // @0x084e0390 sz0x232（docs/class_func_reports/Inter_VillageAttackedReward/
 // _send_reward_item.md 全文已读）。按 itemIdx 现做道具经系统邮件发放：
-// -1 → 错误日志直返；1 → 耐久字段 m_fieldb 置 1；第 4 参 ORIG 未消费。
+// -1 → 错误日志直返；1 → 耐久字段 m_endurance 置 1；第 4 参 ORIG 未消费。
 void Inter_VillageAttackedReward::_send_reward_item(CUser* user,
                                                     itemIndexOnlyServer_t itemIdx,
                                                     int count, int rank)
@@ -25,7 +25,7 @@ void Inter_VillageAttackedReward::_send_reward_item(CUser* user,
     }
     if (item.m_addInfo == 1)
     {
-        item.m_fieldb = 1;
+        item.m_endurance = 1;
     }
     // [b28d-63] ORIG 无 memset 调用（p167 EXTRA ×2）⇒ 聚合零初始化（P214③）。
     char content[256] = {0};

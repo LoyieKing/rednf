@@ -155,11 +155,11 @@ bool CTradeSpace::proceed_trade()
                     unsigned char upgrade = item->GetUpgrade();
                     int avg = avgMgr->GetAveragePrice(item->m_addInfo,
                                                       upgrade);
-                    if (item->m_field1 == 2 || item->m_field1 == 3)
+                    if (item->m_itemType == 2 || item->m_itemType == 3)
                         avg *= item->m_addInfo2;
                     avgPrice[trader] += avg;
                 }
-                if (m_slotsData[trader][slot].m_item.m_field1
+                if (m_slotsData[trader][slot].m_item.m_itemType
                         == Inven_Item::ITEM_TYPE_AVATAR)  // 头像
                 {
                     ret = m_pTraders[1 - trader]->getCurCharacInvenW()
@@ -205,7 +205,7 @@ bool CTradeSpace::proceed_trade()
                                   (eItemAddReason)0x1a, false, true);
                     if (ret >= 0)
                     {
-                        if (m_slotsData[trader][slot].m_item.m_field1
+                        if (m_slotsData[trader][slot].m_item.m_itemType
                                 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
                         {
                             if (m_pTraders[trader]->getCurCharacInvenW()
@@ -236,7 +236,7 @@ bool CTradeSpace::proceed_trade()
                             (INVEN_TYPE)3,
                             m_slotsData[trader][slot].m_item.m_addInfo,
                             m_slotsData[trader][slot].m_item.get_add_info(),
-                            0, m_slotsData[trader][slot].m_item.m_field1,
+                            0, m_slotsData[trader][slot].m_item.m_itemType,
                             (eItemDelReason)0x14);
                     }
                 }

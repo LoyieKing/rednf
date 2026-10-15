@@ -88,7 +88,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
             if (item.m_addInfo > 0x1963 && item.m_addInfo < 7000)
                 return 0x17;
 
-            if (item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+            if (item.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
             {
                 if (!getCurCharacCargoR()->check_slot_empty(toSlot))
                 {
@@ -99,7 +99,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
             }
             else
             {
-                if (item.m_field1 == 4)
+                if (item.m_itemType == 4)
                     return 0x17;
                 if (item.get_add_info() < addInfo)
                     return 0x11;
@@ -134,7 +134,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
 
                 const Inven_Item slotIt =
                     getCurCharacCargoR()->get_cargo_slot(*outSlot);
-                if (slotIt.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+                if (slotIt.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
                     m_historyLog.ItemAddCargo(item.m_addInfo, addInfo, 1);
                 else
                     m_historyLog.ItemAddCargo(item.m_addInfo, addInfo,
@@ -235,7 +235,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
             if (!cargo->CheckInsertCondition(item))
                 return 0x11;
 
-            if (item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+            if (item.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
             {
                 if (!cargo->CheckSlotEmpty(toSlot))
                 {
@@ -273,7 +273,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
             {
                 *outSlot = cargo->InsertItem(item, toSlot);
                 const Inven_Item slotIt = cargo->GetSlot(*outSlot);
-                if (slotIt.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+                if (slotIt.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
                     m_historyLog.AccountCargoAddItem(slotIt.m_addInfo, 1, 1,
                                                      (eItemAddReason)0x2d);
                 else
@@ -299,7 +299,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
 
             item = getCurCharacCargoR()->get_cargo_slot(fromSlot);
             Inven_Item copy = item;
-            if (copy.m_field1 != Inven_Item::ITEM_TYPE_EQUIP)
+            if (copy.m_itemType != Inven_Item::ITEM_TYPE_EQUIP)
                 copy.set_add_info(addInfo);
 
             if (getCurCharacInvenW()->tryInsertItemIntoInventory(copy) == -1)
@@ -362,7 +362,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
             if (!cargo->CheckInsertCondition(item))
                 return 0x11;
 
-            if (item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+            if (item.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
             {
                 if (!cargo->CheckSlotEmpty(toSlot))
                 {
@@ -401,7 +401,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
             {
                 *outSlot = cargo->InsertItem(item, toSlot);
                 const Inven_Item slotIt = cargo->GetSlot(*outSlot);
-                if (slotIt.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+                if (slotIt.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
                     m_historyLog.AccountCargoAddItem(slotIt.m_addInfo, 1, 1,
                                                      (eItemAddReason)0x2e);
                 else
@@ -750,7 +750,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
 
             item = cargo->GetSlot(fromSlot);
             Inven_Item copy = item;
-            if (copy.m_field1 != Inven_Item::ITEM_TYPE_EQUIP)
+            if (copy.m_itemType != Inven_Item::ITEM_TYPE_EQUIP)
                 copy.set_add_info(addInfo);
 
             if (getCurCharacInvenW()->tryInsertItemIntoInventory(copy) == -1)
@@ -771,7 +771,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
                 }
                 // ORIG：删除后重读槽位供历史日志计数（第二临时副本）。
                 const Inven_Item after = cargo->GetSlot(fromSlot);
-                if (after.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+                if (after.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
                     m_historyLog.AccountCargoDelItem(copy.m_addInfo, 0, 1,
                                                      (eItemDelReason)0x26);
                 else
@@ -793,10 +793,10 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
 
             if (item.m_addInfo > 0x1963 && item.m_addInfo < 7000)
                 return 0x17;
-            if (item.m_field1 == 4)
+            if (item.m_itemType == 4)
                 return 0x17;
 
-            if (item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+            if (item.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
             {
                 if (!getCurCharacCargoR()->check_slot_empty(toSlot))
                 {
@@ -844,7 +844,7 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, itemIndexOnlyServer_
                           getCurCharacNo(), item.m_addInfo, addInfo);
                 }
                 const Inven_Item after = cargo->GetSlot(fromSlot);
-                if (after.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+                if (after.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
                     m_historyLog.AccountCargoDelItem(item.m_addInfo, 0, 1,
                                                      (eItemDelReason)0x27);
                 else

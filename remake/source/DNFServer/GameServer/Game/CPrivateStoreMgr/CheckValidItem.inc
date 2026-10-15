@@ -13,7 +13,7 @@ bool CPrivateStore::CheckValidItem(PrivateStoreItem& item, int prevAddInfo2)
         ;    // ORIG je +0x92：放行继续
     else if (attachType == 3)
     {
-        if ((int)item.m_item.m_field0 != 1)
+        if ((int)item.m_item.m_seal != 1)
             return false;
     }
     else if (attachType == 7)
@@ -24,7 +24,7 @@ bool CPrivateStore::CheckValidItem(PrivateStoreItem& item, int prevAddInfo2)
     else
         return false;    // ORIG default 失败岛（85c9dd6）在 7 分支体之后
 
-    if (IsCreatureItemType((unsigned int)(unsigned char)item.m_item.m_field1))
+    if (IsCreatureItemType((unsigned int)(unsigned char)item.m_item.m_itemType))
         return false;
 
     // ORIG 经 CItem vtable+0x14 虚调（= IsCreatureItem），命中即拒。

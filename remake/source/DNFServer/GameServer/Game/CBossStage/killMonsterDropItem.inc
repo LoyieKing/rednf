@@ -129,17 +129,17 @@ bool CBossStage::killMonsterDropItem(const map_monster& mob, int eraseCnt,
                 int period = 0;
                 CEquipItem* pEquip = equip;
                 period = pEquip->getAvatarPeriod(
-                    (unsigned char)item.m_item.m_fieldb);
+                    (unsigned char)item.m_item.m_endurance);
                 packet.put_int(period * 0x15180);
                 emblem.init();
-                pEquip->getAvatarSocket((int)item.m_item.m_fieldb, emblem);
+                pEquip->getAvatarSocket((int)item.m_item.m_endurance, emblem);
             }
         }
         else
         {
             packet.put_int(item.m_item.get_add_info());
         }
-        packet.put_short((int)item.m_item.m_fieldb);     // word @+0x1b
+        packet.put_short((int)item.m_item.m_endurance);     // word @+0x1b
         packet.put_byte((int)item.m_item.m_amp.getAbilityType() & 0xff);
         packet.put_short((int)item.m_item.m_amp.getAbilityValue() & 0xffff);
         packet.put_packet(item.m_item);

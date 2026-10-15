@@ -638,12 +638,12 @@ struct SIG_MAILBOX_SEND_NEW_MAIL
     unsigned int m_senderCharacNo;   // +0x1e（P211 异型化：ORIG 0x0855576x RHS-first）
     unsigned int m_amount;           // +0x22
     unsigned int m_destCharacNo;     // +0x26
-    unsigned char m_itemField0;      // +0x2a
+    unsigned char m_seal;            // ← Inven_Item::m_seal
     unsigned int m_addInfo;          // +0x2b（与 Inven_Item::m_addInfo unsigned 同型直存）
     int m_addInfo2;                  // +0x2f
     unsigned char m_itemAttr;        // +0x33
-    unsigned short m_fieldb;         // +0x34
-    unsigned int m_fieldd;           // +0x36（与 Inven_Item::m_fieldd unsigned 同型直存）
+    unsigned short m_endurance;         // ← Inven_Item::m_endurance
+    unsigned int m_extendInfo;       // ← Inven_Item::m_extendInfo
     stAmplifyGuidView m_guid;        // +0x3a..0x43（amp guid，_makeSendMailData 结构赋值）
     unsigned char m_ampType;         // +0x44
     unsigned short m_ampIdx;         // +0x45

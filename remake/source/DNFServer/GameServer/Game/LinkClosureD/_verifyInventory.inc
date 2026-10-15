@@ -109,7 +109,7 @@ bool _verifyInventory(SIG_LOAD_INVENTORY* sig,
         // GetLock 传参 0x595a-0x11 双证）后 `mov 0xb(%eax); test %eax,%eax`
         // ⇒ 绝对 0x594b = &m_invenType1[i] + 2 = m_addInfo（4 字节整体判）。
         // 旧写 "item+0xb/item+0xd" 系把「相对 0x5940 基址的偏移」误当 item
-        // 偏移（对应绝对 0x5954/0x5956，字段为 m_fieldb/m_fieldd）⇒ 守卫条件
+        // 偏移（对应绝对 0x5954/0x5956，字段为 m_endurance/m_fieldd）⇒ 守卫条件
         // 与原版不同（真语义 bug，已修）。
         if (sig->m_invenType1[i].m_addInfo != 0)
             meterial_item_change(i, sig, &sig->m_invenType1[i]);

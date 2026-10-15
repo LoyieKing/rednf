@@ -52,7 +52,7 @@ bool CMailBoxHelper::_DoGetPackageCreature(CUser* user, CMailBox::CMail const* m
             return false;
         user->getCurCharacInvenW()->GetCreatureMgrW()->RecvMail(
             (Inven_Item*)&pkg, slot, 0x15);
-        if (pkg.m_field1 != 5)
+        if (pkg.m_itemType != 5)
             items.push_back(std::make_pair((ENUM_ITEMSPACE)7, slot));
     }
     // P214②：bReset 成功路径与主流程共享尾块 return true（ORIG je 到尾部 mov $1）。

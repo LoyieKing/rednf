@@ -12,12 +12,12 @@
 // （N86 反向）、quest==0 死块照抄（P184）、m_itemList 成员直访。
 // [b28d-solo-CPartyDepsD2²] **真语义修复 ×3**（ORIG 直证；旧写为字段错位的
 // 常量化误译，线上包内容错误）：
-//  ①put_short：ORIG 0x085bdaa7 `movzwl -0x7e(%ebp)` = item+0x0b m_fieldb
+//  ①put_short：ORIG 0x085bdaa7 `movzwl -0x7e(%ebp)` = item+0x0b m_endurance
 //    （endurance，Inven_Item.h:281）⇒ 旧写 `put_short(0)` 恒发 0；
 //  ②分支条件：ORIG 0x085bdb07 `movzbl -0x88(%ebp); cmp $0x1,%al` = item+0x01
 //    m_field1（ITEM_TYPE）== 1 ⇒ 旧写 `(item.m_addInfo >> 16) == 1` 读 +0x04 半字；
 //  ③UseLuckPoint 第 2 实参：ORIG 0x085bdb4e `movzbl -0x88; movzbl %al,%eax`
-//    = `(int)item.m_field1` ⇒ 旧写 `(int)(m_addInfo >> 16)`（同错位）。
+//    = `(int)item.m_itemType` ⇒ 旧写 `(int)(m_addInfo >> 16)`（同错位）。
 // 读数：295→296（gap 0→-1），仍 DIFF——残差仅 1 条 `mov %eax,%edx`（4.1 把
 // get_rarity 结果挪到 %edx 再读 m_field1，4.4 直接落 %edx，N7 族）与 1 个尾部
 // `jmp+nop` 岛（4 个早退岛 vs 我方 5 个）。
@@ -85,23 +85,23 @@ void CParty::MakeQuestRewardPacket(PacketGuard* packet, CUser* user)
             packet->put_int(item.m_addInfo);
             packet->put_int(item.get_add_info());
             // [b28d-solo-CPartyDepsD2²] ORIG 0x085bdaa7 `movzwl -0x7e(%ebp)`
-            // = item+0x0b m_fieldb（endurance，Inven_Item.h:281）⇒ 旧写
+            // = item+0x0b m_endurance（endurance，Inven_Item.h:281）⇒ 旧写
             // `put_short(0)` 是常量化误译（真语义 bug，线上包内容恒 0）。
-            packet->put_short(item.m_fieldb);
+            packet->put_short(item.m_endurance);
             packet->put_byte((int)item.m_amp.getAbilityType());
             packet->put_short((int)item.m_amp.getAbilityValue());
             ++count;
             // [b28d-solo-CPartyDepsD2²] ORIG 0x085bdb07 `movzbl -0x88(%ebp);
             // cmp $0x1,%al` = item+0x01 m_field1（ITEM_TYPE）== 1；旧写
             // `(item.m_addInfo >> 16)` 读的是 +0x04 半字（字段错位）。
-            if (item.m_field1 == 1)
+            if (item.m_itemType == 1)
             {
                 CItem* card = G_CDataManager()->find_item(item.m_addInfo);
                 if (card != 0)
                     // ORIG 0x085bdb4e `movzbl -0x88(%ebp),%eax; movzbl %al,%eax`
                     // ⇒ 第 2 实参同为 item+0x01 m_field1（(int) 扩展），旧写
                     // `(m_addInfo >> 16)` 读 +0x04 半字（真语义 bug）。
-                    CLuckPoint::UseLuckPoint(user, (int)item.m_field1,
+                    CLuckPoint::UseLuckPoint(user, (int)item.m_itemType,
                                              card->get_rarity(),
                                              card->get_grade());
             }

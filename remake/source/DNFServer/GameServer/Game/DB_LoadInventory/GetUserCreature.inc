@@ -3,7 +3,7 @@
 // creature_items 12 列；行数入 +0x1287c（>=0x8e 拒绝）。slot==0xee 映射到
 // 0x8c 槽；槽位占用标记 used[0x8d]；重复槽 → Inven_Item 进 overflow vector，
 // 遍历后填首个空槽并调 DB_SwapCreatureItem::makeRequest(ui_id, slot)。
-// 主槽位（m_invenType3，步长 0x3d）：m_field1=5、m_fieldb=endurance、
+// 主槽位（m_invenType3，步长 0x3d）：m_field1=5、m_endurance=endurance、
 // m_addInfo(+0x02) 单条 movl 4B ← it_id（Ghidra 的 8B ulong 表达为伪影，
 // GetUserCreature.md 实证 +0x02/+0x07 两条独立 movl）、m_addInfo2=ui_id、
 // m_amp lock。详情条目
@@ -291,8 +291,8 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
                 // +0x02/+0x07 为两条独立 movl（4B），Ghidra 的 *(ulong*) 8B
                 // 表达为伪影 —— 原 (unsigned long long*) 写为宽度错误，修正。
                 Inven_Item& item = sig->m_invenType3[rowBuf.slot];
-                item.m_field1 = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;  // +0x01 movb 5
-                item.m_fieldb = rowBuf.endurance;                       // +0x0b movw
+                item.m_itemType = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;  // +0x01 movb 5
+                item.m_endurance = rowBuf.endurance;                       // +0x0b movw
                 item.m_addInfo = static_cast<int>(rowBuf.itId);         // +0x02 movl
                 item.m_addInfo2 = rowBuf.uiId;                          // +0x07 movl
                 item.m_amp.SetLock(lockKey);                            // +0x11 r/w
@@ -310,8 +310,8 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
                 // 该 memset 为 MISSING）。
                 Inven_Item item;
                 memset(&item, 0, 0x3d);
-                item.m_field1 = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;
-                item.m_fieldb = rowBuf.endurance;
+                item.m_itemType = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;
+                item.m_endurance = rowBuf.endurance;
                 item.m_addInfo = static_cast<int>(rowBuf.itId);   // +0x02 movl 4B（ORIG 栈副本同构）
                 item.m_addInfo2 = rowBuf.uiId;
                 item.m_amp.SetLock(lockKey);
@@ -373,8 +373,8 @@ bool DB_LoadInventory::GetUserCreature(SIG_LOAD_INVENTORY* sig)
             break;
         }
         Inven_Item& dst = sig->m_invenType3[cur];
-        dst.m_field1 = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;
-        dst.m_fieldb = (*it).m_fieldb;                     // +0x0b movw
+        dst.m_itemType = Inven_Item::ITEM_TYPE_CREATURE_EQUIP;
+        dst.m_endurance = (*it).m_endurance;                     // +0x0b movw
         dst.m_addInfo = (*it).m_addInfo;                   // +0x02 movl（4B，ORIG）
         dst.m_addInfo2 = (*it).m_addInfo2;                 // +0x07 movl
         dst.m_amp.SetLock((*it).m_amp.GetLock());          // +0x11

@@ -116,7 +116,7 @@ int CUser::lottery_item(int slot)
                          costTicket->GetItemType() == 0xd;
         if (condStack) {
             bool upgradeGate =
-                (lotto.m_field1 == '\x01') &&
+                (lotto.m_itemType == '\x01') &&
                 (resItem->GetItemType() != 0xb);
             if (upgradeGate) {
                 int up = 0;                                      // local_34
@@ -224,7 +224,7 @@ int CUser::lottery_item(int slot)
     } else if (resItem != NULL && resItem->IsCreatureItem() &&
                resItem->GetItemType() == 0x16) {
         // ---- 生物蛋分支 ----
-        if (lotto.m_field1 != '\x05') {
+        if (lotto.m_itemType != '\x05') {
             return 0x11;
         }
         if (user_creature::CCreatureItemConverter::SetEggItem(&lotto) != 1) {
@@ -307,7 +307,7 @@ int CUser::lottery_item(int slot)
     resp.put_short(resultSlotNo);
     resp.put_int(static_cast<int>(resultId));
     resp.put_int(remainOrAdd);
-    resp.put_short(static_cast<unsigned short>(lotto.m_fieldb));
+    resp.put_short(static_cast<unsigned short>(lotto.m_endurance));
     resp.put_byte(lotto.GetItemAttr());
     resp.put_byte(lotto.m_amp.getAbilityType());
     resp.put_short(lotto.m_amp.getAbilityValue());

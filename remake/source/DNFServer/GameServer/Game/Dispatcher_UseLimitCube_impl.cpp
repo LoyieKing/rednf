@@ -51,7 +51,7 @@
 //   更新元组逐组 SendUpdateItem(eSendTarget_1, ENUM_ITEMSPACE_0, slot)
 //   resultDef = find_item(pair.first)      // 结果对象索引（corrected by Main）
 //   resultDef->make_item(out)；返回 0 → error=0x11
-//   out 非 stackable → 复制 invA 并 set_add_info；stackable → out.m_fieldd=resultCount
+//   out 非 stackable → 复制 invA 并 set_add_info；stackable → out.m_extendInfo=resultCount
 //   newSlot = insertItemIntoInventory(out, (eItemAddReason)9, true, true)
 //     < 0 → error=0x11；否则 error=0
 //   wrong-result 日志 guard（cube 0x1f06 → [0x671d,0x6749] 之外；0x1f11 → [0x6749,0x6775] 之外）

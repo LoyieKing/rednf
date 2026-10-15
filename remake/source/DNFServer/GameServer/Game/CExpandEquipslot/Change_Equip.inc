@@ -51,7 +51,7 @@ int CExpandEquipslot::Change_Equip(CUser* pUser, int type, int slot,
                 }
             }
             Inven_Item slotItem1 = invenW->GetInvenSlot(1, slot);
-            if (slotItem1.m_field0 != 0)
+            if (slotItem1.m_seal != 0)
             {
                 int secuRet = GlobalData::s_pSecuProtectionField->Check(pUser, (SECURITY_PROTCTION)0x16);
                 if (secuRet != 0)
@@ -67,7 +67,7 @@ int CExpandEquipslot::Change_Equip(CUser* pUser, int type, int slot,
                 // 语句表达式包住整个条件即复现（探针 t25/p2_ee.o 逐条同形，
                 // sret 缓冲仍落浅槽 -0x59）。
                 if (({ pUser->CheckItemLock(1, slot) &&
-                       invenW->GetInvenSlot(1, slot).m_field0 != 0; }))
+                       invenW->GetInvenSlot(1, slot).m_seal != 0; }))
                 {
                     return 0xd5;
                 }

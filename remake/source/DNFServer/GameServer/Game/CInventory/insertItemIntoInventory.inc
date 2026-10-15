@@ -1,6 +1,6 @@
 // ORIG T 0x08502d86 (size 0x60b)。
 // b28d-PoolMisc2 [P251/P286 **修成**：ndiff 18→7、426→427/428]：`dbLogType != -1`
-// 块内 `if (m_field1==1) … else if (m_field1==2) …` 改 **switch (item.m_field1) {
+// 块内 `if (m_field1==1) … else if (m_field1==2) …` 改 **switch (item.m_itemType) {
 // case 1/break; case 2/break; }** ⇒ 逐条复现 ORIG 0x08502e4c..0x08502e5d 的
 // `movzbl 0xd(%ebp); movzbl %al,%eax; cmp $0x1,%eax; je; cmp $0x2,%eax; je; jmp`
 // 正向决策链（原 if/else-if 形 4.4 恒产 `cmp $N,%al; jne` 反向链 + 两 case 体
@@ -44,7 +44,7 @@ int CInventory::insertItemIntoInventory(Inven_Item item, eItemAddReason reason, 
             // `movzbl;movzbl %al,%eax; cmp $1,%eax; je; cmp $2,%eax; je; jmp`
             // **正向 switch 决策链**；`if/else if` 形 4.4 恒产 `cmp $N,%al; jne`
             // 反向链 ⇒ 改 switch 复现。
-            switch (item.m_field1)
+            switch (item.m_itemType)
             {
             case 1:
                 m_pParent->AddDBLogItem(item.m_addInfo, 1u,
@@ -61,18 +61,18 @@ int CInventory::insertItemIntoInventory(Inven_Item item, eItemAddReason reason, 
     {
         return insertItemIntoCreature(item, reason, bLog, b);
     }
-    if (item.m_field1 == 8)
+    if (item.m_itemType == 8)
     {
         char ipgNo[24];
         WongWork::CGenUniqueNo::genIPGNo(
             WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE_6,
             ((CUserCharacInfo*)m_pParent)->getCurCharacNo(), ipgNo);
-        int slot = m_pParent->addAvatarItem(item.m_addInfo, (char)0, (char)item.m_fieldb,
+        int slot = m_pParent->addAvatarItem(item.m_addInfo, (char)0, (char)item.m_endurance,
                                             ipgNo, (eAvatarItemAddReason)0x14);
         m_pParent->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)1, slot);
         return slot;
     }
-    if (item.m_field1 != 1)
+    if (item.m_itemType != 1)
     {
         int result = stackInvenItemIntoQuickSlot(item, reason, bLog);
         if (result >= 0)
@@ -93,7 +93,7 @@ int CInventory::insertItemIntoInventory(Inven_Item item, eItemAddReason reason, 
             return -1;
         }
     }
-    if (item.m_field1 == 2)
+    if (item.m_itemType == 2)
     {
         int result = insertInvenItemIntoQuickSlot(item, reason, bLog);
         if (result >= 0)

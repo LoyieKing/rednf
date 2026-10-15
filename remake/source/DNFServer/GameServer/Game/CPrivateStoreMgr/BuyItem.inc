@@ -27,7 +27,7 @@ int CPrivateStore::BuyItem(int /*slot*/, Inven_Item& item, int gold,
         (int)item.m_addInfo, (int)item.m_addInfo2, upgrade, resealCount, gold);
 
     int slot;
-    if ((unsigned char)item.m_field1 == 8)   // ITEM_TYPE_AVATAR
+    if ((unsigned char)item.m_itemType == 8)   // ITEM_TYPE_AVATAR
     {
         slot = m_pBuyer->getCurCharacInvenW()->tryInsertAvatarIntoInventory(item);
         if (slot >= 0)

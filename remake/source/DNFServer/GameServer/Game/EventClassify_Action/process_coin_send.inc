@@ -21,7 +21,7 @@ int CEventActionMng::process_coin_send(CUser* user, Action_SendMail& mail,
     }
     else
     {
-        item.m_fieldb = 1;                       // +0x0b word = 1
+        item.m_endurance = 1;                       // +0x0b word = 1
         char title[256] = {0};
         char sender[30] = {0};
         std::strncpy(sender, g_scriptStringManager_.findString(

@@ -23,7 +23,7 @@ void CCeraShop::_processCreatureGift(CUser* user, Inven_Item item, unsigned int 
                                        static_cast<long>(item.m_addInfo),
                                        static_cast<unsigned int>(item.m_addInfo2));
 
-    if (static_cast<unsigned int>(item.m_field1) == 5u)
+    if (static_cast<unsigned int>(item.m_itemType) == 5u)
     {
         CMailBoxHelper::ReqDBSendNewCreatureMail(user, a4, item, msgBuf,
                                                  static_cast<int>(strlen(msgBuf)));

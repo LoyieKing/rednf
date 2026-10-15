@@ -55,7 +55,7 @@ bool CParty::SetCardNumber(CUser* user, char a, eClearRewardCardType_t type)
         //   enableSaveInven 副作用的触发条件与次数不变。语义等价，仅消 xor。
         if ((GlobalData::s_event_manager->GetRepeatEvent(0x40)->IsEventing(0) ||
              IsReturnUserParty() || IsEventCharacParty()) &&
-            reward.m_field1 == 1 &&
+            reward.m_itemType == 1 &&
             reinterpret_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()
                 ->check_empty_count(Inven_Item::ITEM_TYPE_EQUIP, 2) != 1)
         {

@@ -37,7 +37,7 @@ void CDeathTower::CStage::makeStagePacket(PacketGuard& packet)
         packet.put_short(item.m_itemIndex);                       // +0x04 低 2 字节
         packet.put_int(item.m_item.m_addInfo);                     // m_item+0x02
         packet.put_int(item.m_item.get_add_info());                // m_item+0x07
-        packet.put_short((int)item.m_item.m_fieldb);               // m_item+0x0b（endurance）
+        packet.put_short((int)item.m_item.m_endurance);               // m_item+0x0b（endurance）
         packet.put_byte((int)item.m_item.m_amp.getAbilityType());  // m_item+0x11
         packet.put_short((int)item.m_item.m_amp.getAbilityValue());
     }

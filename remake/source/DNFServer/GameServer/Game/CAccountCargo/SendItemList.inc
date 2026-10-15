@@ -16,12 +16,12 @@ bool CAccountCargo::SendItemList()   // b28d-5：随 CUser.h:848 bool 化（ORIG
             ((InterfacePacketBuf*)&packet)->put_int(m_slots[i].m_addInfo2);
             ((InterfacePacketBuf*)&packet)->put_byte(
                 (unsigned char)GetIntegratedPvPItemAttr(m_slots[i]));
-            ((InterfacePacketBuf*)&packet)->put_short(m_slots[i].m_fieldb);
-            ((InterfacePacketBuf*)&packet)->put_byte(m_slots[i].m_field0);
+            ((InterfacePacketBuf*)&packet)->put_short(m_slots[i].m_endurance);
+            ((InterfacePacketBuf*)&packet)->put_byte(m_slots[i].m_seal);
             if (G_GameWorld()->IsEnchantRevisionChannel())
                 ((InterfacePacketBuf*)&packet)->put_int(0);
             else
-                ((InterfacePacketBuf*)&packet)->put_int(m_slots[i].m_fieldd);
+                ((InterfacePacketBuf*)&packet)->put_int(m_slots[i].m_extendInfo);
             ((InterfacePacketBuf*)&packet)->put_byte(m_slots[i].m_amp.getAbilityType() & 0xff);
             ((InterfacePacketBuf*)&packet)->put_short(m_slots[i].m_amp.getAbilityValue() & 0xffff);
             ((InterfacePacketBuf*)&packet)->put_byte(0);

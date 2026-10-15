@@ -81,7 +81,7 @@ int CExpandEquipslot::Move_Item(CUser* pUser, int type, int slot, int space,
                                   item->PeriodAfterUnsealing() * 0x15180;
                     if (nExpire != 0)
                     {
-                        localItem.m_fieldb =
+                        localItem.m_endurance =
                             (unsigned short)((nExpire - 0x44a54a80) /
                                              0x15180);
                     }
@@ -89,7 +89,7 @@ int CExpandEquipslot::Move_Item(CUser* pUser, int type, int slot, int space,
             }
             inven->m_pEquipSlot[slot].setCopy(
                 m_equipSlot[expandSlot]);
-            localItem.m_field0 = 0;
+            localItem.m_seal = 0;
             m_equipSlot[expandSlot].setCopy(localItem);
             return 0;
         }

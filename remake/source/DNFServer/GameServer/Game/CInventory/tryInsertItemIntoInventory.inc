@@ -8,7 +8,7 @@ int CInventory::tryInsertItemIntoInventory(Inven_Item item) const
         }
         return 0;
     }
-    if (item.m_field1 == 8)
+    if (item.m_itemType == 8)
     {
         int result = tryInsertAvatarIntoInventory(item);
         if (result >= 0)
@@ -17,7 +17,7 @@ int CInventory::tryInsertItemIntoInventory(Inven_Item item) const
         }
         return -1;
     }
-    if (item.m_field1 != 1)
+    if (item.m_itemType != 1)
     {
         int result = tryStackInvenItemIntoQuickSlot(item);
         if (result >= 0)
@@ -38,7 +38,7 @@ int CInventory::tryInsertItemIntoInventory(Inven_Item item) const
             return -1;
         }
     }
-    if (item.m_field1 == 2)
+    if (item.m_itemType == 2)
     {
         int result = tryInsertInvenItemIntoQuickSlot(item);
         if (result >= 0)

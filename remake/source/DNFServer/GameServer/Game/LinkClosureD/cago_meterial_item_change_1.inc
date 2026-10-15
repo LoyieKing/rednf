@@ -13,9 +13,9 @@ void cago_meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig, Inven_Item* it
     if (item == 0) goto L_item;
     if (ARAD::Singleton<ARAD::Arad_DataManager>::Get()->getExceptionItem()
             ->find_index(item->m_addInfo)
-        && item->m_field1 == 3)
+        && item->m_itemType == 3)
     {
-        item->m_field1 = 0xa;
+        item->m_itemType = 0xa;
     }
 L_item:;
 L_sig:;

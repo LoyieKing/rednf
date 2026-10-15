@@ -12,7 +12,7 @@ bool CInventory::removeDupliacteEquipItem()
         // ORIG 0x85034d9 +0x2b: field1!=1 → jne +0x120（4.1 continue 岛 jmp+nop）；
         // b28c-L2：原码为「提前 continue」形（两个 continue 同层），4.4 才发射
         // ORIG 的 `jmp <addl>; nop` 岛（探针 l2_probe5 H 形命中）。
-        if (m_pEquipSlot[i].m_field1 != 1)
+        if (m_pEquipSlot[i].m_itemType != 1)
         {
             continue;
         }

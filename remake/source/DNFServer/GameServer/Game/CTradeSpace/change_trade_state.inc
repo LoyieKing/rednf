@@ -160,9 +160,9 @@ bool CTradeSpace::change_trade_state(CUser* user, int state)   // SIGFIX: boolï¼
                     if (!m_slotsData[me][slot].m_item.isEquipableItemType()) {
                         if (m_pTraders[opp]->getCurCharacInvenR()->check_item_exist(
                                 m_slotsData[me][slot].m_item.m_addInfo) < 0)
-                            needCnt[m_slotsData[me][slot].m_item.m_field1]++;
+                            needCnt[m_slotsData[me][slot].m_item.m_itemType]++;
                     } else {
-                        needCnt[m_slotsData[me][slot].m_item.m_field1]++;
+                        needCnt[m_slotsData[me][slot].m_item.m_itemType]++;
                     }
                 }
             }

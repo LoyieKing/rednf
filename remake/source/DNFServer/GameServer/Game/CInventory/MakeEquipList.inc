@@ -217,7 +217,7 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
             {
                 buf->put_byte((unsigned char)(slots[i].GetItemAttr() & 0xff));
             }
-            buf->put_short((int)slots[i].m_fieldb);
+            buf->put_short((int)slots[i].m_endurance);
         }
         buf->put_int(GetClearAvatar(slotNo));
         // [H8InvenPvPWorld 2026-09-11 · P59/P222] ORIG 0x84fe884 正向
@@ -229,7 +229,7 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
         }
         else
         {
-            buf->put_int(slots[i].m_fieldd);
+            buf->put_int(slots[i].m_extendInfo);
         }
         if (flag)
         {
@@ -270,7 +270,7 @@ int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                     }
                 }
             }
-            if (slots[i].m_field1 == 5)
+            if (slots[i].m_itemType == 5)
             {
                 int creatureTick = OS_API::GetDateTimeTick();
                 int remainDate =

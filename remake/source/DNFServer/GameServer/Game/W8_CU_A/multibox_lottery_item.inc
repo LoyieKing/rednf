@@ -98,7 +98,7 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
                 out.put_short(-1);
                 out.put_int(item.m_addInfo);
                 out.put_int(amount);
-                out.put_short(static_cast<unsigned short>(item.m_fieldb));
+                out.put_short(static_cast<unsigned short>(item.m_endurance));
                 out.put_byte(item.GetItemAttr());
                 out.put_packet(item);
             }
@@ -128,7 +128,7 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
         } else if (resItem->IsCreatureItem() &&
                    resItem->GetItemType() == 0x16) {
             // ---- 生物蛋 ----
-            if (item.m_field1 != '\x05') {
+            if (item.m_itemType != '\x05') {
                 newSlot = -1;
             } else if (
                 user_creature::CCreatureItemConverter::SetEggItem(&item) == 1) {
@@ -233,14 +233,14 @@ int CUser::multibox_lottery_item(int boxSlot, int keySlot)
             out.put_short(-1);
             out.put_int(item.m_addInfo);
             out.put_int(item.get_add_info());
-            out.put_short(static_cast<unsigned short>(item.m_fieldb));
+            out.put_short(static_cast<unsigned short>(item.m_endurance));
             out.put_byte(item.GetItemAttr());
             out.put_packet(item);
         } else {
             out.put_short(newSlot);
             out.put_int(item.m_addInfo);
             out.put_int(remainOut);
-            out.put_short(static_cast<unsigned short>(item.m_fieldb));
+            out.put_short(static_cast<unsigned short>(item.m_endurance));
             out.put_byte(item.GetItemAttr());
             out.put_packet(item);
         }

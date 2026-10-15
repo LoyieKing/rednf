@@ -1,7 +1,7 @@
 bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map_item& item)
 {
     // [b28d-solo-CDeathTower2 本轮读数] orig 489 / our 494（gap −3，前值 510）：
-    // ①【真 bug 修正】字段填充段首行原写 `item.m_item.m_field0 = 0`（+0x10），
+    // ①【真 bug 修正】字段填充段首行原写 `item.m_item.m_seal = 0`（+0x10），
     //   ORIG 0x0846676x `movb $0x0,(%eax)` 实为 map_item+0x00 = m_count
     //   ⇒ m_count 此前从未清零（掉落堆叠计数未初始化）；已改 `item.m_count=false`。
     // ②【P0/P48 槽往返 ×9】case 0/2/3/7 的 getCurCharacInvenR/CargoR/W 结果与
@@ -13,7 +13,7 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
     //   另 m_amp 结构赋值写序（ORIG +0x15/+0x19/+0x1d 后写 +0x11）+ isEquipableItemType
     //   调用点 ORIG `xor $1`（负极性 if，P222）均为形态残差。
     // [B24D-CDeathTower 语句序还原] 字段填充段按 ORIG 0x084667d8..0x0846688a 重排：
-    //   m_fieldb(+0x1d) 提到 m_amp 之前；m_amp 拆为 guid 视图(+0x25/+0x29/+0x2d，
+    //   m_endurance(+0x1d) 提到 m_amp 之前；m_amp 拆为 guid 视图(+0x25/+0x29/+0x2d，
     //   单条结构赋值) 后接 4B 头视图(+0x21，独立重载)；m_fieldd(+0x1b)/m_field0(+0x10)
     //   移到 SetItemAttr 之后（ORIG 0x08466878/0x08466883）。见该段行内注释。
     // P167：41/41 CLEAR（Inven_Item C1/C2 同址别名 P93 伪差）。
@@ -32,12 +32,12 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
         if (slot == 0)
         {
             // money item（ORIG +0x4d：m_count=0 / m_field1=2 / m_addInfo=0 /
-            // set_add_info(count) / m_fieldb=0 / ResetItemAttr）
+            // set_add_info(count) / m_endurance=0 / ResetItemAttr）
             item.m_count = 0;
-            item.m_item.m_field1 = 2;
+            item.m_item.m_itemType = 2;
             item.m_item.m_addInfo = 0;
             item.m_item.set_add_info(count);
-            item.m_item.m_fieldb = 0;
+            item.m_item.m_endurance = 0;
             item.m_item.ResetItemAttr();
         }
         else
@@ -61,7 +61,7 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
     case 7: // creature（ORIG GetInvenSlot space=3）
     {
         invenItem = user->getCurCharacInvenR()->GetInvenSlot(3, slot);
-        if (invenItem.m_field1 == 5)          // ITEM_TYPE_CREATURE_EQUIP → 拒绝
+        if (invenItem.m_itemType == 5)          // ITEM_TYPE_CREATURE_EQUIP → 拒绝
         {
             return false;
         }
@@ -98,7 +98,7 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
         case 5:
             return false;
         case 3:
-            if (invenItem.m_field0 != 1)
+            if (invenItem.m_seal != 1)
             {
                 return false;
             }
@@ -120,23 +120,23 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
         // 字段填充（ORIG +0x44c）
         // [b28d-solo-CDeathTower2 真 bug 修正] ORIG 0x0846676x `mov 0x1c(%ebp),%eax;
         // movb $0x0,(%eax)` 写 map_item+0x00 = m_count（非 m_item+0x00）；
-        // 旧实现误写 item.m_item.m_field0（+0x10）致 m_count 未清零，且 +0x10
-        // 随后被 invenItem.m_field0 覆盖 ⇒ 净多 1 条指令。
+        // 旧实现误写 item.m_item.m_seal（+0x10）致 m_count 未清零，且 +0x10
+        // 随后被 invenItem.m_seal 覆盖 ⇒ 净多 1 条指令。
         item.m_count = false;
-        item.m_item.m_field1 = invenItem.m_field1;
+        item.m_item.m_itemType = invenItem.m_itemType;
         item.m_item.m_addInfo = invenItem.m_addInfo;
         // [H10 CDeathTowerTU] 写序轴（P331）：ORIG 0x084667f1 `mov -0x48(%ebp),%edx;
         // mov 0x1c(%ebp),%eax; mov %edx,0x1d(%eax)` 为 4B 写 map_item+0x1d
-        // = m_item.m_fieldd（+0x0d，unsigned 4B），非旧注释所标 m_fieldb；
-        // m_fieldb(+0x0b, 2B, ORIG 0x08466878 movzwl -0x4a→%dx,+0x1b) 在 SetItemAttr 之后。
-        item.m_item.m_fieldd = invenItem.m_fieldd;
+        // = m_item.m_extendInfo（+0x0d，unsigned 4B），非旧注释所标 m_endurance；
+        // m_endurance(+0x0b, 2B, ORIG 0x08466878 movzwl -0x4a→%dx,+0x1b) 在 SetItemAttr 之后。
+        item.m_item.m_extendInfo = invenItem.m_extendInfo;
         // [B24D-CDeathTower 语句序还原] ORIG 0x084667d8..0x0846688a 实测写序：
         //   +0x00(m_count) → +0x11(m_field1) → +0x12(m_addInfo) → +0x1d(m_fieldd,4B)
         //   → guid 组 +0x25/+0x29/+0x2d（单条结构赋值，共享一次基址装载）
         //   → +0x21(m_amp0Head，独立重载，0x08466811 `mov 0x1c(%ebp),%eax;
         //     mov -0x44(%ebp),%edx; mov %edx,0x21(%eax)`）
         //   → isEquipable 检查/set_add_info/SetItemAttr
-        //   → +0x1b(m_fieldb,2B, 0x08466878) → +0x10(m_field0, 0x08466883)。
+        //   → +0x1b(m_endurance,2B, 0x08466878) → +0x10(m_field0, 0x08466883)。
         // 原实现把 m_amp 当整体 14B 复制（4 写共享一次基址装载 ⇒ 少一次 0x1c
         // 重载）、并把 fieldd/field0 提前到 SetItemAttr 之前 ⇒ 两个 hunk 错位。
         // 按 P247 拆 guid 视图 + 4B 头部视图（与 ORIG 逐条对齐）。
@@ -156,8 +156,8 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
             item.m_item.set_add_info(invenItem.m_addInfo2);
         }
         item.m_item.SetItemAttr(invenItem.GetItemAttr());
-        item.m_item.m_fieldb = invenItem.m_fieldb;
-        item.m_item.m_field0 = invenItem.m_field0;
+        item.m_item.m_endurance = invenItem.m_endurance;
+        item.m_item.m_seal = invenItem.m_seal;
         G_Store()->GetSellItemPrice(invenItem, citem, (short)count, false, sellPrice);
     }
 

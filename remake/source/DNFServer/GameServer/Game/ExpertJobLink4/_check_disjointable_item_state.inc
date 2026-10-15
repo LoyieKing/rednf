@@ -8,7 +8,7 @@ void _check_disjointable_item_state(CUser* user, int slot, int invenType,
     // 快照：GetInvenSlot(invenType, slot) 全量拷贝（0x3d 字节 sret）
     item = user->getCurCharacInvenR()->GetInvenSlot(invenType, slot);
 
-    if (item.m_field1 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+    if (item.m_itemType == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
         throw static_cast<ENUM_ERROR>(0x11);   // 宠物装备不可拆
 
     if (!item.isEquipableItemType() || item.m_addInfo == 0)

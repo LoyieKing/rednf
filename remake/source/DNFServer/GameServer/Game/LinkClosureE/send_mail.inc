@@ -79,6 +79,6 @@ bool Arad_GiftItem_Set::send_mail(CUser* user, int p2, int p3, int p4, int giftI
     }
 
     item->make_item(inven);
-    info.m_item.m_fieldA = inven.m_fieldb;
+    info.m_item.m_fieldA = inven.m_endurance;
     return ARAD::send_mail(info);
 }

@@ -16,15 +16,15 @@ void cUserHistoryLog::PrivateStoreItemDel(INVEN_TYPE invenType, Inven_Item const
         (int)invenType, item.m_addInfo, delNew, delOld, (int)reason,
         name2,
         item.GetUpgrade(),
-        (unsigned)item.m_fieldb,
-        item.m_random.m_random.m_fields[0].m_field0, item.m_random.m_random.m_fields[0].m_field1,
-        item.m_random.m_random.m_fields[0].m_field2, item.m_random.m_random.m_fields[1].m_field0,
-        item.m_random.m_random.m_fields[1].m_field1, item.m_random.m_random.m_fields[1].m_field2,
-        item.m_random.m_random.m_fields[2].m_field0, item.m_random.m_random.m_fields[2].m_field1,
-        item.m_random.m_random.m_fields[2].m_field2, item.m_random.m_random.m_seed9.m_field,
-        item.m_random.m_random.m_fielda.m_field0, item.m_random.m_random.m_fielda.m_field1,
-        item.m_random.m_random.m_fielda.m_field2, item.m_random.m_random.m_seedd.m_field,
-        item.m_field0,            // ORIG IVar1 = *param_3（item+0x00 字节）
+        (unsigned)item.m_endurance,
+        item.m_random.m_random.m_fields[0].m_optionIndex, item.m_random.m_random.m_fields[0].m_firstValue,
+        item.m_random.m_random.m_fields[0].m_secondValue, item.m_random.m_random.m_fields[1].m_optionIndex,
+        item.m_random.m_random.m_fields[1].m_firstValue, item.m_random.m_random.m_fields[1].m_secondValue,
+        item.m_random.m_random.m_fields[2].m_optionIndex, item.m_random.m_random.m_fields[2].m_firstValue,
+        item.m_random.m_random.m_fields[2].m_secondValue, item.m_random.m_random.m_gradeSeed.m_value,
+        item.m_random.m_random.m_changedOption.m_optionIndex, item.m_random.m_random.m_changedOption.m_firstValue,
+        item.m_random.m_random.m_changedOption.m_secondValue, item.m_random.m_random.m_changedSlot.m_value,
+        item.m_seal,            // ORIG IVar1 = *param_3（item+0x00 字节）
         item.GetReSealCount(),
         CItemGloballyUniqueIdentifierPrint()(
             *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));

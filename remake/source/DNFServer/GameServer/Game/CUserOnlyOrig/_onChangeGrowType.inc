@@ -92,12 +92,12 @@ void CUser::_onChangeGrowType(unsigned char newFirst, unsigned char secondGrew,
             //   +0x02 m_addInfo  = 0x43d（0x08664333 `movl $0x43d,-0x90(%ebp)`）
             //   +0x01 m_field1   = 2    （0x0866433d `movb $0x2,-0x91(%ebp)`）
             //   +0x07 m_addInfo2 = 0x14 （0x08664344 `movl $0x14,-0x8b(%ebp)`）
-            //   +0x0b m_fieldb   = 0    （0x0866434e `movw $0x0,-0x87(%ebp)`）
+            //   +0x0b m_endurance   = 0    （0x0866434e `movw $0x0,-0x87(%ebp)`）
             // 旧形 `((char*)&gift)[0] = 2` 写错到 +0x00（m_field0），随后 `gift.m_addInfo = 0;`
             // **覆盖**刚写入的 0x43d ⇒ 邮件礼物 itemId 归零（真 bug，行为可见）。
-            gift.m_field1 = 2;
+            gift.m_itemType = 2;
             gift.m_addInfo2 = 0x14;
-            gift.m_fieldb = 0;
+            gift.m_endurance = 0;
             gift.ResetItemAttr();                           // ORIG 0x08664360
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 g_scriptStringManager_.findString(4, "game_server_msg_08", 0),

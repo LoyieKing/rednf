@@ -107,8 +107,8 @@ int CEventActionMng::process_action_send_mail(CUser* user, Action_SendMail& mail
     mail.m_vec38.push_back(slot);
     mail.m_vec38.push_back(item.m_addInfo);
     mail.m_vec38.push_back(item.m_addInfo2);
-    if (item.m_field1 == 2 || item.m_field1 == 3)
-        mail.m_vec38.push_back((int)item.m_fieldb);
+    if (item.m_itemType == 2 || item.m_itemType == 3)
+        mail.m_vec38.push_back((int)item.m_endurance);
     else
         mail.m_vec38.push_back(0);
 

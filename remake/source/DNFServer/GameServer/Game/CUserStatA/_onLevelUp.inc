@@ -125,9 +125,9 @@ void CUser::_onLevelUp()
                         0xff);                                 // +0x57f/+0x599
                 Inven_Item item;                               // +0x5a7 Inven_Item::Inven_Item（&local_f2）
                 item.m_addInfo = 0xf;                          // +0x5b6 movl $0xf（item+2）
-                item.m_field1 = 2;                             // +0x5bd movb $0x2（item+1，ITEM_TYPE）
+                item.m_itemType = 2;                             // +0x5bd movb $0x2（item+1，ITEM_TYPE）
                 item.m_addInfo2 = 5;                           // +0x5c7 movl $0x5（item+7 堆叠数）
-                item.m_fieldb = 0;                             // +0x5d0 movw $0x0（item+0xb 耐久）
+                item.m_endurance = 0;                             // +0x5d0 movw $0x0（item+0xb 耐久）
                 item.ResetItemAttr();                          // +0x5d9
 
                 WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
@@ -142,9 +142,9 @@ void CUser::_onLevelUp()
                         0xff);                                 // +0x6b1/+0x6cb
                 Inven_Item item;                               // +0x6d9（&local_12f）
                 item.m_addInfo = 0x24;                         // +0x6de movl $0x24
-                item.m_field1 = 2;                             // +0x6e8 movb $0x2
+                item.m_itemType = 2;                             // +0x6e8 movb $0x2
                 item.m_addInfo2 = 5;                           // +0x6ef movl $0x5
-                item.m_fieldb = 0;                             // +0x6f9 movw $0x0
+                item.m_endurance = 0;                             // +0x6f9 movw $0x0
                 item.ResetItemAttr();                          // +0x70b
 
                 WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(

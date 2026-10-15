@@ -25,7 +25,7 @@ bool CCreatureMgr::ChangeOwner(Inven_Item* item, int slotFrom, int mapSizeHint,
     (void)framePad;
     if (!IsCreatureEquipmentScope(slotFrom))
         return true;
-    if (item->m_field1 != 5)  // ITEM_TYPE_CREATURE_EQUIP
+    if (item->m_itemType != 5)  // ITEM_TYPE_CREATURE_EQUIP
         return true;
 
     // b28d-solo-CreatureOnlyMgrRest [P212/P309]：ORIG reason 占最深槽 -0x3c
@@ -57,6 +57,6 @@ bool CCreatureMgr::ChangeOwner(Inven_Item* item, int slotFrom, int mapSizeHint,
     reason = (eItemAddReason)mapSizeHint;
     m_user->getCurCharacInvenR()->WriteCreatureLog(
         (INVEN_TYPE)3, item->m_addInfo, item->m_addInfo2, 1,
-        (int)item->m_field1, reason);
+        (int)item->m_itemType, reason);
     return true;
 }

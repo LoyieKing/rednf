@@ -93,9 +93,9 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
         {
             Inven_Item item;                       // 改名卡 36 号 ×5
             item.m_addInfo = 0x24;
-            item.m_field1 = 2;
+            item.m_itemType = 2;
             item.m_addInfo2 = 5;
-            item.m_fieldb = 0;
+            item.m_endurance = 0;
             item.ResetItemAttr();
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 g_scriptStringManager_.findString(
@@ -109,9 +109,9 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
         {
             Inven_Item item;                       // 16 号 ×1
             item.m_addInfo = 0x10;
-            item.m_field1 = 2;
+            item.m_itemType = 2;
             item.m_addInfo2 = 1;
-            item.m_fieldb = 0;
+            item.m_endurance = 0;
             item.ResetItemAttr();
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 g_scriptStringManager_.findString(
@@ -124,9 +124,9 @@ int Inter_ReqChangeCharacName::dispatch_sig(CUser* user, char* data, int /*len*/
         {
             Inven_Item item;                       // 1 号 ×10（无条件）
             item.m_addInfo = 1;
-            item.m_field1 = 2;
+            item.m_itemType = 2;
             item.m_addInfo2 = 0xa;
-            item.m_fieldb = 0;
+            item.m_endurance = 0;
             item.ResetItemAttr();
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 g_scriptStringManager_.findString(

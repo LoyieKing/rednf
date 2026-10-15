@@ -63,7 +63,7 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
     {
         if (attachType == 3)
         {
-            if ((int)storeItem.m_item.m_field0 != 1)
+            if ((int)storeItem.m_item.m_seal != 1)
             {
                 m_errorHandler.Do(0x11);
                 return false;
@@ -87,7 +87,7 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
         }
     }
     // 生物类道具禁止私商交易。
-    if (IsCreatureItemType((unsigned int)(unsigned char)storeItem.m_item.m_field1))
+    if (IsCreatureItemType((unsigned int)(unsigned char)storeItem.m_item.m_itemType))
     {
         m_errorHandler.Do(0x11);
         return false;
@@ -130,7 +130,7 @@ bool CPrivateStore::BuyPrivateStoreItem(int slot, int count)
     copyItem.m_addInfo2 = count;                // ORIG local_8e = copyItem+0x07（非独立槽）
     int buyResult = -1;                          // ORIG local_2c
     int outSlot = 0;                             // ORIG local_4c
-    if ((int)copyItem.m_field1 == 8)             // avatar：数量实参替换为 avatar uid
+    if ((int)copyItem.m_itemType == 8)             // avatar：数量实参替换为 avatar uid
         copyItem.m_addInfo2 = (int)storeItem.m_item.m_addInfo2;
 
     if (IsTradeLimitAttachTypeItem(copyItem))

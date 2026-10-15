@@ -37,7 +37,7 @@ int CCompound_ExtreamDun_Item::checkCompoundable(                   // ORIG T 0x
         {
             return 0x13;
         }
-        if ((unsigned char)items[i].m_field0 != 1)
+        if ((unsigned char)items[i].m_seal != 1)
         {
             return 0x12;
         }

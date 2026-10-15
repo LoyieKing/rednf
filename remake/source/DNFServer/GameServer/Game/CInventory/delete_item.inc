@@ -60,7 +60,7 @@ bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
         {
             return 0;
         }
-        if (m_pEquipSlot[slot].m_field1 == 1)
+        if (m_pEquipSlot[slot].m_itemType == 1)
         {
             if (bLog)
             {
@@ -171,7 +171,7 @@ bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                 {
                         m_pParent->m_historyLog.CreatureItemDel(
                             invenType, m_pCreatureSlot[slot].m_addInfo, m_pCreatureSlot[slot].m_addInfo2, 1,
-                            m_pCreatureSlot[slot].m_field1, reason);
+                            m_pCreatureSlot[slot].m_itemType, reason);
                 }
                 else
                 {
@@ -192,7 +192,7 @@ bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                     {
                             m_pParent->m_historyLog.CreatureItemDel(
                                 invenType, m_pCreatureSlot[slot].m_addInfo, 0,
-                                m_pCreatureSlot[slot].m_addInfo2, m_pCreatureSlot[slot].m_field1,
+                                m_pCreatureSlot[slot].m_addInfo2, m_pCreatureSlot[slot].m_itemType,
                                 reason);
                     }
                     else
@@ -216,7 +216,7 @@ bool CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
                         {
                                 m_pParent->m_historyLog.CreatureItemDel(
                                     invenType, m_pCreatureSlot[slot].m_addInfo, m_pCreatureSlot[slot].m_addInfo2,
-                                    count, m_pCreatureSlot[slot].m_field1, reason);
+                                    count, m_pCreatureSlot[slot].m_itemType, reason);
                         }
                         else
                         {

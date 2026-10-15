@@ -11,7 +11,7 @@ bool CTradeSpace::_IsTradable(const Inven_Item& item)   // [b28d-Main·P292] int
     //   末组 `and $1;test;jmp tail` 为 case0/default 同体残留）
     //   ⇒ 原码是 switch（if 链恒被折成内存直比链，永不产 1<<t 位掩码）。
     //   位掩码组：{1,2,4,5}⇒return false（0x36）、{3}⇒m_field0 检查（0x8）、
-    //   {0}⇒与 default 同体（0x1）。m_field0 为 bool ⇒ `!item.m_field0`
+    //   {0}⇒与 default 同体（0x1）。m_field0 为 bool ⇒ `!item.m_seal`
     //   发 ORIG `movzbl;xor $1;test;je tail`（P292）。
     //   ORIG `mov %eax,-0xc(%ebp); mov -0xc(%ebp),%eax; cmp $0x5,%eax` 有槽往返
     //   ⇒ 原码是具名 t（P0）。
@@ -32,7 +32,7 @@ bool CTradeSpace::_IsTradable(const Inven_Item& item)   // [b28d-Main·P292] int
     case 5:
         return false;
     case 3:
-        if (!item.m_field0)
+        if (!item.m_seal)
             return false;
         break;
     case 0:

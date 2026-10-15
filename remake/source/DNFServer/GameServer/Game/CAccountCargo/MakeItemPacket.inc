@@ -12,12 +12,12 @@ void CAccountCargo::MakeItemPacket(PacketGuard* packet, int slot) const
         ((InterfacePacketBuf*)packet)->put_int(m_slots[slot].m_addInfo2);
         ((InterfacePacketBuf*)packet)->put_byte(
             (int)GetIntegratedPvPItemAttr(m_slots[slot]) & 0xff);
-        ((InterfacePacketBuf*)packet)->put_short(m_slots[slot].m_fieldb);
-        ((InterfacePacketBuf*)packet)->put_byte(m_slots[slot].m_field0);
+        ((InterfacePacketBuf*)packet)->put_short(m_slots[slot].m_endurance);
+        ((InterfacePacketBuf*)packet)->put_byte(m_slots[slot].m_seal);
         if (G_GameWorld()->IsEnchantRevisionChannel())
             ((InterfacePacketBuf*)packet)->put_int(0);
         else
-            ((InterfacePacketBuf*)packet)->put_int(m_slots[slot].m_fieldd);
+            ((InterfacePacketBuf*)packet)->put_int(m_slots[slot].m_extendInfo);
         ((InterfacePacketBuf*)packet)->put_byte(
             m_slots[slot].m_amp.getAbilityType() & 0xff);
         ((InterfacePacketBuf*)packet)->put_short(

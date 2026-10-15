@@ -2217,18 +2217,18 @@ void RandomOptionSeed::reset()
 }
 void RandomOption::reset()
 {
-    m_field0.reset();
-    m_field1.reset();
-    m_field2.reset();
-    m_seed0.reset();
-    m_field3.reset();
-    m_seed1.reset();
+    m_slot0.reset();
+    m_slot1.reset();
+    m_slot2.reset();
+    m_gradeSeed.reset();
+    m_changedOption.reset();
+    m_changedSlot.reset();
 }
 void RandomOptionField::reset()
 {
-    m_b0 = 0;
-    m_b1 = 0;
-    m_b2 = 0;
+    m_optionIndex = 0;
+    m_firstValue = 0;
+    m_secondValue = 0;
 }
 UpgradeSeparateInfo::UpgradeSeparateInfo()
 {

@@ -82,7 +82,7 @@ void CBattle_Field::MakePacket(int packetId, void* packet)
                 pkt->put_short(item.m_itemIndex);                // +0x04
                 pkt->put_int(item.m_item.m_addInfo);             // +0x12
                 pkt->put_int(item.m_item.get_add_info());        // +0x10 对象
-                pkt->put_short(item.m_item.m_fieldb);            // +0x1b
+                pkt->put_short(item.m_item.m_endurance);            // +0x1b
                 pkt->put_byte(item.m_item.m_amp.getAbilityType());   // +0x21
                 pkt->put_short(item.m_item.m_amp.getAbilityValue());
             }

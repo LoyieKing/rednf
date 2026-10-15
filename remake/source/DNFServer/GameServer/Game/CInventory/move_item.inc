@@ -9,7 +9,7 @@
 //   - 双端 CheckValidSlot 失败 → cMyTrace + 0x11；
 //   - 源为 0..2 且目的为 CREATURE 时 swap 两端（CREATURE 恒为源）；
 //   - EQUIP↔INVEN：isIdentified 成对校验、IsAvatarItem/IsCreatureItem/IsEquipable、
-//     IsRandomOption&&m_random.m_random.empty 拒绝、PeriodAfterUnsealing 写 m_fieldb
+//     IsRandomOption&&m_random.m_random.empty 拒绝、PeriodAfterUnsealing 写 m_endurance
 //     剩余天数、装备时清 m_field0 并 seal_Item 日志、0xd1 服务限制分支；
 //   - EQUIP↔EQUIP / AVATAR↔AVATAR 三段交换；AVATAR 分支 MoveClearAvatar/
 //     SendAvatarEvent(0x32)；CREATURE 走 CCreatureMgr::SwapCreatureItem。
@@ -65,12 +65,12 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
                 return 0x11;
             }
             if (srcType != 0 && m_pEquipSlot[dstSlot].m_addInfo != 0 &&
-                (int)m_pEquipSlot[dstSlot].m_field1 != srcType)
+                (int)m_pEquipSlot[dstSlot].m_itemType != srcType)
             {
                 return 0x11;
             }
             if (dstItemType != 0 && m_pEquipSlot[slot].m_addInfo != 0 &&
-                (int)m_pEquipSlot[slot].m_field1 != dstItemType)
+                (int)m_pEquipSlot[slot].m_itemType != dstItemType)
             {
                 return 0x11;
             }
@@ -150,13 +150,13 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
                               pItem->PeriodAfterUnsealing() * 0x15180;
                 if (nExpire != 0)
                 {
-                    tmp.m_fieldb =
+                    tmp.m_endurance =
                         (unsigned short)((nExpire - 0x44a54a80) / 0x15180);
                 }
             }
         }
         m_pEquipSlot[slot].setCopy(m_invenItem[dstSlot]);
-        tmp.m_field0 = 0;
+        tmp.m_seal = 0;
         m_invenItem[dstSlot].setCopy(tmp);
         return 0;
     }
@@ -309,7 +309,7 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
         {
             return 0x11;
         }
-        if (m_pEquipSlot[dstSlot].m_field0 != 0 &&
+        if (m_pEquipSlot[dstSlot].m_seal != 0 &&
             ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
                 m_pParent, (RestrictCategory::Enum)1, 0xe))
         {
@@ -318,21 +318,21 @@ int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, in
         Inven_Item tmp;
         tmp.setCopy(m_invenItem[slot]);
         m_invenItem[slot].setCopy(m_pEquipSlot[dstSlot]);
-        if (m_pParent != 0 && m_invenItem[slot].m_field0 != 0)
+        if (m_pParent != 0 && m_invenItem[slot].m_seal != 0)
         {
             m_pParent->m_historyLog.seal_Item(
                 m_invenItem[slot].m_addInfo,
                 (short)m_invenItem[slot].GetReSealCount(),
                 eSealItemReason_1);
         }
-        m_invenItem[slot].m_field0 = 0;
+        m_invenItem[slot].m_seal = 0;
         if (pItem != 0 && pItem->PeriodAfterUnsealing() != 0)
         {
             int nExpire = GlobalData::s_systemTime_.getCurSec() +
                           pItem->PeriodAfterUnsealing() * 0x15180;
             if (nExpire != 0)
             {
-                m_invenItem[slot].m_fieldb =
+                m_invenItem[slot].m_endurance =
                     (unsigned short)((nExpire - 0x44a54a80) / 0x15180);
             }
         }

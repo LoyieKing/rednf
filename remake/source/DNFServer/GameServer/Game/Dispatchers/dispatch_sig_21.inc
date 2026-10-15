@@ -79,7 +79,7 @@ int Dispatcher_SelectItem::dispatch_sig(CUser* user, PacketBuf& packet)
             return 0;
         }
         item->make_item(newItem);   // CItem vtable +0x08 槽（虚表实证）
-        if (newItem.m_field1 != (unsigned char)Inven_Item::ITEM_TYPE_EQUIP)
+        if (newItem.m_itemType != (unsigned char)Inven_Item::ITEM_TYPE_EQUIP)
         {
             newItem.m_addInfo2 = data.m_field4;
         }

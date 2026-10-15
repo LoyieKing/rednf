@@ -154,7 +154,7 @@ void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
                         //   结果经 %ebx/%edi 跨调用保活，按 R2L 序直传 UseLuckPoint 的
                         //   第 4/3 实参（084624a7 `mov %ebx,0xc(%esp)`）。
                         ::CLuckPoint::UseLuckPoint(party->get_user(memberIdx),
-                                                 (unsigned char)probe.m_field1,
+                                                 (unsigned char)probe.m_itemType,
                                                  found->get_rarity(),
                                                  found->get_grade());
                     }

@@ -31,9 +31,9 @@ bool CMailBoxHelper::_DoGetPackageCoin(CUser* user, CMailBox::CMail const* mail,
     // 按值局部（非引用；引用局部会多一枚指针槽 + 每处指针解引用）。
     Inven_Item pkg = mail->GetPackageItem();
     // ORIG 决策链 cmp $1/cmp $2/test（无槽）⇒ switch；amount=pkg.m_addInfo2
-    // （Inven_Item +0x07）、coinType=pkg.m_fieldb（+0x0b，ushort movzwl 两段）。
+    // （Inven_Item +0x07）、coinType=pkg.m_endurance（+0x0b，ushort movzwl 两段）。
     // ORIG 历史日志第二参均为 getCurCharacInvenR()->GetEventCoin() 重取。
-    switch (pkg.m_fieldb)
+    switch (pkg.m_endurance)
     {
     case 0:
         user->getCurCharacInvenW()->SetCoin(

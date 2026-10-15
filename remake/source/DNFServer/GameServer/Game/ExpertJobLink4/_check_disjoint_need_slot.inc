@@ -36,11 +36,11 @@ void _check_disjoint_need_slot(CUser* user, CItem* item, Inven_Item& invenItem,
         // ORIG 用立即数 `cmpl $0xb,-0x24`（kInvalidSlot 无具名槽，P0）。
         int needSlot = Inven_Item::ITEM_TYPE_INVALID;
         // ORIG 每次调用前重新 getCurCharacInvenR()，itemIndex 取 probe.m_addInfo
-        // （+0x02），probeType 取 probe.m_field1（+0x01）逐次重读（无具名局部）。
+        // （+0x02），probeType 取 probe.m_itemType（+0x01）逐次重读（无具名局部）。
         if (user->getCurCharacInvenR()->IsExistStackable(
-                probe.m_addInfo, (Inven_Item::ITEM_TYPE)probe.m_field1))
+                probe.m_addInfo, (Inven_Item::ITEM_TYPE)probe.m_itemType))
         {
-            needSlot = (int)probe.m_field1;
+            needSlot = (int)probe.m_itemType;
         }
         else if (user->getCurCharacInvenR()->IsExistStackable(
                      probe.m_addInfo, (Inven_Item::ITEM_TYPE)0))
@@ -59,7 +59,7 @@ void _check_disjoint_need_slot(CUser* user, CItem* item, Inven_Item& invenItem,
         }
         else
         {
-            ++total[probe.m_field1];
+            ++total[probe.m_itemType];
         }
     }
 

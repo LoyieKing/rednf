@@ -131,7 +131,7 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
     {
         throw (ENUM_ERROR)4;            // ORIG 0x08200e88
     }
-    if (target.m_field1 != 1)
+    if (target.m_itemType != 1)
     {
         throw (ENUM_ERROR)0x13;         // ORIG 0x08200ebf
     }
@@ -238,11 +238,11 @@ int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet)
     if (resultType == 1)
     {
         // 封印再铸：标记已用 + 封印次数 +1（上限 7）
-        if (target.m_field0 != 0)
+        if (target.m_seal != 0)
         {
             throw (ENUM_ERROR)0x12;     // ORIG 0x082014f9
         }
-        target.m_field0 = 1;
+        target.m_seal = 1;
         target.SetReSealCount(
             (unsigned char)std::min<int>(target.GetReSealCount() + 1, 7));
     }

@@ -4,7 +4,7 @@
 //（setCopy 直取 characR()->m_inven，+0xda 成员地址，无 InvenR getter），
 // 模拟把 trader 登记的物品/金钱插入**对方** copy[1-trader]；
 // 金钱分支 gain_money 返回值 != 提交额即失败；物品三分支
-//（item.m_field1==8 头像 / m_field08==7 宠物 / else 背包），失败按
+//（item.m_itemType==8 头像 / m_field08==7 宠物 / else 背包），失败按
 // field1==8 双 trace（0xba7/0xbab）。bool 返回（PRETTY @0x8c98444）。
 // [b28d-solo-CTradeSpace verdict=NEAR ndiff=16（O425/N425）]
 //   修法：局部全头部声明照 ORIG 槽序（P212）：count(-0x30) ret(-0x2c)
@@ -65,7 +65,7 @@ bool CTradeSpace::checkTrade()
             // 条件序：对方指针在前、槽非空在后（ORIG +0x22d-0x267）
             if (m_pTraders[1 - trader] != 0 &&
                 m_slotsData[trader][s2].m_item.m_addInfo != 0) {
-                if (m_slotsData[trader][s2].m_item.m_field1 ==
+                if (m_slotsData[trader][s2].m_item.m_itemType ==
                     Inven_Item::ITEM_TYPE_AVATAR) {
                     ret = copy[1 - trader].insertAvatarIntoInventory(
                         m_slotsData[trader][s2].m_item,
@@ -80,7 +80,7 @@ bool CTradeSpace::checkTrade()
                         1);
                 }
                 if (ret < 0) {
-                    if (m_slotsData[trader][s2].m_item.m_field1 ==
+                    if (m_slotsData[trader][s2].m_item.m_itemType ==
                         Inven_Item::ITEM_TYPE_AVATAR)
                         cMyTrace(__PRETTY_FUNCTION__, 0xba7, 5)(
                             "try insert_item(INVEN_TYPE_AVATAR) fail - "

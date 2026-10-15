@@ -15,7 +15,7 @@ int CInventory::ChangeEquip(INVEN_TYPE invenType, int slot, int equipSlot)
             return 0x15;
         }
         Inven_Item slotItem1 = GetInvenSlot(1, slot);
-        if (slotItem1.m_field0 != 0)
+        if (slotItem1.m_seal != 0)
         {
             int secuResult = GlobalData::s_pSecuProtectionField->Check(m_pParent, (SECURITY_PROTCTION)0x16);
             if (secuResult != 0)
@@ -26,7 +26,7 @@ int CInventory::ChangeEquip(INVEN_TYPE invenType, int slot, int equipSlot)
         if (m_pParent != 0)
         {
             if (m_pParent->CheckItemLock(invenType, slot) &&
-                GetInvenSlot(1, slot).m_field0 != 0)
+                GetInvenSlot(1, slot).m_seal != 0)
             {
                 return 0xd5;
             }

@@ -14,7 +14,7 @@ void CAchievement::_sendComplete(unsigned int id, int titleIdx,
         ((CTitleBook*)m_user->GetCharacExpandData(
              (ENUM_CHARAC_EXPAND_TYPE)14))
             ->getTitleSlotR(category, slot);
-    packet.put_short((int)titleSlot.m_fieldb);
+    packet.put_short((int)titleSlot.m_endurance);
     packet.finalize(true);
     m_user->Send(packet);
 }

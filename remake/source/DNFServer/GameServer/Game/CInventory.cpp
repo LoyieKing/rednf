@@ -779,7 +779,7 @@ static_assert(sizeof(EmblemBlobV) == 0x1e, "EmblemBlobV == stAvatarEmblemInfo_t 
                     }
                     G_CDataManager()->m_itemList->create_item(
                         ENUM_ITEM_CREATE_TYPE_0, item, cnt);
-                    if (item.m_field1 == 5)
+                    if (item.m_itemType == 5)
                     {
                         if (!user_creature::CCreatureItemConverter::SetEggItem(&item))
                         {

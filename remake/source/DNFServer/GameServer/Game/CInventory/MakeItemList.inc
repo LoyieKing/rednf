@@ -119,8 +119,8 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
                 buf->put_int(m_pEquipSlot[slot].m_addInfo);
                 buf->put_int(m_pEquipSlot[slot].m_addInfo2);
                 buf->put_byte(GetIntegratedPvPItemAttr(m_pEquipSlot[slot], invenType, slot));
-                buf->put_short(m_pEquipSlot[slot].m_fieldb);
-                buf->put_byte(m_pEquipSlot[slot].m_field0);
+                buf->put_short(m_pEquipSlot[slot].m_endurance);
+                buf->put_byte(m_pEquipSlot[slot].m_seal);
                 // [H8InvenPvPWorld 2026-09-11 · P0] ORIG 0x84fdc3f-0x84fdc47 无槽：
                 // `call G_GameWorld; mov %eax,(%esp); call IsEnchantRevisionChannel`
                 // （我方曾有 world 具名 -0x44 store/load 对）⇒ 全表达式展开。
@@ -130,7 +130,7 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
                 if (G_GameWorld()->IsEnchantRevisionChannel())
                     buf->put_int(0);
                 else
-                    buf->put_int(m_pEquipSlot[slot].m_fieldd);
+                    buf->put_int(m_pEquipSlot[slot].m_extendInfo);
                 buf->put_byte((unsigned char)m_pEquipSlot[slot].m_amp.getAbilityType() & 0xff);
                 buf->put_short(m_pEquipSlot[slot].m_amp.getAbilityValue());
                 G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
@@ -160,9 +160,9 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
                 buf->put_int(m_pAvatarSlot[slot].m_addInfo);
                 buf->put_int(m_avatarItemMgr.GetRemainDate(m_pAvatarSlot[slot].m_addInfo2, nowTick));
                 buf->put_byte(m_pAvatarSlot[slot].GetItemAttr());
-                buf->put_short(m_pAvatarSlot[slot].m_fieldb);
-                buf->put_byte(m_pAvatarSlot[slot].m_field0);
-                buf->put_int(m_pAvatarSlot[slot].m_fieldd);
+                buf->put_short(m_pAvatarSlot[slot].m_endurance);
+                buf->put_byte(m_pAvatarSlot[slot].m_seal);
+                buf->put_int(m_pAvatarSlot[slot].m_extendInfo);
                 buf->put_byte(0);
                 buf->put_short(0);
                 ++count;
@@ -205,12 +205,12 @@ bool CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
                 buf->put_int(m_pCreatureSlot[slot].m_addInfo);
                 buf->put_int(m_pCreatureSlot[slot].m_addInfo2);
                 buf->put_byte(m_pCreatureSlot[slot].GetItemAttr());
-                buf->put_short(m_pCreatureSlot[slot].m_fieldb);
-                buf->put_byte(m_pCreatureSlot[slot].m_field0);
-                buf->put_int(m_pCreatureSlot[slot].m_fieldd);
+                buf->put_short(m_pCreatureSlot[slot].m_endurance);
+                buf->put_byte(m_pCreatureSlot[slot].m_seal);
+                buf->put_int(m_pCreatureSlot[slot].m_extendInfo);
                 buf->put_byte(0);
                 buf->put_short(0);
-                if (m_pCreatureSlot[slot].m_field1 ==
+                if (m_pCreatureSlot[slot].m_itemType ==
                     (unsigned char)Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
                 {
                     int nowTick = 0;   // ORIG +0x0a50 先 0 物化再 call 回填

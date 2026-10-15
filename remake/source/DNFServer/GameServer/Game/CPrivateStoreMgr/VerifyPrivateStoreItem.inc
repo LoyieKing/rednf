@@ -74,7 +74,7 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
     {
         if (attachType == 3)
         {
-            if ((int)storeItem.m_item.m_field0 != 1)
+            if ((int)storeItem.m_item.m_seal != 1)
             {
                 m_errorHandler.Do(0x11);
                 return false;
@@ -97,7 +97,7 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
             }
         }
     }
-    if (IsCreatureItemType((unsigned int)(unsigned char)storeItem.m_item.m_field1))
+    if (IsCreatureItemType((unsigned int)(unsigned char)storeItem.m_item.m_itemType))
     {
         m_errorHandler.Do(0x11);
         return false;
@@ -138,7 +138,7 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
     packet.put_int(storeItem.m_field40);                       // +0x40 售价
     packet.put_int((int)storeItem.m_item.m_addInfo);           // +0x02 物品索引
     int nowTick = OS_API::GetDateTimeTick();
-    if ((int)storeItem.m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
+    if ((int)storeItem.m_item.m_itemType == Inven_Item::ITEM_TYPE_AVATAR)
     {
         packet.put_int(
             m_pSeller->getCurCharacInvenR()->GetAvatarItemMgrR()->GetRemainDate(
@@ -149,11 +149,11 @@ bool CPrivateStore::VerifyPrivateStoreItem(int slot, int count)
         packet.put_int(count);
     }
     packet.put_byte((int)storeItem.m_item.GetItemAttr());
-    packet.put_short((int)storeItem.m_item.m_fieldb);          // +0x0b 耐久
-    packet.put_int((int)storeItem.m_item.m_fieldd);            // +0x0d
+    packet.put_short((int)storeItem.m_item.m_endurance);          // +0x0b 耐久
+    packet.put_int((int)storeItem.m_item.m_extendInfo);            // +0x0d
     packet.put_byte((int)storeItem.m_item.m_amp.getAbilityType());
     packet.put_short((int)storeItem.m_item.m_amp.getAbilityValue());
-    if ((int)storeItem.m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
+    if ((int)storeItem.m_item.m_itemType == Inven_Item::ITEM_TYPE_AVATAR)
     {
         packet.put_int(0x1e);
         packet.put_binary(

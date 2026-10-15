@@ -22,11 +22,11 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
                 "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
                 (int)invenType, item.m_addInfo, a3, a4, (int)reason,
                 m_traderCharac, m_traderAccount,
-                item.GetUpgrade(), (unsigned)item.m_fieldb,
-                item.m_random.m_random.m_fields[0].m_field0, item.m_random.m_random.m_fields[0].m_field1, item.m_random.m_random.m_fields[0].m_field2, item.m_random.m_random.m_fields[1].m_field0, item.m_random.m_random.m_fields[1].m_field1, item.m_random.m_random.m_fields[1].m_field2,
-                item.m_random.m_random.m_fields[2].m_field0, item.m_random.m_random.m_fields[2].m_field1, item.m_random.m_random.m_fields[2].m_field2, item.m_random.m_random.m_seed9.m_field, item.m_random.m_random.m_fielda.m_field0, item.m_random.m_random.m_fielda.m_field1,
-                item.m_random.m_random.m_fielda.m_field2, item.m_random.m_random.m_seedd.m_field,
-                item.m_field0,
+                item.GetUpgrade(), (unsigned)item.m_endurance,
+                item.m_random.m_random.m_fields[0].m_optionIndex, item.m_random.m_random.m_fields[0].m_firstValue, item.m_random.m_random.m_fields[0].m_secondValue, item.m_random.m_random.m_fields[1].m_optionIndex, item.m_random.m_random.m_fields[1].m_firstValue, item.m_random.m_random.m_fields[1].m_secondValue,
+                item.m_random.m_random.m_fields[2].m_optionIndex, item.m_random.m_random.m_fields[2].m_firstValue, item.m_random.m_random.m_fields[2].m_secondValue, item.m_random.m_random.m_gradeSeed.m_value, item.m_random.m_random.m_changedOption.m_optionIndex, item.m_random.m_random.m_changedOption.m_firstValue,
+                item.m_random.m_random.m_changedOption.m_secondValue, item.m_random.m_random.m_changedSlot.m_value,
+                item.m_seal,
                 item.GetReSealCount(),
                 CItemGloballyUniqueIdentifierPrint()(
                     *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
@@ -38,20 +38,20 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
             "Item-,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,"
             "%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X,%d,%d,%s",
             (int)invenType, item.m_addInfo, a3, a4, (int)reason,
-            item.m_addInfo2, item.m_fieldd,
+            item.m_addInfo2, item.m_extendInfo,
             (unsigned)item.m_amp.m_abilityType, (unsigned)item.m_amp.m_abilityValue,
-            item.GetUpgrade(), (unsigned)item.m_fieldb,
-            item.m_random.m_random.m_fields[0].m_field0, item.m_random.m_random.m_fields[0].m_field1, item.m_random.m_random.m_fields[0].m_field2, item.m_random.m_random.m_fields[1].m_field0, item.m_random.m_random.m_fields[1].m_field1, item.m_random.m_random.m_fields[1].m_field2,
-            item.m_random.m_random.m_fields[2].m_field0, item.m_random.m_random.m_fields[2].m_field1, item.m_random.m_random.m_fields[2].m_field2, item.m_random.m_random.m_seed9.m_field, item.m_random.m_random.m_fielda.m_field0, item.m_random.m_random.m_fielda.m_field1,
-            item.m_random.m_random.m_fielda.m_field2, item.m_random.m_random.m_seedd.m_field,
-            item.m_field0,
+            item.GetUpgrade(), (unsigned)item.m_endurance,
+            item.m_random.m_random.m_fields[0].m_optionIndex, item.m_random.m_random.m_fields[0].m_firstValue, item.m_random.m_random.m_fields[0].m_secondValue, item.m_random.m_random.m_fields[1].m_optionIndex, item.m_random.m_random.m_fields[1].m_firstValue, item.m_random.m_random.m_fields[1].m_secondValue,
+            item.m_random.m_random.m_fields[2].m_optionIndex, item.m_random.m_random.m_fields[2].m_firstValue, item.m_random.m_random.m_fields[2].m_secondValue, item.m_random.m_random.m_gradeSeed.m_value, item.m_random.m_random.m_changedOption.m_optionIndex, item.m_random.m_random.m_changedOption.m_firstValue,
+            item.m_random.m_random.m_changedOption.m_secondValue, item.m_random.m_random.m_changedSlot.m_value,
+            item.m_seal,
             item.GetReSealCount(),
             CItemGloballyUniqueIdentifierPrint()(
                 *reinterpret_cast<const itemGloballyUniqueIdentifier_t*>(item.m_amp.m_pad4)));
     }
 
     // Compound 补丁块（ORIG +0x543）：reason==8 && m_field1(ITEM_TYPE)==1。
-    if ((int)reason == 8 && item.m_field1 == 1)
+    if ((int)reason == 8 && item.m_itemType == 1)
     {
         // ORIG 0x086839xx：实参位右到左即时求值（P44）——全部实参就地内联。
         m_user->LogHistory(
@@ -61,7 +61,7 @@ void cUserHistoryLog::ItemDel(INVEN_TYPE invenType, int a3, int a4,
             // `movzbl 0x33(%eax),%eax; and $0x1f,%eax; movzbl %al,%eax`（and 后截断）；
             // 写 `m_field & 0x1f` 时 4.4 把截断提到 and 之前并经 %edx 中转（多 1 条）。
             // 位域 m_lo 读取即 ORIG 形（探针 /tmp/hlprobe/mask2.cpp w1 逐条同形）。
-            item.m_upgradeSep.m_bits.m_lo, item.m_fieldd,
+            item.m_upgradeSep.m_bits.m_upgradeSeparate, item.m_extendInfo,
             item.m_amp.getAbilityType(), item.m_amp.getAbilityValue(),
             item.m_amp.GetLock());
     }

@@ -4,7 +4,7 @@
 //   m_field3d/m_field3e_byte/m_field42_byte，+0x42 按 ORIG movsbl 取有符号），
 //   消除 helper 的 EXTRA add+movzbl；残余寄存器分配/栈槽 N-86b + AE。
 // ---------------------------------------------------------------------------
-// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N7）→ 试=新口径 n1_v 157/156 gap=+1 blocks=5 + G1 具名 `unsigned char mf35` 局部（槽平移 −4 使 ndiff 19→62、hunk 4→18 ⇒ 回滚）；残差=choose_item/create_item 实参寄存器角色互换（ORIG call 果→%edx、inv.m_field1→%eax；4.4 反向）+ 二次 movzbl 折入 ⇒ cast/内联/掩码多形穷举不翻 ⇒ 维持。
+// [Q8 2026-09-11 旧N判词重扫] 旧判=DIFF（N7）→ 试=新口径 n1_v 157/156 gap=+1 blocks=5 + G1 具名 `unsigned char mf35` 局部（槽平移 −4 使 ndiff 19→62、hunk 4→18 ⇒ 回滚）；残差=choose_item/create_item 实参寄存器角色互换（ORIG call 果→%edx、inv.m_itemType→%eax；4.4 反向）+ 二次 movzbl 折入 ⇒ cast/内联/掩码多形穷举不翻 ⇒ 维持。
 void CMonsterDrop_Hell::generateSpecificItem(stGenerateRefData_t const& ref,
                                              stGenerateResult_t& result)
 {
@@ -56,11 +56,11 @@ void CMonsterDrop_Hell::generateSpecificItem(stGenerateRefData_t const& ref,
         static_cast<ENUM_ITEM_CREATE_TYPE>(1), inv, 1);
     // 实参内联（右→左求值：size→get_grade→get_rarity→m_field1，ORIG esi/ebx 缓存）
     reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)
-        // [M3S2WinDrop=N] 试 `(int)(unsigned char)inv.m_field1` 复现 ORIG 0x0853591e 的
+        // [M3S2WinDrop=N] 试 `(int)(unsigned char)inv.m_itemType` 复现 ORIG 0x0853591e 的
         // 二次 `movzbl %al,%eax`：读数不变（157/156）—— 4.4 把二次扩展折进首条，
         // 仍 `movzbl S(%ebp),%edx; movzbl %dl,%edx`。残余 1 条 = ORIG `mov %eax,%edx`
         // （载入用 %eax、旧值挪 %edx）vs 4.4 载入用 %edx，属寄存器分配 N。
-        ->UseLuckPoint(inv.m_field1, item->get_rarity(), item->get_grade(),
+        ->UseLuckPoint(inv.m_itemType, item->get_rarity(), item->get_grade(),
                        static_cast<int>(result.m_dropItems.size()));
     result.m_dropItems.push_back(inv);
 }

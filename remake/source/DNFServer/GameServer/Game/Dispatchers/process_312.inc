@@ -48,9 +48,9 @@ int Dispatcher_AvatarOptionChange::process(CUser* user, MSG_BASE& msg, ParamBase
     // ORIG 0x081e0986：_ZN15cUserHistoryLog21UseAvatarOptionChangeEiiii（实现见
     // cUserHistoryLog.cpp:1365，CUser.h:2077 已声明）。
     user->m_historyLog.UseAvatarOptionChange(avatarRef->m_addInfo2,
-        avatarRef->m_addInfo, avatarRef->m_fieldb, (int)(signed char)m.m_option);
+        avatarRef->m_addInfo, avatarRef->m_endurance, (int)(signed char)m.m_option);
 
-    avatarRef->m_fieldb = (unsigned short)(signed char)m.m_option;
+    avatarRef->m_endurance = (unsigned short)(signed char)m.m_option;
     invW->SendAvatarEvent(0x2c3, avatarRef->m_addInfo2,
                           (int)(signed char)m.m_option, 0, 0);
 

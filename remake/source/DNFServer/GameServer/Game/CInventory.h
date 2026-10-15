@@ -565,7 +565,7 @@ struct stEquipConditionForChronicle
     // unsigned）同型 ⇒ 复现 ORIG 0x08508xxx 尾段单段直载
     // `mov -0x48(%ebp),%edx; mov 0x14(%ebp),%eax; mov %edx,0x8(%eax)`
     // （异型时 4.4 恒插 `mov %eax,%edx` 中转，P211 双向开关）。sizeof 0xc/偏移不变。
-    unsigned int m_fieldd;          // +0x08 ← Inven_Item::m_fieldd(+0x0d)
+    unsigned int m_extendInfo;      // ← Inven_Item::m_extendInfo
 };
 
 bool CheckEquipable(const Inven_Item& a, const Inven_Item& b);

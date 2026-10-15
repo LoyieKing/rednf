@@ -27,7 +27,7 @@ int Store::GetSellItemPrice(CUser* user, char invenType, short slot, short count
     case 7:
         // avatar slot
         item = user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)3, slot);   // 消息 7 → type 3
-        if (item.m_field1 == 5)   // ORIG 分支独占检查：ITEM_TYPE==5 → 0x11（objdump 0x861932c）
+        if (item.m_itemType == 5)   // ORIG 分支独占检查：ITEM_TYPE==5 → 0x11（objdump 0x861932c）
             return 0x11;
         break;
     default:

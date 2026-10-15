@@ -72,9 +72,9 @@ void CUser::_processLevelReward(unsigned int level, unsigned int characNo,
                 // ORIG 0x086875d5..0x086875ec 写序：+2=1（立即数，条件已证 ==1）、
                 // +1=2、+7=itemCount、+11=1(word)。
                 item.m_addInfo = 1;
-                item.m_field1 = 2;
+                item.m_itemType = 2;
                 item.m_addInfo2 = itemCount;
-                item.m_fieldb = 1;
+                item.m_endurance = 1;
                 item.ResetItemAttr();                  // W 0x080cb892
             }
             else

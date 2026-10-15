@@ -26,7 +26,7 @@ void CEnduranceCmd::execute()
             if (item->m_addInfo == 0)
                 goto END4;
 
-            item->m_fieldb = m_endurance;
+            item->m_endurance = m_endurance;
 
             PacketGuard packet;
             packet.put_header(0, 0xe);

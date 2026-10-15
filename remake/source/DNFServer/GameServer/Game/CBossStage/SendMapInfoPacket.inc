@@ -1,7 +1,7 @@
 // ---- SendMapInfoPacket（ORIG 0x0814ce12）----
 // [b28d-62] 修: P96 迭代器改非 const（消转换 ctor ×4 + const 版 operator 族，
 //   263→243）；余 N82 帧/槽差（sub 0x3dc vs 0x380）+ getParty 缓存。ORIG 0x0814ce12
-// [b28d-solo-CBossStage] N104：补 put_short(m_fieldb) + m_addInfo 改 put_int
+// [b28d-solo-CBossStage] N104：补 put_short(m_endurance) + m_addInfo 改 put_int
 //   （真 bug：原漏写包字段）+ map_item 栈拷贝 + m_stageData 直读。残差 6 条=
 //   EH 尾块相对序（4.4 就地内联 vs 4.1 尾块）。
 int CBossStage::SendMapInfoPacket()
@@ -47,7 +47,7 @@ int CBossStage::SendMapInfoPacket()
         packet.put_short(item.m_itemIndex);                // +0x04
         packet.put_int(item.m_item.m_addInfo);             // ORIG 0x0814d088 32 位读 -0x76
         packet.put_int(item.m_item.get_add_info());        // Inven_Item+7
-        packet.put_short((int)item.m_item.m_fieldb);       // ORIG 0x0814d0ba -0x6d（Inven_Item+0xb）
+        packet.put_short((int)item.m_item.m_endurance);       // ORIG 0x0814d0ba -0x6d（Inven_Item+0xb）
         packet.put_byte((int)item.m_item.m_amp.getAbilityType() & 0xff);
         packet.put_short((int)item.m_item.m_amp.getAbilityValue() & 0xffff);
     }

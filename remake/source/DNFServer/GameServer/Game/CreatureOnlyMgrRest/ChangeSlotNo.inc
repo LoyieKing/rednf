@@ -18,7 +18,7 @@ bool CCreatureMgr::ChangeSlotNo(Inven_Item* item, int newSlot, int param_3)
     (void)framePad;
     if (!IsCreatureEquipmentScope(newSlot))
         return true;
-    if (item->m_field1 != 5)
+    if (item->m_itemType != 5)
         return true;
 
     CCreatureItem* creatureItem =
@@ -50,6 +50,6 @@ bool CCreatureMgr::ChangeSlotNo(Inven_Item* item, int newSlot, int param_3)
     reason = (eItemAddReason)param_3;
     m_user->getCurCharacInvenR()->WriteCreatureLog(
         (INVEN_TYPE)3, item->m_addInfo, item->m_addInfo2, 1,
-        (int)item->m_field1, reason);
+        (int)item->m_itemType, reason);
     return true;
 }

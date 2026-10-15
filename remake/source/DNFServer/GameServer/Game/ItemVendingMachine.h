@@ -124,7 +124,7 @@ public:
                                         INVEN_TYPE invenType,
                                         Inven_Item::ITEM_TYPE itemType);
     // ORIG 0x08176348：static Inven_Item temp; reset 后经 GetRelatedItem 的
-    // vtable+0x08 拷贝；返回 temp.m_field1（ITEM_TYPE）。ORIG 返回 int
+    // vtable+0x08 拷贝；返回 temp.m_itemType（ITEM_TYPE）。ORIG 返回 int
     //（调用点 4 字节直存；尾部 movzbl %al 扩展）。
     // b28c-L19：返回类型改 Inven_Item::ITEM_TYPE（ORIG _GetInvenSlotInfo 0x081763e5
     // store 为 LHS-first `mov 0x14(%ebp),%edx; mov %eax,(%edx)` ⇒ 与赋值目标同型，

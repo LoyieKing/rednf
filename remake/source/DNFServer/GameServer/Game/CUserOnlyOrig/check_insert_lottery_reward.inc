@@ -36,7 +36,7 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
         std::pair<Inven_Item, bool> item = *it;
         // [DualCUOO] ORIG 0x08676326/0x0867632a 为 `movzbl -0x6d(%ebp),%eax; movzbl %al,%ebx`
         // 无具名 uchar 的栈中转 ⇒ 源码把 m_field1 直接内联进实参位（P329 反向）。
-        if (getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)item.first.m_field1, 1) != 1)
+        if (getCurCharacInvenR()->check_empty_count((Inven_Item::ITEM_TYPE)item.first.m_itemType, 1) != 1)
             return 4;
     }
     // 第二轮：逐项插入
@@ -88,7 +88,7 @@ int CUser::check_insert_lottery_reward(const CItem* opener,
             //      旧 CoBatchC 在**旧结构**下实测反劣故回滚；改 ① 后复测 2→1，保留。（+2 条）
             //   ③ 删 if 体末尾 `goto INSERT_OK;`：改由 if/else 自然落点 ⇒ 消 INSERT_OK 前
             //      4.4 padding 跳板（`nop; jmp .+2; nop`）⇒ 1→0，AE。
-            if (it2.first.m_field1 == 5)
+            if (it2.first.m_itemType == 5)
             {
                 if (!user_creature::CCreatureItemConverter::SetEggItem(&it2.first))
                     return 0x11;

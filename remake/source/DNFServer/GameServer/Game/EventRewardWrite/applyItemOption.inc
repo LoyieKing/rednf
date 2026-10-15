@@ -9,7 +9,7 @@ void eventReward::applyItemOption(Inven_Item& inven, const CItem* item,
         inven.m_addInfo2 = data.m_count;            // item+0x07 = data+0x08
         return;
     }
-    reinterpret_cast<unsigned char&>(inven.m_field0) = data.m_seal;
+    reinterpret_cast<unsigned char&>(inven.m_seal) = data.m_seal;
     register unsigned int attachType = item->GetAttachType();  // ORIG 单次调用（寄存器化）
     // 负结论（4.4 位折叠族，N 类；本波五变体实测，75 为封顶最优）：
     //  ORIG 0x080f0da7–0x080f0dc3 = `call; cmp $5,%eax; ja` + `mov $1,%edx; mov %edx,%ebx;
@@ -23,7 +23,7 @@ void eventReward::applyItemOption(Inven_Item& inven, const CItem* item,
     // ⇒ 已回滚。封顶维持 74/75（ORIG 0x080f0da7 `mov $1,%edx; shl %cl,%ebx` 形不可造）。
     if (attachType < 6 && ((1u << attachType) & 0x27))
     {
-        inven.m_field0 = 0;
+        inven.m_seal = 0;
     }
     if (data.m_upgrade > 1)                         // +0x00 字节
     {

@@ -58,7 +58,7 @@ int CUser::delete_item(char itemSpace, int position, unsigned long itemIdx,
             getCurCharacInvenW()->GetInvenRef(INVEN_TYPE_CREATURE, position);
         if (ref == 0)
             return 0x11;
-        if (ref->m_field1 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+        if (ref->m_itemType == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
             return 0x11;
         if (!getCurCharacInvenW()->delete_item(INVEN_TYPE_CREATURE, position,
                                                count, reason, true))

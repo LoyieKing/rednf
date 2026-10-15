@@ -11,7 +11,7 @@ bool CCreatureMgr::InsertCreatureItem(Inven_Item* item, int slotNo, int reason,
 {
     if (!IsCreatureEquipmentScope(slotNo))
         return true;
-    if (item->m_field1 != 5)  // ITEM_TYPE_CREATURE_EQUIP（movzbl +0x1 cmp $5）
+    if (item->m_itemType != 5)  // ITEM_TYPE_CREATURE_EQUIP（movzbl +0x1 cmp $5）
         return true;
 
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x87, m_user);

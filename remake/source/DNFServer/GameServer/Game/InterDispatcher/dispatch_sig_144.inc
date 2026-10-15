@@ -270,13 +270,13 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
                     //   movzwl %ax,%eax; imul $0x15180,%eax,%eax; add $0x44a54a80,%eax`
                     //   —— item 基址 = ebp-0xb6（AuctionCase3 由 084d60be
                     //   `lea -0xb6; call isEquipableItemType` 实证）⇒ -0xab = item+0x0b
-                    //   = `unsigned short m_fieldb`（endurance；Inven_Item.h:281），
+                    //   = `unsigned short m_endurance`（endurance；Inven_Item.h:281），
                     //   零扩展（无 movsx）= 无符号语义。旧码读 item+0x0d 低字节
                     //   （`m_fieldd & 0xff`）= 字段错。同族先例 dispatch_sig_207.inc:71
-                    //   `(int)item.m_fieldb * 0x15180 + 0x44a54a80`；探针
+                    //   `(int)item.m_endurance * 0x15180 + 0x44a54a80`；探针
                     //   /tmp/lane_diff/AuctionField/probe.cpp 全变体实证 ushort 直用
                     //   即产 `movzwl mem; movzwl %ax; imul` 三连（4.4.6 后端）。
-                    static_cast<long>(item.m_fieldb) * 0x15180 + 0x44a54a80;
+                    static_cast<long>(item.m_endurance) * 0x15180 + 0x44a54a80;
                 // [AuctionField 2026-09-12] ORIG 084d6241..084d6256：
                 //   `call getCurSec; mov %eax,-0x20(%ebp)`（具名槽）→ `mov -0x24(%ebp),%eax;
                 //   cmp -0x20(%ebp),%eax; jg 084d6307`（直跳，无 setcc 物化）⇒ 原码为
@@ -303,7 +303,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         //   嵌套 if（非 `&&` 短路）是复刻 ORIG 形态的必要写法：`&&` 会让 4.4 把内层
         //   条件降成短路 bool 物化（`jne/mov $1/jmp/mov $0`），而 ORIG 内层保持
         //   `call; test %eax,%eax; sete %al; test %al,%al; je 0x084d6366`（P197④/P292 族）。
-        if (item.m_field1 == 5)
+        if (item.m_itemType == 5)
         {
             if (inven->GetCreatureMgrR()->FindCreatureItem(item.m_addInfo2) == 0)
             {
@@ -331,9 +331,9 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
             //   -0xb6 由 084d60be `lea -0xb6; call isEquipableItemType` 实证 ⇒ 读 item+0x00
             //   = bool m_field0）`xor $1; test %al,%al; je 084d6462`（default/继续块）
             //   ⇒ m_field0==0 时报 err 0x91；同构先例 CTradeSpace::_IsTradable case 3
-            //   （`!item.m_field0` 发 ORIG `movzbl;xor $1;test;je`，P292）。
+            //   （`!item.m_seal` 发 ORIG `movzbl;xor $1;test;je`，P292）。
             //   旧码读 item.m_addInfo（+0x02 item idx，且此处 itemId!=0 恒真）= 字段错。
-            if (!item.m_field0)
+            if (!item.m_seal)
             {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0xba, 0x91, (PAY_TYPE)payType);
                 return 0;
@@ -369,13 +369,13 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         //   `mov -0xb4(%ebp),%eax; mov %eax,-0x14a(%ebp)`   = m_itemId ← item+0x02（Inven_Item::m_addInfo）
         //   （item 基址 -0xb6 由 0x084d655a `lea -0xb6(%ebp),%eax; call isEquipableItemType` 实证；
         //    pck=-0x17b ⇒ -0x14b/-0x14a = pck+0x30/+0x31 = DnfItemInfo::m_seal(+0x00)/m_itemId(+0x01)，pack(1)）
-        //   旧码写常量 0（m_seal）与 msg+0x0d（m_itemId）⇒ item.m_field0 != 0 时包内 m_seal 值分叉
+        //   旧码写常量 0（m_seal）与 msg+0x0d（m_itemId）⇒ item.m_seal != 0 时包内 m_seal 值分叉
         //   （pck 整包经 SendPacket 发出 ⇒ 字段可观察）⇒ 真语义差异，按 ORIG 源复刻。
-        pck.item_info.m_seal = item.m_field0;
+        pck.item_info.m_seal = item.m_seal;
         pck.item_info.m_itemId = item.m_addInfo;
         pck.item_info.m_attr = item.GetItemAttr();                // 提升档位/seal 位
-        pck.item_info.m_endurance = item.m_fieldb;
-        pck.item_info.m_extendInfo = item.m_fieldd;
+        pck.item_info.m_endurance = item.m_endurance;
+        pck.item_info.m_extendInfo = item.m_extendInfo;
         pck.item_info.m_addInfo =
             item.isEquipableItemType() ? item.m_addInfo2 : restrictAmount;
         item.m_amp.getValues(pck.item_info.m_abilityType, pck.item_info.m_abilityValue);
@@ -431,7 +431,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
     }
     if (item.m_addInfo != 0)
     {
-        if (item.m_field1 == '\b')                                     // 化身穿戴位删除
+        if (item.m_itemType == '\b')                                     // 化身穿戴位删除
         {
             if (!inven->delete_item((INVEN_TYPE)2, slotNo, 1, (eItemDelReason)5, true))
             {
@@ -449,7 +449,7 @@ int Inter_AuctionResultAskRegistedItemNum::dispatch_sig(CUser* user, char* data,
         else
         {
             // ORIG 0x084d6974/0x084d698f/0x084d6999：第1参 = invenType（映射值 1/2/3，itemId==0 时为默认 6），
-            // 非 item.m_field0（`movzbl -0xb6(%ebp)` 只在 case3 的 !item.m_field0 判定处，0x084d6426）。
+            // 非 item.m_seal（`movzbl -0xb6(%ebp)` 只在 case3 的 !item.m_seal 判定处，0x084d6426）。
             if (!inven->delete_item((INVEN_TYPE)invenType, slotNo, static_cast<int>(pck.item_info.m_addInfo),
                                     (eItemDelReason)0x19, true))
             {

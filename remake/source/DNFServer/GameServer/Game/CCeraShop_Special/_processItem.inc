@@ -24,7 +24,7 @@ int CCeraShop::_processItem(CUser* user, Inven_Item item, int count, int& restri
         if ((slot = user->getCurCharacInvenW()->insertItemIntoInventory(
                  item, (eItemAddReason)0xf, true, false)) != -1)
         {
-            if (item.m_field1 == Inven_Item::ITEM_TYPE_ARTIFACT)
+            if (item.m_itemType == Inven_Item::ITEM_TYPE_ARTIFACT)
                 user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)7,
                                          slot);
             else

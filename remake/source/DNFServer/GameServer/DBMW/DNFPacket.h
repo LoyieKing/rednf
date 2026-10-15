@@ -957,20 +957,20 @@ struct RandomOptionSeed
 struct RandomOptionField
 {
     void reset();
-    unsigned char m_b0;    // +0
-    unsigned char m_b1;    // +1
-    unsigned char m_b2;    // +2
+    unsigned char m_optionIndex;  // 选项索引（get_option_index）
+    unsigned char m_firstValue;   // set_first_value
+    unsigned char m_secondValue;  // set_second_value
 };
 
 struct RandomOption
 {
     void reset();
-    RandomOptionField m_field0;  // +0（3）
-    RandomOptionField m_field1;  // +3
-    RandomOptionField m_field2;  // +6
-    RandomOptionSeed m_seed0;    // +9
-    RandomOptionField m_field3;  // +0xa
-    RandomOptionSeed m_seed1;    // +0xd
+    RandomOptionField m_slot0;
+    RandomOptionField m_slot1;
+    RandomOptionField m_slot2;
+    RandomOptionSeed m_gradeSeed;       // 低 2 位 outGrade，高 6 位随机种子
+    RandomOptionField m_changedOption;  // 变换中的选项
+    RandomOptionSeed m_changedSlot;     // 低 2 位 = 被锁的槽号
 };
 
 struct UpgradeSeparateInfo

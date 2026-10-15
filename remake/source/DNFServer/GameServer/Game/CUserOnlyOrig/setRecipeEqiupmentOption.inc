@@ -34,7 +34,7 @@ void CUser::setRecipeEqiupmentOption(Inven_Item& outItem, stEquipCondition cond,
             0x5fbe, "RECIPE ERROR : Not Exist Output Item");
         return;
     }
-    if (outItem.m_field1 != 1)                                               // ITEM_TYPE_EQUIP
+    if (outItem.m_itemType != 1)                                               // ITEM_TYPE_EQUIP
     {
         LogManager::logFormat(
             1, "user.cpp",
@@ -101,9 +101,9 @@ void CUser::setRecipeEqiupmentOption(Inven_Item& outItem, stEquipCondition cond,
     // 旧 `bool bind` + 三目形多 1 槽（-0xd）与 3 条物化。
     if ((unsigned char)cond.m_flag6 == 1 &&
         (outDef->GetAttachType() == 3 || outDef->GetAttachType() == 4))
-        outItem.m_field0 = 1;
+        outItem.m_seal = 1;
     else
-        outItem.m_field0 = 0;
+        outItem.m_seal = 0;
 
     if (outDef->GetAttachType() == 3)
         outItem.SetReSealCount((unsigned char)cond.m_pad7);                  // cond+7 reseal

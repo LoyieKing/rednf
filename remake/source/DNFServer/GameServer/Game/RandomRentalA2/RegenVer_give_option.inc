@@ -123,7 +123,7 @@ bool CRandomOptionItemHandle::RegenVer_give_option(
             victim = groupVec.begin() + sel;
             // [K2ERandomBoss 2026-09-11] P167 同 give_option：ORIG 同一 victim
             // 解引用两次（deEv×2）、无 `vector::ixEj`。
-            opts->m_fields[slotI].m_field0 = (unsigned char)(*victim).m_type0;
+            opts->m_fields[slotI].m_optionIndex = (unsigned char)(*victim).m_type0;
             remaining -= (*victim).m_weight4;
             groupVec.erase(victim);
 
@@ -139,17 +139,17 @@ bool CRandomOptionItemHandle::RegenVer_give_option(
                 v1 = (unsigned char)_get_option_value(dwA, dwB);
                 v2 = (unsigned char)_get_option_value(dwA, dwB);
             }
-            opts->m_fields[slotI].m_field1 = v1;
-            opts->m_fields[slotI].m_field2 = v2;
+            opts->m_fields[slotI].m_firstValue = v1;
+            opts->m_fields[slotI].m_secondValue = v2;
         }
     }
 
-    opts->m_seed9.m_field =
-        (unsigned char)((opts->m_seed9.m_field & 0xfc) | (outGrade & 3));
+    opts->m_gradeSeed.m_value =
+        (unsigned char)((opts->m_gradeSeed.m_value & 0xfc) | (outGrade & 3));
     unsigned long seedBound = MAX_RANDOM_SEED;
     int seedRoll = m_rand[10].randInt(seedBound);
-    opts->m_seed9.m_field =
-        (unsigned char)((opts->m_seed9.m_field & 3) | ((seedRoll & 0x3f) << 2));
+    opts->m_gradeSeed.m_value =
+        (unsigned char)((opts->m_gradeSeed.m_value & 3) | ((seedRoll & 0x3f) << 2));
 
     return true;
 }

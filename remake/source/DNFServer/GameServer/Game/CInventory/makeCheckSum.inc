@@ -13,7 +13,7 @@ int CInventory::makeCheckSum(int a, int b) const
     {
         if (m_invenItem[i].m_addInfo != 0)
         {
-            register unsigned short v = (unsigned short)m_invenItem[i].m_fieldb;
+            register unsigned short v = (unsigned short)m_invenItem[i].m_endurance;
             register unsigned char upgrade = m_invenItem[i].GetUpgrade();
             // [b28d-36 复测] P200「短整实参直传」形实测 nd 144→148 反劣 ⇒ 回滚，保留 register v 形
             // （ORIG 双段 movzwl %ax,%ebx 跨 GetUpgrade 保活在此不可造，判 N18a/P200 边界）。
@@ -24,15 +24,15 @@ int CInventory::makeCheckSum(int a, int b) const
     {
         if (m_pEquipSlot[i].m_addInfo != 0)
         {
-            if (m_pEquipSlot[i].m_field1 == 1)
+            if (m_pEquipSlot[i].m_itemType == 1)
             {
-                register unsigned short v = (unsigned short)m_pEquipSlot[i].m_fieldb;
+                register unsigned short v = (unsigned short)m_pEquipSlot[i].m_endurance;
                 register unsigned char upgrade = m_pEquipSlot[i].GetUpgrade();
                 sum += getItemChecksum(i, m_pEquipSlot[i].m_addInfo, 1, upgrade, v);
             }
             else
             {
-                register unsigned short v = (unsigned short)m_pEquipSlot[i].m_fieldb;
+                register unsigned short v = (unsigned short)m_pEquipSlot[i].m_endurance;
                 register unsigned char upgrade = m_pEquipSlot[i].GetUpgrade();
                 sum += getItemChecksum(i, m_pEquipSlot[i].m_addInfo,
                                        m_pEquipSlot[i].m_addInfo2, upgrade, v);

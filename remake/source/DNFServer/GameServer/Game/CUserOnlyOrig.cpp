@@ -2468,7 +2468,7 @@ private:
 //         packet.put_int(made.get_add_info());
 //         packet.put_int(made.m_addInfo2);                  // +0x07 字段照抄
 //         packet.put_byte(made.GetUpgrade() & 0xff);
-//         packet.put_short(made.m_fieldb & 0xffff);
+//         packet.put_short(made.m_endurance & 0xffff);
 //         stAmplifyOption_t& amp =
 //             *(stAmplifyOption_t*)((char*)&made + 0x12);
 //         packet.put_byte(amp.getAbilityType() & 0xff);

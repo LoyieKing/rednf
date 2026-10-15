@@ -13,12 +13,12 @@ void CCargo::MakeItemPacket(PacketGuard* packet, int slot) const
         ((InterfacePacketBuf*)packet)->put_int(m_pItems[slot].m_addInfo2);
         ((InterfacePacketBuf*)packet)->put_byte(
             (int)GetIntegratedPvPItemAttr(m_pItems[slot]) & 0xff);
-        ((InterfacePacketBuf*)packet)->put_short(m_pItems[slot].m_fieldb);
-        ((InterfacePacketBuf*)packet)->put_byte(m_pItems[slot].m_field0);
+        ((InterfacePacketBuf*)packet)->put_short(m_pItems[slot].m_endurance);
+        ((InterfacePacketBuf*)packet)->put_byte(m_pItems[slot].m_seal);
         if (G_GameWorld()->IsEnchantRevisionChannel())
             ((InterfacePacketBuf*)packet)->put_int(0);
         else
-            ((InterfacePacketBuf*)packet)->put_int(m_pItems[slot].m_fieldd);
+            ((InterfacePacketBuf*)packet)->put_int(m_pItems[slot].m_extendInfo);
         ((InterfacePacketBuf*)packet)->put_byte(
             m_pItems[slot].m_amp.getAbilityType() & 0xff);
         ((InterfacePacketBuf*)packet)->put_short(

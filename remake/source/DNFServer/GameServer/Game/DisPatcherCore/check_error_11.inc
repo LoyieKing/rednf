@@ -64,7 +64,7 @@ unsigned int DisPatcher_MoveItem::check_error(CUser* user, MSG_BASE& msg)
             // 唯一产岛的是含**函数调用**的侧（本件另一处 `({ needLock && CheckItemLock(); })`
             // 与 probe4 w7 同因：调用结果需 bool 规范化）；本轮再试语句表达式包住
             // 纯字段比较形，实测 ours 仍 102 / ndiff 仍 15（逐字节不变）⇒ 维持 N 封顶。
-            if ((item.m_field0 != 0 && req.m_fromPos > 0x8b) == true)
+            if ((item.m_seal != 0 && req.m_fromPos > 0x8b) == true)
             {
                 needLock = 1;
             }

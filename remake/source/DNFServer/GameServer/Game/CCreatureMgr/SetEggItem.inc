@@ -5,10 +5,10 @@
 //   find_item(itemIdx) 为 0 → 返回 0；
 //   物品 is_stackable → 返回 0；
 //   否则按 CEquipItem::get_sub_type()：
-//     ==1 → 仅置 item->m_field0 = 1；
+//     ==1 → 仅置 item->m_seal = 1；
 //     ==2 → get_rand_int(m_randomTable.m_field0) 得随机权重，
 //           GetRandomItemIndex(table, idx) 得目标 itemIdx，
-//           写回 item->m_addInfo 并置 item->m_field0 = 1；
+//           写回 item->m_addInfo 并置 item->m_seal = 1；
 //   均返回 1。
 // ============================================================================
 // [b28d-23 N·P133] 分支布局/极性（get_sub_type 两跳同落）⇒ N。ORIG 0x08336eae
@@ -45,7 +45,7 @@ bool CCreatureItemConverter::SetEggItem(Inven_Item* item)
     {
     case 1:
     {
-        item->m_field0 = 1;
+        item->m_seal = 1;
         break;
     }
     case 2:
@@ -54,7 +54,7 @@ bool CCreatureItemConverter::SetEggItem(Inven_Item* item)
         // 内联（call 结果 %eax 直落 arg，无槽）。
         int range = equip->m_randomTable.m_field0;
         item->m_addInfo = equip->m_randomTable.GetRandomItemIndex(get_rand_int(range));
-        item->m_field0 = 1;
+        item->m_seal = 1;
         break;
     }
     // [TowerSkill20 2026-09-11 两形试毕·已回滚] ①去 `default:` 无标签形、②`case 0: default:`

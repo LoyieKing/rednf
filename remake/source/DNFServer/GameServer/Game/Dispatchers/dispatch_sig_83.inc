@@ -108,7 +108,7 @@ int Dispatcher_UpgradeChronicle::dispatch_sig(CUser* user, PacketBuf& packet)
         return 0;
     }
     const int endurance = equip->get_endurance();
-    if ((int)itemB.m_fieldb < endurance)
+    if ((int)itemB.m_endurance < endurance)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x112, 7);
         return 0;

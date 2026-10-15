@@ -4,7 +4,7 @@ void PacketBuf::put_packet(const Inven_Item& item)
     // 实例（ORIG 0x858e3ec）verdict=AE（p167 15/15 CLEAR，133=133）。修法落在
     // Inven_Item.h 模板体：P235 具名数组视角 `m_fields[i]`（消 reinterpret_cast
     // 视图的 lea 链，复现 ORIG `add 0x8(%ebp)` + `movzbl (%eax,%ecx,1)`）
-    // + P308 位域视角 `m_seedd.m_bits.m_low2`（复现 `movzbl; and $3; movzbl`）。
+    // + P308 位域视角 `m_changedSlot.m_bits.m_low2`（复现 `movzbl; and $3; movzbl`）。
     item.m_random.m_random.put_packet_random_option(*this);
 
     if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&

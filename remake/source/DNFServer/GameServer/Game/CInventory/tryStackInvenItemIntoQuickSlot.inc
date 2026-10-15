@@ -1,6 +1,6 @@
 int CInventory::tryStackInvenItemIntoQuickSlot(Inven_Item item) const
 {
-    if (item.m_field1 == 1)
+    if (item.m_itemType == 1)
     {
         return -1;
     }

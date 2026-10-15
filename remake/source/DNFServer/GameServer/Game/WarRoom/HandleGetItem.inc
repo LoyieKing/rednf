@@ -161,7 +161,7 @@ bool WarRoom::HandleGetItem(CUser* user, int idx)
                             user->getCurCharacNo(), ipg);
                         added = user->addAvatarItem(
                             (unsigned long)fieldItem.m_item.m_addInfo, 0,
-                            (char)fieldItem.m_item.m_fieldb, ipg,
+                            (char)fieldItem.m_item.m_endurance, ipg,
                             (eAvatarItemAddReason)0x11);
                     }
                     if (added == -1)

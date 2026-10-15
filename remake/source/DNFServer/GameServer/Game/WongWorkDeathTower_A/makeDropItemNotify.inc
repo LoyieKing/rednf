@@ -16,8 +16,8 @@ void CDeathTower::CPacketHandler::makeDropItemNotify(unsigned short uid, int x, 
     put_int(item.m_item.m_addInfo);                      // map_item+0x12 = Inven_Item+0x02
     put_byte((int)item.m_item.GetItemAttr());            // Inven_Item::GetItemAttr
     put_int(item.m_item.get_add_info());                 // Inven_Item::get_add_info
-    put_short((int)item.m_item.m_fieldb);                // map_item+0x1b = Inven_Item+0x0b
-    put_int(item.m_item.m_fieldd);                       // map_item+0x1d = Inven_Item+0x0d
+    put_short((int)item.m_item.m_endurance);                // map_item+0x1b = Inven_Item+0x0b
+    put_int(item.m_item.m_extendInfo);                       // map_item+0x1d = Inven_Item+0x0d
     put_byte((int)item.m_item.m_amp.getAbilityType());   // map_item+0x21 = Inven_Item+0x11
     put_short((int)item.m_item.m_amp.getAbilityValue());
     put_packet(item.m_item);                             // 子对象整体（map_item+0x10）

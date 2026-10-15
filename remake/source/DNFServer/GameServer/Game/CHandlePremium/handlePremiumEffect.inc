@@ -12,7 +12,7 @@ void CHandlePremium::handlePremiumEffect(CUser* user, ENUM_PREMIUM_TYPE type)
     //   ② invR/coin/curCoin/add（-0x2c/-0x28/-0x24/-0x20）：ORIG 0x086aff90..0x086b0037 无槽，
     //      getCurCharacInvenR 两处 fresh call、GetCoin 直落 %ebx/%eax ⇒ 内联表达式（P183）；
     //   ③ `if (iType != 9999)` → ORIG 0x086aff83 `cmpl $0x270f,0xc(%ebp)` 比较 **type 形参**，
-    //      旧码比 iType 属接收者错（语义轴）；④ 删 `item.m_field1 = itemIdx >> 0x10` ——
+    //      旧码比 iType 属接收者错（语义轴）；④ 删 `item.m_itemType = itemIdx >> 0x10` ——
     //      ORIG 0x086afe20 只读 +0x01（-0x97(%ebp) 全函数仅此一处）无写，该字段由
     //      make_item 写；旧码覆盖 make_item 结果并改变 m_addInfo2 取值（语义轴）。
     //   ⑤ P214① `if (!IsPremiumUser()) return;` → `if (IsPremiumUser()) { 主流程 }`（ORIG
@@ -84,13 +84,13 @@ void CHandlePremium::handlePremiumEffect(CUser* user, ENUM_PREMIUM_TYPE type)
                     // [语义轴] ORIG 0x086afe15(call *%edx=make_item) → 0x086afe17 写 +0x02
                     // → 0x086afe20 `movzbl -0x97(%ebp),%eax`（读 +0x01）**其间无任何 +0x01
                     // 写入**（全函数 `-0x97(%ebp)` 仅此一处出现，grep 实证）⇒ 旧码
-                    // `item.m_field1 = (unsigned char)(itemIdx >> 0x10);` 是发明写入，
+                    // `item.m_itemType = (unsigned char)(itemIdx >> 0x10);` 是发明写入，
                     // 会覆盖 make_item 设置的 ITEM_TYPE（+0x01）并改变 m_addInfo2 取值。
                     // [P47 试形记录·负结论] ORIG 0x086afe27 `cmp $0x1,%al; je L; <m_addInfo2=
                     // count>; jmp E; L: call GetSeedFromDate; …=eax`（真臂在跳转目标）；
                     // 取反三目 `(field1 != 1) ? count : GetSeedFromDate()` 实测 ndiff 59→59
                     // （4.4 规范化同形）⇒ 已回滚，保留原正极性三目。
-                    item.m_addInfo2 = (item.m_field1 == 1)
+                    item.m_addInfo2 = (item.m_itemType == 1)
                                       ? user->GetSeedFromDate() : count;  // +0x07
                     int insertRet = user->getCurCharacInvenW()->insertItemIntoInventory(
                         item, (eItemAddReason)0xe, true, true);

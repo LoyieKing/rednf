@@ -60,9 +60,9 @@ bool CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const  // [b2
             pg.put_int(item.m_addInfo);   // ORIG local_8b（item idx 字段）
         pg.put_int(rest);
         pg.put_byte(item.GetItemAttr());
-        pg.put_short(item.m_fieldb);
-        pg.put_byte(item.m_field0);
-        pg.put_int(item.m_fieldd);
+        pg.put_short(item.m_endurance);
+        pg.put_byte(item.m_seal);
+        pg.put_int(item.m_extendInfo);
         pg.put_byte(item.m_amp.getAbilityType());
         pg.put_short(item.m_amp.getAbilityValue());
         pg.put_byte(0);

@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
 // GetSellItemPrice(Inven_Item&, const CItem*, short, bool, int&)
 // ---------------------------------------------------------------------------
-// [b28d-solo-Store] 真语义 bug：ORIG 0x08618f79 比较对象是 item.m_fieldb(+0xb)，
-// 旧实现误用 count（`if (get_endurance() >= count) item.m_fieldb = ...`）——修满耐久
+// [b28d-solo-Store] 真语义 bug：ORIG 0x08618f79 比较对象是 item.m_endurance(+0xb)，
+// 旧实现误用 count（`if (get_endurance() >= count) item.m_endurance = ...`）——修满耐久
 // 判定完全错位。另修正：`if (!isEquipableItemType())`（bool callee + P292 xor 形）、
 // 正极性短路包裹（P214①）、m_itemType 判序 ==0xb 先于 <10、删 cnt 具名局部（P0）。
 int Store::GetSellItemPrice(Inven_Item& item, const CItem* pItem, short count,
@@ -29,10 +29,10 @@ int Store::GetSellItemPrice(Inven_Item& item, const CItem* pItem, short count,
         // ⇒ `m_itemType == 0xb || m_itemType < 10`。
         if (pEquip->m_itemType == 0xb || pEquip->m_itemType < 10)
             return 0x17;
-        // ORIG 0x08618f79：比较对象是 item.m_fieldb（+0xb，ushort），非 count。
-        if ((int)item.m_fieldb > (int)pEquip->get_endurance())
-            item.m_fieldb = (unsigned short)pEquip->get_endurance();
-        outPrice = getItemSellPrice(pItem->GetSellPrice(), item.m_fieldb,
+        // ORIG 0x08618f79：比较对象是 item.m_endurance（+0xb，ushort），非 count。
+        if ((int)item.m_endurance > (int)pEquip->get_endurance())
+            item.m_endurance = (unsigned short)pEquip->get_endurance();
+        outPrice = getItemSellPrice(pItem->GetSellPrice(), item.m_endurance,
                                     pEquip->get_endurance(),
                                     pItem->IsRandomOption());
     }

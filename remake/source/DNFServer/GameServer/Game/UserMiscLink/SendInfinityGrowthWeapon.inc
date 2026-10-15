@@ -33,11 +33,11 @@ int GrowthEquipEvent::SendInfinityGrowthWeapon(CUser* user, const Inven_Item* it
         // mov %eax,%edx; and $0x1f,%edx; movzbl -0x1a(%ebp),%eax; and $0xffffffe0,%eax;
         // or %edx,%eax; mov %al,-0x1a(%ebp)` = **5 位位域赋值**（源提取 + 目标位清 + 合并），
         // 非手工 & 掩码（手工形恒少 `mov %eax,%edx` 前的 `and $0x1f,%eax`）。
-        newItem.m_upgradeSep.m_bits.m_lo = item->m_upgradeSep.m_bits.m_lo;
+        newItem.m_upgradeSep.m_bits.m_upgradeSeparate = item->m_upgradeSep.m_bits.m_upgradeSeparate;
         // ORIG 0x080f758d 先 m_amp(+0x11) 后 m_fieldd(+0xd)；P235 匿名 union
         // 的 m_amp0Int 具名视角产 `mov 0x11(%eax),%eax; mov %eax,-0x3c(%ebp)` 直拷。
         newItem.m_amp.m_amp0Int = item->m_amp.m_amp0Int;
-        newItem.m_fieldd = item->m_fieldd;
+        newItem.m_extendInfo = item->m_extendInfo;
     }
 
     if (!user->getCurCharacInvenW()->delete_item(

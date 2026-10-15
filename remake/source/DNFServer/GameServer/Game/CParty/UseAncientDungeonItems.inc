@@ -48,9 +48,9 @@ bool CParty::UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* items, 
             }
             packet.put_int(diff);
             packet.put_byte(items[i].GetItemAttr());
-            packet.put_short(items[i].m_fieldb);
-            packet.put_byte(items[i].m_field0);
-            packet.put_int(items[i].m_fieldd);
+            packet.put_short(items[i].m_endurance);
+            packet.put_byte(items[i].m_seal);
+            packet.put_int(items[i].m_extendInfo);
             packet.put_byte(items[i].m_amp.getAbilityType());
             packet.put_short(items[i].m_amp.getAbilityValue());
 // b28d-solo-CParty: DIFF 残 —— P209/N82：4.4 对 enum 形参比较恒 mem 直比（ORIG mov;test 复用寄存器）+ 自增段多载 slot；123 vs 121

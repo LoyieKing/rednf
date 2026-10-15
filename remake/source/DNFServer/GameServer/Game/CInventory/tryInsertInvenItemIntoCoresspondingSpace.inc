@@ -7,7 +7,7 @@ int CInventory::tryInsertInvenItemIntoCoresspondingSpace(Inven_Item item) const
     }
     int start = 0;
     int end = 0;
-    getStartEndPos((Inven_Item::ITEM_TYPE)item.m_field1, start, end);
+    getStartEndPos((Inven_Item::ITEM_TYPE)item.m_itemType, start, end);
     for (int i = start; i <= end; i++)
     {
         if (m_pEquipSlot[i].m_addInfo == 0)

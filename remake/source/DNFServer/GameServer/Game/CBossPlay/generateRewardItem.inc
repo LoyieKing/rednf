@@ -134,7 +134,7 @@ bool CBossPlay::generateRewardItem(int memberIdx, int itemCount, unsigned int a,
                 {
                     ::CLuckPoint::UseLuckPoint(
                         m_party->get_user(memberIdx),
-                        rewardItem.m_field1, item->get_rarity(), item->get_grade());
+                        rewardItem.m_itemType, item->get_rarity(), item->get_grade());
                 }
             }
         }

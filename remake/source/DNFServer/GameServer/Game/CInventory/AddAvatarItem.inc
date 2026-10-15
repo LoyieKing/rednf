@@ -29,23 +29,23 @@ int CInventory::AddAvatarItem(int itemIdx, int avatarUid, bool b, char c, char d
             m_pAvatarSlot[i].m_addInfo = itemIdx;
             m_pAvatarSlot[i].m_addInfo2 = (int)m_avatarItemMgr.RegistNotAssignedAvatarItem(
                 avatarUid, tick, agency, e, emblem);
-            m_pAvatarSlot[i].m_field1 = 8;
-            m_pAvatarSlot[i].m_fieldb = (short)c;
-            m_pAvatarSlot[i].m_field0 = 0;
+            m_pAvatarSlot[i].m_itemType = 8;
+            m_pAvatarSlot[i].m_endurance = (short)c;
+            m_pAvatarSlot[i].m_seal = 0;
             // ORIG AddAvatarItem.md：0x8509d30 movw $0,0xd / 0x8509d60 movw %ax,0xd /
             // 0x8509d76 movw $0,0xf —— +0x0d/+0x0f 各 2 字节，同 union 低/高半字。
-            m_pAvatarSlot[i].m_fieldSplit.m_fielddLo = 0;
+            m_pAvatarSlot[i].m_fieldSplit.m_hiddenOption = 0;
             CItem* pHidden = pItem;
             if (pHidden->IsHiddenOption())
             {
-                m_pAvatarSlot[i].m_fieldSplit.m_fielddLo = f;
+                m_pAvatarSlot[i].m_fieldSplit.m_hiddenOption = f;
             }
             m_pAvatarSlot[i].m_fieldSplit.m_avatarEndur = 0;
             m_pAvatarSlot[i].ResetItemAttr();
             stAvatarExpansionInfo_t expansion;
             expansion.init();
             _SaveAvatarItem(i, m_avatarItemMgr.GetExpireDate(m_pAvatarSlot[i].m_addInfo2), b, c,
-                            emblem, agency, m_pAvatarSlot[i].m_fieldd, expansion);
+                            emblem, agency, m_pAvatarSlot[i].m_extendInfo, expansion);
             m_pParent->m_historyLog.AvatarItemAdd(
                 itemIdx, 0xffffffff, agency, reason);
             return i;

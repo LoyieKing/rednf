@@ -410,8 +410,8 @@ __attribute__((weak)) int CPacketBufPrivate::MakeNotipacketPrivateStoreInfo(SIG_
             put_int(PS_ITEM(i).m_addInfo);            // 物品索引（条目 +0x02）
             put_int(PS_ITEM(i).m_addInfo2);           // 条目 +0x07
             put_byte((int)PS_REAL(i).m_item.GetItemAttr());
-            put_short((int)PS_ITEM(i).m_fieldb);      // 耐久（条目 +0x0b）
-            put_int((int)PS_ITEM(i).m_fieldd);        // 条目 +0x0d
+            put_short((int)PS_ITEM(i).m_endurance);      // 耐久（条目 +0x0b）
+            put_int((int)PS_ITEM(i).m_extendInfo);        // 条目 +0x0d
             put_byte((int)PS_REAL(i).m_item.m_amp.getAbilityType());
             put_short((int)PS_REAL(i).m_item.m_amp.getAbilityValue());
             // [L14] ORIG 该实参为 `imul; add sig; lea 0x8(%eax),%edx`（元素取址）；
@@ -534,7 +534,7 @@ __attribute__((weak)) void CPacketBufPrivate::MakeCmdpacketEnterPrivateStore(CUs
         put_short(i);
         put_int(items[i].m_field40);                              // +0x40 售价
         put_int((int)items[i].m_item.m_addInfo);                  // +0x02 物品索引
-        if ((int)items[i].m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
+        if ((int)items[i].m_item.m_itemType == Inven_Item::ITEM_TYPE_AVATAR)
         {
             // avatar：剩余时间按 uid 实时查询（tick 在循环外取一次）。
             put_int(sellerUser->getCurCharacInvenR()->GetAvatarItemMgrR()->GetRemainDate(
@@ -545,11 +545,11 @@ __attribute__((weak)) void CPacketBufPrivate::MakeCmdpacketEnterPrivateStore(CUs
             put_int((int)items[i].m_item.m_addInfo2);             // +0x07
         }
         put_byte((int)items[i].m_item.GetItemAttr());
-        put_short((int)items[i].m_item.m_fieldb);                 // +0x0b 耐久
-        put_int((int)items[i].m_item.m_fieldd);                   // +0x0d
+        put_short((int)items[i].m_item.m_endurance);                 // +0x0b 耐久
+        put_int((int)items[i].m_item.m_extendInfo);                   // +0x0d
         put_byte((int)items[i].m_item.m_amp.getAbilityType());
         put_short((int)items[i].m_item.m_amp.getAbilityValue());
-        if ((int)items[i].m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
+        if ((int)items[i].m_item.m_itemType == Inven_Item::ITEM_TYPE_AVATAR)
         {
             put_int(0x1e);
             // [PoolE 2026-09-11 负结论] (void*) 中间转换旋钮实测无效（ndiff 2 逐值不变）；
@@ -670,16 +670,16 @@ __attribute__((weak)) void CPacketBufPrivate::MakeCmdpacketBuyPrivateStoreItem(C
     put_short(a5);
     put_int((int)item.m_addInfo);
     int nowTick = OS_API::GetDateTimeTick();
-    if ((int)item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
+    if ((int)item.m_itemType == Inven_Item::ITEM_TYPE_AVATAR)
         put_int(buyerUser->getCurCharacInvenR()->GetAvatarItemMgrR()->GetRemainDate(a6, nowTick));
     else
         put_int(a6);
     put_byte((int)item.GetItemAttr());
-    put_short((int)item.m_fieldb);
-    put_int((int)item.m_fieldd);
+    put_short((int)item.m_endurance);
+    put_int((int)item.m_extendInfo);
     put_byte((int)item.m_amp.getAbilityType());
     put_short((int)item.m_amp.getAbilityValue());
-    if ((int)item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
+    if ((int)item.m_itemType == Inven_Item::ITEM_TYPE_AVATAR)
     {
         put_int(0x1e);
         // [PoolE 2026-09-11 负结论] 同上（(void*) 旋钮无效，维持 P75/N7 封顶）。

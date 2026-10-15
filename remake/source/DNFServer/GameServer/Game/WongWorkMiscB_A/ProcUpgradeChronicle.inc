@@ -130,8 +130,8 @@ int CItemUpgrade::ProcUpgradeChronicle(CUser* user, short slotA, unsigned int,
                 // （ORIG 0x08549578 直接 lea+add 传址，无引用局部槽）
                 newItem.m_amp.assign(cond.m_amplifyType, cond.m_amplifyValue);
             }
-            // ORIG 0x08549589：newItem.m_fieldd(+0x0d) ← cond.m_fieldd(+0x08)
-            newItem.m_fieldd = cond.m_fieldd;
+            // ORIG 0x08549589：newItem.m_extendInfo(+0x0d) ← cond.m_extendInfo(+0x08)
+            newItem.m_extendInfo = cond.m_extendInfo;
         }
         // ORIG 0x08549592：set_add_info 内联为单条 `mov %eax,-0x10c`
         // （p167 EXTRA `set_add_info` ⇒ 直写成员）。

@@ -38,7 +38,7 @@
 //     并前置后槽位（-0x1c）与 ORIG 对齐；残差 = ①N7 虚调用目标 4.4.7 恒 %eax（ORIG %edx，
 //     两处）②第 4 个 getter 值（rarity）4.4 落槽而 ORIG 留 %edx（register/具名 handle 两形
 //     实测均劣：78/78→79）。P230：N7 属 4.4.6 后端敏感族，路由由 Main 统管。
-//   · applyItemOption 0x080f0d6e —— 77→75 条：①`inven.m_field0` 经 uchar 视图直存
+//   · applyItemOption 0x080f0d6e —— 77→75 条：①`inven.m_seal` 经 uchar 视图直存
 //     （消 4.4 `test;setne` bool 归一，且得 ORIG 的 RHS-first 序）②`if (({ …&&…; }))`
 //     P226 语句表达式复现 ORIG +0x91..+0xaf 短路物化岛（mov $1/jmp/mov $0 + test）
 //     ③`register unsigned int attachType` 消槽（P0/P231 非绑定形）。残差 = N6 位折叠

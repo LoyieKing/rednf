@@ -7,13 +7,13 @@
 // [b28d-solo-CCreatureMgr AE] P247 stAmplifyHeadView 4B 结构赋值复现 +0x11 LHS-first；ORIG 0x833f418
 void Inven_Item_Compatible::makeInvenItem(Inven_Item& item)
 {
-    item.m_field0 = m_field0;
-    item.m_field1 = m_type;
+    item.m_seal = m_seal;
+    item.m_itemType = m_type;
     item.m_addInfo = m_itemIdx;
     item.m_addInfo2 = m_addInfo2;
-    item.m_fieldb = m_endurance;
+    item.m_endurance = m_endurance;
     item.SetItemAttr(m_attr);
-    item.m_fieldd = m_fieldd;
+    item.m_extendInfo = m_extendInfo;
     // ORIG 0x833f476..0x833f497：guid 三写（0x15/0x19/0x1d）以单一 %eax 基址
     // 连续（共享装载），m_amp0(→+0x11) 独立重载置后；中间变量 guid 反产 -0xc 槽。
     // ORIG 0x833f476：单条结构赋值（双基址各载一次 + 三连续 store）——具名

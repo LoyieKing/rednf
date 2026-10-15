@@ -11,10 +11,10 @@ void CInventory::ChecknFixWineAndMoru()
         // ORIG 0x85098a7..+0xa4：四级平铺 je/jne 同跳 INC(+0xbf)，无 bool 物化。
         if (m_pEquipSlot[i].m_addInfo != 0)
         {
-            if (m_pEquipSlot[i].m_field1 != 1)
+            if (m_pEquipSlot[i].m_itemType != 1)
             {
                 if (!IsOverStackableItem(m_pEquipSlot[i].m_addInfo,
-                                         (unsigned char)m_pEquipSlot[i].m_field1))
+                                         (unsigned char)m_pEquipSlot[i].m_itemType))
                 {
                     if (m_pEquipSlot[i].m_addInfo2 > 799)
                     {
@@ -29,7 +29,7 @@ void CInventory::ChecknFixWineAndMoru()
         if (m_pEquipSlot[i].m_addInfo != 0)
         {
             if (!IsOverStackableItem(m_pEquipSlot[i].m_addInfo,
-                                     (unsigned char)m_pEquipSlot[i].m_field1))
+                                     (unsigned char)m_pEquipSlot[i].m_itemType))
             {
                 if (m_pEquipSlot[i].m_addInfo2 > 799)
                 {

@@ -43,8 +43,8 @@ int CRedeemItem::Send_RedeemList(CUser* user)
         packet.put_int(entry->m_item.m_addInfo);             // +0x02 物品 idx
         packet.put_int(entry->m_item.m_addInfo2);            // +0x07 数量/强化值
         packet.put_byte((int)entry->m_item.GetItemAttr());   // 属性字节
-        packet.put_short((int)entry->m_item.m_fieldb);       // +0x0b 耐久
-        packet.put_byte((int)(unsigned char)entry->m_item.m_field0); // +0x00 绑定标记
+        packet.put_short((int)entry->m_item.m_endurance);       // +0x0b 耐久
+        packet.put_byte((int)(unsigned char)entry->m_item.m_seal); // +0x00 绑定标记
 
         // [SemA00 2026-09-12] P354：ORIG 0x085f7508 段为**正极性直判**
         //   `call IsEnchantRevisionChannel; test %al,%al; je <put_int(item->0xd)>`
@@ -53,7 +53,7 @@ int CRedeemItem::Send_RedeemList(CUser* user)
         if (G_GameWorld()->IsEnchantRevisionChannel())
             packet.put_int(0);
         else
-            packet.put_int(entry->m_item.m_fieldd);          // +0x0d 强化信息
+            packet.put_int(entry->m_item.m_extendInfo);          // +0x0d 强化信息
 
         packet.put_byte((int)entry->m_item.m_amp.getAbilityType() & 0xff);
         packet.put_short((int)entry->m_item.m_amp.getAbilityValue() & 0xffff);

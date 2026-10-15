@@ -93,7 +93,7 @@ bool CBossStage::RandomPickupItem(CUser* user, unsigned int uid,
         WongWork::CGenUniqueNo::genIPGNo(
             (WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)5,
             (unsigned int)winner->getCurCharacNo(), agency);
-        char periodByte = (char)(unsigned char)item.m_item.m_fieldb;
+        char periodByte = (char)(unsigned char)item.m_item.m_endurance;
         slot = winner->addAvatarItem((unsigned long)item.m_item.m_addInfo, 0,
                                      periodByte, agency,
                                      (eAvatarItemAddReason)0x10);

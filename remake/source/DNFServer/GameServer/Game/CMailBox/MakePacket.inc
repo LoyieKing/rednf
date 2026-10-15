@@ -9,7 +9,7 @@ void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
 
     packet->put_int(m_package.m_packageMoney);
     packet->put_int(m_package.m_item.m_addInfo);            // item idx（Inven_Item+0x02）
-    packet->put_byte(m_package.m_item.m_field0 != 0 ? 1 : 0);         // Inven_Item+0x00
+    packet->put_byte(m_package.m_item.m_seal != 0 ? 1 : 0);         // Inven_Item+0x00
 
     if (isAvatarPackage())
     {
@@ -24,17 +24,17 @@ void CMailBox::CMail::MakePacket(PacketGuard* packet, long nowSec,
         packet->put_int(m_package.m_item.m_addInfo2);           // avatar/creature uid 域
     }
 
-    packet->put_short((int)m_package.m_item.m_fieldb);
+    packet->put_short((int)m_package.m_item.m_endurance);
 
     packet->put_byte((int)(m_package.m_item.GetItemAttr() & 0xff));
 
-    packet->put_int(m_package.m_item.m_fieldd);
+    packet->put_int(m_package.m_item.m_extendInfo);
 
     // +0x3d 即 Inven_Item 内嵌 stAmplifyOption_t（m_package.m_item +0x11）
     packet->put_byte((int)(m_package.m_item.m_amp.getAbilityType() & 0xff));
     packet->put_short((int)(m_package.m_item.m_amp.getAbilityValue() & 0xffff));
 
-    if (m_package.m_item.m_field1 == 5)                               // ITEM_TYPE creature
+    if (m_package.m_item.m_itemType == 5)                               // ITEM_TYPE creature
     {
         // ORIG 8551be3：同一 m_addInfo2 先装 ebx 再链式直传（无具名局部）
         packet->put_int(const_cast<user_creature::CCreatureMgr*>(

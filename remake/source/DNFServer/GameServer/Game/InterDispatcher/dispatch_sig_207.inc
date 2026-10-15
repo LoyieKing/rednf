@@ -68,7 +68,7 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
 
     if (ci->getUsablePeriod() != 0 || ci->getExpirationDate() != 0)
     {
-        const int expireSec = (int)item.m_fieldb * 0x15180 + 0x44a54a80;
+        const int expireSec = (int)item.m_endurance * 0x15180 + 0x44a54a80;
         if (expireSec <= GlobalData::s_systemTime_.getCurSec())
         {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfb, 0xc5);
@@ -85,7 +85,7 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
 
     const int attachType = ci->GetAttachType();
     if (attachType == 1 || attachType == 2 || attachType == 5 ||
-        (attachType == 3 && item.m_field0 != 1) ||
+        (attachType == 3 && item.m_seal != 1) ||
         item.m_upgradeSep.IsTradeRestriction())
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0xfb, 0xc5);
@@ -120,8 +120,8 @@ int Inter_GuildCargoCheckPushItem::dispatch_sig(CUser* user, char* data, int /*l
     // （ORIG 0x084ddcf9..0x084ddd53 段为 pck+0x1c/+0x21/+0x25/+0x27/+0x20 直写）。
     pck.m_item.m_itemId     = (unsigned int)item.m_addInfo;       // +0x1c
     pck.m_item.m_addInfo    = (unsigned int)item.m_addInfo2;      // +0x21
-    pck.m_item.m_endurance  = item.m_fieldb;                      // +0x25
-    pck.m_item.m_extendInfo = (unsigned int)item.m_fieldd;        // +0x27
+    pck.m_item.m_endurance  = item.m_endurance;                      // +0x25
+    pck.m_item.m_extendInfo = (unsigned int)item.m_extendInfo;        // +0x27
     pck.m_item.m_attr       = item.GetItemAttr();                 // +0x20（ORIG 在 extendInfo 之后）
     item.m_amp.getValues(pck.m_item.m_abilityType, pck.m_item.m_abilityValue);
     // [c3] ORIG 0x084ddd58..0x084ddd77：pck+0x38（= m_opt）14B 块（4/4/4/2 段），

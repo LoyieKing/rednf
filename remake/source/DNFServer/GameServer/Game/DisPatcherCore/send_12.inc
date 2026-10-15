@@ -18,7 +18,7 @@ void DisPatcher_BuyItem::send(CUser* user, ParamBase& param)
     guard.put_short(out.m_a0);
     guard.put_int(out.m_item.m_addInfo);        // param+0x06（m_item+0x02）
     guard.put_int(out.m_item.m_addInfo2);       // param+0x0b（m_item+0x07）
-    guard.put_short(out.m_item.m_fieldb);       // param+0x0f（m_item+0x0b）
+    guard.put_short(out.m_item.m_endurance);       // param+0x0f（m_item+0x0b）
     guard.put_byte((int)out.m_item.m_amp.getAbilityType() & 0xff);   // param+0x15
     guard.put_short((int)out.m_item.m_amp.getAbilityValue() & 0xffff);
     guard.put_packet(out.m_item);

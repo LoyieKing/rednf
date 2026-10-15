@@ -19,7 +19,7 @@ int CUser::IsAbleItemLock(int space, int slot) const
     //   ⇒ 拆嵌套 if；`&&` 合写在 4.4 恒折成短路直跳 + bool 汇合（多 4 条）。
     if (it->GetItemType() == 0x16)
     {
-        if (item->m_field0 != 1)
+        if (item->m_seal != 1)
             return 0x13;
     }
     if (it->GetItemType() == 0xb && it->GetAttachType() == 2)

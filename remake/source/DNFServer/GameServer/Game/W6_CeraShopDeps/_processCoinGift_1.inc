@@ -10,9 +10,9 @@ void CCeraShop::_processCoinGift(CUser* user, unsigned short currencyType,
 {
     Inven_Item item;
     item.m_addInfo = count;                           // movl param_5 → idx=count
-    item.m_field1 = 2;                                // ITEM_TYPE_2
+    item.m_itemType = 2;                                // ITEM_TYPE_2
     item.m_addInfo2 = static_cast<int>(currencyType);
-    item.m_fieldb = 2;
+    item.m_endurance = 2;
     item.ResetItemAttr();
 
     // [b28d-S278 实证] ORIG 0x08326332：msgBuf rep stos 在 ResetItemAttr（+0x041）

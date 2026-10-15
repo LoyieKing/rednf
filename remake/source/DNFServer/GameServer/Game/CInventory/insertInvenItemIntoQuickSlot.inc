@@ -4,7 +4,7 @@ int CInventory::insertInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason rea
     {
         if (m_pEquipSlot[i].m_addInfo == 0)
         {
-            if (item.m_field1 != 1)
+            if (item.m_itemType != 1)
             {
                 if (!checkStackableLimit((unsigned long)item.m_addInfo, item.m_addInfo2))
                 {
@@ -16,7 +16,7 @@ int CInventory::insertInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason rea
             {
                 if (m_pParent != 0)
                 {
-                    if (item.m_field1 == 1)
+                    if (item.m_itemType == 1)
                     {
                         m_pParent->m_historyLog.ItemAdd(
                             (INVEN_TYPE)1, 1, 1, item, reason);

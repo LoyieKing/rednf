@@ -25,7 +25,7 @@ int CInventory::CheckEquipmentItemCondition(INVEN_TYPE type, short slot,
 
     // item+0x0b（endurance ushort）== equip->get_endurance() 才通过。
     int endurance = equip->get_endurance();
-    if (static_cast<int>(item.m_fieldb) != endurance)
+    if (static_cast<int>(item.m_endurance) != endurance)
         return 0xd8;
 
     // ---- 输出块（对应 asm 逐偏移写）----
@@ -44,7 +44,7 @@ int CInventory::CheckEquipmentItemCondition(INVEN_TYPE type, short slot,
     }
 
     // cond[6]：Inven_Item 字节0（m_field0）非零 → 1，否则 0。
-    if (item.m_field0)
+    if (item.m_seal)
         cond.m_hasField0Item = 1;
     else
         cond.m_hasField0Item = 0;
@@ -53,7 +53,7 @@ int CInventory::CheckEquipmentItemCondition(INVEN_TYPE type, short slot,
     cond.m_reSealCount = item.GetReSealCount();
 
     // cond+8(int) ← Inven_Item+0x0d 联合整体读（m_fieldd）。
-    cond.m_fieldd = item.m_fieldd;
+    cond.m_extendInfo = item.m_extendInfo;
 
     return 0;
 }

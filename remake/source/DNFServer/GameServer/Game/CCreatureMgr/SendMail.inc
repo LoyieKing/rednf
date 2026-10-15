@@ -10,7 +10,7 @@ bool CCreatureMgr::SendMail(Inven_Item* item, int slot, int reason)
 {
     if (!IsCreatureEquipmentScope(slot))
         return true;
-    if (item->m_field1 != 5)  // ITEM_TYPE_CREATURE_EQUIP（movzbl +0x1 cmp $5）
+    if (item->m_itemType != 5)  // ITEM_TYPE_CREATURE_EQUIP（movzbl +0x1 cmp $5）
         return true;
 
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, m_user);

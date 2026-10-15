@@ -13,7 +13,7 @@
 //   修理费置 0（失败 0x16）；use_money 失败返 10；耐久写满后按 msg 空间
 //   update_item + SendUpdateItem(1, space 0/2/3)。
 // 字段口径：判空/查表/工具 id 全程直读 +0x02 m_addInfo（item idx）；耐久为
-//   +0x0b m_fieldb。m_addInfo2(+0x07, get_add_info) 是 stackable 数量域，勿混。
+//   +0x0b m_endurance。m_addInfo2(+0x07, get_add_info) 是 stackable 数量域，勿混。
 // ---------------------------------------------------------------------------
 // [b28d-solo-Store] 判词：DIFF·N82/N85 封顶（语义完成）。
 // 本轮修正（全部有 ORIG 实证）：① find_item 目标互换——第一循环（装备栏 3..8）是
@@ -78,10 +78,10 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
 
         // ORIG 全程直读 item+0x02 的 m_addInfo（item idx）；get_add_info() 对应
         // +0x07 m_addInfo2（stackable 数量域），普通装备为 0，不得用于判空/查表。
-        if (item.m_addInfo == 0 || item.m_field1 != Inven_Item::ITEM_TYPE_EQUIP)
+        if (item.m_addInfo == 0 || item.m_itemType != Inven_Item::ITEM_TYPE_EQUIP)
             return 0x11;
 
-        outEndurance = item.m_fieldb;
+        outEndurance = item.m_endurance;
 
         // ORIG 0x08619xxx：两个具名指针局部（local_58 = find_item 结果，
         // local_54 = local_58 的 CEquipItem 视图）——P0 槽往返实证。
@@ -97,7 +97,7 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
         if (count != 0xffff)
         {
             item2 = user->getCurCharacInvenR()->GetInvenSlot(1, count);   // ORIG GetInvenSlot(1, count)
-            if (item2.m_addInfo == 0 || item2.m_field1 != Inven_Item::ITEM_TYPE_2)
+            if (item2.m_addInfo == 0 || item2.m_itemType != Inven_Item::ITEM_TYPE_2)
                 return 0x15;
             // ORIG 0x0861bxxx：直接读 item2.m_addInfo 两次（P48，无具名 toolIdx）。
             if (item2.m_addInfo != 0x1f77 && item2.m_addInfo != 0x201f)
@@ -116,7 +116,7 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
             item.GetUpgrade(), item.m_amp.hasAbility());
         // [P2S6 2026-09-11 N82 去槽] ORIG 0x0861a2ba 附近无 maxEnd 槽：耐久在实参处
         //   现取（`movzwl` 序列），源码为内联调用。
-        totalCost = getEquipmentRepairPrice(growthCost, item.m_fieldb, pEquip->get_endurance(),
+        totalCost = getEquipmentRepairPrice(growthCost, item.m_endurance, pEquip->get_endurance(),
                                              growthGrade, false, rate);
 
         if (count != 0xffff && (item2.m_addInfo == 0x1f77 || item2.m_addInfo == 0x201f))
@@ -156,7 +156,7 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
             }
         }
 
-        item.m_fieldb = (unsigned short)pEquip->get_endurance();
+        item.m_endurance = (unsigned short)pEquip->get_endurance();
 
         // ORIG 0x08619xxx：`movsbl invenType; cmp $2; je; cmp $3; je` 决策链 ⇒ switch。
         switch (invenType)
@@ -186,7 +186,7 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
             // ORIG 0x0861a719：sret 临时 → 拷贝赋值给**函数头部的 item**（local_d9），
             // 非新声明局部（4.4 对 `Inven_Item x = f()` 会直用临时，N86）。
             item = user->getCurCharacInvenR()->GetInvenSlot(1, i);
-            if (item.m_addInfo != 0 && item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+            if (item.m_addInfo != 0 && item.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
             {
                 // ORIG 0x0861a73x：第一循环（装备栏 3..8）走 CItemList::find_item
                 // （`G_CDataManager()+0xc` 的 m_itemList 成员）。
@@ -206,16 +206,16 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
                     //   `call; add %eax,-0x58(%ebp)`）⇒ 实测**劣化**：blocks 175→174 但
                     //   不等长块 31→57、net O−N 0→+4（我方少 4 条）；4.4 对 `+=` 形会
                     //   额外折叠。保留具名 cost（与 fdiff net=0 的最优态一致）。
-                    int cost = getEquipmentRepairPrice(growthCost, item.m_fieldb, pEquip->get_endurance(),
+                    int cost = getEquipmentRepairPrice(growthCost, item.m_endurance, pEquip->get_endurance(),
                                                         growthGrade, false, rate);
                     totalCost += cost;
 
                     // ORIG 0x0861a8xx：needRepair 两次独立 get_endurance() 重调
-                    // （maxEnd==0 → false；否则 m_fieldb==get_endurance() → false）。
+                    // （maxEnd==0 → false；否则 m_endurance==get_endurance() → false）。
                     bool needRepair = true;
                     if (pEquip->get_endurance() == 0)
                         needRepair = false;
-                    else if (item.m_fieldb == pEquip->get_endurance())
+                    else if (item.m_endurance == pEquip->get_endurance())
                         needRepair = false;
                     if (needRepair)
                         repairList.push_back(tagRepairItemInfo(INVEN_TYPE_EQUIP, i, pEquip));
@@ -226,7 +226,7 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
         for (int i = 10; i < 0x16; i++)
         {
             item = user->getCurCharacInvenR()->GetInvenSlot(0, i);
-            if (item.m_addInfo != 0 && item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+            if (item.m_addInfo != 0 && item.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
             {
                 // ORIG 0x0861abxx：第二循环（背包 10..0x15）走 CDataManager::find_item
                 // （0x0835fa32，非 m_itemList）——与第一循环相反。
@@ -238,14 +238,14 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
                     // [P2S6 2026-09-11 N82 去槽] 同单件分支（ORIG +0x0e40 前同形）。
                     float rate = G_CDataManager()->getUpgradeItemRepairCostRate(
                         item.GetUpgrade(), item.m_amp.hasAbility());
-                    int cost = getEquipmentRepairPrice(growthCost, item.m_fieldb, pEquip->get_endurance(),
+                    int cost = getEquipmentRepairPrice(growthCost, item.m_endurance, pEquip->get_endurance(),
                                                         growthGrade, false, rate);
                     totalCost += cost;   // 见第一循环注：`+=` 内联形被实测否证（net +4）。
 
                     bool needRepair = true;
                     if (pEquip->get_endurance() == 0)
                         needRepair = false;
-                    else if (item.m_fieldb == pEquip->get_endurance())
+                    else if (item.m_endurance == pEquip->get_endurance())
                         needRepair = false;
                     if (needRepair)
                         repairList.push_back(tagRepairItemInfo(INVEN_TYPE_INVEN, i, pEquip));
@@ -288,10 +288,10 @@ int Store::repair_equip(CUser* user, char invenType, short slot, unsigned short 
 
                 // ORIG 迭代内重取：GetInvenSlot(type, slot) 值版；update 走 W。
                 item = user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)invenType2, slotIdx);
-                if (item.m_addInfo != 0 && item.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+                if (item.m_addInfo != 0 && item.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
                 {
                     // ORIG 0x0861b0xx：直接 store get_endurance()（无具名 maxEnd 槽，P0）。
-                    item.m_fieldb = (unsigned short)pEquip->get_endurance();
+                    item.m_endurance = (unsigned short)pEquip->get_endurance();
                     user->getCurCharacInvenW()->update_item((INVEN_TYPE)invenType2, slotIdx, item);
                 }
             }

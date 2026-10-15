@@ -105,7 +105,7 @@ bool user_creature::CCreatureMgr::Hatch(int addInfo)
     // 存新宠 itemIdx），无判空（P171 照抄）。
     Inven_Item* slotItem = 0;
     slotItem = m_user->getCurCharacInvenW()->GetInvenRef(3, newItem->GetSlotNo());
-    slotItem->m_field0 = 0;
+    slotItem->m_seal = 0;
     slotItem->m_addInfo = newItem->GetItemId();
 
     CDBMsgSender sender((ENUM_INTERNALPACKET)0x8a, m_user);

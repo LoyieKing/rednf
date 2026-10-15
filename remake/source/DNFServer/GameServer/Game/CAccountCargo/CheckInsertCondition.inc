@@ -31,8 +31,8 @@ bool CAccountCargo::CheckInsertCondition(Inven_Item& item)
                     (ENUM_CHARAC_EXPAND_TYPE)2))->CheckItemLock(lock))
                 return 0;
         }
-        if (item.m_field1 == 4 || item.m_field1 == 5 || item.m_field1 == 6 ||
-            item.m_field1 == 7 || item.m_field1 == 8)
+        if (item.m_itemType == 4 || item.m_itemType == 5 || item.m_itemType == 6 ||
+            item.m_itemType == 7 || item.m_itemType == 8)
             return 0;
         // ORIG 0x8289a4a +0xe7/+0xed：m_addInfo 落在 [0x1964, 0x1b57](6999) 区间内才
         // 直接返回 0；区间之外继续后续检查（GETATTACH 等）。
@@ -62,7 +62,7 @@ bool CAccountCargo::CheckInsertCondition(Inven_Item& item)
         case 2:
             return 0;
         case 3:
-            if (item.m_field0 == 0)
+            if (item.m_seal == 0)
                 return 0;
             break;
         }
@@ -93,9 +93,9 @@ bool CAccountCargo::CheckInsertCondition(Inven_Item& item)
                         return 0;
                     }
                     // [b28d-46 P0] ORIG 把 imul/add 结果先落 -0x10 槽再 call
-                    // getCurSec（具名 expireSec）；endurance 内联 item.m_fieldb。
+                    // getCurSec（具名 expireSec）；endurance 内联 item.m_endurance。
                     int expireSec =
-                        (int)((unsigned int)item.m_fieldb * 0x15180 + 0x44a54a80);
+                        (int)((unsigned int)item.m_endurance * 0x15180 + 0x44a54a80);
                     int curSec = GlobalData::s_systemTime_.getCurSec();
                     if (expireSec <= curSec)
                         return 0;

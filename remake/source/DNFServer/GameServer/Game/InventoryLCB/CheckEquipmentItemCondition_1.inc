@@ -10,7 +10,7 @@
 //     m_addInfo 匹配计数 >1 → 0x12；整槽 0x3d 字节拷贝到 outItem；
 //     m_pParent->CheckItemLock(slot,1) 锁定 → 0xd5；
 //   - 循环后 outItem.m_addInfo==0 → 0；find_item 空 → 0x11；
-//     m_amp.getAbilityType()==0x80 → 0x13；m_fieldb != get_endurance → 0xd8；
+//     m_amp.getAbilityType()==0x80 → 0x13；m_endurance != get_endurance → 0xd8；
 //   - 输出：cond.m_upgrade=1、m_tableIdx=GetUpgrade()；abilityType==0 →
 //     amplifySelect/pad3/field4 清零，否则 1/type/value；
 //     m_flag6 = GetAttachType()==0 ? 1 : (m_field0 ? 1 : 0)；m_reSealCount。
@@ -127,9 +127,9 @@ int CInventory::CheckEquipmentItemCondition(
         if (abilityType == 0x80)
             return 0x13;
 
-        // ORIG 0x85082f5-0x8508317：get_endurance 先落槽(-0x14)，再读 m_fieldb 内存直比。
+        // ORIG 0x85082f5-0x8508317：get_endurance 先落槽(-0x14)，再读 m_endurance 内存直比。
         int endurance = equip->get_endurance();
-        if (static_cast<int>(outItem.m_fieldb) != endurance)
+        if (static_cast<int>(outItem.m_endurance) != endurance)
             return 0xd8;
 
         cond.m_upgrade = 1;
@@ -154,7 +154,7 @@ int CInventory::CheckEquipmentItemCondition(
         int attachType = item->GetAttachType();
         if (attachType == 0)
             cond.m_flag6 = 1;
-        else if (outItem.m_field0)
+        else if (outItem.m_seal)
             cond.m_flag6 = 1;
         else
             cond.m_flag6 = 0;

@@ -146,7 +146,7 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
         if (!_IsTradable(slot.m_item))
             return -0x66;
         // ORIG +0x62f：field1!=1 时数量走 get_add_info() 调用比较
-        if (slot.m_item.m_field1 != 1) {
+        if (slot.m_item.m_itemType != 1) {
             if (slot.m_item.get_add_info() < b) {
                 cMyTrace(__PRETTY_FUNCTION__, 0x1b5, 5)(
                     "CTradeSpace::regist_item, item count failed(1), ch=%d %d %d %d",
@@ -183,8 +183,8 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
                 TradeSlotAt(m_slotsData, trader, slotIdx)
                     ->m_item.get_add_info());
             packet.put_byte(slot.m_item.GetItemAttr());
-            packet.put_short(slot.m_item.m_fieldb);
-            packet.put_int(slot.m_item.m_fieldd);
+            packet.put_short(slot.m_item.m_endurance);
+            packet.put_int(slot.m_item.m_extendInfo);
             packet.put_byte(slot.m_item.m_amp.getAbilityType());
             packet.put_short(slot.m_item.m_amp.getAbilityValue());
             packet.put_packet(slot.m_item);
@@ -269,7 +269,7 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
             packet.put_short(slotIdx);
             packet.put_int(slot.m_item.m_addInfo);
             // ORIG +0x1098-0x1120：tick 先求值 → 槽链 get_add_info()（非直读）
-            if (TradeSlotAt(m_slotsData, trader, slotIdx)->m_item.m_field1 == 8) {
+            if (TradeSlotAt(m_slotsData, trader, slotIdx)->m_item.m_itemType == 8) {
                 int tick = OS_API::GetDateTimeTick();
                 int ai = TradeSlotAt(m_slotsData, trader, slotIdx)
                              ->m_item.get_add_info();
@@ -282,11 +282,11 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
                         ->m_item.get_add_info());
             }
             packet.put_byte(slot.m_item.GetItemAttr());
-            packet.put_short(slot.m_item.m_fieldb);
-            packet.put_int(slot.m_item.m_fieldd);
+            packet.put_short(slot.m_item.m_endurance);
+            packet.put_int(slot.m_item.m_extendInfo);
             packet.put_byte(slot.m_item.m_amp.getAbilityType());
             packet.put_short(slot.m_item.m_amp.getAbilityValue());
-            if (TradeSlotAt(m_slotsData, trader, slotIdx)->m_item.m_field1 == 8) {
+            if (TradeSlotAt(m_slotsData, trader, slotIdx)->m_item.m_itemType == 8) {
                 packet.put_int(0x1e);
                 packet.put_binary(user->getCurCharacInvenR()->GetAvatarItemMgrR()->getJewelSocketData(
                                       TradeSlotAt(m_slotsData, trader, slotIdx)
@@ -366,11 +366,11 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
                         ->GetRemainDate(ai, tick));
             }
             packet.put_byte(slot.m_item.GetItemAttr());
-            packet.put_short(slot.m_item.m_fieldb);
-            packet.put_int(slot.m_item.m_fieldd);
+            packet.put_short(slot.m_item.m_endurance);
+            packet.put_int(slot.m_item.m_extendInfo);
             packet.put_byte(0);
             packet.put_short(0);
-            if (TradeSlotAt(m_slotsData, trader, slotIdx)->m_item.m_field1 == 8) {
+            if (TradeSlotAt(m_slotsData, trader, slotIdx)->m_item.m_itemType == 8) {
                 packet.put_int(0x1e);
                 packet.put_binary(user->getCurCharacInvenR()->GetAvatarItemMgrR()->getJewelSocketData(
                                       TradeSlotAt(m_slotsData, trader, slotIdx)
@@ -429,11 +429,11 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
                 TradeSlotAt(m_slotsData, trader, slotIdx)
                     ->m_item.get_add_info());
             packet.put_byte(slot.m_item.GetItemAttr());
-            packet.put_short(slot.m_item.m_fieldb);
-            packet.put_int(slot.m_item.m_fieldd);
+            packet.put_short(slot.m_item.m_endurance);
+            packet.put_int(slot.m_item.m_extendInfo);
             packet.put_byte(0);
             packet.put_short(0);
-            if (slot.m_item.m_field1 == 5) {
+            if (slot.m_item.m_itemType == 5) {
                 // ORIG：tick 先行局部、add_info 走槽链 call
                 // P198③：ORIG +0x1f16 `movl $0x0,-0x24` 后 `call tick` 回写
                 // ⇒ 原码是「声明=0 + 独立赋值」两句式。

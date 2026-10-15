@@ -76,7 +76,7 @@ struct select_base_item
 
 #include "RandomRentalA2/empty.inc"
 {
-    return m_field0 == 0;  // W 0x811ed22：movzbl (%eax); test; sete
+    return m_optionIndex == 0;  // W 0x811ed22：movzbl (%eax); test; sete
 }
 
 #include "RandomRentalA2/DifferentWeightValue.inc"

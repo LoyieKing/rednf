@@ -48,11 +48,11 @@ int CInventory::insertCreatureIntoSpecificSlot(Inven_Item item, int slot,
             }
         }
     }
-    if (result >= 0 && item.m_field1 != 5 && bLog)
+    if (result >= 0 && item.m_itemType != 5 && bLog)
     {
         m_pParent->m_historyLog.CreatureItemAdd(
             (INVEN_TYPE)3, item.m_addInfo, m_pCreatureSlot[result].get_add_info(),
-            item.get_add_info(), item.m_field1, reason);
+            item.get_add_info(), item.m_itemType, reason);
     }
     return result;
 }

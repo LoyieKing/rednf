@@ -1,5 +1,5 @@
 bool Inven_Item::isEquipableItemType() const
 {
-    return m_field1 == 1 || m_field1 == 5 || m_field1 == 6 ||
-           m_field1 == 8;
+    return m_itemType == 1 || m_itemType == 5 || m_itemType == 6 ||
+           m_itemType == 8;
 }

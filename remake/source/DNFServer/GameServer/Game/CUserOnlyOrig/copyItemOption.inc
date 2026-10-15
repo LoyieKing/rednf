@@ -13,7 +13,7 @@ void CUser::copyItemOption(Inven_Item& dst, Inven_Item& src)
     // [b28d-solo-CUserOnlyOrig P308] ORIG 0x08671ef0 段 `mov src; movzbl; mov %eax,%edx;
     // and $0x1f; …and $0x1f,%ecx; and $0xffffffe0; or` = 位域赋值（重复掩码为 4.1 位域
     // 装填产物）；手写 `(dst&0xe0)|(src&0x1f)` 反产 dst-first 装载序。
-    dst.m_upgradeSep.m_bits.m_lo = src.m_upgradeSep.m_bits.m_lo;
+    dst.m_upgradeSep.m_bits.m_upgradeSeparate = src.m_upgradeSep.m_bits.m_upgradeSeparate;
     // ORIG 仅拷 m_amp 前 4 字节（mov 0x11(%edx)→0x11(%eax)；余 0x15..0x1e 不拷）
     // [b28d-22 修法 P235/P183] ORIG 0x08671f12 `mov 0x11(%edx),%edx; mov %edx,0x11(%eax)`
     // 单条 disp ⇒ 用 CItemAmplifier.h 具名 union 视角 m_amp0Int（取址 reinterpret 形恒多 add）；
@@ -22,8 +22,8 @@ void CUser::copyItemOption(Inven_Item& dst, Inven_Item& src)
     // mov 0x11(%edx),%edx; mov %edx,0x11(%eax)` = 结构整体赋值形（P247）；标量 int
     // 视角 4.4 产 RHS-first（`mov src,%eax; mov 0x11(%eax),%edx; mov dst,%eax; …`）。
     dst.m_amp.m_amp0Head = src.m_amp.m_amp0Head;
-    dst.m_fieldd = src.m_fieldd;                  // +0xd int
-    // [H6 2026-09-11 负结论·已回滚] 试加具名 `int fieldd = dst.m_fieldd;` 欲复现 ORIG
+    dst.m_extendInfo = src.m_extendInfo;                  // +0xd int
+    // [H6 2026-09-11 负结论·已回滚] 试加具名 `int fieldd = dst.m_extendInfo;` 欲复现 ORIG
     // 0x08671f3b 的 `mov 0xd(%eax),%eax; mov %eax,-0x1c(%ebp)`（m_fieldd→槽、&0x1f→%edi）：
     // 4.4 虽给了 -0x1c 槽，但把 fieldd **提到全部实参求值之前**（语句序）⇒ 变参寄存器/槽
     // 整体重排：帧 0x4c→**0x5c**（+0x10）、96→96 条，劣化 ⇒ 回滚。
@@ -40,8 +40,8 @@ void CUser::copyItemOption(Inven_Item& dst, Inven_Item& src)
                // 读数完全中性（96/95 条、ndiff 35=35）⇒ 按「codegen 轴不成即回滚」回退 N7 封顶。
                // [M8COB 2026-09-11 重试] unsigned char 形在位域直访结构下复测：仍 95/96 中性
                // （AE 口径残差同为 13 行、位置相同）⇒ 确认 A06 负结论，维持 (unsigned)。
-               (unsigned)(dst.m_upgradeSep.m_field & 0x1f),
-               dst.m_fieldd,
+               (unsigned)(dst.m_upgradeSep.m_packed & 0x1f),
+               dst.m_extendInfo,
                (unsigned)dst.m_amp.getAbilityType() & 0xff,
                (unsigned)dst.m_amp.getAbilityValue() & 0xffff,
                (unsigned)dst.m_amp.GetLock() & 0xff);

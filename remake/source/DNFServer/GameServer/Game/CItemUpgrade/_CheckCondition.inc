@@ -85,7 +85,7 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
 
     if (table.m_infos.size() <= item.GetUpgrade())   // ORIG 436 行 GetUpgrade
         return 0xd;
-    if (item.m_field1 != 1)
+    if (item.m_itemType != 1)
         return 0x13;
 
     // [b28d-solo-CItemUpgrade] ORIG 顺序（0x0854655d 先范围、0x085465a5 后 ==0xb）：
@@ -98,7 +98,7 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
 
     // ORIG 0x085465cb 无 endurance 具名局部（P0）：`movzwl 0xb(%eax),%eax;
     // movzwl %ax,%ebx` 直用字段（P77）。
-    if (item.m_fieldb != ((const CEquipItem*)itemScript)->get_endurance())
+    if (item.m_endurance != ((const CEquipItem*)itemScript)->get_endurance())
         return 7;
 
     // ORIG 0x8546600：读 table+(rarity+0x104)*4+0xc（intAtConst 减 0xc 内偏）；

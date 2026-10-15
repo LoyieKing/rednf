@@ -28,7 +28,7 @@ int CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
     // 复现 ORIG 0x085a742a/0x085a7439 各自独立的 `test/cmp + je`。
     if (invenItem.m_addInfo != 0)
     {
-        if (invenItem.m_field1 == Inven_Item::ITEM_TYPE_EQUIP)
+        if (invenItem.m_itemType == Inven_Item::ITEM_TYPE_EQUIP)
         {
             // 装备类物品实为 CEquipItem；+0x234 = CEquipItem::m_itemType。
             const CEquipItem* equip = static_cast<const CEquipItem*>(item);
@@ -41,15 +41,15 @@ int CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
     // ORIG 0x085a7470/0x085a747a：m_field1(+0x01)/m_addInfo(+0x02) 的拷贝发射在
     // set_add_info 之前（`movzbl -0x70; mov %al,-0xb7` / `mov -0x6f; mov %eax,-0xb6`）
     // ⇒ 原码这两条赋值写在 set_add_info(1) 之前；后移会整段错位。
-    drop.m_item.m_field1 = invenItem.m_field1;         // byte +0x11（ITEM_TYPE）
+    drop.m_item.m_itemType = invenItem.m_itemType;         // byte +0x11（ITEM_TYPE）
     drop.m_item.m_addInfo = invenItem.m_addInfo;       // dword +0x12（item idx）
     drop.m_item.set_add_info(1);                       // 内嵌 item.add_info = 1
     drop.m_item.SetItemAttr(invenItem.GetItemAttr());  // +0x16 ← src GetItemAttr
-    drop.m_item.m_fieldb = invenItem.m_fieldb;         // word +0x1b ← src endurance
-    // ORIG 0x085a74ca：m_field0(+0x00) 的拷贝夹在 m_fieldb 与 m_fieldd 之间
+    drop.m_item.m_endurance = invenItem.m_endurance;         // word +0x1b ← src endurance
+    // ORIG 0x085a74ca：m_field0(+0x00) 的拷贝夹在 m_endurance 与 m_fieldd 之间
     // （`movzbl -0x71; mov %al,-0xb8` 位于 0x0b/0x0d 两条之间）⇒ 语句序须如此。
-    drop.m_item.m_field0 = invenItem.m_field0;         // byte +0x10
-    drop.m_item.m_fieldd = invenItem.m_fieldd;         // dword +0x1d ← src union
+    drop.m_item.m_seal = invenItem.m_seal;         // byte +0x10
+    drop.m_item.m_extendInfo = invenItem.m_extendInfo;         // dword +0x1d ← src union
     // ORIG 0x085a74dd..0x085a7503：m_amp（stAmplifyOption_t，14B）拆为
     // guid 视图三条（+0x15/+0x19/+0x1d）在前、head 视图一条（+0x11）在后
     // ⇒ 原码是两次视图赋值（`m_guid` 先、`m_amp0Head` 后），整体赋值 4.4 恒按
@@ -86,8 +86,8 @@ int CParty::drop_item_gm(CUser* user, unsigned int itemIdx)
     packet.put_int(drop.m_item.m_addInfo);
     packet.put_byte(drop.m_item.GetItemAttr());
     packet.put_int(drop.m_item.get_add_info());
-    packet.put_short(drop.m_item.m_fieldb);
-    packet.put_int(drop.m_item.m_fieldd);
+    packet.put_short(drop.m_item.m_endurance);
+    packet.put_int(drop.m_item.m_extendInfo);
     packet.put_byte(drop.m_item.m_amp.getAbilityType());
     packet.put_short(drop.m_item.m_amp.getAbilityValue());
     packet.put_packet(drop.m_item);

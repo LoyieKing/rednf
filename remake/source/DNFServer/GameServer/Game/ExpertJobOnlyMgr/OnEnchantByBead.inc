@@ -3,7 +3,7 @@
 // 修复：①**真 bug**——统计调用漏第二次 `masterItem->get_index()`
 //   （ORIG 0x0849f076 为第二次独立调用，P48；p167 修前 MISSING 1 → 修后 46/46
 //   CLEAR）；②m_fieldd 写入时机提前到发包前（ORIG 0x0849f288）且 EnchantItem
-//   第 3 参**重读** ringRef->m_fieldd（无 replacedCardIdx 具名局部，P0/P48）；
+//   第 3 参**重读** ringRef->m_extendInfo（无 replacedCardIdx 具名局部，P0/P48）；
 //   ③cMyTrace 改 `__PRETTY_FUNCTION__` + 全表达式临时链（P118/P139/P227）。
 // 残差：帧 0x60 vs ORIG 0x6c（4.4 带 call 帧恒 16k 量化，N115/P190②不可凑）+
 // 缺 push %edi（ORIG 用 %edi 存 &user->m_historyLog，4.4 用 %esi）⇒ 全帧槽号
@@ -93,10 +93,10 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
         return 0x11;
     }
 
-    int savedCardIdx = ringRef->m_fieldd;
-    // b28d-solo：ORIG 0x0849f076 先写 ringRef->m_fieldd = masterItem->get_index()
+    int savedCardIdx = ringRef->m_extendInfo;
+    // b28d-solo：ORIG 0x0849f076 先写 ringRef->m_extendInfo = masterItem->get_index()
     //（第一次调用），无 replacedCardIdx 具名局部（P0 无槽往返）。
-    ringRef->m_fieldd = masterItem->get_index();
+    ringRef->m_extendInfo = masterItem->get_index();
 
     PacketGuard packet;
     packet.clear();
@@ -114,9 +114,9 @@ int CExpertJobMgr::OnEnchantByBead(CUser* user, int param2, int beadSlot,
         (ENUM_EXPERT_JOB_TYPE)1, (unsigned long)masterItem->get_index(), 1);
 
     // 历史（ORIG 0x8684d74：EnchantItem(ringRef->m_addInfo, savedCardIdx,
-    // ringRef->m_fieldd 重读, true, acc_name, characName)）
+    // ringRef->m_extendInfo 重读, true, acc_name, characName)）
     user->m_historyLog.EnchantItem(ringRef->m_addInfo, savedCardIdx,
-                                   ringRef->m_fieldd, true, user->get_acc_name(),
+                                   ringRef->m_extendInfo, true, user->get_acc_name(),
                                    user->getCurCharacName());
 
     packet.clear();

@@ -6,7 +6,7 @@ int CInventory::doesExistEquipItem(int itemIdx, int slot)
     {
         if (m_pEquipSlot[i].m_addInfo != itemIdx) goto next_slot;
         if (m_pEquipSlot[i].m_addInfo2 != slot) goto next_slot;
-        if (m_pEquipSlot[i].m_field1 != 1) goto next_slot;
+        if (m_pEquipSlot[i].m_itemType != 1) goto next_slot;
         return 1;
     next_slot:;
     }

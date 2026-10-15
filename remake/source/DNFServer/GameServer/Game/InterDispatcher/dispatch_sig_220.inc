@@ -86,7 +86,7 @@ int Inter_VillageAttackedReward::dispatch_sig(CUser* user, char* data, int /*len
         item.m_addInfo = 1;                            // +0x02 dword
         G_CDataManager()->m_itemList->create_item(
             (ENUM_ITEM_CREATE_TYPE)3, item, 1);
-        item.m_fieldb = 1;                             // +0x0b word（endurance）
+        item.m_endurance = 1;                             // +0x0b word（endurance）
         if (item.m_addInfo == -1)
         {
             LogManager::logFormat(

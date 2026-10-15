@@ -69,17 +69,17 @@ Inven_Item g_emptySlot;
 
 #include "Inven_Item/reset_3.inc"
 {
-    m_field0.reset();
-    m_field3.reset();
-    m_field6.reset();
-    m_seed9.reset();
-    m_fielda.reset();
-    m_seedd.reset();
+    m_slot0.reset();
+    m_slot1.reset();
+    m_slot2.reset();
+    m_gradeSeed.reset();
+    m_changedOption.reset();
+    m_changedSlot.reset();
 }
 
 #include "Inven_Item/empty.inc"
 {
-    if (m_field0.m_field0 == 0)
+    if (m_slot0.m_optionIndex == 0)
         return true;
     return false;
 }
@@ -94,9 +94,9 @@ Inven_Item g_emptySlot;
     // ORIG 0x80cb346：位域 b0:5/b1:1/b2:2 清零 → 三次位清
     // （&0xffffffe0 → &0xffffffdf → &0x3f），整字节清零。
     struct Bits { unsigned char a:5, b:1, c:2; };
-    reinterpret_cast<Bits*>(&m_field)->a = 0;
-    reinterpret_cast<Bits*>(&m_field)->b = 0;
-    reinterpret_cast<Bits*>(&m_field)->c = 0;
+    reinterpret_cast<Bits*>(&m_packed)->a = 0;
+    reinterpret_cast<Bits*>(&m_packed)->b = 0;
+    reinterpret_cast<Bits*>(&m_packed)->c = 0;
 }
 
 #include "Inven_Item/GetUpgradeSeparate.inc"

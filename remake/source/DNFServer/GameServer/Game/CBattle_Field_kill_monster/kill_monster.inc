@@ -370,7 +370,7 @@ bool CBattle_Field::kill_monster(PacketGuard& packet, map_monster& mob,
                 const map_item& dropped = *li;
                 CItem* item =
                     G_CDataManager()->find_item(dropped.m_item.m_addInfo);
-                if (item != NULL && dropped.m_item.m_field1 == 1)
+                if (item != NULL && dropped.m_item.m_itemType == 1)
                 {
                     const int rarity = item->get_rarity();
                     if (rarity < 6 && rarity >= 0)

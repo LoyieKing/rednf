@@ -3,26 +3,26 @@ void CStackableItem::make_item(Inven_Item& item) const
     switch (m_nItemType)
     {
     case 8:
-        item.m_field1 = 4;
+        item.m_itemType = 4;
         break;
     case 1:
-        item.m_field1 = 3;
+        item.m_itemType = 3;
         break;
     case 9:
     case 10:
-        item.m_field1 = 7;
+        item.m_itemType = 7;
         break;
     case 0x14:
-        item.m_field1 = 9;
+        item.m_itemType = 9;
         break;
     case 2:
-        item.m_field1 = 10;
+        item.m_itemType = 10;
         break;
     default:
-        item.m_field1 = 2;
+        item.m_itemType = 2;
         break;
     }
-    item.m_fieldb = 0;
+    item.m_endurance = 0;
     int t = 0;
     if (getUsablePeriod() != 0)
     {
@@ -40,10 +40,10 @@ void CStackableItem::make_item(Inven_Item& item) const
     }
     if (t != 0)
     {
-        item.m_fieldb = (unsigned short)((t - 0x44a54a80) / 0x15180);
+        item.m_endurance = (unsigned short)((t - 0x44a54a80) / 0x15180);
     }
     item.ResetItemAttr();
-    item.m_fieldd = 0;
+    item.m_extendInfo = 0;
     reinterpret_cast<itemGloballyUniqueIdentifier_t*>(&item.m_amp.m_guid)->reset();
     item.m_amp.reset();
     if (GetAttachType() == 7)

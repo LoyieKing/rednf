@@ -6,7 +6,7 @@ int CInventory::getExistEquipItem(int itemIdx, int count, int slot)
     for (int i = 3; i <= 0xc8; i++)
     {
         if (i == slot) goto next_slot;
-        if (m_pEquipSlot[i].m_field1 != 1) goto next_slot;
+        if (m_pEquipSlot[i].m_itemType != 1) goto next_slot;
         if (m_pEquipSlot[i].m_addInfo != itemIdx) goto next_slot;
         if (m_pEquipSlot[i].m_addInfo2 != count) goto next_slot;
         return i;

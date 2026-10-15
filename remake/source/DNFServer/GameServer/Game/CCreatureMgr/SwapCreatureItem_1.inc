@@ -3,14 +3,14 @@
 bool CCreatureMgr::SwapCreatureItem(Inven_Item* item1, int slot1, int type1,
                                     Inven_Item* item2, int slot2, int type2)
 {
-    if (item1->m_field1 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP ||
-        item2->m_field1 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+    if (item1->m_itemType == Inven_Item::ITEM_TYPE_CREATURE_EQUIP ||
+        item2->m_itemType == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
     {
         if (!SwapCreature(item1, slot1, type1, item2, slot2, type2))
             return false;
     }
-    else if (item1->m_field1 == Inven_Item::ITEM_TYPE_ARTIFACT ||
-             item2->m_field1 == Inven_Item::ITEM_TYPE_ARTIFACT)
+    else if (item1->m_itemType == Inven_Item::ITEM_TYPE_ARTIFACT ||
+             item2->m_itemType == Inven_Item::ITEM_TYPE_ARTIFACT)
     {
         if (!SwapArtifact(item1, slot1, type1, item2, slot2, type2))
             return false;

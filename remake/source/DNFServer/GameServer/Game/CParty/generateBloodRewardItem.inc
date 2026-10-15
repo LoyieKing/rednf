@@ -115,7 +115,7 @@ void CParty::generateBloodRewardItem(int slot, int round, unsigned int param1,
                     G_CDataManager()->m_itemList->find_item(item.m_addInfo);
                 if (card != 0)
                     CLuckPoint::UseLuckPoint(m_member[slot].m_pUser,
-                                             (int)(unsigned char)item.m_field1,
+                                             (int)(unsigned char)item.m_itemType,
                                              card->get_rarity(),
                                              card->get_grade());
             }

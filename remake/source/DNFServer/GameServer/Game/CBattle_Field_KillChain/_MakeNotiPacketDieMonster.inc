@@ -39,10 +39,10 @@ void CBattle_Field::_MakeNotiPacketDieMonster(
                 // movzwl+movzwl（ushort→int 实参）：字段每处重读，无 slot/period 具名局部；
                 // getAvatarPeriod 的 this 取自 -0x10（find_item 结果槽），getAvatarSocket 取 -0xc。
                 packet.put_int(static_cast<CEquipItem*>(found)->getAvatarPeriod(
-                    (unsigned char)mi.m_item.m_fieldb) * 0x15180u);
+                    (unsigned char)mi.m_item.m_endurance) * 0x15180u);
                 emblem.init();
                 equip->getAvatarSocket(
-                    (unsigned short)mi.m_item.m_fieldb, emblem);
+                    (unsigned short)mi.m_item.m_endurance, emblem);
             }
         }
         else
@@ -50,7 +50,7 @@ void CBattle_Field::_MakeNotiPacketDieMonster(
             packet.put_int(mi.m_item.get_add_info());
         }
         packet.put_short(
-            static_cast<unsigned int>(mi.m_item.m_fieldb));
+            static_cast<unsigned int>(mi.m_item.m_endurance));
         packet.put_byte(mi.m_item.m_amp.getAbilityType());
         packet.put_short(mi.m_item.m_amp.getAbilityValue());
         packet.put_packet(mi.m_item);

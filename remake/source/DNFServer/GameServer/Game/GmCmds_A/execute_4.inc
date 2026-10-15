@@ -61,9 +61,9 @@ void CAddItemByMail::execute()
     else if (itemId == 1)
     {
         item.m_addInfo = 1;          // +0x02
-        item.m_field1 = 2;           // +0x01
+        item.m_itemType = 2;           // +0x01
         item.m_addInfo2 = addInfo;   // +0x07
-        item.m_fieldb = 1;           // +0x0b
+        item.m_endurance = 1;           // +0x0b
         item.ResetItemAttr();
     }
     else

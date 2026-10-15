@@ -46,7 +46,7 @@ bool CCreatureMgr::SwapArtifact(Inven_Item* item1, int slot1, int type1,
         {
             if (!EquipArtifact(equipSlot, equipItem))
                 return false;
-            equipItem->m_field0 = 0;     // ORIG movb $0,(源物品)：仅清首字节
+            equipItem->m_seal = 0;     // ORIG movb $0,(源物品)：仅清首字节
         }
     }
     return true;

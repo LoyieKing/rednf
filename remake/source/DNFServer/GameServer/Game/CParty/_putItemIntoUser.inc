@@ -187,9 +187,9 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
         packet.put_int(static_cast<int>(ref->m_addInfo));
         packet.put_int(ref->get_add_info());
         packet.put_byte((unsigned int)ref->GetItemAttr() & 0xff);
-        packet.put_short((unsigned int)ref->m_fieldb & 0xffff);
+        packet.put_short((unsigned int)ref->m_endurance & 0xffff);
         packet.put_byte((unsigned int)(unsigned char)*reinterpret_cast<const unsigned char*>(ref));
-        packet.put_int(*(const int*)&ref->m_fieldd);
+        packet.put_int(*(const int*)&ref->m_extendInfo);
         packet.put_byte((unsigned int)ref->m_amp.getAbilityType() & 0xff);
         packet.put_short((unsigned int)ref->m_amp.getAbilityValue() & 0xffff);
         if (ref->isAvatarItemType())
@@ -234,9 +234,9 @@ int CParty::_putItemIntoUser(CUser* user, Inven_Item* items, PacketGuard& packet
         // 直证）。旧写 `(char*)&items[1] + 0x3e` 实编译为 item+0x7b（越过 0x3d）
         // ⇒ 守卫与 UseLuckPoint 第 2 实参都用错字节；改为 `+ 1`（与 ORIG 同形：
         // `lea/add $0x3d` + `movzbl 0x1(%eax)`）。
-        if ((unsigned int)items[1].m_field1 == 1 && card != 0)
+        if ((unsigned int)items[1].m_itemType == 1 && card != 0)
         {
-            CLuckPoint::UseLuckPoint(user, (int)items[1].m_field1,
+            CLuckPoint::UseLuckPoint(user, (int)items[1].m_itemType,
                                      card->get_rarity(), card->get_grade());
         }
     }

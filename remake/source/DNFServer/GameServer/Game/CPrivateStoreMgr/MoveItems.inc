@@ -30,7 +30,7 @@ bool CPrivateStore::MoveItems()
             // [b28d-solo] ORIG 0x85c730d `cmp al,8; setne al; test al,al;
             // je 0x85c7336` ⇒ 源码是否定式 if (field1 != AVATAR) 回写、else
             // 走 avatar 分支（P133 补充：否定式才产 setne 物化）。
-            if ((int)m_items[i].m_item.m_field1 != Inven_Item::ITEM_TYPE_AVATAR)
+            if ((int)m_items[i].m_item.m_itemType != Inven_Item::ITEM_TYPE_AVATAR)
             {
                 m_items[i].m_item.m_addInfo2 = prevAddInfo2;
             }

@@ -5,7 +5,7 @@ void CInventory::CheckNFix()
     int i;
     for (i = 3; i <= 8; i++)
     {
-        if (m_pEquipSlot[i].m_addInfo != 0 && m_pEquipSlot[i].m_field1 != 1)
+        if (m_pEquipSlot[i].m_addInfo != 0 && m_pEquipSlot[i].m_itemType != 1)
         {
             if (!checkStackableLimit((unsigned long)m_pEquipSlot[i].m_addInfo,
                                      m_pEquipSlot[i].get_add_info()))

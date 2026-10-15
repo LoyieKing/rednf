@@ -268,7 +268,7 @@ struct MailBoxSendNewMailV
     int m_addInfo;                   // +0x2b
     int m_addInfo2;                  // +0x2f
     unsigned char m_itemAttr;        // +0x33
-    unsigned short m_fieldb;         // +0x34
+    unsigned short m_endurance;         // +0x34
     int m_fieldd;                    // +0x36
     // [b28d-sweep P247] +0x3a..+0x43 改具名 guid 视图（与 item.m_amp.m_guid 同型）
     // ⇒ 结构赋值形复现 ORIG 0x085557e0 段「双基址各载一次 + int/int/word 连续 store」。

@@ -15,7 +15,7 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
         gain_money(a, moneyReason, true, 0);
         return 0;
     }
-    if (item.m_field1 == 1)
+    if (item.m_itemType == 1)
     {
         // ORIG -0x1c 槽即函数级索引 i：b 分支以 b 直读（余 1 行为 b(0x50)↔i(-0x1c)
         // 的装载选择，4.4 读形参 / 4.1 读具名槽；加 i=b 承接会 +2 条，反劣 ⇒ 保留 b 形）。
@@ -65,7 +65,7 @@ int CInventory::insert_item_special_slot(Inven_Item item, int a, int b,
         }
         int start;
         int end;
-        StartEndPos((Inven_Item::ITEM_TYPE)item.m_field1, start, end);
+        StartEndPos((Inven_Item::ITEM_TYPE)item.m_itemType, start, end);
         for (i = start; i <= end; i++)
         {
             if (m_pEquipSlot[i].m_addInfo == item.m_addInfo)

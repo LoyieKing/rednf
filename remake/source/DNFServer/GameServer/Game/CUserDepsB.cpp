@@ -22,7 +22,7 @@
                                       // get_charac_level/getCurCharFirstGrowType/PvpResultType
 #include "Quest.h"                    // Quest 完整类型（m_mailTitle +0x10c /
                                       // m_mailContents +0x110 / m_mailItems +0x114）
-#include "Inven_Item.h"               // Inven_Item（m_field1/m_addInfo/m_addInfo2/m_fieldb）
+#include "Inven_Item.h"               // Inven_Item（m_field1/m_addInfo/m_addInfo2/m_endurance）
 #include "CInventory.h"               // makeCheckSum(int,int) const / OS_API::snprintf
 #include "SkillSlot.h"                // SkillSlot::makeCheckSum(int) const
 #include "CDataManager.h"             // G_CDataManager/find_item/m_levelUpReward/getItemList

@@ -46,8 +46,8 @@ bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(
     // [L4fEventAvatar 2026-09-11] P0/P183：ORIG 0x0817eaa3 `call GetSkillIndex; mov %eax,%edx;
     //   mov -0x20,%eax; mov %dx,0xd(%eax)` 全程寄存器直传、无槽往返 ⇒ 原码无具名
     //   skillIdx（我方具名形多 `mov %eax,-0x10; mov -0x10,%eax` 两次往返）。
-    ref->m_fieldSplit.m_fielddLo = (short)GetSkillIndex((ENUM_RARITY)item->get_grade());
-    sig->m_hiddenOption = (unsigned short)(short)ref->m_fieldSplit.m_fielddLo;
+    ref->m_fieldSplit.m_hiddenOption = (short)GetSkillIndex((ENUM_RARITY)item->get_grade());
+    sig->m_hiddenOption = (unsigned short)(short)ref->m_fieldSplit.m_hiddenOption;
 
     // [L4fEventAvatar 2026-09-11] P0：ORIG 0x0817eb21 `movzwl -0x42(%ebp),%eax; cwtl;
     //   mov %eax,-0x5c(%ebp)` 后由 0x0817eb5a `mov -0x5c(%ebp),%eax` 读回 ⇒
@@ -61,7 +61,7 @@ bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(
     //   add $0xa,%eax; mov %ax,-0x44`（**零扩展**、无 `movswl`）⇒ 原码该表达式在
     //   unsigned 语境（m_avatarSlot 声明为 signed short，`(int)` 转换会生 movswl）。
     save.m_slot = (short)((unsigned short)sig->m_avatarSlot + 10);
-    save.m_hiddenOption = (short)ref->m_fieldSplit.m_fielddLo;
+    save.m_hiddenOption = (short)ref->m_fieldSplit.m_hiddenOption;
 
     hiddenOption = (int)(short)save.m_hiddenOption;
     // [L4fEventAvatar 2026-09-11] ORIG 0x0817eb14..0x0817eb51 在 ctor 前求值全部实参

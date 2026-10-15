@@ -47,7 +47,7 @@ bool CItemAmplifier::checkInvestableItem(const CItem* item,
     {
         return false;
     }
-    if ((int)inven.m_fieldb < equip->get_endurance())
+    if ((int)inven.m_endurance < equip->get_endurance())
     {
         return false;
     }

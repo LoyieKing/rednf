@@ -4,5 +4,5 @@
 // 不塌缩 outgoing 帧，保持 ORIG sub $0x18（NL4/NL3 unit-at-a-time 实证）。
 void RandomOptionSeed::reset()
 {
-    m_field = 0;
+    m_value = 0;
 }

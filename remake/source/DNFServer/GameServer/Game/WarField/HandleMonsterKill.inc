@@ -148,16 +148,16 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
             else
             {
                 ((InterfacePacketBuf*)&packet)->put_int(
-                    equip->getAvatarPeriod((unsigned char)mi.m_item.m_fieldb) * 0x15180);
+                    equip->getAvatarPeriod((unsigned char)mi.m_item.m_endurance) * 0x15180);
                 emblem.init();
-                equip->getAvatarSocket(mi.m_item.m_fieldb, emblem);
+                equip->getAvatarSocket(mi.m_item.m_endurance, emblem);
             }
         }
         else
         {
             ((InterfacePacketBuf*)&packet)->put_int(mi.m_item.get_add_info());
         }
-        ((InterfacePacketBuf*)&packet)->put_short(mi.m_item.m_fieldb);
+        ((InterfacePacketBuf*)&packet)->put_short(mi.m_item.m_endurance);
         ((InterfacePacketBuf*)&packet)->put_byte((int)mi.m_item.m_amp.getAbilityType());
         ((InterfacePacketBuf*)&packet)->put_short(mi.m_item.m_amp.getAbilityValue());
         ((InterfacePacketBuf*)&packet)->put_packet(mi.m_item);

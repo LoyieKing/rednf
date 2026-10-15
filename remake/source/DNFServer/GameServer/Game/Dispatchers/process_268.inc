@@ -79,7 +79,7 @@ int Dispatcher_Select_Item_Grwoth_Power::process(CUser* user, MSG_BASE& msg, Par
             return 0;
         }
         info->make_item(item);
-        if (item.m_field1 != Inven_Item::ITEM_TYPE_EQUIP)
+        if (item.m_itemType != Inven_Item::ITEM_TYPE_EQUIP)
         {
             // [P4 负结论 2026-09-11 实测回滚] `oit->at(sel)` 使 `_ZNK9__gnu_cxx17__normal_iteratorIPK
             //   St6vectorI22STStackablePackageDataSaIS2_EES1_IS4_SaIS4_EEEdeEv` 不再发射，而该符号

@@ -33,9 +33,9 @@ void BingoEvent::sendOneMatchLineReward(CUser& user)
     else if (type == 1)
     {
         item.m_addInfo = 1;                                  // +0x02 itemIdx=1
-        item.m_field1 = 2;                                   // +0x01 ITEM_TYPE=2
+        item.m_itemType = 2;                                   // +0x01 ITEM_TYPE=2
         item.m_addInfo2 = value;                             // +0x07 add_info
-        item.m_fieldb = 1;                                   // +0x0b endurance
+        item.m_endurance = 1;                                   // +0x0b endurance
         item.ResetItemAttr();                                // +0x06 attr=0
     }
     else

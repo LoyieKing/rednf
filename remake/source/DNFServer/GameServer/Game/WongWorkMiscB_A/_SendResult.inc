@@ -42,7 +42,7 @@ int CCompoundAvatar::_SendResult(CUser* user, const tagCompoundInfo& info)
     packet.put_int(user->getCurCharacInvenR()->GetAvatarItemMgrR()
         ->GetRemainDate(resultSlot.m_addInfo2, curSec));
     // ORIG 0x8333cb9：movzwl -0x66(%ebp)（resultSlot 按值副本 +0xb）→ put_short。
-    packet.put_short(resultSlot.m_fieldb);
+    packet.put_short(resultSlot.m_endurance);
     packet.put_int(0x1e);
     packet.put_binary(user->getCurCharacInvenR()->GetAvatarItemMgrR()
         ->getJewelSocketData(resultSlot.m_addInfo2), 0x1e);

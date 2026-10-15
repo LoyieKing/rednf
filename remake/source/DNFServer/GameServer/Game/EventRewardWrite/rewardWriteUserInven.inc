@@ -32,7 +32,7 @@ bool eventReward::rewardWriteUserInven(Inven_Item* item, rewardKey key, int coun
         applyItemOption(inven, citem, *vit);
         int start = 0;
         int end = 0;
-        StartEndPos(static_cast<Inven_Item::ITEM_TYPE>(inven.m_field1),
+        StartEndPos(static_cast<Inven_Item::ITEM_TYPE>(inven.m_itemType),
                     start, end, 0);
         for (int i = start; i <= end; ++i)
         {

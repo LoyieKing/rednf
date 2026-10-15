@@ -20,7 +20,7 @@ bool DisPatcher_DebugCommand::_debugCommandSetEnchant(CUser* user,
             invenType, msg.payload.ench.slotInt);               // +0x6c GetInvenRef(space,slot)
         if (ref != 0)                                           // +0x74
         {
-            ref->m_fieldd = msg.payload.ench.enchantVal;        // +0x86 写 +0xd 整体 int
+            ref->m_extendInfo = msg.payload.ench.enchantVal;        // +0x86 写 +0xd 整体 int
 
             PacketGuard packet;                                 // -0x1c
             packet.put_header(0, 0xe);                          // +0xad header(0,0xe)

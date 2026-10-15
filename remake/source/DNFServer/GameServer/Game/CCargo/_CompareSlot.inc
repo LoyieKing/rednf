@@ -7,8 +7,8 @@ int CCargo::_CompareSlot(const void* a, const void* b)
     const Inven_Item* ia = (const Inven_Item*)a;
     const Inven_Item* ib = (const Inven_Item*)b;
     // ORIG 反汇编：ta/tb 用 jge/jle（有符号 int）；m_addInfo 用 jae（无符号）。
-    int ta = ia->m_addInfo == 0 ? 9999 : (int)ia->m_field1;
-    int tb = ib->m_addInfo == 0 ? 9999 : (int)ib->m_field1;
+    int ta = ia->m_addInfo == 0 ? 9999 : (int)ia->m_itemType;
+    int tb = ib->m_addInfo == 0 ? 9999 : (int)ib->m_itemType;
     if (ta < tb)
         return -1;
     if (ta > tb)

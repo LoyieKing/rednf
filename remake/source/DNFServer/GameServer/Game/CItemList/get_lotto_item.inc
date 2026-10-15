@@ -6,8 +6,8 @@ void CItemList::get_lotto_item(int idx, char* out)
     {
         pItem->m_addInfo = 0;
         pItem->set_add_info(0);
-        pItem->m_fieldb = 0;
-        pItem->m_field1 = 0;
+        pItem->m_endurance = 0;
+        pItem->m_itemType = 0;
         pItem->ResetItemAttr();
         return;
     }
@@ -15,8 +15,8 @@ void CItemList::get_lotto_item(int idx, char* out)
     {
         pItem->m_addInfo = 0;
         pItem->set_add_info(0);
-        pItem->m_fieldb = 0;
-        pItem->m_field1 = 1;
+        pItem->m_endurance = 0;
+        pItem->m_itemType = 1;
         pItem->ResetItemAttr();
     }
     else
@@ -27,8 +27,8 @@ void CItemList::get_lotto_item(int idx, char* out)
         {
             pItem->m_addInfo = 0;
             pItem->set_add_info(0);
-            pItem->m_fieldb = 0;
-            pItem->m_field1 = 2;
+            pItem->m_endurance = 0;
+            pItem->m_itemType = 2;
             pItem->ResetItemAttr();
         }
         else

@@ -117,9 +117,9 @@ int Inter_CreateCharac::dispatch_sig(CUser* user, char* data, int /*len*/)
         case 3: giftIdx = 0x1c73; break;
         case 4: giftIdx = 0x1c74; break;
         }
-        item.m_field1 = 2;
+        item.m_itemType = 2;
         item.m_addInfo2 = 1;
-        item.m_fieldb = 0;
+        item.m_endurance = 0;
         item.ResetItemAttr();
         if (giftIdx != 0 && G_CDataManager()->find_item(giftIdx) != 0)
         {

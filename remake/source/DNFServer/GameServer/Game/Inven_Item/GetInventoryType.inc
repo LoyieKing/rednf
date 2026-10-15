@@ -1,7 +1,7 @@
 int Inven_Item::GetInventoryType()
 {
     int result;
-    register unsigned char t = (unsigned char)m_field1;
+    register unsigned char t = (unsigned char)m_itemType;
     if (t < 0xb)
     {
         // [b28d-solo-Inven_Item] N 封顶（语义等价，仅跨版本 codegen 差）：

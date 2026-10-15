@@ -24,8 +24,8 @@ bool CCreatureMgr::SwapCreature(Inven_Item* item1, int slot1, int type1,
     CCreatureItem* left = 0;
     CCreatureItem* right = 0;
 
-    if (item1->m_field1 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP ||
-        item2->m_field1 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+    if (item1->m_itemType == Inven_Item::ITEM_TYPE_CREATURE_EQUIP ||
+        item2->m_itemType == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
     {
         left = FindCreatureItem(item1->get_add_info());
         right = FindCreatureItem(item2->get_add_info());

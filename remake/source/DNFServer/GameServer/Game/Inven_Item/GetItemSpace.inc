@@ -1,7 +1,7 @@
 int Inven_Item::GetItemSpace() const
 {
     int result;
-    register unsigned char t = (unsigned char)m_field1;
+    register unsigned char t = (unsigned char)m_itemType;
     if (t < 0xb)
     {
         // [b28d-solo-Inven_Item] 同 GetInventoryType：N 封顶（跨版本冗余 zext

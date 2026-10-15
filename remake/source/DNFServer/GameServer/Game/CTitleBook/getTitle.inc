@@ -6,7 +6,7 @@ int CTitleBook::getTitle(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
     // b28d-solo-CTitleBook 本波复核：TU clean 口径 AE（near/diff 列表无本件）。
     // 本件修三处：① cMyTrace 全表达式临时链（P227，ORIG ctor 前右起求 varargs）；
     // ② GetLock 谓词内联（P198②，去具名 uchar 槽往返）；③ 装备分支补
-    // `title.m_field0 = 0`（ORIG 0x08642a49 `movb $0x0,-0x91(%ebp)`，真语义缺口）。
+    // `title.m_seal = 0`（ORIG 0x08642a49 `movb $0x0,-0x91(%ebp)`，真语义缺口）。
     CTitleBook* book = (CTitleBook*)user->GetCharacExpandData(
         (ENUM_CHARAC_EXPAND_TYPE)0xe);
     if (!book)
@@ -82,13 +82,13 @@ int CTitleBook::getTitle(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
         }
         // P198②：ORIG 0x08642a1b 段为 `call GetLock; test %al,%al; je`（直测返回
         // 寄存器、无槽）⇒ 谓词内联；提具名 uchar 局部会多 `mov %al,-off; cmpb $0`。
-        if ((title.m_amp.GetLock() != 0) && (title.m_field0 != 0))
+        if ((title.m_amp.GetLock() != 0) && (title.m_seal != 0))
         {
             return 1;
         }
         // 真语义缺口（ORIG 0x08642a49 `movb $0x0,-0x91(%ebp)`）：装备分支把称号
-        // 移入背包前先清本地副本 title.m_field0（bool +0x00），再 _deleteTitle。
-        title.m_field0 = 0;
+        // 移入背包前先清本地副本 title.m_seal（bool +0x00），再 _deleteTitle。
+        title.m_seal = 0;
         book->_deleteTitle(category, slot);
         int ret = inven->insertItemIntoEquipment(
             title, eItemAddReason_7, true, false);

@@ -26,7 +26,7 @@ bool CPrivateStore::RecallPrivateStoreItem()
         if (item.GetState() == 3)
         {
             int slot = -1;
-            if ((int)item.m_item.m_field1 == Inven_Item::ITEM_TYPE_AVATAR)
+            if ((int)item.m_item.m_itemType == Inven_Item::ITEM_TYPE_AVATAR)
             {
                 // [b28d-solo] ORIG 0x85c642e 先把 item.m_item 逐字段拷到栈副本 -0xaa，
                 // 再按值拷入 outgoing 槽（两次拷贝，4.1 对按值实参的 lowering）⇒

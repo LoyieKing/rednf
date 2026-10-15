@@ -78,7 +78,7 @@ void CMonsterDrop::_generateRandomItem(unsigned char type, char role,
         int goldAmt = gt[0] + (gt[0] * GetRandomRange(-gt[1], gt[1])) / 100;
 
         Inven_Item goldItem;
-        goldItem.m_field1 = static_cast<unsigned char>(2); // 字节 +0x01=金币类型
+        goldItem.m_itemType = static_cast<unsigned char>(2); // 字节 +0x01=金币类型
         goldItem.m_addInfo = 0;                            // uStack_1ef 清零
         goldItem.set_add_info(std::max<int>(1, goldAmt));  // ORIG 无条件先设一次
 
@@ -222,7 +222,7 @@ void CMonsterDrop::_generateRandomItem(unsigned char type, char role,
 
         // ORIG 无 seq 局部：size() 结果留 %esi 跨 get_grade/get_rarity 保活
         reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)
-            ->UseLuckPoint(static_cast<int>(equip.m_field1),
+            ->UseLuckPoint(static_cast<int>(equip.m_itemType),
                            item->get_rarity(), item->get_grade(),
                            static_cast<int>(result.m_dropItems.size()));
         result.m_dropItems.push_back(equip);

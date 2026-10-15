@@ -54,8 +54,8 @@ Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemP
     ci->make_item(item);                   // vtable 槽 +0x08（make_item 出参）
     item.m_addInfo = pPkt->m_addInfo;
     item.m_addInfo2 = pPkt->m_addInfo2;
-    item.m_fieldb = pPkt->m_endurance;
-    item.m_fieldd = pPkt->m_itemExtra;
+    item.m_endurance = pPkt->m_endurance;
+    item.m_extendInfo = pPkt->m_itemExtra;
     item.SetItemAttr(pPkt->m_itemAttr);
     item.m_amp.assign(pPkt->m_ampType,
                       pPkt->m_ampValue);
@@ -64,7 +64,7 @@ Inter_GuildCargoPopItemPktView* pPkt = reinterpret_cast<Inter_GuildCargoPopItemP
     // 末段 movzwl+movw）。旧形按 RandomOptionField（stride 3）逐成员 cast 4B 写 ⇒
     // 写侧偏移 0x25/0x28/0x2b/0x2e 与 ORIG 0x25/0x29/0x2d/0x31 错位 1..3 字节（真错位）。
     item.m_random.m_random = pPkt->m_random;
-    item.m_upgradeSep.m_field = pPkt->m_upgradeSep;
+    item.m_upgradeSep.m_packed = pPkt->m_upgradeSep;
 
     int firstResult = 0;                   // 试占位结果（包内回发槽号）
     if (ci->IsCreatureItem())              // vtable 槽 +0x14

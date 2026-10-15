@@ -275,7 +275,7 @@ int CUser::compound_item(int itemIdx, bool useRecipe2ndCheck,
             if (-1 < slot)
             {
                 const Inven_Item it = getCurCharacInvenR()->GetInvenSlot(1, slot);
-                if (it.m_field1 == 1)                              // local_1f5：equip 类型
+                if (it.m_itemType == 1)                              // local_1f5：equip 类型
                     SendUpdateItem((eSendTarget)1, (ENUM_ITEMSPACE)0, slot);
             }
         }

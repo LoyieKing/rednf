@@ -26,7 +26,7 @@
 //     `mov -0x40(%ebp),%eax; mov (%eax),%eax; add $0x8,%eax; mov (%eax),%edx;
 //     call *%edx`」——无任何 test/je；我方旧稿 `if (src != 0){…}` 多出
 //     `cmpl $0x0,-0x78(%ebp); je`（跳过的正是 ORIG 顺序执行的 make_item +
-//     m_addInfo/m_fieldb 写块）。
+//     m_addInfo/m_endurance 写块）。
 //   ②groupIdx==3：ORIG 0x0832295a..0x08322971 同形（find_item → C1Ev → 直接
 //     vtable slot2 调用）；我方旧稿 `if (src != 0){…}` 多出 `cmpl $0x0,-0x68; je`。
 //   处置：两处守卫移除，完全复刻 ORIG（src==0 时按 ORIG 行为直接解引用）。
@@ -267,7 +267,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                 // ⇒ 移除，完全复刻 ORIG（src==0 时空指针解引用，与 ORIG 行为一致）。
                 src->make_item(item);     // ORIG vtable slot2（make_item 填 Inven_Item）
                 item.m_addInfo = itemIdx;
-                item.m_fieldb = stackCount;
+                item.m_endurance = stackCount;
                 if (buyFlag == 1)
                 {
                     _processItemGift(user, item, accIdReq, characNoReq);
@@ -291,7 +291,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                     Inven_Item item;
                     src->make_item(item);
                     item.m_addInfo = itemIdx;
-                    item.m_fieldb = stackCount;
+                    item.m_endurance = stackCount;
                     const bool okSpecial = ProcessSpecialItem(
                         user, itemIdx, featuredIdxReq, restrictCode,
                         curSec, false, resultItems, itemParam, '\0', '\0', false, 1);
@@ -323,7 +323,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                 // 整块守卫（§14 #33 / §5 #17），完全复刻 ORIG。
                 src->make_item(item);
                 item.m_addInfo = itemIdx;
-                item.m_fieldb = stackCount;
+                item.m_endurance = stackCount;
                 if (buyFlag == 1)
                 {
                     // ORIG 0x83229af/0x83229bc：两分支各自重发调用（P48）。
@@ -487,7 +487,7 @@ void CCeraShop::ProcessIPGUserData(CUser* user, IPG::SIPGData* reqData,
                             CInventory* invW = user->getCurCharacInvenW();
                             const int newSlot = invW->AddAvatarItem(
                                 bufItem.m_addInfo, targetPeriod, false,
-                                static_cast<char>(bufItem.m_field1), '\xff',
+                                static_cast<char>(bufItem.m_itemType), '\xff',
                                 "E_CHILDRENS_DAY", eAvatarItemAddReason(2), false, 0);
                             if (newSlot >= 0)
                             {

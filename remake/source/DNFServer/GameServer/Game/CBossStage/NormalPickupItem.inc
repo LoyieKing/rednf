@@ -39,9 +39,9 @@ bool CBossStage::NormalPickupItem(CUser* user, unsigned int uid,
         WongWork::CGenUniqueNo::genIPGNo(
             (WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)5,
             (unsigned int)user->getCurCharacNo(), agency);
-        // 第三参取 map_item+0x1b = m_item.m_fieldb 低字节（ORIG movzwl+movsbl 内联）
+        // 第三参取 map_item+0x1b = m_item.m_endurance 低字节（ORIG movzwl+movsbl 内联）
         slot = user->addAvatarItem((unsigned long)item.m_item.m_addInfo, 0,
-                                   (char)(unsigned char)item.m_item.m_fieldb, agency,
+                                   (char)(unsigned char)item.m_item.m_endurance, agency,
                                    (eAvatarItemAddReason)0x10);
     }
     else

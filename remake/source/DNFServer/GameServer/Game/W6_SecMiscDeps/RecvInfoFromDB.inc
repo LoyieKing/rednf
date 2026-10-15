@@ -88,7 +88,7 @@ bool WongWork::CWebEvent::RecvInfoFromDB(CUser* user, unsigned int itemId,
     Inven_Item slot;
     item->make_item(slot);
     // 块序照 ORIG：`cmp $1,%al; je <equip 块>` —— 非 equip 直落（P222 正向包裹）。
-    if (slot.m_field1 != Inven_Item::ITEM_TYPE_EQUIP)
+    if (slot.m_itemType != Inven_Item::ITEM_TYPE_EQUIP)
     {
         slot.m_addInfo2 = (int)count;     // ←item+0x07（asm -0xde 槽）
     }

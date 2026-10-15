@@ -42,11 +42,11 @@ int Store::user_buy_item(CUser* user, int itemId, int count)
     {
         // 可堆叠物品：ORIG 0x08618b0e 三次独立虚调 GetItemType()（P48）。
         if (pItem->GetItemType() == 1)
-            item.m_field1 = 3;
+            item.m_itemType = 3;
         if (pItem->GetItemType() == 2)
-            item.m_field1 = 10;
+            item.m_itemType = 10;
         if (pItem->GetItemType() == 8)
-            item.m_field1 = 4;
+            item.m_itemType = 4;
         item.set_add_info(count);
         if (count > 0x3e7)
         {
@@ -58,7 +58,7 @@ int Store::user_buy_item(CUser* user, int itemId, int count)
             cMyTrace(__PRETTY_FUNCTION__, 0x3d, 5)
                 ("Store::user_buy_item,  ITEM #%d, %d", item.m_addInfo, count);
         }
-        item.m_fieldb = 0;
+        item.m_endurance = 0;
         item.ResetItemAttr();
     }
     else
@@ -71,11 +71,11 @@ int Store::user_buy_item(CUser* user, int itemId, int count)
         }
         if (pEquip->GetAttachType() == 3)
         {
-            item.m_field0 = 1;
+            item.m_seal = 1;
         }
-        item.m_field1 = 1;
+        item.m_itemType = 1;
         item.set_add_info(count);
-        item.m_fieldb = (unsigned short)pEquip->get_endurance();
+        item.m_endurance = (unsigned short)pEquip->get_endurance();
         item.ResetItemAttr();
     }
 

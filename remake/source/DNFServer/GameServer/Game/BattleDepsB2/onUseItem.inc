@@ -12,7 +12,7 @@ void CBattle_Field::onUseItem(CUser* user, const Inven_Item& item)
             GlobalData::s_systemTime_.getCurTickCount());   // +0x64
     }
 
-    if ((unsigned char)item.m_field1 == 2)
+    if ((unsigned char)item.m_itemType == 2)
         ++mapInfo->m_playInfo.m_useItemType2Count;          // +0x84
     else
         ++mapInfo->m_playInfo.m_useItemOtherCount;          // +0x88

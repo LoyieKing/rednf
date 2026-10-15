@@ -30,8 +30,8 @@
 //   / +0x29 jewelSocket(0x1e) / +0x47 color1 / +0x49 color2。
 // slot<10 → 第 4 形参（mirror 名，调用点 sig+0xa3a1）；10<=slot-10<0x69 →
 // 第 3 形参（inven 名，调用点 sig+0x4044）。Inven_Item 写：m_field1=8、
-// m_fieldb=ability_no、m_addInfo=it_id、m_addInfo2=ui_id、m_amp lock、
-// m_fielddLo=hidden、m_avatarEndur=endurance、+0x33 trade_restrict 位 0x20。
+// m_endurance=ability_no、m_addInfo=it_id、m_addInfo2=ui_id、m_amp lock、
+// m_hiddenOption=hidden、m_avatarEndur=endurance、+0x33 trade_restrict 位 0x20。
 // 错误行号 0x26dc..0x277d（col12 失败仅记日志）。
 // b28d-solo-DB_LoadInventory：17 处 trace 改 __PRETTY_FUNCTION__（ORIG 有
 // _ZZ...E19__PRETTY_FUNCTION__ 符号）+ 前 6 处 db 检查改共用 bool ok（ORIG
@@ -261,12 +261,12 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
                     // ORIG 0840c88f..0840ca3f：idx 分支基址 `add 0x10(%ebp),%eax`
                     // = 第 3 形参（调用点 sig+0x4044）。P183：每写点重发
                     // `mov -0xc(%ebp),%eax; imul $0x3d,%eax,%eax; add 0x10(%ebp),%eax`。
-                    inven[idx].m_field1 = Inven_Item::ITEM_TYPE_AVATAR;
-                    inven[idx].m_fieldb = static_cast<unsigned short>(abilityNo);
+                    inven[idx].m_itemType = Inven_Item::ITEM_TYPE_AVATAR;
+                    inven[idx].m_endurance = static_cast<unsigned short>(abilityNo);
                     inven[idx].m_addInfo = itId;
                     inven[idx].m_addInfo2 = uiId;
                     inven[idx].m_amp.SetLock(lockKey);
-                    inven[idx].m_fieldSplit.m_fielddLo =
+                    inven[idx].m_fieldSplit.m_hiddenOption =
                         static_cast<short>(hiddenOption);
                     inven[idx].m_fieldSplit.m_avatarEndur =
                         static_cast<unsigned short>(emblemEndurance);
@@ -277,11 +277,11 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
                     // 三目位域形反产读-改-写位域全展开）。
                     if (tradeRestrict != 0)
                     {
-                        inven[idx].m_upgradeSep.m_bits.m_flag = 1;
+                        inven[idx].m_upgradeSep.m_bits.m_tradeRestriction = 1;
                     }
                     else
                     {
-                        inven[idx].m_upgradeSep.m_bits.m_flag = 0;
+                        inven[idx].m_upgradeSep.m_bits.m_tradeRestriction = 0;
                     }
             }
         }
@@ -291,22 +291,22 @@ bool DB_LoadInventory::_GetUserAvatar(unsigned int characNo,
             {
                     // ORIG 0840c956..0840ca3f：slot<10 分支基址 `add 0x14(%ebp),%eax`
                     // = 第 4 形参（调用点 sig+0xa3a1）——与镜像分支相反，勿再对调。
-                    mirror[slot].m_field1 = Inven_Item::ITEM_TYPE_AVATAR;
-                    mirror[slot].m_fieldb = static_cast<unsigned short>(abilityNo);
+                    mirror[slot].m_itemType = Inven_Item::ITEM_TYPE_AVATAR;
+                    mirror[slot].m_endurance = static_cast<unsigned short>(abilityNo);
                     mirror[slot].m_addInfo = itId;
                     mirror[slot].m_addInfo2 = uiId;
                     mirror[slot].m_amp.SetLock(lockKey);
-                    mirror[slot].m_fieldSplit.m_fielddLo =
+                    mirror[slot].m_fieldSplit.m_hiddenOption =
                         static_cast<short>(hiddenOption);
                     mirror[slot].m_fieldSplit.m_avatarEndur =
                         static_cast<unsigned short>(emblemEndurance);
                     if (tradeRestrict != 0)
                     {
-                        mirror[slot].m_upgradeSep.m_bits.m_flag = 1;
+                        mirror[slot].m_upgradeSep.m_bits.m_tradeRestriction = 1;
                     }
                     else
                     {
-                        mirror[slot].m_upgradeSep.m_bits.m_flag = 0;
+                        mirror[slot].m_upgradeSep.m_bits.m_tradeRestriction = 0;
                     }
             }
         }

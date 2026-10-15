@@ -19,7 +19,7 @@ void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& 
         {
             c++;
         }
-        else if (m_invenItem[10].m_fieldb == 0)
+        else if (m_invenItem[10].m_endurance == 0)
         {
             f++;
         }
@@ -47,7 +47,7 @@ void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& 
                         m_invenItem[i].m_addInfo);
                     if (pItem != 0)
                     {
-                        if (m_invenItem[i].m_fieldb == 0)
+                        if (m_invenItem[i].m_endurance == 0)
                         {
                             f++;
                         }

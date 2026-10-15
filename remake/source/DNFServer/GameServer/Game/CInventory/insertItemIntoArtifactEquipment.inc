@@ -12,7 +12,7 @@ int CInventory::insertItemIntoArtifactEquipment(Inven_Item item, eItemAddReason 
     m_pCreatureSlot[slot].setCopy(item);
     if (bLog)
     {
-        WriteCreatureLog((INVEN_TYPE)3, item.m_addInfo, 1, 1, item.m_field1, reason);
+        WriteCreatureLog((INVEN_TYPE)3, item.m_addInfo, 1, 1, item.m_itemType, reason);
     }
     return slot;
 }

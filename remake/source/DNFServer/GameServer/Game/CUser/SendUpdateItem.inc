@@ -24,9 +24,9 @@ int CUser::SendUpdateItem(eSendTarget target, ENUM_ITEMSPACE space, int slot)
         ((InterfacePacketBuf*)&packet)->put_int(item->m_addInfo);   // +0x02
     ((InterfacePacketBuf*)&packet)->put_int(uid);
     ((InterfacePacketBuf*)&packet)->put_byte((int)item->GetItemAttr());
-    ((InterfacePacketBuf*)&packet)->put_short((int)item->m_fieldb);
-    ((InterfacePacketBuf*)&packet)->put_byte((int)(unsigned char)item->m_field0);
-    ((InterfacePacketBuf*)&packet)->put_int(item->m_fieldd);
+    ((InterfacePacketBuf*)&packet)->put_short((int)item->m_endurance);
+    ((InterfacePacketBuf*)&packet)->put_byte((int)(unsigned char)item->m_seal);
+    ((InterfacePacketBuf*)&packet)->put_int(item->m_extendInfo);
     ((InterfacePacketBuf*)&packet)->put_byte(
         (int)item->m_amp.getAbilityType());
     ((InterfacePacketBuf*)&packet)->put_short(
@@ -58,7 +58,7 @@ int CUser::SendUpdateItem(eSendTarget target, ENUM_ITEMSPACE space, int slot)
             ((InterfacePacketBuf*)&packet)->put_binary(expansion, 4);
         }
     }
-    if (item->m_field1 == (unsigned char)5)
+    if (item->m_itemType == (unsigned char)5)
     {
         int tick = 0;
         tick = OS_API::GetDateTimeTick();

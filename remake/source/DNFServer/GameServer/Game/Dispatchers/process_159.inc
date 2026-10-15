@@ -1,6 +1,6 @@
 // b28d-solo-Dispatchers verdict=DIFF(routed) [N89] ORIG 0x081dc9ba orig/ours=511/537 ndiff-blocks=97
 //   ORIG 段内 std::/__gnu_cxx out-of-line 内联实例 call 5 个，4.4 libstdc++ 全内联不可复现
-//   [S162+S172] 已修：m_seedd.m_field & 3 → m_seedd.m_bits.m_low2 位域视角
+//   [S162+S172] 已修：m_changedSlot.m_value & 3 → m_changedSlot.m_bits.m_low2 位域视角
 //   （P308；Inven_Item.h 匿名 union，sizeof/偏移不变）⇒ 首差位 0→5。
 //   首差: mov    %eax,-0x34(%ebp) | ... （S162 后首差位=5）
 int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase& param)
@@ -45,7 +45,8 @@ int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase
         return 0;
     }
     local_29 = local_38->m_12;           // movzbl 0x12(eax)→-0x25
-    if (((const unsigned char*)local_34)[(unsigned int)(unsigned char)local_29 * 3 + 0x25] == 0)
+    if ((unsigned char)local_29 < 3 &&
+        local_34->m_random.m_random.m_fields[(unsigned char)local_29].m_optionIndex == 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1b6, 0x11);
         return 0;
@@ -73,8 +74,8 @@ int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1b6, 0x13);
         return 0;
     }
-    if (!local_34->m_random.m_random.m_fielda.empty() &&
-        ((unsigned int)local_34->m_random.m_random.m_seedd.m_bits.m_low2 != local_28))
+    if (!local_34->m_random.m_random.m_changedOption.empty() &&
+        ((unsigned int)local_34->m_random.m_random.m_changedSlot.m_bits.m_low2 != local_28))
     {
         bVar3 = true;
     }

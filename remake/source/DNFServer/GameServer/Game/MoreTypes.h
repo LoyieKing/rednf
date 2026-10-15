@@ -35,8 +35,8 @@ struct SIG_PRIVATE_STORE_Item
     SIG_PRIVATE_STORE_ItemField m_addInfo;   // +0x02（Inven_Item +0x02 物品索引，enum 视角）
     unsigned char m_pad06[0x01];   // +0x06
     int m_addInfo2;                // +0x07（Inven_Item +0x07，ORIG 单段直落 ⇒ 保持 int）
-    unsigned short m_fieldb;       // +0x0b（Inven_Item +0x0b 耐久）
-    SIG_PRIVATE_STORE_ItemField m_fieldd;    // +0x0d（Inven_Item +0x0d，enum 视角）
+    unsigned short m_endurance;       // +0x0b（Inven_Item +0x0b 耐久）
+    SIG_PRIVATE_STORE_ItemField m_extendInfo;    // +0x0d（Inven_Item +0x0d，enum 视角）
     unsigned char m_pad11[0x2f];   // +0x11..+0x3f（m_item/m_amp 主体）
     int m_field40;                 // +0x40（PrivateStoreItem 售价）
     unsigned char m_pad44[0x08];   // +0x44..+0x4b（条目尾）
@@ -59,8 +59,8 @@ typedef char SIG_PRIVATE_STORE_Item_size_check[(sizeof(SIG_PRIVATE_STORE_Item) =
 typedef char SIG_PRIVATE_STORE_Item_off_check[
     (offsetof(SIG_PRIVATE_STORE_Item, m_addInfo) == 0x02 &&
      offsetof(SIG_PRIVATE_STORE_Item, m_addInfo2) == 0x07 &&
-     offsetof(SIG_PRIVATE_STORE_Item, m_fieldb) == 0x0b &&
-     offsetof(SIG_PRIVATE_STORE_Item, m_fieldd) == 0x0d &&
+     offsetof(SIG_PRIVATE_STORE_Item, m_endurance) == 0x0b &&
+     offsetof(SIG_PRIVATE_STORE_Item, m_extendInfo) == 0x0d &&
      offsetof(SIG_PRIVATE_STORE_Item, m_field40) == 0x40) ? 1 : -1];
 typedef char SIG_PRIVATE_STORE_off_check[
     (offsetof(SIG_PRIVATE_STORE, m_characNo) == 0x000 &&

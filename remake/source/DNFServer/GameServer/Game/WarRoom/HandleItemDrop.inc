@@ -43,10 +43,10 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         if (d == 0)
         {
             field.m_count = 0;
-            field.m_item.m_field1 = 2;
+            field.m_item.m_itemType = 2;
             field.m_item.m_addInfo = 0;
             field.m_item.set_add_info(e);
-            field.m_item.m_fieldb = 0;
+            field.m_item.m_endurance = 0;
             field.m_item.ResetItemAttr();
         }
         else
@@ -95,7 +95,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         case 5:
             return 0x17;
         case 3:
-            if (item.m_field0 != 1)
+            if (item.m_seal != 1)
                 return 0x17;
             break;
         case 4:
@@ -112,7 +112,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
             }
         }
         field.m_count = 0;
-        field.m_item.m_field1 = item.m_field1;
+        field.m_item.m_itemType = item.m_itemType;
         field.m_item.m_addInfo = item.m_addInfo;
         // ORIG 086bfb56：xor $0x1 → 条件写作 !isEquipableItemType()，
         // 「非装备」分支在前（set_add_info(e)），装备分支在后。
@@ -125,9 +125,9 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
             field.m_item.set_add_info(item.m_addInfo2);
         }
         field.m_item.SetItemAttr(item.GetItemAttr());
-        field.m_item.m_fieldb = item.m_fieldb;
-        field.m_item.m_field0 = item.m_field0;
-        field.m_item.m_fieldd = item.m_fieldd;
+        field.m_item.m_endurance = item.m_endurance;
+        field.m_item.m_seal = item.m_seal;
+        field.m_item.m_extendInfo = item.m_extendInfo;
         field.m_item.m_amp = item.m_amp;
         // ORIG 086bfc16..086bfc47：+0x25..+0x32 共 14 字节整体拷贝
         //（4+4+4+2），即 RandomOption 子对象整体赋值，而非逐成员。
@@ -205,7 +205,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
                                                      user, (unsigned)price);
         break;
     }
-    if (item.m_field1 != 1)
+    if (item.m_itemType != 1)
     {
         if ((field.m_item.m_addInfo != 0) && (field.m_item.get_add_info() > 0x7d0))
         {
@@ -229,8 +229,8 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
     packet.put_int(field.m_item.m_addInfo);
     packet.put_byte(field.m_item.GetItemAttr());
     packet.put_int(field.m_item.get_add_info());
-    packet.put_short(field.m_item.m_fieldb);
-    packet.put_int(field.m_item.m_fieldd);
+    packet.put_short(field.m_item.m_endurance);
+    packet.put_int(field.m_item.m_extendInfo);
     packet.put_byte(field.m_item.m_amp.getAbilityType());
     packet.put_short(field.m_item.m_amp.getAbilityValue());
     packet.put_packet(field.m_item);

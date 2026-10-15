@@ -1,13 +1,13 @@
 int CInventory::tryStackInvenItemIntoCorrespondingSpace(Inven_Item item) const
 {
     // b28d-37 [已修复 AE，ORIG 0x08501cea]：P0 具名 sum 局部（ORIG 0x08501dca..0xe3 槽往返）复现 87→89=ORIG；fresh 复验零差（仅 .o 重定位伪差）。
-    if (item.m_field1 == 1)
+    if (item.m_itemType == 1)
     {
         return -1;
     }
     int start = 0;
     int end = 0;
-    getStartEndPos((Inven_Item::ITEM_TYPE)item.m_field1, start, end);
+    getStartEndPos((Inven_Item::ITEM_TYPE)item.m_itemType, start, end);
     for (int i = start; i <= end; i++)
     {
         if (m_pEquipSlot[i].m_addInfo != item.m_addInfo)

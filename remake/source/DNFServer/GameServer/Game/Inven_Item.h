@@ -42,9 +42,9 @@ public:
     bool empty() const;      // ORIG _ZNK17RandomOptionField5emptyEv W 0x811ed22：
                              //   仅检查首字节==0（报告缺失，objdump 直转）
 
-    unsigned char m_field0;  // +0x00
-    unsigned char m_field1;  // +0x01
-    unsigned char m_field2;  // +0x02
+    unsigned char m_optionIndex;  // 选项索引。ORIG get_option_index 读此字节；give_option 写入 OptionGroup::m_type0
+    unsigned char m_firstValue;   // ORIG set_first_value；_get_option_value 掷出的第一值
+    unsigned char m_secondValue;  // ORIG set_second_value；_get_option_value 再掷一次
 };
 
 class RandomOptionSeed
@@ -58,7 +58,7 @@ public:
     // c1 vs c2）。sizeof 1 / 偏移 / mangled 均不变；旧名 m_field 保留。
     union
     {
-        unsigned char m_field;   // +0x00（整体字节口径）
+        unsigned char m_value;   // 整字节。gradeSeed：低 2 位 outGrade；changedSlot：低 2 位槽号
         struct { unsigned char m_low2 : 2; unsigned char m_high6 : 6; } m_bits;
     };
 };
@@ -107,23 +107,23 @@ public:
         {
             if (!m_fields[i].empty())  // [b28d-solo-PacketBuf P235] 具名数组视角：ORIG +0x43 3i+add this mem
             {
-                packet.put_byte(m_fields[i].m_field0);  // ORIG +0x61 movzbl (%eax,%ecx,1),%eax
-                packet.put_byte(m_fields[i].m_field1);  // ORIG +0x83 lea; add $0x1
-                packet.put_byte(m_fields[i].m_field2);  // ORIG +0xaa lea; add $0x2
+                packet.put_byte(m_fields[i].m_optionIndex);  // ORIG +0x61 movzbl (%eax,%ecx,1),%eax
+                packet.put_byte(m_fields[i].m_firstValue);  // ORIG +0x83 lea; add $0x1
+                packet.put_byte(m_fields[i].m_secondValue);  // ORIG +0xaa lea; add $0x2
                 ++count;                                           // ORIG +0xc5 addl $0x1,-0x10
             }
         }
         packet.put_byte(index, count);                             // ORIG +0xf0 call put_byteERii（index 槽取址+count 值传）
         if (count != 0)                                            // ORIG +0xf5 cmpl $0x0,-0x10; je end
         {
-            packet.put_byte(m_seed9.m_field);                      // ORIG +0xff movzbl 0x9(%eax); movzbl %al,%edx
-            if (!m_fielda.empty())  // ORIG +0x11e add $0xa,%eax; call empty; xor$1; je→put(-1)
+            packet.put_byte(m_gradeSeed.m_value);                      // ORIG +0xff movzbl 0x9(%eax); movzbl %al,%edx
+            if (!m_changedOption.empty())  // ORIG +0x11e add $0xa,%eax; call empty; xor$1; je→put(-1)
             {
-                packet.put_byte(m_seedd.m_bits.m_low2);            // ORIG +0x12d movzbl 0xd; and $0x3; movzbl %al,%edx（P308 位域视角）
-                packet.put_byte(m_seedd.m_field);                  // ORIG +0x14d
-                packet.put_byte(m_fielda.m_field0);                // ORIG +0x166 movzbl 0xa
-                packet.put_byte(m_fielda.m_field1);                // ORIG +0x17f
-                packet.put_byte(m_fielda.m_field2);                // ORIG +0x198
+                packet.put_byte(m_changedSlot.m_bits.m_low2);            // ORIG +0x12d movzbl 0xd; and $0x3; movzbl %al,%edx（P308 位域视角）
+                packet.put_byte(m_changedSlot.m_value);                  // ORIG +0x14d
+                packet.put_byte(m_changedOption.m_optionIndex);                // ORIG +0x166 movzbl 0xa
+                packet.put_byte(m_changedOption.m_firstValue);                // ORIG +0x17f
+                packet.put_byte(m_changedOption.m_secondValue);                // ORIG +0x198
             }
             else
             {
@@ -137,16 +137,16 @@ public:
     // [b28d-solo-RandomRentalA2 P235] 匿名 union 数组视角：真实成员数组使 4.4 产出
     // ORIG 的 index-first 装载序（探针 /tmp/rr_probe3.cpp S3::m1/s1 与
     // ORIG 0x085f4040/0x085f4078 逐条全等）；cast 数组指针恒 this-first（NEAR 残差）。
-    // sizeof 0x0e 与 m_seed9(+0x09)/m_fielda(+0x0a)/m_seedd(+0x0d) 偏移、mangled 均不变；
+    // sizeof 0x0e 与 m_gradeSeed(+0x09)/m_changedOption(+0x0a)/m_changedSlot(+0x0d) 偏移、mangled 均不变；
     // 旧名保留（匿名 struct 注入外层作用域）。
     union
     {
-        struct { RandomOptionField m_field0; RandomOptionField m_field3; RandomOptionField m_field6; };
+        struct { RandomOptionField m_slot0; RandomOptionField m_slot1; RandomOptionField m_slot2; };
         RandomOptionField m_fields[3];
     };
-    RandomOptionSeed m_seed9;    // +0x09
-    RandomOptionField m_fielda;  // +0x0a
-    RandomOptionSeed m_seedd;    // +0x0d
+    RandomOptionSeed m_gradeSeed;    // 低 2 位 = outGrade，高 6 位 = 随机种子
+    RandomOptionField m_changedOption;  // 变换进行中的那条选项
+    RandomOptionSeed m_changedSlot;    // 低 2 位 = 被锁槽号，高 6 位 = 随机种子
 };
 
 class ChronicleRandomOptionInfo
@@ -193,8 +193,8 @@ public:
     // （IsTradeRestriction 0x8110b0a、SetUpgradeSeparate 0x84e906a 位域装填形）。
     union
     {
-        unsigned char m_field;
-        struct { unsigned char m_lo:5, m_flag:1, m_hi:2; } m_bits;
+        unsigned char m_packed;
+        struct { unsigned char m_upgradeSeparate:5, m_tradeRestriction:1, m_reserved:2; } m_bits;
     };
 };
 
@@ -264,8 +264,8 @@ public:
         INVEN_SLOT_0 = 0
     };
 
-    bool m_field0;                 // +0x00（ORIG bool：movzbl;xor $0x1;test %al,%al 惯用式，WarRoom::HandleItemDrop 0x086bfad7）
-    unsigned char m_field1;            // +0x01（ITEM_TYPE）
+    bool m_seal;                   // 封装/封印标志。DnfItemInfo::m_seal 与 event itemData::m_seal 都拷这一字节
+    unsigned char m_itemType;          // ITEM_TYPE
     unsigned int m_addInfo;            // +0x02（item idx；_CheckUsableExpertJobEquipment 0x084c4ba3 find_item(int) 两步 spill 需 unsigned 成员）
     // +0x06（upgrade:bit0-4 / reseal:bit5-7）。ORIG setter 汇编为位域装填形
     // （SetUpgrade 0x80f0ffc 双 and 截断、SetReSealCount and $0x7+shl $0x5、
@@ -278,10 +278,10 @@ public:
         struct { unsigned char m_attrAll:8; } m_attrAll;
     };
     int m_addInfo2;                    // +0x07（set_add_info / get_add_info）
-    unsigned short m_fieldb;           // +0x0b（endurance）
+    unsigned short m_endurance;        // 装备耐久。avatar 加载把 ability_no 写在这同一短整型里
     union
     {
-        unsigned int m_fieldd;         // +0x0d（整体读写口径：SendUpdateItem 包字段、
+        unsigned int m_extendInfo;         // +0x0d（整体读写口径：SendUpdateItem 包字段、
                                        //      UseLimitCube 结果数、CCreatureMgr 拷贝）
                                        //      ORIG 三处 put_int(m_fieldd) 恒两段中转
                                        //      （0x08641b2d/0x0850bee2 段/0x084fd7b6 段）
@@ -289,7 +289,7 @@ public:
                                        //      探针 /tmp/l6_p211d.cpp/e）
         struct
         {
-            short m_fielddLo;          // +0x0d（低 16 位）
+            short m_hiddenOption;      // avatar hidden_option（技能索引）
             unsigned short m_avatarEndur;  // +0x0f（头像/徽章耐久计数：
                                            //      AvatarRechargeServer::CalcDurabilityDetail
                                            //      0x081902e8 实证读减并经 UpdateEndurance 上报）
@@ -311,7 +311,7 @@ public:
     void setCopy(const Inven_Item& item);        // ORIG _ZN21Inven_Item_Compatible7setCopyERK10Inven_Item W 0x833f38e
     void makeInvenItem(Inven_Item& item);        // ORIG _ZN21Inven_Item_Compatible13makeInvenItemER10Inven_Item W 0x833f418
 
-    bool m_field0;              // +0x00（← item+0x00；ORIG setCopy/makeInvenItem
+    bool m_seal;                // ← Inven_Item::m_seal。ORIG setCopy/makeInvenItem
                                 //   0x833f38e/0x833f418 首字段 movzbl+mov %dl 直拷
                                 //   无 setne ⇒ bool→bool 赋值形，uchar 会生物化）
     unsigned char m_type;       // +0x01（ITEM_TYPE，← item+0x01）
@@ -324,7 +324,7 @@ public:
     unsigned char m_attr;       // +0x08（← Inven_Item::GetItemAttr）
     int m_addInfo2;             // +0x0c（← item+0x07）
     unsigned short m_endurance; // +0x10（← item+0x0b）
-    unsigned int m_fieldd;      // +0x14（← item+0x0d，同型化同上）
+    unsigned int m_extendInfo;      // +0x14（← item+0x0d，同型化同上）
     // [b28d-solo-CCreatureMgr P247] +0x18 改 4 字节结构视图（与
     // stAmplifyOption_t::m_amp0Head 同型 ⇒ 结构赋值形，复现 ORIG LHS-first
     // `mov 0x8(%ebp),%eax; mov 0xc(%ebp),%edx; mov 0x11(%edx),%edx;

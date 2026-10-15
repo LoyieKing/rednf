@@ -10,8 +10,8 @@ void CItemList::create_item(ENUM_ITEM_CREATE_TYPE type, Inven_Item& item,
             0x98f, "find_item(%d)", item.m_addInfo);
         item.m_addInfo = -1;
         item.set_add_info(0);
-        item.m_fieldb = 0;
-        item.m_field1 = 0;
+        item.m_endurance = 0;
+        item.m_itemType = 0;
         item.ResetItemAttr();
         return;
     }
@@ -38,7 +38,7 @@ void CItemList::create_item(ENUM_ITEM_CREATE_TYPE type, Inven_Item& item,
         {
             GlobalData::s_itemAmplifier_->generateAmplifyItem(pItem, item);
         }
-        if (item.m_field1 == 1)
+        if (item.m_itemType == 1)
         {
             int equip = ((CEquipItem*)pItem)->get_endurance();
             int rand = get_rand_int(100);
@@ -55,7 +55,7 @@ void CItemList::create_item(ENUM_ITEM_CREATE_TYPE type, Inven_Item& item,
             {
                 result = equip;
             }
-            item.m_fieldb = (unsigned short)result;
+            item.m_endurance = (unsigned short)result;
         }
     }
 }

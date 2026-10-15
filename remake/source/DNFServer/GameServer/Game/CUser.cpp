@@ -2808,11 +2808,11 @@ struct ExpansionPair
                     pkt->put_int(itemIdx);
                     pkt->put_int(item.get_add_info());
                     pkt->put_byte(item.GetItemAttr());
-                    pkt->put_short(item.m_fieldb);
+                    pkt->put_short(item.m_endurance);
                     // [bughunt10] ORIG 0x0866d1ce..0x0866d1df：此处为常量
-                    //   `movl $0x0,0x4(%esp)` → put_byte(0)，非 item.m_field0。
+                    //   `movl $0x0,0x4(%esp)` → put_byte(0)，非 item.m_seal。
                     pkt->put_byte(0);
-                    pkt->put_int(item.m_fieldd);
+                    pkt->put_int(item.m_extendInfo);
                     pkt->put_byte(item.m_amp.getAbilityType());
                     pkt->put_short(item.m_amp.getAbilityValue());
                     if (item.isAvatarItemType())

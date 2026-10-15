@@ -66,11 +66,11 @@ void Inter_LoadEtc::giveBreakAwayReward(CUser* user)
             return;
         // [SweepInterLoadEtcImpl] ORIG 0x084d912d `mov %eax,-0x80(%ebp)` 与
         // 0x084d9142 `mov %al,-0x81(%ebp)` 的槽址 = mailItem(-0x82) + 2 / +1
-        // ⇒ mailItem.m_addInfo = itemId、mailItem.m_field1 = GetItemType()
+        // ⇒ mailItem.m_addInfo = itemId、mailItem.m_itemType = GetItemType()
         // （旧译文 `(void)found->GetItemType();` 丢两次字段写入 = 真语义 bug）。
         // P282：ORIG 0x84d9135 `add $0xc` ⇒ 虚槽 word[5] = GetItemType()。
         mailItem.m_addInfo = itemId;
-        mailItem.m_field1 = (unsigned char)found->GetItemType();
+        mailItem.m_itemType = (unsigned char)found->GetItemType();
         found->make_item(mailItem);                  // ORIG 虚槽 +0x8
         mailItem.set_add_info(itemCnt);
     }

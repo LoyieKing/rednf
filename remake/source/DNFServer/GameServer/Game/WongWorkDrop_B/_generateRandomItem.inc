@@ -125,7 +125,7 @@ void CSpecialMonsterDrop::_generateRandomItem(unsigned char type, char role,
         // [M3S2WinDrop] ORIG 0x08536b?? 三实参均内联：`call get_grade; mov %eax,%esi`
         // / `call get_rarity; mov %eax,%ebx`（callee-saved 保活，无具名槽）。
         reinterpret_cast< ::CLuckPoint*>(&result.m_luckPoint)
-            ->UseLuckPoint(static_cast<int>(inv.m_field1), item->get_rarity(),
+            ->UseLuckPoint(static_cast<int>(inv.m_itemType), item->get_rarity(),
                            item->get_grade(),
                            static_cast<int>(result.m_dropItems.size()));
         result.m_dropItems.push_back(inv);

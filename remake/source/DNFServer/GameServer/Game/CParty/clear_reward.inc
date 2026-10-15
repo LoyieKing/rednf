@@ -728,21 +728,21 @@ void CParty::clear_reward(int param)
                     pkReward.put_short(putSlotNo);
                     pkReward.put_int(questItem.m_addInfo);   // [DNF-FIX 2026-10-08 c29] ORIG 0x085b07d2 reads questItem+0x02
                     pkReward.put_int(questItem.get_add_info());
-                    pkReward.put_short(static_cast<int>(questItem.m_fieldb));
+                    pkReward.put_short(static_cast<int>(questItem.m_endurance));
                     pkReward.put_byte(static_cast<int>(
                         static_cast<unsigned char>(
                             questItem.m_amp.getAbilityType())));
                     pkReward.put_short(
                         static_cast<int>(questItem.m_amp.getAbilityValue()));
                     questPutCount += 1;
-                    if (questItem.m_field1 == 1)
+                    if (questItem.m_itemType == 1)
                     {
                         CItem* itemDef = G_CDataManager()->find_item(questItem.m_addInfo);   // [DNF-FIX 2026-10-08 c29] ORIG 0x085b0881
                         if (itemDef != 0)
                         {
                             CLuckPoint::UseLuckPoint(
                                 user,
-                                static_cast<int>(questItem.m_field1),
+                                static_cast<int>(questItem.m_itemType),
                                 itemDef->get_rarity(),
                                 itemDef->get_grade());
                         }

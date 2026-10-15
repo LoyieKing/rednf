@@ -210,24 +210,24 @@ unsigned int CGuild::GetGuildKey()
 // _ZN12RandomOption5resetEv 0x08089620 逐条一致（+0/+3/+6/+9/+0xa/+0xd）。
 void RandomOption::reset()
 {
-    m_fields[0].reset();   // +0x00（原 m_f0）
-    m_fields[1].reset();   // +0x03（原 m_f3）
-    m_fields[2].reset();   // +0x06（原 m_f6）
-    m_seed9.reset();       // +0x09（原 m_s9）
-    m_fielda.reset();      // +0x0a（原 m_f10）
-    m_seedd.reset();       // +0x0d（原 m_s13）
+    m_fields[0].reset();
+    m_fields[1].reset();
+    m_fields[2].reset();
+    m_gradeSeed.reset();
+    m_changedOption.reset();
+    m_changedSlot.reset();
 }
 
 void RandomOptionField::reset()
 {
-    m_field0 = 0;   // 原 m_data[0]
-    m_field1 = 0;   // 原 m_data[1]
-    m_field2 = 0;   // 原 m_data[2]
+    m_optionIndex = 0;
+    m_firstValue = 0;
+    m_secondValue = 0;
 }
 
 void RandomOptionSeed::reset()
 {
-    m_field = 0;    // 原 m_data[0]
+    m_value = 0;
 }
 
 #pragma pack(push,1)
@@ -272,9 +272,9 @@ UpgradeSeparateInfo::UpgradeSeparateInfo()
 void UpgradeSeparateInfo::reset()
 {
     struct Bits { unsigned char a:5, b:1, c:2; };
-    reinterpret_cast<Bits*>(&m_field)->a = 0;   // 原 m_data（权威定义中为 union 别名 m_field）
-    reinterpret_cast<Bits*>(&m_field)->b = 0;
-    reinterpret_cast<Bits*>(&m_field)->c = 0;
+    reinterpret_cast<Bits*>(&m_packed)->a = 0;   // 整字节 m_packed，低 5 位是强化分离
+    reinterpret_cast<Bits*>(&m_packed)->b = 0;
+    reinterpret_cast<Bits*>(&m_packed)->c = 0;
 }
 
 ReservedCapacity::ReservedCapacity()
@@ -2975,6 +2975,6 @@ unsigned short CGuild::GetGuildDBFlag()
 
 unsigned char UpgradeSeparateInfo::GetUpgradeSeparate() const
 {
-    // 原 m_data（权威定义中为 union 别名 m_field）；ORIG 0x080a03f0 = movzx;and $0x1f
-    return (unsigned char)(m_field & 0x1f);
+    // ORIG 0x080a03f0 = movzx;and $0x1f。低 5 位是强化分离。
+    return (unsigned char)(m_packed & 0x1f);
 }

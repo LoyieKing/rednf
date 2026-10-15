@@ -14,7 +14,7 @@ bool CTitleBook::_checkInsertTitle(ENUM_TITLE_BOOK_CATEGORY category,
     {
         return 0;
     }
-    if ((category == 3) && (item->m_field0 != 0))
+    if ((category == 3) && (item->m_seal != 0))
     {
         return 0;
     }

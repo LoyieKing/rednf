@@ -85,7 +85,7 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
 
         if (found.m_addInfo != MSGV->m_itemIdx)
             return 0x11;
-        if (found.m_field1 == 4)
+        if (found.m_itemType == 4)
             return 0x17;
         // [2026-09-11] P222/P133：ORIG 08555cfe `xor $0x1; test %al; je <跳过>`
         // + 08555d0a `cmp; jge <跳过>` 为两条独立守卫（同落跳过点）⇒ 拆 `&&`
@@ -113,7 +113,7 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
         case 2:
             return 0x17;
         case 3:
-            if (found.m_field0 != 1)   // 需数量/标志为 1（ORIG 逐字节校验）
+            if (found.m_seal != 1)   // 需数量/标志为 1（ORIG 逐字节校验）
                 return 0x17;
             break;
         case 7:
@@ -159,7 +159,7 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
 
         if (MSGV->m_itemIdx != 0)
         {
-            if (found.m_field1 == 8)   // AVATAR
+            if (found.m_itemType == 8)   // AVATAR
             {
                 if (inven->delete_item((INVEN_TYPE)2, MSGV->m_slot,
                                        1, (eItemDelReason)2, 1) != 1)

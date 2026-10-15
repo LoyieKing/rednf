@@ -263,14 +263,14 @@ int CUser::process_recipe_avatar_items(int mainSlot, bool param2,
     guard.put_int(newItem.m_addInfo2);   // Inven_Item+0x07
     // +0xa2f: Inven_Item::GetUpgrade() 0x080f506c -> put_byte
     guard.put_byte((int)newItem.GetUpgrade() & 0xff);
-    // +0xa5c: put_short(newItem.m_fieldb)（Inven_Item+0x0b endurance）
-    guard.put_short((int)newItem.m_fieldb);
+    // +0xa5c: put_short(newItem.m_endurance)（Inven_Item+0x0b endurance）
+    guard.put_short((int)newItem.m_endurance);
     // +0xa6e: stAmplifyOption_t::getAbilityType() 0x08150732 -> put_byte
     guard.put_byte((int)newItem.m_amp.getAbilityType() & 0xff);
     // +0xa94: stAmplifyOption_t::getAbilityValue() 0x08150772 -> put_short
     guard.put_short((int)newItem.m_amp.getAbilityValue() & 0xffff);
-    // +0xaba: put_byte(newItem.m_field0 != 0 ? 1 : 0)
-    guard.put_byte(newItem.m_field0 != 0 ? 1 : 0);
+    // +0xaba: put_byte(newItem.m_seal != 0 ? 1 : 0)
+    guard.put_byte(newItem.m_seal != 0 ? 1 : 0);
     // +0xaea: put_packet(newItem) 0x0815098e
     guard.put_packet(newItem);
     // +0xb13: finalize(true) 0x080cb958

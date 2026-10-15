@@ -1,7 +1,7 @@
 // ORIG T 0x0811e138（const）。
 // [b28d-solo-CItemUpgrade_Separate] 判词 N（ORIG 0x0811e138，N7 族）：修法——haveCount
 // 直用 matItem.m_addInfo2（%edi 跨调用保活）、rarity/itemType/sepLv 全部内联实参、
-// materialItemIdx 具名槽、m_fieldb 双零扩展 32 位比较、两次独立虚调 GetItemType
+// materialItemIdx 具名槽、m_endurance 双零扩展 32 位比较、两次独立虚调 GetItemType
 // （P282 真语义缺口已补）。p167 10=10 CLEAR；gap=1（133 vs 132）。残余仅 N7：
 // 虚调目标 ORIG %edx vs 4.4 %eax、rarity/itemType 的 %ebx/%esi 角色互换及实参槽
 // 0xc/0x10 互换（P230 判 4.4.6 后端敏感族）。
@@ -49,7 +49,7 @@ int CItemUpgrade_Separate::_CheckCondition(const CUser* /*user*/, const Inven_It
         return 0x13;
     }
     // ORIG 0x0811e271：movzwl 0xb(%eax),%eax + movzwl %ax,%ebx（双零扩展 ⇒ 32 位比较）
-    if (static_cast<int>(item.m_fieldb) !=
+    if (static_cast<int>(item.m_endurance) !=
         static_cast<int>(
             reinterpret_cast<const CEquipItem*>(citem)->get_endurance()))
     {

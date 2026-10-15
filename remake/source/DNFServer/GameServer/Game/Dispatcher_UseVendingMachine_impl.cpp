@@ -198,7 +198,7 @@ struct Dispatcher_UseVendingMachine::stPutItemResult_t
         else if (item->IsCreatureItem() && item->GetItemType() == 0x16)
         {
             // 生物（蛋/宠物），先 SetEggItem 再 insert
-            if (outItem.m_field1 == 5 /* ITEM_TYPE_CREATURE_EQUIP */)
+            if (outItem.m_itemType == 5 /* ITEM_TYPE_CREATURE_EQUIP */)
             {
                 if (!user_creature::CCreatureItemConverter::SetEggItem(&outItem))
                     return;

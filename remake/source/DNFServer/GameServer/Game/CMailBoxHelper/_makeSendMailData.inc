@@ -43,12 +43,12 @@ void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
     MAIL_MSG->m_senderCharacNo = nSenderCharacNo;
     MAIL_MSG->m_destCharacNo = nDestCharacNo;
 
-    MAIL_MSG->m_itemField0 = *reinterpret_cast<const unsigned char*>(MAIL_IT);
+    MAIL_MSG->m_seal = *reinterpret_cast<const unsigned char*>(&MAIL_IT->m_seal);
     MAIL_MSG->m_addInfo = MAIL_IT->m_addInfo;
     MAIL_MSG->m_addInfo2 = MAIL_IT->m_addInfo2;
-    MAIL_MSG->m_fieldb = MAIL_IT->m_fieldb;
+    MAIL_MSG->m_endurance = MAIL_IT->m_endurance;
     MAIL_MSG->m_itemAttr = MAIL_IT->GetItemAttr();
-    MAIL_MSG->m_fieldd = MAIL_IT->m_fieldd;
+    MAIL_MSG->m_extendInfo = MAIL_IT->m_extendInfo;
     // item+0x15/0x19/0x1d = amp guid（ORIG 0x085557e0 段：双基址各载一次 +
     // int/int/word 连续 store ⇒ 结构赋值，P247；三独立字段赋值 4.4 恒逐条重载）。
     MAIL_MSG->m_guid = MAIL_IT->m_amp.m_guid;
@@ -60,7 +60,7 @@ void CMailBoxHelper::_makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
     // ORIG 0x085558xx：m_isCreature 直存（`mov %al,0x58`）、m_isAvatarSend
     // 为 bool 表达式（`sete %dl; mov %dl,0x56`）——三元 ?1:0 会多出 test/je 物化。
     MAIL_MSG->m_isCreature = MAIL_IT->IsCreatureItemType();
-    MAIL_MSG->m_isAvatarSend = (MAIL_IT->m_field1 == 8);
+    MAIL_MSG->m_isAvatarSend = (MAIL_IT->m_itemType == 8);
 
     MAIL_MSG->m_titleLen = 0;
     std::memset(MAIL_MSG->m_title, 0, 0x100);

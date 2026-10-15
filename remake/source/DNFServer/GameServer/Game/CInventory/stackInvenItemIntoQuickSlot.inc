@@ -5,7 +5,7 @@ int CInventory::stackInvenItemIntoQuickSlot(Inven_Item item, eItemAddReason reas
     // 真修：日志 cMyTrace 由具名两语句改**全表达式临时链**（P227/P37）⇒ 4.4 在 ctor 前
     // 右起求值全部实参并跨 ctor 以 esi/edi/ebx 保活，与 ORIG +0x0a4..+0x128 逐段同形。
     // 旧判词「残余 3 = N115 帧差」被推翻（帧/push 已全等，仅尾 nop 对齐差豁免）。
-    if (item.m_field1 == 1)
+    if (item.m_itemType == 1)
     {
         return -1;
     }

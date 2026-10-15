@@ -117,7 +117,7 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
         {
             item.m_addInfo = MB_ENTRY(i)->m_itemIdx;
             item.m_addInfo2 = MB_ENTRY(i)->m_addInfo2;
-            item.m_fieldb = MB_ENTRY(i)->m_field33;
+            item.m_endurance = MB_ENTRY(i)->m_field33;
         }
         else
         {
@@ -125,12 +125,12 @@ int CMailBoxHelper::SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info)
             if (proto != 0)
             {
                 proto->make_item(item);
-                item.m_field0 = MB_ENTRY(i)->m_itemField0;
+                item.m_seal = MB_ENTRY(i)->m_itemField0;
                 item.m_addInfo = MB_ENTRY(i)->m_itemIdx;
                 item.m_addInfo2 = MB_ENTRY(i)->m_addInfo2;
                 item.SetItemAttr(MB_ENTRY(i)->m_itemAttr);
-                item.m_fieldb = MB_ENTRY(i)->m_field33;
-                item.m_fieldd = MB_ENTRY(i)->m_field35;
+                item.m_endurance = MB_ENTRY(i)->m_field33;
+                item.m_extendInfo = MB_ENTRY(i)->m_field35;
                 // ORIG 0x08552b4d/0x08552b6e/0x08552b78：item+0x15/0x19/0x1d
                 // = amp guid（m_amp.m_guid，ORIG 0x8552b4a 逐条 mov 宽 int/int/word）。
                 // [P331 本泳道实测反例 ⇒ 维持每句重发] ORIG 该段确实只物化一次基址

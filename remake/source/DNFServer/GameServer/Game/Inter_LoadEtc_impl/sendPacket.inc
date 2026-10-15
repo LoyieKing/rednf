@@ -15,7 +15,7 @@ void Inter_NpcLimitBuyItemInfo::sendPacket(CUser* user)
         guard.put_short(m_param1);
         guard.put_int(m_invenItem1.m_addInfo);
         guard.put_int(m_invenItem1.m_addInfo2);
-        guard.put_short(static_cast<int>(m_invenItem1.m_fieldb));
+        guard.put_short(static_cast<int>(m_invenItem1.m_endurance));
         guard.put_byte(static_cast<int>(m_invenItem1.m_amp.getAbilityType()) & 0xff);
         guard.put_short(m_invenItem1.m_amp.getAbilityValue() & 0xffff);
         guard.put_packet(m_invenItem1);

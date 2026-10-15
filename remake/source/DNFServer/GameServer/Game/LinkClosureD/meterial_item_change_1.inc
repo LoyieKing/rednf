@@ -30,9 +30,9 @@ void meterial_item_change(int slot, SIG_LOAD_INVENTORY* sig, Inven_Item* item)
     // 无 dst 指针缓存（P183 地址重物化铁律），逐点全表达式访问。
     if (ARAD::Singleton<ARAD::Arad_DataManager>::Get()->getExceptionItem()
             ->find_index(item->m_addInfo)
-        && item->m_field1 == 3)
+        && item->m_itemType == 3)
     {
-        item->m_field1 = 0xa;
+        item->m_itemType = 0xa;
         // ORIG 物理块序：入口 jmp → 非空处理(+0x9b) → ++idx/尾测(+0xf7..102,
         // `jle` 直跳) → overflow(+0x104) → 体头 isEmpty(+0x132, `xor$1;jne`) →
         // 空处理(+0x156)。用 goto 固定物理顺序（P283），do-while 在 4.4 恒 setle。

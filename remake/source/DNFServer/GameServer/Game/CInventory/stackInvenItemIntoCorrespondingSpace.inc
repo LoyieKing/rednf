@@ -9,13 +9,13 @@ int CInventory::stackInvenItemIntoCorrespondingSpace(Inven_Item item, eItemAddRe
     // （(8,)×21 / (16,)×3 / (-36,)×4）与 bool 溢出槽差 0x10（ORIG -0x3c vs 我方 -0x4c，
     // 帧 0x5c vs 0x6c）⇒ 与 gain_money 同族（4.4 bool spill 压帧底 + 局部区 rounding），
     // N82附 定谳。
-    if (item.m_field1 == 1)
+    if (item.m_itemType == 1)
     {
         return -1;
     }
     int start = 0;
     int end = 0;
-    getStartEndPos((Inven_Item::ITEM_TYPE)item.m_field1, start, end);
+    getStartEndPos((Inven_Item::ITEM_TYPE)item.m_itemType, start, end);
     for (int i = start; i <= end; i++)
     {
         if (m_pEquipSlot[i].m_addInfo != item.m_addInfo)

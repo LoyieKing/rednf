@@ -17,7 +17,7 @@ int CCeraShop::_processCreature(CUser* user, Inven_Item item, int& outCode,
         outFlag = 1;
     if (checkOk)
     {
-        if (item.m_field1 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+        if (item.m_itemType == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
         {
             if (!user_creature::CCreatureItemConverter::SetEggItem(&item))
             {
@@ -36,7 +36,7 @@ int CCeraShop::_processCreature(CUser* user, Inven_Item item, int& outCode,
             const char* msg =
                 g_scriptStringManager_.findString(4, "game_server_msg_104",
                                                   (bool*)0);
-            if (item.m_field1 == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+            if (item.m_itemType == Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
                 WongWork::CMailBoxHelper::ReqDBSendNewCreatureMail(
                     user, user->getCurCharacNo(), item, msg,
                     (int)std::strlen(msg));

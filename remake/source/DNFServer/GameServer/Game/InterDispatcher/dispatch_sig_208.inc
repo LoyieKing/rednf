@@ -49,8 +49,8 @@ int Inter_GuildCargoPushItem::dispatch_sig(CUser* user, char* data, int /*len*/)
 
     item.m_addInfo = pPkt->m_addInfo;
     item.m_addInfo2 = pPkt->m_addInfo2;
-    item.m_fieldb = pPkt->m_endurance;   // endurance
-    item.m_fieldd = pPkt->m_itemExtra;
+    item.m_endurance = pPkt->m_endurance;   // endurance
+    item.m_extendInfo = pPkt->m_itemExtra;
     item.SetItemAttr(pPkt->m_itemAttr);
     item.m_amp.assign(pPkt->m_ampType,
                       pPkt->m_ampValue);

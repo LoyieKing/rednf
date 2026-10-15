@@ -111,7 +111,7 @@ void CSpecialItemRoutingManager::processRouting(CParty* party)
                 (unsigned int)winner->getCurCharacNo(), ipgAgency);
             result = winner->addAvatarItem(
                 (unsigned long)routingItem->m_addInfo, 0,
-                (char)routingItem->m_fieldb, ipgAgency,
+                (char)routingItem->m_endurance, ipgAgency,
                 (eAvatarItemAddReason)0xf);
         }
 

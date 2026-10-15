@@ -29,7 +29,7 @@ int CUser::AddItem(int itemIdx, int count, eItemAddReason reason,
     space = (ENUM_ITEMSPACE)0;
     if (inven.IsCreatureItemType() != 0)
         space = (ENUM_ITEMSPACE)7;
-    if (slot > 0 && slot < 0x20 && inven.m_field1 == (unsigned char)1)
+    if (slot > 0 && slot < 0x20 && inven.m_itemType == (unsigned char)1)
         inven.SetUpgrade((unsigned char)slot);
     // 2026-09-11 CuA A组 P183/P0：ORIG 0x0867b7e9 处 `call getCurCharacInvenW` 结果
     //   **无具名槽**（返回值直接 `mov %eax,(%esp)` 作 this，我方旧具名 invenW 占

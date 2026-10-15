@@ -113,7 +113,7 @@ int Inter_LoadInven::dispatch_sig(CUser* user, char* data, int /*len*/)
         for (int slot = 3; slot < 0x39; ++slot)
         {
             Inven_Item* it = user->getCurCharacInvenW()->GetInvenRef(1, slot);
-            if (it->m_field1 == '\x01')
+            if (it->m_itemType == '\x01')
             {
                 if (G_CDataManager()->find_item(it->m_addInfo) != 0)
                 {

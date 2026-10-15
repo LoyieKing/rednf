@@ -32,7 +32,7 @@ void CClearReward::power_war_dungeon_gold_clear_reward(
                           weight) *
          (GetRandomRange(-goldTable->m_range, goldTable->m_range) + 100)) / 100;
     Inven_Item inv;
-    inv.m_field1 = static_cast<unsigned char>(2);
+    inv.m_itemType = static_cast<unsigned char>(2);
     inv.m_addInfo = 0;
     inv.set_add_info(amount);
     result.m_dropItems.push_back(inv);

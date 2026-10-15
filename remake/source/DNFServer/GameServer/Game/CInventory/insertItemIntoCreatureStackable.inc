@@ -22,7 +22,7 @@ int CInventory::insertItemIntoCreatureStackable(Inven_Item item, eItemAddReason 
             if (bLog)
             {
                 WriteCreatureLog((INVEN_TYPE)1, item.m_addInfo, m_pCreatureSlot[slot].get_add_info(),
-                                 item.get_add_info(), item.m_field1, reason);
+                                 item.get_add_info(), item.m_itemType, reason);
             }
             return slot;
         }
@@ -36,7 +36,7 @@ int CInventory::insertItemIntoCreatureStackable(Inven_Item item, eItemAddReason 
     if (bLog)
     {
         WriteCreatureLog((INVEN_TYPE)3, item.m_addInfo, m_pCreatureSlot[slot].get_add_info(),
-                         item.get_add_info(), item.m_field1, reason);
+                         item.get_add_info(), item.m_itemType, reason);
     }
     return slot;
 }

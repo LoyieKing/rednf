@@ -90,14 +90,14 @@ int CEnchanter::_DoEnchant(ENUM_TRY_ENCHANT_TYPE type)
         return 0x11;
 
     int itemIndex0 = (int)m_materials[0].m_itemIndex;   // -0x18：历史日志参数
-    int oldCardRef = ref->m_fieldd;                     // -0x14：写卡前快照
+    int oldCardRef = ref->m_extendInfo;                     // -0x14：写卡前快照
     CItem* addedCard = 0;                               // -0x10：本次写入的怪物卡物品
 
     if (_DrawEnchant())
     {
         addedCard = reinterpret_cast<CItem*>(m_field3c);
         if (addedCard != 0)
-            ref->m_fieldd = addedCard->get_index();
+            ref->m_extendInfo = addedCard->get_index();
 
         packet.clear();
         packet.put_header(0, 0xe);
@@ -150,7 +150,7 @@ int CEnchanter::_DoEnchant(ENUM_TRY_ENCHANT_TYPE type)
                  IsUseOtherUserMonsterCard())) != 0)
         {
             if (ref != 0)
-                ref->m_fieldd = 0;
+                ref->m_extendInfo = 0;
             return ret;
         }
         packet.finalize(true);
@@ -203,7 +203,7 @@ int CEnchanter::_DoEnchant(ENUM_TRY_ENCHANT_TYPE type)
     }
 
     // ---- 历史日志（CUser +0x79700 即 cUserHistoryLog 内嵌成员）----
-    m_peer->m_historyLog.EnchantItem(itemIndex0, oldCardRef, ref->m_fieldd,
+    m_peer->m_historyLog.EnchantItem(itemIndex0, oldCardRef, ref->m_extendInfo,
                                      successSent, m_peer->get_acc_name(),
                                      m_peer->getCurCharacName());
     return 0;

@@ -23,7 +23,7 @@ bool CPrivateStore::CheckValidItem(INVEN_TYPE type, int slot, int count)
     }
     else if ((int)type == 2)
     {
-        if ((int)item.m_field1 != Inven_Item::ITEM_TYPE_AVATAR)
+        if ((int)item.m_itemType != Inven_Item::ITEM_TYPE_AVATAR)
             return false;
         // P48：ORIG 两次独立 call GetAvatarItemMgrR（0x85c9c8a/0x85c9cb4），
         // 4.4 无 CSE ⇒ 不设 mgr 缓存局部，逐次写完整链（P52 实参先物化）。

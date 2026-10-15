@@ -14,7 +14,7 @@ bool CEgg::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     m_slotNo = info->m_slotNo;      // +0x10 ← info+0x00
     m_creatureItemType = (CREATURE_ITME_TYPE)(int)(char)info->m_creatureItemType;  // movsbl +0x24
     m_expireTime = info->m_expireTime;                          // +0x18 ← info+0x28
-    item->m_field0 = 1;             // *item = (Inven_Item)0x1（首字节置 1）
+    item->m_seal = 1;             // *item = (Inven_Item)0x1（首字节置 1）
     m_noCharge = (info->m_noCharge != 0);                       // setne → +0x14
     m_stat = info->m_stat;          // +0x15 ← info+0x27
 
@@ -29,7 +29,7 @@ bool CEgg::LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
     ref =
         user->getCurCharacInvenW()->GetInvenRef(
             3, reinterpret_cast<CCreatureItem*>(this)->GetSlotNo());
-    ref->m_field0 = 1;              // ORIG movb $0x1,(%eax)
+    ref->m_seal = 1;              // ORIG movb $0x1,(%eax)
     ref->set_add_info(m_uid);       // ORIG call Inven_Item::set_add_info(ref, this+0x0c)
     return true;
 }

@@ -25,8 +25,8 @@ void Dispatcher_Compound_ExtreamItem::_send_result()
     guard.put_int(m_resultItem.m_addInfo);                         // +0x92（m_resultItem+0x02）
     guard.put_int(m_resultItem.m_addInfo2);                        // +0x97（m_resultItem+0x07）
     guard.put_byte((int)m_resultItem.GetItemAttr() & 0xff);        // m_resultItem（+0x90）
-    guard.put_short((int)(unsigned short)m_resultItem.m_fieldb);   // +0x9b（endurance）
-    guard.put_byte((int)(unsigned char)m_resultItem.m_field0);     // m_resultItem+0x00
+    guard.put_short((int)(unsigned short)m_resultItem.m_endurance);   // +0x9b（endurance）
+    guard.put_byte((int)(unsigned char)m_resultItem.m_seal);     // m_resultItem+0x00
     // ORIG 该处调用点无 `xor $1` ⇒ 条件正极性（then=put_int(0) 先发射，else=m_fieldd）
     if (G_GameWorld()->IsEnchantRevisionChannel())
     {
@@ -34,7 +34,7 @@ void Dispatcher_Compound_ExtreamItem::_send_result()
     }
     else
     {
-        guard.put_int(m_resultItem.m_fieldd);                      // +0x9d（m_resultItem+0x0d）
+        guard.put_int(m_resultItem.m_extendInfo);                      // +0x9d（m_resultItem+0x0d）
     }
     guard.put_byte((int)m_resultItem.m_amp.getAbilityType() & 0xff);       // +0xa1（m_amp）
     guard.put_short((int)m_resultItem.m_amp.getAbilityValue() & 0xffff);   // getAbilityValue

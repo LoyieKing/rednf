@@ -322,12 +322,12 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
             }
             else
             {
-                // ORIG 0x08465554：天数(m_fieldb 低字节) * 0x15180(86400s)；同 WarField 发包
+                // ORIG 0x08465554：天数(m_endurance 低字节) * 0x15180(86400s)；同 WarField 发包
                 packet.put_int(equipItem->getAvatarPeriod(
-                                   (unsigned char)item.m_item.m_fieldb) *
+                                   (unsigned char)item.m_item.m_endurance) *
                                0x15180);
                 emblemInfo.init();
-                equipItem->getAvatarSocket(item.m_item.m_fieldb, emblemInfo);
+                equipItem->getAvatarSocket(item.m_item.m_endurance, emblemInfo);
             }
         }
         else
@@ -335,7 +335,7 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
             packet.put_int(item.m_item.get_add_info());
         }
 
-        packet.put_short(item.m_item.m_fieldb);
+        packet.put_short(item.m_item.m_endurance);
         // [B24D-CDeathTower P0/P183] ORIG 0x08465685 `call getAbilityType(0x8150732);
         // movzbl %al,%eax; mov %eax,0x4(%esp); lea -0xa4(%ebp); call put_byte
         // (0x0846569a)`、0x084656a8 `call getAbilityValue(0x8150772); movzwl %ax,%eax;

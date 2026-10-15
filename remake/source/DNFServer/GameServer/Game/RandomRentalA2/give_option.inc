@@ -133,26 +133,26 @@ bool CRandomOptionItemHandle::give_option(itemIndex_t itemIdx,
             // [K2ERandomBoss 2026-09-11] P167 差集：ORIG 2×`iterator::deEv`（同一
             // victim 解引用两次）+ 无 `vector::ixEj`；原 `OptionGroup og = groupVec[sel]`
             // 产 ixEj 且少 2 处 deEv。改为 `(*victim).m_fieldN` 直读同一迭代器。
-            opts->m_fields[slotI].m_field0 = (unsigned char)(*victim).m_type0;  // 槽首字节=组类型
+            opts->m_fields[slotI].m_optionIndex = (unsigned char)(*victim).m_type0;  // 槽首字节=组类型
             remaining -= (*victim).m_weight4;
             groupVec.erase(victim);
 
-            opts->m_fields[slotI].m_field1 =
+            opts->m_fields[slotI].m_firstValue =
                 (unsigned char)_get_option_value(dwV.m_field0, dwV.m_field4);
-            opts->m_fields[slotI].m_field2 =
+            opts->m_fields[slotI].m_secondValue =
                 (unsigned char)_get_option_value(dwV.m_field0, dwV.m_field4);
         }
     }
 
     // seed 字节(+9)：低 2 位 = outGrade；高位 = 池[10](+0x61d0) 掷 0x40 后 <<2
-    opts->m_seed9.m_field =
-        (unsigned char)((opts->m_seed9.m_field & 0xfc) | (outGrade & 3));
+    opts->m_gradeSeed.m_value =
+        (unsigned char)((opts->m_gradeSeed.m_value & 0xfc) | (outGrade & 3));
     unsigned long seedBound = MAX_RANDOM_SEED;
     // [R16a07] 删 `int seedRoll = ...` 具名局部、randInt 内联进实参位（P0：ORIG
     // 0x85f32e5 `call randInt; mov %eax,%edx` 无槽往返，我方原发
     // `mov %eax,-0x18(%ebp)` + `mov -0x18(%ebp),%eax` 一对；掩码 `& 0x3f` 照旧保留）。
-    opts->m_seed9.m_field =
-        (unsigned char)((opts->m_seed9.m_field & 3) |
+    opts->m_gradeSeed.m_value =
+        (unsigned char)((opts->m_gradeSeed.m_value & 3) |
                         ((m_rand[10].randInt(seedBound) & 0x3f) << 2));
 
     return true;

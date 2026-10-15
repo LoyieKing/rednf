@@ -52,7 +52,7 @@ int CInventory::erase_repeated_item(const std::vector<std::pair<int, int> >& ite
             }
             else if (m_pEquipSlot[i].m_addInfo == itemIdx)
             {
-                if (m_pEquipSlot[i].m_field1 == 1)
+                if (m_pEquipSlot[i].m_itemType == 1)
                 {
                     need--;
                 }

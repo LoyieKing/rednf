@@ -792,10 +792,7 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
             return 0;
         }
         pItem->make_item(item);                // vtbl+0x08 槽 make_item
-        // ORIG +0x25 起连续写入 RandomOption 的三个 3-byte 字段
-        // （m_field0/m_field3/m_field6）；不得从 m_field3.m_field1（+0x29）
-        // 再叠加 +0x29，否则会越过 Inven_Item 的随机选项区。
-        unsigned char* raw = &item.m_random.m_random.m_field0.m_field0;
+        // 写入 RandomOption 三个槽。ORIG 从物品 +0x25 起按 3 字节一组连续写。
         int idx = 2;
         for (int i = 0; i < 3; ++i)
         {
@@ -803,12 +800,14 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 break;
             if (args[idx + 1] == "")
                 break;
-            // ORIG 0x82100d0/0x821011d/0x8210166：相对 local_4b1 的
-            // +1/+2/+3 即 RandomOption 三字节字段的 +0/+1/+2；第三个
-            // 值复用第二个参数，保持 ORIG 行为。
-            raw[i * 3 + 0] = static_cast<unsigned char>(std::atoi(args[idx].c_str()));
-            raw[i * 3 + 1] = static_cast<unsigned char>(std::atoi(args[idx + 1].c_str()));
-            raw[i * 3 + 2] = static_cast<unsigned char>(std::atoi(args[idx + 1].c_str()));
+            // ORIG 0x82100d0/0x821011d/0x8210166：槽内 +0/+1/+2。
+            // 第三个值复用第二个参数，保持 ORIG 行为。
+            item.m_random.m_random.m_fields[i].m_optionIndex =
+                static_cast<unsigned char>(std::atoi(args[idx].c_str()));
+            item.m_random.m_random.m_fields[i].m_firstValue =
+                static_cast<unsigned char>(std::atoi(args[idx + 1].c_str()));
+            item.m_random.m_random.m_fields[i].m_secondValue =
+                static_cast<unsigned char>(std::atoi(args[idx + 1].c_str()));
             idx += 2;
         }
         int slot = user->getCurCharacInvenW()->insertItemIntoInventory(

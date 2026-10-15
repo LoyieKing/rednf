@@ -76,7 +76,7 @@ void GameWorld::fishing(CUser* user)
                     // `movzwl -0x66(%ebp),%eax; movzwl %ax,%eax`（item+0x0b，
                     // 2 字节零扩展）→ 均非 +0x13 的 1 字节读。
                     packet.put_int(item.m_addInfo2);
-                    packet.put_short(item.m_fieldb);
+                    packet.put_short(item.m_endurance);
                 }
                 else
                 {

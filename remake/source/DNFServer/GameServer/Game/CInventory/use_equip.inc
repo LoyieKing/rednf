@@ -4,7 +4,7 @@ int CInventory::use_equip(int slot)
     {
         return 1;
     }
-    if (m_invenItem[slot].m_field1 != 1)
+    if (m_invenItem[slot].m_itemType != 1)
     {
         return 0x13;
     }
@@ -13,7 +13,7 @@ int CInventory::use_equip(int slot)
     {
         return 0x11;
     }
-    if (m_invenItem[slot].m_fieldb == 0 || pItem->get_endurance() == 0)
+    if (m_invenItem[slot].m_endurance == 0 || pItem->get_endurance() == 0)
     {
         return 0xb;
     }
@@ -25,13 +25,13 @@ int CInventory::use_equip(int slot)
     {
         return 0x11;
     }
-    if (m_invenItem[slot].m_fieldb == 0)
+    if (m_invenItem[slot].m_endurance == 0)
     {
         return 0x16;
     }
-    if (m_invenItem[slot].m_fieldb != 0)
+    if (m_invenItem[slot].m_endurance != 0)
     {
-        m_invenItem[slot].m_fieldb--;
+        m_invenItem[slot].m_endurance--;
     }
     return 0;
 }

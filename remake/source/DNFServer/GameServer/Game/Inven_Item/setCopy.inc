@@ -1,12 +1,12 @@
 void Inven_Item::setCopy(const Inven_Item& other)
 {
-    m_field0 = other.m_field0;
-    m_field1 = other.m_field1;
+    m_seal = other.m_seal;
+    m_itemType = other.m_itemType;
     m_addInfo = other.m_addInfo;
     m_addInfo2 = other.m_addInfo2;
-    m_fieldb = other.m_fieldb;
+    m_endurance = other.m_endurance;
     m_attr = other.m_attr;
-    m_fieldd = other.m_fieldd;
+    m_extendInfo = other.m_extendInfo;
     // b28d-60：P247/P29——ORIG 0x814a688 起为「一次载入 this/other + 连续
     // disp 拷贝」形；原 (char*)&m + k 指针算术使 4.4 逐字段重算地址（add 链，
     // 60→92 insn）。改具名视图/整体赋值：m_random/m_reserved 整体结构赋值

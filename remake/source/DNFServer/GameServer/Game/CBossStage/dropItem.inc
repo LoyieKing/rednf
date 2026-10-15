@@ -6,7 +6,7 @@
 //   残差=槽/帧分区 + case 0 金币块内联结构（ORIG 金币输出在 case 0 内并 jmp 删除段）。
 // [b28d-solo-CBossStage] 封顶 N-switch跳表+N76：case 序改 0,2,3,7（P46 叶块物理
 //   序）、case 0 内嵌金币块+公共段只判 tmp.m_addInfo（P222）、attachType 改
-//   switch（跳表 0x8b7511c）且 case3 用 `!tmp.m_field0`（P248 档②）、删除段改
+//   switch（跳表 0x8b7511c）且 case3 用 `!tmp.m_seal`（P248 档②）、删除段改
 //   switch+去三目+deleted bool（P158）、m_amp 按 guid/head 视图序、out+0x00 写
 //   m_count 后 169→12；残差=4.4 对 6-case 用二分树 vs ORIG 跳表（跨版本 switch
 //   展开，N）+m_amp0Int store 序（this-first vs value-first，P211 旋钮已穷举）。
@@ -25,9 +25,9 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
         if (slot == 0)
         {
             out.m_count = 0;              // byte +0x00 = 0
-            out.m_item.m_field1 = 2;              // byte +0x11 = 2
+            out.m_item.m_itemType = 2;              // byte +0x11 = 2
             out.m_item.m_addInfo = 0;             // dword +0x12 = 0
-            out.m_item.m_fieldb = 0;              // word +0x1b = 0
+            out.m_item.m_endurance = 0;              // word +0x1b = 0
             out.m_item.set_add_info(count);
             out.m_item.ResetItemAttr();
         }
@@ -42,7 +42,7 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
         break;
     case 7:
         tmp = user->getCurCharacInvenR()->GetInvenSlot((INVEN_TYPE)3, slot);
-        if ((unsigned char)tmp.m_field1 == 5)     // ORIG +1 字节==5 拒绝
+        if ((unsigned char)tmp.m_itemType == 5)     // ORIG +1 字节==5 拒绝
             return false;
         break;
     default:
@@ -78,7 +78,7 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
         case 2:
             return false;
         case 3:
-            if (!tmp.m_field0)
+            if (!tmp.m_seal)
                 return false;
             break;
         case 4:
@@ -100,9 +100,9 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
 
         // 构建 out（逐字段按 asm 宽度；无 memset，ORIG 逐字段写）
         out.m_count = 0;                          // byte +0x00 = 0
-        out.m_item.m_field1 = tmp.m_field1;               // byte +0x11
+        out.m_item.m_itemType = tmp.m_itemType;               // byte +0x11
         out.m_item.m_addInfo = tmp.m_addInfo;             // dword +0x12
-        out.m_item.m_fieldd = tmp.m_fieldd;               // dword +0x1d
+        out.m_item.m_extendInfo = tmp.m_extendInfo;               // dword +0x1d
         // [b28d-solo] ORIG 0x0814e29a..e2b4 拷贝序 = amp+0x04/0x08/0x0c/0x00
         //   （guid 视图先、头部 int 后）⇒ 分两次具名视图赋值（P235/P247）。
         out.m_item.m_amp.m_guid = tmp.m_amp.m_guid;       // +0x04..0x0d
@@ -112,8 +112,8 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
         else
             out.m_item.set_add_info(tmp.m_addInfo2);      // 装备沿用原 add_info2
         out.m_item.SetItemAttr(tmp.GetItemAttr());
-        out.m_item.m_fieldb = tmp.m_fieldb;               // word +0x1b
-        out.m_item.m_field0 = tmp.m_field0;               // byte +0x10
+        out.m_item.m_endurance = tmp.m_endurance;               // word +0x1b
+        out.m_item.m_seal = tmp.m_seal;               // byte +0x10
         G_Store()->GetSellItemPrice(
             const_cast<Inven_Item&>(tmp), script, (short)count, false,
             sellPrice);
@@ -121,9 +121,9 @@ bool CBossStage::dropItem(CUser* user, char type, int slot, int count,
     else
     {
         out.m_count = 0;                  // byte +0x00 = 0
-        out.m_item.m_field1 = 2;                  // byte +0x11 = 2
+        out.m_item.m_itemType = 2;                  // byte +0x11 = 2
         out.m_item.m_addInfo = 0;                 // dword +0x12 = 0
-        out.m_item.m_fieldb = 0;                  // word +0x1b = 0
+        out.m_item.m_endurance = 0;                  // word +0x1b = 0
         out.m_item.set_add_info(count);
         out.m_item.ResetItemAttr();
     }

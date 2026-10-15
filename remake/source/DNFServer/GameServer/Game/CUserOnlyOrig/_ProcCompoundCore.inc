@@ -124,7 +124,7 @@ bool CUser::_ProcCompoundCore(
         // 按值返回直接 sret 拷贝初始化（NRVO），不存在"先默认构造再赋值"。
         Inven_Item got = getCurCharacInvenR()->GetInvenSlot((int)INVEN_TYPE_EQUIP, slotRef);
 
-        if (got.m_field1 == 1)        // ORIG movzbl got+0x01 cmp 1（ITEM_TYPE_EQUIP）
+        if (got.m_itemType == 1)        // ORIG movzbl got+0x01 cmp 1（ITEM_TYPE_EQUIP）
         {
             CItem* script = G_CDataManager()->find_item(got.m_addInfo);
             if (script != 0)
@@ -262,10 +262,10 @@ bool CUser::_ProcCompoundCore(
         pkt->put_int(v2);
 
         pkt->put_byte((int)got.GetUpgrade());
-        pkt->put_short((int)got.m_fieldb);                 // got+0x0b（endurance，movzwl -0xe6）
+        pkt->put_short((int)got.m_endurance);                 // got+0x0b（endurance，movzwl -0xe6）
         pkt->put_byte((int)got.m_amp.getAbilityType());    // stAmplifyOption_t@got+0x11
         pkt->put_short((int)got.m_amp.getAbilityValue());
-        pkt->put_byte((int)(unsigned char)got.m_field0 != 0 ? 1 : 0);  // movzbl got+0x00 setne
+        pkt->put_byte((int)(unsigned char)got.m_seal != 0 ? 1 : 0);  // movzbl got+0x00 setne
         pkt->put_packet(got);
 
         if (cubeMode)

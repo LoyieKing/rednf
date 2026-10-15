@@ -6,8 +6,8 @@
 //（MISSING getCurCharacCargoW / EXTRA R 各 1，ORIG 85a6dba）；
 // ③堆叠超限条件 m_addInfo2→m_addInfo（ORIG 85a7010 读 -0x11a=mi+0x12=+0x02 字段，
 // 极性/字段错位真 bug）；④trace 第 3 参 get_add_info()→m_addInfo2 直读（ORIG 85a7042
-// 读 -0x115 槽不 call，EXTRA get_add_info+1）；⑤尾包补 put_int(mi.m_item.m_fieldd)
-//（MISSING put_int，ORIG 85a71e2 读 m_item+0xd，位于 put_short(m_fieldb) 之后）。
+// 读 -0x115 槽不 call，EXTRA get_add_info+1）；⑤尾包补 put_int(mi.m_item.m_extendInfo)
+//（MISSING put_int，ORIG 85a71e2 读 m_item+0xd，位于 put_short(m_endurance) 之后）。
 // 返回 0=成功；0xd=稀有度限制；0x11=删除/扣款失败；0x13=交易中；
 // 0x16=落物失败；0x17=禁止丢弃；0xd1=服务限制；-1=item 查表失败。
 // b28d-solo-CParty: N 封顶 —— N82 帧 + 槽；872 vs 863
@@ -48,10 +48,10 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
             mi.m_count = 0;
             // [G7-sub] P183/P0：ORIG 085a64e3/085a651d/085a6530 每处 `lea -0x12c(%ebp); add $0x10`
             // 重取址，无 `Inven_Item& dst` 引用槽（我方原 -0x2c）⇒ 直用 mi.m_item。
-            mi.m_item.m_field1 = 2;
+            mi.m_item.m_itemType = 2;
             mi.m_item.m_addInfo = 0;
             mi.m_item.set_add_info(count);
-            mi.m_item.m_fieldb = 0;
+            mi.m_item.m_endurance = 0;
             mi.m_item.ResetItemAttr();
         }
         else
@@ -68,7 +68,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
     else if (type == 7)
     {
         src = user->getCurCharacInvenR()->GetInvenSlot(3, slot);
-        if (src.m_field1 == 5)
+        if (src.m_itemType == 5)
             return 0x17;
     }
 
@@ -93,7 +93,7 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
         case 5:
             return 0x17;
         case 3:
-            if (src.m_field0 != 1)
+            if (src.m_seal != 1)
                 return 0x17;
             break;
         default:
@@ -117,15 +117,15 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
         // [G7-sub] P183/P0：ORIG 085a6a5e 起每个字段访问都 `lea -0x12c(%ebp); add $0x10`
         // 重取址（085a6a7c/085a6a9a/085a6ab5/085a6ad0…），无 dst 引用槽（我方原 -0x20）
         // ⇒ 直用 mi.m_item。
-        mi.m_item.m_field1 = src.m_field1;
+        mi.m_item.m_itemType = src.m_itemType;
         mi.m_item.m_addInfo = src.m_addInfo;
         if (src.isEquipableItemType())
             mi.m_item.set_add_info(src.m_addInfo2);
         else
             mi.m_item.set_add_info(count);
         mi.m_item.SetItemAttr(src.GetItemAttr());
-        mi.m_item.m_fieldb = src.m_fieldb;
-        mi.m_item.m_field0 = src.m_field0;
+        mi.m_item.m_endurance = src.m_endurance;
+        mi.m_item.m_seal = src.m_seal;
         mi.m_item.m_addInfo2 = src.m_addInfo2;
         mi.m_item.m_amp = src.m_amp;                 // +0x11..0x1e 整段
         mi.m_item.m_random = src.m_random;           // +0x1f..0x32 整段
@@ -241,8 +241,8 @@ int CParty::drop_item(CUser* user, int a2, int a3, char type, int slot,
     packet.put_int(mi.m_item.m_addInfo);
     packet.put_byte(mi.m_item.GetItemAttr());
     packet.put_int(mi.m_item.get_add_info());
-    packet.put_short(mi.m_item.m_fieldb);
-    packet.put_int(mi.m_item.m_fieldd);
+    packet.put_short(mi.m_item.m_endurance);
+    packet.put_int(mi.m_item.m_extendInfo);
     packet.put_byte(mi.m_item.m_amp.getAbilityType());
     packet.put_short(mi.m_item.m_amp.getAbilityValue());
     packet.put_packet(mi.m_item);

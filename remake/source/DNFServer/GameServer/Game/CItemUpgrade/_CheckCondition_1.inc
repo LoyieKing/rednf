@@ -12,14 +12,14 @@ int CItemUpgrade::_CheckCondition(const CUser* user, const Inven_Item& item,
     // ORIG 0x085497ea 逐段转写（_CheckCondition_085497ea.md）。
     if (!item.m_amp.isIdentified())
         return 0xae;
-    if (item.m_field1 != 1)
+    if (item.m_itemType != 1)
         return 0x13;
     if (itemScript->GetItemType() == 0xb)
         return 0x13;
     // P48 无 CSE：两臂各独立调用 GetItemType。
     if (itemScript->GetItemType() < 10 || itemScript->GetItemType() > 0x15)
         return 0x13;
-    if (item.m_fieldb !=
+    if (item.m_endurance !=
         ((const CEquipItem*)itemScript)->get_endurance())
         return 7;
 

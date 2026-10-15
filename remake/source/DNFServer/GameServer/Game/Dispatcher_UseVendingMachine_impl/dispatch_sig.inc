@@ -187,17 +187,17 @@ int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet)
             // [轴B] ORIG 0x0821cc6c 为有符号 `jge`（cmp %eax,%edx），而
             // m_fieldd 为 unsigned、m_payAmount 为 int ⇒ 4.4 默认产无符号
             // `jae`。按 ORIG 符号性显式转 int（P196：ORIG 该点有符号直证）。
-            if ((int)payItem.m_fieldd < info->m_payAmount)
+            if ((int)payItem.m_extendInfo < info->m_payAmount)
                 throw (ENUM_ERROR)0x16;             // ORIG 0x0821cc95
             if (static_cast<CUserCharacInfo*>(user)->getCurCharacInvenW()->delete_item(
                     (INVEN_TYPE)1, (int)pos, info->m_payAmount,
                     (eItemDelReason)0x1c, 1) != 1)
                 throw (ENUM_ERROR)0x16;             // ORIG 0x0821cd0a
             // ORIG 0x0821cd3a：第二次取槽结果整体赋回 payItem（逐字段拷贝），
-            // 再从 payItem.m_fieldd 取剩余数量。
+            // 再从 payItem.m_extendInfo 取剩余数量。
             payItem = static_cast<CUserCharacInfo*>(user)->getCurCharacInvenR()
                           ->GetInvenSlot((INVEN_TYPE)1, pos);
-            remainingMoney = payItem.m_fieldd;
+            remainingMoney = payItem.m_extendInfo;
         }
     } catch (ENUM_ERROR e) {
         // ORIG catch handler 0x0821ce0e（e 存 -0x20）

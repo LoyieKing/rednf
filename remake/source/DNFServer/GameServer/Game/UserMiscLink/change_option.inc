@@ -137,7 +137,6 @@ bool CRandomOptionItemHandle::change_option(itemIndex_t itemIdx, ENUM_RARITY rar
     // [L4b 复测·回滚] 去 optB 具名局部（逐点重取参数）：权威口径 ndiff 412→448 反劣
     // （条数恒 440）⇒ 维持具名局部形。ORIG 的 `mov 0x24(%ebp),%ecx` 形属 4.1 参数槽
     // 直读，4.4 无该局部时寄存器分配走坏（%ebx 提前保活扰动全块）。
-    unsigned char* optB = reinterpret_cast<unsigned char*>(opts);
     // ORIG 0x085f3705：迭代器默认构造（C1Ev）在循环之前 ⇒ 先声明后赋值（P50 复活）。
     std::vector<OptionGroup>::iterator selIt;
 
@@ -147,7 +146,7 @@ bool CRandomOptionItemHandle::change_option(itemIndex_t itemIdx, ENUM_RARITY rar
     {
         // [L4b] P243 书写序：ORIG 0x085f3733 `mov 0x20(%ebp),%eax; cmp -0xc(%ebp),%eax;
         // je`（eax=slot，cmp i）⇒ 源码槽序写 slot==i。
-        if (slot == i || optB[i * 3] == 0)
+        if (slot == i || opts->m_fields[i].m_optionIndex == 0)
         {
             continue;
         }
@@ -157,7 +156,7 @@ bool CRandomOptionItemHandle::change_option(itemIndex_t itemIdx, ENUM_RARITY rar
         std::vector<OptionGroup>::iterator it = groupVec.begin();
         while (it != groupVec.end())
         {
-            if ((unsigned int)(*it).m_type0 == (unsigned int)optB[i * 3])
+            if ((unsigned int)(*it).m_type0 == (unsigned int)opts->m_fields[i].m_optionIndex)
             {
                 remaining -= (*it).m_weight4;
                 groupVec.erase(it);
@@ -183,15 +182,15 @@ bool CRandomOptionItemHandle::change_option(itemIndex_t itemIdx, ENUM_RARITY rar
     {
         // ORIG 0x085f38f8：begin()+sel 再 deEv（非 operator[]；P167 判据）。
         selIt = groupVec.begin() + sel;
-        optB[0xa] = (unsigned char)(*selIt).m_type0;    // 第二组槽首字节=组类型
-        optB[0xb] = (unsigned char)_get_option_value(dwv.m_field0, dwv.m_field4);
-        optB[0xc] = (unsigned char)_get_option_value(dwv.m_field0, dwv.m_field4);
-        optB[0xd] = (unsigned char)((optB[0xd] & 0xfc) | (slot & 3));
+        opts->m_changedOption.m_optionIndex = (unsigned char)(*selIt).m_type0;    // 第二组槽首字节=组类型
+        opts->m_changedOption.m_firstValue = (unsigned char)_get_option_value(dwv.m_field0, dwv.m_field4);
+        opts->m_changedOption.m_secondValue = (unsigned char)_get_option_value(dwv.m_field0, dwv.m_field4);
+        opts->m_changedSlot.m_value = (unsigned char)((opts->m_changedSlot.m_value & 0xfc) | (slot & 3));
         unsigned long seedBound = 0x40;
         // [L4b] P183 去 seedRoll 具名局部：ORIG 0x085f3945 直接把 randInt 结果
         // 内联进表达式（`mov %eax,%edx; and $0x3f,%edx; lea 0(,%edx,4),%ecx`，
         // 无独立槽、无「存槽再读」往返）。
-        optB[0xd] = (unsigned char)((optB[0xd] & 3) |
+        opts->m_changedSlot.m_value = (unsigned char)((opts->m_changedSlot.m_value & 3) |
                                     ((m_rand[10].randInt(seedBound) & 0x3f) << 2));
     }
     else

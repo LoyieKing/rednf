@@ -53,8 +53,8 @@ bool CBossStage::handleDropItem(CUser* user, int a, int b, char c, int d, int e)
     packet.put_int(item.m_item.m_addInfo);
     packet.put_byte((int)item.m_item.GetItemAttr());
     packet.put_int(item.m_item.get_add_info());
-    packet.put_short((int)item.m_item.m_fieldb);
-    packet.put_int(item.m_item.m_fieldd);
+    packet.put_short((int)item.m_item.m_endurance);
+    packet.put_int(item.m_item.m_extendInfo);
     packet.put_byte((int)item.m_item.m_amp.getAbilityType() & 0xff);
     packet.put_short((int)item.m_item.m_amp.getAbilityValue() & 0xffff);
     packet.put_packet(item.m_item);

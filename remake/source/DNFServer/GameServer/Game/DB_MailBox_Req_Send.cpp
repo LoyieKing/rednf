@@ -51,7 +51,7 @@ struct SigMailboxSendNewMailView
     int m_addInfo;                  // +0x2b
     int m_addInfo2;                 // +0x2f
     unsigned char m_itemAttr;       // +0x33
-    unsigned short m_fieldb;        // +0x34
+    unsigned short m_endurance;        // +0x34
     int m_fieldd;                   // +0x36
     int m_field15;                  // +0x3a
     int m_field19;                  // +0x3e
@@ -148,17 +148,17 @@ struct SigMailboxSendNewMailView
         "inSert into postal(occ_time,send_charac_no,receive_charac_no,seal_flag,item_id,add_info,endurance,upgrade,amplify_option,amplify_value,gold,send_charac_name,creature_flag,avata_flag,letter_id,extend_info,item_guid,random_option,seperate_upgrade,unlimit_flag) values(from_unixtime(%d),%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d,%d,%d,%d,'%s','%s',%d,%d)",
         t, sigRaw->m_senderCharacNo,
         sigRaw->m_amount,
-        sigRaw->m_itemField0,
+        sigRaw->m_seal,
         sigRaw->m_addInfo,
         sigRaw->m_addInfo2,
-        sigRaw->m_fieldb,
+        sigRaw->m_endurance,
         sigRaw->m_itemAttr,
         sigRaw->m_ampType,
         sigRaw->m_ampIdx,
         sigRaw->m_destCharacNo, nameBuf,
         sigRaw->m_isCreature,
         sigRaw->m_isAvatarSend, letterId,
-        sigRaw->m_fieldd,
+        sigRaw->m_extendInfo,
         // blob_to_str 按 ORIG +0x3a/+0x47 裸偏移（byte-blob 读 10/0xe 字节，非自然宽度
         // 字段；&view->m_field15/25 的 int 类型与读长不配会产生地址物化差异）。
         db->blob_to_str(0, (void*)&sigRaw->m_guid, 10),
