@@ -146,7 +146,7 @@ bool CRandomOptionItemHandle::change_option(itemIndex_t itemIdx, ENUM_RARITY rar
     {
         // [L4b] P243 书写序：ORIG 0x085f3733 `mov 0x20(%ebp),%eax; cmp -0xc(%ebp),%eax;
         // je`（eax=slot，cmp i）⇒ 源码槽序写 slot==i。
-        if (slot == i || opts->m_fields[i].m_optionIndex == 0)
+        if (slot == i || opts->m_slots[i].m_optionIndex == 0)
         {
             continue;
         }
@@ -156,7 +156,7 @@ bool CRandomOptionItemHandle::change_option(itemIndex_t itemIdx, ENUM_RARITY rar
         std::vector<OptionGroup>::iterator it = groupVec.begin();
         while (it != groupVec.end())
         {
-            if ((unsigned int)(*it).m_type0 == (unsigned int)opts->m_fields[i].m_optionIndex)
+            if ((unsigned int)(*it).m_type0 == (unsigned int)opts->m_slots[i].m_optionIndex)
             {
                 remaining -= (*it).m_weight4;
                 groupVec.erase(it);

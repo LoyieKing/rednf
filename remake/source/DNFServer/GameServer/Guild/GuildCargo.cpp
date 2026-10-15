@@ -495,7 +495,7 @@ void CGuildCargo::InsertHistory(ENUM_GUILD_CARGO_BEHAVIOR behavior, int slot, co
     log.behavior = behavior;
     log.param = param;
     // 权威定义（Game/Inven_Item.h）的 RandomOption 无 dword 视图（成员改由
-    // m_fields[]/m_gradeSeed/m_changedOption/m_changedSlot 表达），故按 ORIG 0x080a0182 的读取口径
+    // m_slots[]/m_gradeSeed/m_changedOption/m_changedSlot 表达），故按 ORIG 0x080a0182 的读取口径
     // 逐偏移取值：+0/+4/+8 = dword、+0xc = word（与 STGuildCargoLog
     // opt0@+0x22/opt1@+0x26/opt2@+0x2a/opt3@+0x2e 一一对应）。用结构视图而非
     // 指针算术，方产出 ORIG 的单基址连续偏移装载形（byte* 的 `o+4` 会生物化 add）。

@@ -802,11 +802,11 @@ int Dispatcher_New_Gmdebug_Command::oldGmRoutine(CUser* user, PacketBuf& packet,
                 break;
             // ORIG 0x82100d0/0x821011d/0x8210166：槽内 +0/+1/+2。
             // 第三个值复用第二个参数，保持 ORIG 行为。
-            item.m_random.m_random.m_fields[i].m_optionIndex =
+            item.m_random.m_random.m_slots[i].m_optionIndex =
                 static_cast<unsigned char>(std::atoi(args[idx].c_str()));
-            item.m_random.m_random.m_fields[i].m_firstValue =
+            item.m_random.m_random.m_slots[i].m_firstValue =
                 static_cast<unsigned char>(std::atoi(args[idx + 1].c_str()));
-            item.m_random.m_random.m_fields[i].m_secondValue =
+            item.m_random.m_random.m_slots[i].m_secondValue =
                 static_cast<unsigned char>(std::atoi(args[idx + 1].c_str()));
             idx += 2;
         }

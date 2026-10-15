@@ -103,7 +103,7 @@ bool CRandomOptionItemHandle::give_option(itemIndex_t itemIdx,
     std::vector<OptionGroup> groupVec = ogIt->second.m_vec0;  // 值拷贝后 erase
     // [Lane13 视图 cast 反模式] 原 `unsigned char* optB = (unsigned char*)opts` +
     // `optB[slotI*3+k] = (unsigned char)v` 使 4.4 折 LHS-first/窄化中转；改权威头
-    // 具名字段直访问（RandomOption::m_fields[i] 3 字节组，偏移零变化）。
+    // 具名字段直访问（RandomOption::m_slots[i] 3 字节组，偏移零变化）。
 
     // [Lane17 Q1 判据⑫ 已试并回退] ORIG clr_l=6（-0x1c/-0x68/-0x6c/-0x14/-0x10/-0xc）
     // vs 我方 4；按「缺具名 int 局部」补 `int fieldIdx = 0;` + 循环末 `fieldIdx = fieldIdx + 1;`
@@ -133,13 +133,13 @@ bool CRandomOptionItemHandle::give_option(itemIndex_t itemIdx,
             // [K2ERandomBoss 2026-09-11] P167 差集：ORIG 2×`iterator::deEv`（同一
             // victim 解引用两次）+ 无 `vector::ixEj`；原 `OptionGroup og = groupVec[sel]`
             // 产 ixEj 且少 2 处 deEv。改为 `(*victim).m_fieldN` 直读同一迭代器。
-            opts->m_fields[slotI].m_optionIndex = (unsigned char)(*victim).m_type0;  // 槽首字节=组类型
+            opts->m_slots[slotI].m_optionIndex = (unsigned char)(*victim).m_type0;  // 槽首字节=组类型
             remaining -= (*victim).m_weight4;
             groupVec.erase(victim);
 
-            opts->m_fields[slotI].m_firstValue =
+            opts->m_slots[slotI].m_firstValue =
                 (unsigned char)_get_option_value(dwV.m_field0, dwV.m_field4);
-            opts->m_fields[slotI].m_secondValue =
+            opts->m_slots[slotI].m_secondValue =
                 (unsigned char)_get_option_value(dwV.m_field0, dwV.m_field4);
         }
     }

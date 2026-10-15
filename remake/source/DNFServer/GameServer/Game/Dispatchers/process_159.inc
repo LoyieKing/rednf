@@ -46,7 +46,7 @@ int Dispatcher_ChangeRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase
     }
     local_29 = local_38->m_12;           // movzbl 0x12(eax)→-0x25
     if ((unsigned char)local_29 < 3 &&
-        local_34->m_random.m_random.m_fields[(unsigned char)local_29].m_optionIndex == 0)
+        local_34->m_random.m_random.m_slots[(unsigned char)local_29].m_optionIndex == 0)
     {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1b6, 0x11);
         return 0;

@@ -7,5 +7,5 @@ void RandomOption::set_second_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char
         m_changedOption.m_secondValue = v;
     }
     // [b28d-solo-RandomRentalA2 P235] 同 set_first_value（探针 rr_probe3.cpp S3::s1）。
-    m_fields[num].m_secondValue = v;
+    m_slots[num].m_secondValue = v;
 }

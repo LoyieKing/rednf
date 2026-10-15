@@ -210,9 +210,9 @@ unsigned int CGuild::GetGuildKey()
 // _ZN12RandomOption5resetEv 0x08089620 逐条一致（+0/+3/+6/+9/+0xa/+0xd）。
 void RandomOption::reset()
 {
-    m_fields[0].reset();
-    m_fields[1].reset();
-    m_fields[2].reset();
+    m_slots[0].reset();
+    m_slots[1].reset();
+    m_slots[2].reset();
     m_gradeSeed.reset();
     m_changedOption.reset();
     m_changedSlot.reset();

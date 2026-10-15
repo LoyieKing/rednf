@@ -12,5 +12,5 @@ unsigned char RandomOption::get_option_index(ENUM_RANDOM_OPTION_NUMBER num)
     // [b28d-solo-RandomRentalA2 P235] 匿名 union 真实成员数组视角：4.4 产 ORIG 的
     // index-first 装载序（`mov num,%edx; mov this,%ecx`）与双寄存器寻址，逐条全等
     // ORIG 0x085f4040（探针 /tmp/rr_probe3.cpp S3::m1 实证；cast 数组指针恒 this-first）。
-    return m_fields[num].m_optionIndex;
+    return m_slots[num].m_optionIndex;
 }

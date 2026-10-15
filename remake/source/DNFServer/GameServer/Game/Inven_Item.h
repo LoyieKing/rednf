@@ -105,11 +105,11 @@ public:
         packet.put_byte(0);                                        // ORIG +0x29 call put_byte
         for (int i = 0; i <= 2; ++i)                               // ORIG +0xcd cmpl $0x2; setle（while 前置 jmp +0x35）
         {
-            if (!m_fields[i].empty())  // [b28d-solo-PacketBuf P235] 具名数组视角：ORIG +0x43 3i+add this mem
+            if (!m_slots[i].empty())  // [b28d-solo-PacketBuf P235] 具名数组视角：ORIG +0x43 3i+add this mem
             {
-                packet.put_byte(m_fields[i].m_optionIndex);  // ORIG +0x61 movzbl (%eax,%ecx,1),%eax
-                packet.put_byte(m_fields[i].m_firstValue);  // ORIG +0x83 lea; add $0x1
-                packet.put_byte(m_fields[i].m_secondValue);  // ORIG +0xaa lea; add $0x2
+                packet.put_byte(m_slots[i].m_optionIndex);  // ORIG +0x61 movzbl (%eax,%ecx,1),%eax
+                packet.put_byte(m_slots[i].m_firstValue);  // ORIG +0x83 lea; add $0x1
+                packet.put_byte(m_slots[i].m_secondValue);  // ORIG +0xaa lea; add $0x2
                 ++count;                                           // ORIG +0xc5 addl $0x1,-0x10
             }
         }
@@ -142,7 +142,7 @@ public:
     union
     {
         struct { RandomOptionField m_slot0; RandomOptionField m_slot1; RandomOptionField m_slot2; };
-        RandomOptionField m_fields[3];
+        RandomOptionField m_slots[3];
     };
     RandomOptionSeed m_gradeSeed;    // 低 2 位 = outGrade，高 6 位 = 随机种子
     RandomOptionField m_changedOption;  // 变换进行中的那条选项
