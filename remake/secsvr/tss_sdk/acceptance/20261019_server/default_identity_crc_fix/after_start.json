@@ -1,9 +1,0 @@
-{
-  "time_ns": 1792384694051723836,
-  "library_sha256": "090e70fa160b837d0bb6bedf396338c5b38a4f98e1b302cfb28bcb8acbd9402d",
-  "processes": [],
-  "services": {
-    "game_siroco11": "up (pid 136909 pgid 136909) 0 seconds\n",
-    "game_siroco52": "up (pid 136910 pgid 136910) 0 seconds\n"
-  }
-}

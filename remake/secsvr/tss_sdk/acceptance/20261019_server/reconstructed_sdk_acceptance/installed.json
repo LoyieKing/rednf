@@ -1,6 +1,0 @@
-{
-  "source": "/home/loyieking/dnf_workspace/dnf_secsvr/tss_sdk/build-server/libtss_sdk.so.1.0.394",
-  "target": "/opt/dnf1031/home/template/neople/game/libtss_sdk.so.1.0.394",
-  "sha256": "ce07ea0480678b9861387b2ec4b5a89289a705dd331f80d1d1812d8dd74030c1",
-  "rollback": false
-}
