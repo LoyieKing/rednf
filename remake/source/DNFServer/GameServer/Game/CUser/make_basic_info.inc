@@ -448,6 +448,11 @@ bool CUser::make_basic_info(char* buf, char type)   // b28c-L5 SIGFIX（P174 串
 #endif
         }
         pkt.put_short(countIdx, written);
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+        cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+            "[DNF-DIAG CHARLIST] LEAVE written=%d idx=%d err=%d",
+            written, pkt.get_index(), pkt.getLastError());
+#endif
         unlock();
     }
     else if (type == 3)

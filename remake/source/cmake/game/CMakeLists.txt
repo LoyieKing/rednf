@@ -1134,6 +1134,7 @@ dnf_service(game
         #  community/dbmw×3/manager/monitor/statics=BIG5）⇒ 补 DNF_SVC_GAME
         # 供 DNFFunctionLib/initCodePage.inc 选分支（全仓无其它使用者）。
         -DDNF_SVC_GAME
+        -DDNF_DIAG=1
     SRC_OPTS
         "${COMMON}/CFileLogWriterBase.cpp|-fno-exceptions"
         "${SVC_DIR}/PacketBuf.cpp|-fno-exceptions"

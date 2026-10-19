@@ -45,18 +45,19 @@ bool CUser::Send(PacketGuard& packet)   // b28c-L5 SIGFIX：ORIG 串 bool；
 #endif
     if (pBuf->is_finallized())
     {
-        // ORIG 0x086485e2/0x086485f5：两个死 PacketBuf::at() 直调（结果丢弃，P184 保留）
-        pBuf->at(0);
-        pBuf->at(1);
-        GetPacketName((ENUM_PACKETCLASS)pBuf->at(0),
-                      *((unsigned short*)pBuf->get_packet(1)));
-        if (pBuf->at(1) != 6)
-        {
-            // ORIG 块内 at(1)/at(0) 各重调一次，非复用上面的值
-            m_pad8cf0c[0] = pBuf->at(1);
-            m_pad8cf0c[1] = pBuf->at(0);
-        }
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+        const unsigned char* hp = reinterpret_cast<const unsigned char*>(pBuf->get_packet(0));
+        const int sendResult = AntibotSend(*pBuf);
+        cMyTrace(__PRETTY_FUNCTION__, 0x73a, 5)(
+            "[PACKET_DIAG] send acc=%u cls=%u cmd=%u len=%d result=%d",
+            (unsigned)m_accId, (unsigned)hp[0],
+            (unsigned)(unsigned short)(hp[1] | (hp[2] << 8)),
+            pBuf->get_len(), sendResult);
+        return sendResult;
+#else
+        // Original finalized packet send.
         return AntibotSend(*pBuf);
+#endif
     }
     LogManager::logFormat(1, "user.cpp", __PRETTY_FUNCTION__, 0x8a0,
                           "User %s - Packet.is_finallized packet_id(%d) return false",

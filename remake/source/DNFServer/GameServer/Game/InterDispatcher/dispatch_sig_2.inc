@@ -249,11 +249,29 @@ int Inter_LoginInfo::dispatch_sig(CUser* user, char* data, int /*len*/)
 
         user->setRegDate(pInfo->m_regDate);
         user->setRegTime(pInfo->m_regTime);
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+        cMyTrace(__PRETTY_FUNCTION__, 0x1bff, 0)(
+            "[CHARLIST_DIAG] login_result acc=%u result=ok charac_count=%d",
+            pInfo->m_accId, pInfo->m_characCount);
+#endif
         if (0 < pInfo->m_characCount)
         {
             user->SetCharacInfo(pInfo->m_characCount, pInfo->m_characData);
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+            cMyTrace(__PRETTY_FUNCTION__, 0x1c00, 0)(
+                "[CHARLIST_DIAG] cache_set acc=%u charac_count=%d",
+                pInfo->m_accId, user->get_charac_count());
+#endif
             user->SetNeedCheckOverEquipItem();
         }
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+        else
+        {
+            cMyTrace(__PRETTY_FUNCTION__, 0x1c01, 0)(
+                "[CHARLIST_DIAG] cache_set acc=%u charac_count=0 skipped",
+                pInfo->m_accId);
+        }
+#endif
 
         // 雇佣兵残留竞技态 → 累积服务器侧 hack 计数
         if (0 < pInfo->m_mercenaryCount)

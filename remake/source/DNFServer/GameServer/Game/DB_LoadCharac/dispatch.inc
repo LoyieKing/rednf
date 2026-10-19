@@ -15,6 +15,11 @@ bool DB_LoadCharac::dispatch(int userIdx, int slot, Stream* stream)
 
     SIG_LOAD_CHARAC* sig = stream->GetOutBuffer<SIG_LOAD_CHARAC>();
     sig->m_result = 0;
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+    cMyTrace(__PRETTY_FUNCTION__, 0x2348, 0)(
+        "[CHARLIST_DIAG] db_load_start acc=%u charac=%u user_idx=%d slot=%d",
+        sig->m_accId, sig->m_characNo, userIdx, slot);
+#endif
 
     try
     {
@@ -40,6 +45,12 @@ bool DB_LoadCharac::dispatch(int userIdx, int slot, Stream* stream)
     {
         sig->m_result = line;
     }
+
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+    cMyTrace(__PRETTY_FUNCTION__, 0x2349, 0)(
+        "[CHARLIST_DIAG] db_load_done acc=%u charac=%u result=%d",
+        sig->m_accId, sig->m_characNo, sig->m_result);
+#endif
 
     _sendResult(userIdx, slot, sig);
 

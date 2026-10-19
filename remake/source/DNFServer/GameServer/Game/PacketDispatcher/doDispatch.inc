@@ -79,8 +79,23 @@ bool PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
     }
 
     IDispatcher* dispatcher = get_dispatcher((int)cmd);
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+    LogManager::logFormat(1, "PacketDispatcher.cpp", __PRETTY_FUNCTION__, 0xa91,
+        "[PACKET_DIAG] recv acc=%u cls=%d cmd=%u len=%d",
+        user->get_acc_id(), (int)packetClass, (unsigned int)cmd, len);
+#endif
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+    if (dispatcher == 0)
+    {
+        LogManager::logFormat(1, "PacketDispatcher.cpp", __PRETTY_FUNCTION__, 0xa92,
+            "[PACKET_DIAG] no_dispatcher acc=%u cmd=%u",
+            user->get_acc_id(), (unsigned int)cmd);
+        return 0;
+    }
+#else
     if (dispatcher == 0)
         return 0;
+#endif
 
     server_load_monitoring();
     user->backupSeed();
@@ -179,7 +194,31 @@ bool PacketDispatcher::doDispatch(CUser* user, ENUM_PACKETCLASS packetClass,
         return 0;
     }
 
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+    if (cmd == 605)
+    {
+        LogManager::logFormat(
+            1, "PacketDispatcher.cpp", __PRETTY_FUNCTION__, 0xa91,
+            "[CHARLIST_DIAG] dispatch_begin acc=%u cmd=%u packet_len=%d",
+            user->get_acc_id(), (unsigned int)cmd, len);
+    }
+#endif
+
     int handlerResult = dispatcher->dispatch_template(user, packet);
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+    LogManager::logFormat(1, "PacketDispatcher.cpp", __PRETTY_FUNCTION__, 0xa92,
+        "[PACKET_DIAG] handler_end acc=%u cmd=%u result=%d",
+        user->get_acc_id(), (unsigned int)cmd, handlerResult);
+#endif
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+    if (cmd == 605)
+    {
+        LogManager::logFormat(
+            1, "PacketDispatcher.cpp", __PRETTY_FUNCTION__, 0xa92,
+            "[CHARLIST_DIAG] dispatch_end acc=%u cmd=%u result=%d",
+            user->get_acc_id(), (unsigned int)cmd, handlerResult);
+    }
+#endif
     // [b28d-solo-PacketDispatcher S339] 同上：ORIG 0x08594ce8 段 `cmpl $0x0,-0x1c(%ebp); setne %al;
     //   test %al,%al; je` 槽比零物化 ⇒ 用 while 形复现（P225）。
     while (handlerResult != 0)

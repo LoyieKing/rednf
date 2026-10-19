@@ -15,6 +15,12 @@ int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT cons
     // 080c8c46 + lsEi call 080c8c56，P48 每次重取 operator*）；GetInBuffer 走
     // operator-> 链（ptEv 080c8c4e，P103）；双 job 无具名槽（ebx 跨 call 缓存，
     // +0x192）⇒ 嵌套实参直调。
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+    cMyTrace(__PRETTY_FUNCTION__, 0x173e, 0)(
+        "[CHARLIST_DIAG] select_request acc=%u slot=%d cached_count=%d",
+        user->get_acc_id(), static_cast<int>(static_cast<signed char>(msg.m_slot)),
+        user->get_charac_count());
+#endif
     CStreamGuard guard(
         GlobalData::s_stream_pool->Acquire("PacketDispatcher_Impl_1.cpp", 0x173d),
         true);
@@ -46,10 +52,20 @@ int DisPatcher_SelectCharac::RequestDBCharac(CUser* user, MSG_CHARAC_SELECT cons
     // 保持原形（单尾 return 1）不再试形。
     if (user->IsValidLastLoginCharac())
     {
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+        cMyTrace(__PRETTY_FUNCTION__, 0x1750, 0)(
+            "[CHARLIST_DIAG] select_load_queue acc=%u source=last_login charac=%u",
+            user->get_acc_id(), sig->m_characNo);
+#endif
         GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)5, guard);
     }
     else
     {
+#if !remake_verify && defined(DNF_DIAG) && DNF_DIAG
+        cMyTrace(__PRETTY_FUNCTION__, 0x1751, 0)(
+            "[CHARLIST_DIAG] select_load_queue acc=%u source=db charac=%u",
+            user->get_acc_id(), sig->m_characNo);
+#endif
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
     return 1;
