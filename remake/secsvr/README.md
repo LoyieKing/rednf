@@ -35,11 +35,15 @@ DP 加解密与包过滤。SDK 的源码与构建说明见 [`tss_sdk/README.md`]
 ```text
 remake/secsvr/
 ├── README.md                  # 本文（角色、真实状态、TODO、验收口径）
+├── CMakeLists.txt             # 三件套 CMake 构建入口（gunnersvr/zergsvr/secagent）
+├── cmake/SecsvrCommon.cmake   # 编译/链接规则
+├── compat/                    # 现代 GCC/glibc 兼容头（ext/hash_fun.h、hashtable.h、libio.h）
+├── docs/                      # 还原报告、构建方法、build_recon/ 结构骨架
 ├── source/                    # DWARF 镜像源码：gunnersvr / zergsvr / secagent
-├── tencrypt_new/              # TenCrypt/TenHash 复刻（独立 Makefile）
-├── third_party/               # rapidxml 1.13 / MySQL client 5.0.92
+├── tencrypt_new/              # TenCrypt/TenHash 复刻（独立 Makefile，CMake 复用）
+├── third_party/               # rapidxml 1.13 / MySQL client 5.0.92 / references
+├── tools/                     # DWARF 提取、符号/行为对拍、uni_call 等工具
 └── tss_sdk/                   # 游戏服安全 SDK 重建（独立构建，228 个 TU）
-```
 
 原始 ELF 位于 `.origin_1031/build/dnf_data/home/template/neople/secsvr/...`；
 Docker 运行时相关脚本在仓库根 `docker/`，不在本目录。
@@ -48,9 +52,9 @@ Docker 运行时相关脚本在仓库根 `docker/`，不在本目录。
 
 | 组件 | 源码规模 | 当前状态 | 结论 |
 |---|---|---|---|
-| **gunnersvr** | 88 个 C++ CU，362 个文件 | 入口 `main` 已实现；7/88 个 `.cpp` 仍带 DWARF stub 标记；无检入的构建入口，无可复验 ELF | 结构基本齐全，行为未验收 |
-| **zergsvr** | 98 个 C++ CU，418 个文件 | 入口 `main` 已实现；9/98 个 `.cpp` 仍带 stub 标记；无构建入口/ELF | 结构基本齐全，行为未验收 |
-| **secagent** | 150 个 C++ CU，538 个文件 | `secagent_main.cpp` 的 `main()` 为空；16/150 个 `.cpp` 仍带 stub 标记；`TenHash.cpp` 有 HAVAL/RIPEMD/GOST TODO | **不可运行** |
+| **gunnersvr** | 88 个 C++ CU，362 个文件 | 入口 `main` 已实现；CMake 构建通过；7/88 个 `.cpp` 仍带 DWARF stub 标记 | 可构建，行为未验收 |
+| **zergsvr** | 98 个 C++ CU，418 个文件 | 入口 `main` 已实现；CMake 构建通过；9/98 个 `.cpp` 仍带 stub 标记 | 可构建，行为未验收 |
+| **secagent** | 150 个 C++ CU，538 个文件 | `secagent_main.cpp` 的 `main()` 为空；CMake 构建通过；16/150 个 `.cpp` 仍带 stub 标记；`TenHash.cpp` 有 HAVAL/RIPEMD/GOST TODO | 可构建但**不可运行** |
 | **tss_sdk** | 228 个编译单元 | `build_server.py` 构建通过（228/228），链接无未解析符号 | 可构建；独立于 secsvr 三件套 |
 | **tencrypt_new** | 58 个对象（Makefile） | 编译通过；`make test` 的哈希/向量测试 **ALL PASS** | 算法库主体可用；待接 secsvr 全量符号/行为验收 |
 | **third_party** | 头文件/参考材料 | rapidxml、MySQL client 已 vendor；TSS 头由 DWARF 复刻 | 构建期依赖，当前无独立运行时 |
@@ -61,9 +65,8 @@ Docker 运行时相关脚本在仓库根 `docker/`，不在本目录。
    `init_cfg_info()` 与 `main()` 均为空函数。按当前源码链接出的 secagent 不会执行启动逻辑。
 2. `source/secagent/src/TenHash.cpp` 仍有 `TODO(haval/ripemd/gost)`；
    `tencrypt_new` 的实现不能自动视为 `source/secagent` 对应 TU 已完成。
-3. 仓库内没有 secsvr 三件套的可复现构建入口（`remake/secsvr/` 下无 Makefile/CMake/
-   `build*.sh`；构建骨架未发布到本仓库）。README 曾提到的
-   `/tmp/gunnersvr_rebuilt`、`/tmp/zergsvr_rebuilt`、`/tmp/secagent_rebuilt` 已不存在。
+3. CMake 入口已存在并可构建三目标（`CMakeLists.txt` / `cmake/SecsvrCommon.cmake`）；
+   `docs/build_recon/` 仍是结构骨架。构建通过只是格式/链接门槛，行为与 live 验收仍未完成。
 4. `0 MISSING`、`nm` 符号命中、仓库中存在文件，都不能证明函数体、启动流程或协议行为完成。
 5. **rednf 当前部署仍使用原版 secsvr**：`docker/Dockerfile` 从 `.origin_1031` 复制
    `home/template`；`docker/runtime/dnfctl.sh` 启动原版 `gunnersvr` / `zergsvr` / `secagent`，
@@ -121,10 +124,12 @@ Docker 运行时相关脚本在仓库根 `docker/`，不在本目录。
 
 ## 5. 构建与运行现状
 
-- **secsvr 三件套**：本仓库没有检入的构建脚本；需要先补 P0 构建入口。
+- **secsvr 三件套**：`cmake -S remake/secsvr -B build/secsvr -DCMAKE_BUILD_TYPE=Release` +
+  `cmake --build build/secsvr -j`。`docs/build_recon/` 仅用于还原 CI 目录结构，不是可执行构建；
+  三目标仍待行为/live 验收。
 - **tss_sdk**：`cd remake/secsvr/tss_sdk && python3 build_server.py --jobs 8 --output-dir /tmp/tss_sdk_build`
   （首次需运行 `toolchains/bootstrap.sh` 生成 `toolchains/c5root`）。
-- **tencrypt_new**：`make` / `make test`；当前归档文件被 root 占用时使用
+- **tencrypt_new**：`make` / `make test`；当前工作区归档文件被 root 占用时使用
   `make LIB=/tmp/libtencrypt_new.a test`。
 - **原始 ELF**：`.origin_1031/build/dnf_data/home/template/neople/secsvr/...`。
 - **共享内存兼容层**：`remake/runtime/libtss_shmfix.c`，当前仍是原版 secsvr 运行的必要条件。

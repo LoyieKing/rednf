@@ -2,6 +2,7 @@
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_config_getopt.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
 
+#include <stdint.h>
 #include "src/commlib/zenlib/zen_predefine.h"
 #include "src/commlib/zenlib/zen_config_getopt.h"
 #include <cctype>

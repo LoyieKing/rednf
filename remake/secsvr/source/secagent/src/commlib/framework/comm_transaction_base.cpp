@@ -2,6 +2,7 @@
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/commlib/framework/comm_transaction_base.cpp
 // 语义与 secagent 二进制逐一对照（符号/偏移/字符串/返回码一致）。
 
+#include <typeinfo>
 #include "src/commlib/framework/comm_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_time_value.h"

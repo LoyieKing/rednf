@@ -179,7 +179,6 @@
 #include <endian.h>
 #include <errno.h>
 #include <exception>
-#include <exception_defines.h>
 #include <execinfo.h>
 #include <ext/hash_fun.h>
 #include <ext/hash_map>

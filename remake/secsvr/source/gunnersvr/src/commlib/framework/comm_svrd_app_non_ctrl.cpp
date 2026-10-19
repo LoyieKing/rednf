@@ -3,6 +3,7 @@
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
 // 函数体暂为空；仅保留签名、参数名与局部变量名。
 
+#include <typeinfo>
 #include "src/commlib/framework/comm_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_predefine.h"
 #include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"

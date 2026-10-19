@@ -1096,8 +1096,11 @@ int SecagentAntibotMsgHandler::proc_scheme_data_msg(const AntibotSanlixData *san
                                         info.data_len_, 0x7fd7);
         return SECAGENT_ANTIBOT_SANLIX_DATA_FAIL;
     }
-    antibot_pkg->body_.sc_scheme_data_.scheme_data_len_ = (uint16_t)info.data_len_;
-    memcpy(&antibot_pkg->body_.sc_scheme_data_.scheme_data_, info.data_, info.data_len_);
+    // SC_SCHEMEDATA 是 union；scheme data 走 SSC_SLN_DATA（三个 SLN 成员同偏移）。
+    antibot_pkg->body_.sc_scheme_data_.data_.sx_cfg_info_.data_len_ =
+        (uint16_t)info.data_len_;
+    memcpy(&antibot_pkg->body_.sc_scheme_data_.data_.sx_cfg_info_.data_,
+           info.data_, info.data_len_);
     return 0;
 }
 

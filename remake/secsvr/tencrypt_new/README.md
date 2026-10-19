@@ -7,7 +7,7 @@
 ## 复刻依据
 
 - **头文件**：`inc/*.h`、`include/TenCrypt.h` 由 DWARF 类型信息重建
-  （`toolchain/gen_headers.py`），类型名按二进制 mangled 名校正
+  （`../tools/gen_headers.py`），类型名按二进制 mangled 名校正
   （如 `MD4_CTX`、`__md2`、`_SHA1_CTX`、`md5_state_s`）。
 - **算法实现**：全部为公开标准算法，采用公版参考实现
   （RFC 1319/1320/1321/3174、zlib、RIPEMD/HAVAL/GOST 参考代码），
@@ -115,7 +115,7 @@
 
 ### 复刻过程中的方法论要点
 
-- **“二进制即 oracle”**：每实现一个算法，用 `toolchain/uni_call.py` 直接调二进制的
+- **“二进制即 oracle”**：每实现一个算法，用 `../tools/uni_call.py` 直接调二进制的
   函数，8 字节对齐缓冲 + 随机输入对拍；不匹配时 hook 二进制内部状态逐轮对比定位。
 - **Init 必须先清零成员指针**（栈对象未初始化成员导致跳过分配 → 崩溃），
   二进制 Init 均先置零再惰性分配。
