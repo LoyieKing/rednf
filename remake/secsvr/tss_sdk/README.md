@@ -76,11 +76,12 @@ dnf_secsvr/tss_sdk/
 构建命令（在 WSL 下执行）：
 
 ```bash
-python3 /home/loyieking/dnf_workspace/dnf_secsvr/tss_sdk/build_server.py \
-    --jobs 8 \
-    --output-dir /tmp/tss_sdk_build
+cd dnf_secsvr/tss_sdk          # rednf 发布树: cd remake/secsvr/tss_sdk
+python3 build_server.py --jobs 8 --output-dir /tmp/tss_sdk_build
 ldd -r /tmp/tss_sdk_build/libtss_sdk.so.1.0.394
 ```
+
+rednf 发布树不包含预生成的 `toolchains/c5root`；首次构建前先执行 `toolchains/bootstrap.sh`。`build_server.py` 会自动识别 `dnf_workspace` 与 `rednf` 两种目录布局。
 
 ### 2.2 内存布局与静态初始化还原机制
 

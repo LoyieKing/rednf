@@ -11,7 +11,11 @@ import subprocess
 
 ROOT = Path(__file__).resolve().parent
 SECSVR = ROOT.parent
-C5 = SECSVR.parent / 'dnf_remake/toolchains/c5root'
+C5_CANDIDATES = (
+    SECSVR.parent / 'dnf_remake/toolchains/c5root',  # dnf_workspace
+    SECSVR.parent.parent / 'toolchains/c5root',      # rednf publish tree
+)
+C5 = next((p for p in C5_CANDIDATES if p.exists()), C5_CANDIDATES[0])
 
 
 def main():
