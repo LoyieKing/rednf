@@ -15,7 +15,7 @@ namespace sec_proto {
 
 #pragma pack(push, 1)
 
-class AB_CS_REPORT_ERROR {
+typedef struct AB_CS_REPORT_ERROR {
 public:
     uint16_t error_func_id_;
     uint8_t error_type_;
@@ -35,7 +35,7 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} AB_CS_REPORT_ERROR;
 
 class APCReportInfo {
 public:
@@ -52,7 +52,7 @@ public:
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
 };
 
-class TAB_CS_DETESTPKG {
+typedef struct TAB_CS_DETESTPKG {
 public:
     uint32_t test_pkg_crc_;
     uint8_t content_size_;
@@ -67,9 +67,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_DETESTPKG;
 
-class TAB_SC_TVCHECK {
+typedef struct TAB_SC_TVCHECK {
 public:
     uint32_t tv_gap_;
     uint8_t tv_info_key_[16];
@@ -84,9 +84,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_TVCHECK;
 
-class TAB_CS_ANTICLTKEY {
+typedef struct TAB_CS_ANTICLTKEY {
 public:
     uint16_t flag_;
     uint32_t uin_;
@@ -104,9 +104,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_ANTICLTKEY;
 
-class TAB_SC_CHANNEL_SERVER_ID {
+typedef struct TAB_SC_CHANNEL_SERVER_ID {
 public:
     uint16_t channel_id_;
     uint16_t world_id_;
@@ -121,9 +121,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_CHANNEL_SERVER_ID;
 
-class TAB_SC_STOPLCHECK {
+typedef struct TAB_SC_STOPLCHECK {
 public:
     uint8_t stop_rand_[16];
 
@@ -136,9 +136,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_STOPLCHECK;
 
-class TAB_SC_CFGDATA {
+typedef struct TAB_SC_CFGDATA {
 public:
     uint8_t type_;
     uint8_t len_;
@@ -153,9 +153,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_CFGDATA;
 
-class TAB_CS_CAPTCHAREQ {
+typedef struct TAB_CS_CAPTCHAREQ {
 public:
     uint16_t send_data_len_;
     uint8_t send_data_[32727];
@@ -169,9 +169,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_CAPTCHAREQ;
 
-class TAB_SC_FMSCMD {
+typedef struct TAB_SC_FMSCMD {
 public:
     uint16_t dumb_;
     uint16_t fms_scn_cmd_len_;
@@ -186,9 +186,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_FMSCMD;
 
-class TAB_SC_DELAY_CHECK {
+typedef struct TAB_SC_DELAY_CHECK {
 public:
     uint64_t secsvr_down_time_;
     uint64_t sdk_down_time_;
@@ -202,12 +202,13 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_DELAY_CHECK;
 
-class TAB_CS_INITINFO {
+typedef struct TAB_CS_INITINFO {
 public:
     uint8_t is_init_;
     uint8_t sig_flag_;
+    uint8_t cs_channel_state_;
     uint8_t rccp_ver_[16];
     uint32_t module_handle_;
     uint32_t lib_base_;
@@ -237,9 +238,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_INITINFO;
 
-class TAB_CS_CSCHECK {
+typedef struct TAB_CS_CSCHECK {
 public:
     uint16_t rpcs_result_len_;
     uint8_t rpcs_result_[32727];
@@ -253,9 +254,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_CSCHECK;
 
-class TQD_CS_INITDATA {
+typedef struct TQD_CS_INITDATA {
 public:
     uint32_t crc_;
     uint16_t data_len_;
@@ -273,7 +274,7 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TQD_CS_INITDATA;
 
 class SClientGUIDInfo {
 public:
@@ -291,7 +292,7 @@ public:
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
 };
 
-class TAB_SC_CSCFGDATA {
+typedef struct TAB_SC_CSCFGDATA {
 public:
     uint8_t encrypt_key_[16];
     uint16_t rpcs_data_len_;
@@ -306,9 +307,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_CSCFGDATA;
 
-class TAB_CS_SYSMEMLOG {
+typedef struct TAB_CS_SYSMEMLOG {
 public:
     uint8_t system_log_size_;
     uint8_t system_log_[256];
@@ -324,12 +325,12 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_SYSMEMLOG;
 
-class TAB_SC_DE_CMDID_LIST {
+typedef struct TAB_SC_DE_CMDID_LIST {
 public:
     uint8_t cmd_count_;
-    uint16_t cmd_[200];
+    uint16_t cmd_[100];
 
     tsf4g_tdr::TdrError::ErrorType construct();
     tsf4g_tdr::TdrError::ErrorType pack(tsf4g_tdr::TdrWriteBuf& destBuf, unsigned int cutVer) const;
@@ -340,9 +341,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_DE_CMDID_LIST;
 
-class TAB_CS_SUSMODINFO {
+typedef struct TAB_CS_SUSMODINFO {
 public:
     uint16_t sus_mod_info_len_;
     uint8_t sus_mod_info_data_[32727];
@@ -358,9 +359,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_SUSMODINFO;
 
-class TAB_SC_PKGCODE {
+typedef struct TAB_SC_PKGCODE {
 public:
     uint16_t rp_id_;
     uint16_t rpcode_data_size_;
@@ -375,9 +376,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_PKGCODE;
 
-class TAB_SC_TENPRTYDATA {
+typedef struct TAB_SC_TENPRTYDATA {
 public:
     uint16_t tenpary_data_len_;
     uint8_t tenpary_data_[32727];
@@ -391,9 +392,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_TENPRTYDATA;
 
-class TAB_CS_VERIFYRESULT {
+typedef struct TAB_CS_VERIFYRESULT {
 public:
     uint16_t ext_size_;
     uint32_t uin_;
@@ -422,9 +423,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_VERIFYRESULT;
 
-class TAB_CS_CSCHANNEL_RESULT {
+typedef struct TAB_CS_CSCHANNEL_RESULT {
 public:
     uint32_t error_code_;
 
@@ -437,9 +438,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_CSCHANNEL_RESULT;
 
-class TAB_SC_REQCLIRESENDDATA {
+typedef struct TAB_SC_REQCLIRESENDDATA {
 public:
     uint8_t rand_data_[16];
     uint8_t type_;
@@ -453,9 +454,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_REQCLIRESENDDATA;
 
-class TAB_CS_DEREADY {
+typedef struct TAB_CS_DEREADY {
 public:
     uint8_t id_;
     uint32_t key_crc_;
@@ -471,9 +472,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_DEREADY;
 
-class TAB_CS_DELOG {
+typedef struct TAB_CS_DELOG {
 public:
     uint8_t error_id_;
     uint32_t error_;
@@ -489,9 +490,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_DELOG;
 
-class TMODULE_NAME {
+typedef struct TMODULE_NAME {
 public:
     uint8_t name_len_;
     uint8_t module_name_[256];
@@ -505,9 +506,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TMODULE_NAME;
 
-class TFILE_HASH_INFO_ITEM {
+typedef struct TFILE_HASH_INFO_ITEM {
 public:
     uint8_t id_;
     TMODULE_NAME file_name_;
@@ -524,9 +525,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TFILE_HASH_INFO_ITEM;
 
-class TFILE_HASH_INFO {
+typedef struct TFILE_HASH_INFO {
 public:
     uint16_t count_;
     TFILE_HASH_INFO_ITEM file_hash_item_[10];
@@ -540,9 +541,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TFILE_HASH_INFO;
 
-class TAB_SC_FILE_HASH {
+typedef struct TAB_SC_FILE_HASH {
 public:
     uint16_t buf_len_;
     TFILE_HASH_INFO file_hash_;
@@ -556,9 +557,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_FILE_HASH;
 
-class TROJANINFO {
+typedef struct TROJANINFO {
 public:
     uint32_t virus_id_;
     uint32_t mod_size_;
@@ -573,9 +574,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TROJANINFO;
 
-class SLX_TROJAN_INFO {
+typedef struct SLX_TROJAN_INFO {
 public:
     uint32_t trojan_count_;
     TROJANINFO trojans_[32];
@@ -589,9 +590,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} SLX_TROJAN_INFO;
 
-class TROJAN_REPORT {
+typedef struct TROJAN_REPORT {
 public:
     union {
         SLX_TROJAN_INFO trojans_;
@@ -605,9 +606,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType unpack(int64_t union_selector, const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer);
     tsf4g_tdr::TdrError::ErrorType visualize(int64_t union_selector, tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     tsf4g_tdr::TdrError::ErrorType visualize(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TROJAN_REPORT;
 
-class TSANLIX_CS_REPORT {
+typedef struct TSANLIX_CS_REPORT {
 public:
     uint8_t type_;
     uint16_t len_;
@@ -622,9 +623,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TSANLIX_CS_REPORT;
 
-class TAB_CS_RPFMCSCANRESULT {
+typedef struct TAB_CS_RPFMCSCANRESULT {
 public:
     uint32_t hash_;
     uint16_t rpfmc_scan_result_len_;
@@ -639,9 +640,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_RPFMCSCANRESULT;
 
-class TAB_SC_LAPKGCMD {
+typedef struct TAB_SC_LAPKGCMD {
 public:
     uint16_t la_cmd_size_;
     uint8_t la_cmd_data_[32727];
@@ -657,9 +658,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_LAPKGCMD;
 
-class TAB_CS_RESENDDATA {
+typedef struct TAB_CS_RESENDDATA {
 public:
     uint8_t data_flag_;
     uint8_t re_send_reason_;
@@ -674,9 +675,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_RESENDDATA;
 
-class TAB_CS_CLIENTINFO {
+typedef struct TAB_CS_CLIENTINFO {
 public:
     uint16_t client_info_msg_size_;
     uint8_t client_info_msg_[32727];
@@ -690,9 +691,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_CLIENTINFO;
 
-class TAB_SC_DEKEY {
+typedef struct TAB_SC_DEKEY {
 public:
     uint8_t pad_data_size_;
     uint8_t pad_data_[128];
@@ -709,9 +710,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_DEKEY;
 
-class TAB_CS_ENCRYPT {
+typedef struct TAB_CS_ENCRYPT {
 public:
     uint32_t test_pkg_crc_;
     uint16_t pkg_len_;
@@ -726,9 +727,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_ENCRYPT;
 
-class TAB_CS_FMCRESULT {
+typedef struct TAB_CS_FMCRESULT {
 public:
     uint16_t fms_result_len_;
     uint8_t fms_result_data_[32727];
@@ -744,9 +745,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_FMCRESULT;
 
-class TAB_CS_CAPTCHARESULT {
+typedef struct TAB_CS_CAPTCHARESULT {
 public:
     uint16_t send_data_len_;
     uint8_t send_data_[32727];
@@ -760,9 +761,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_CAPTCHARESULT;
 
-class TAB_SC_PKGCODE_KEY {
+typedef struct TAB_SC_PKGCODE_KEY {
 public:
     uint8_t key_info_len_;
     uint8_t key_info_[64];
@@ -776,9 +777,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_PKGCODE_KEY;
 
-class TAB_SC_DEDIBDATA {
+typedef struct TAB_SC_DEDIBDATA {
 public:
     uint8_t id_;
     uint8_t dib_;
@@ -794,9 +795,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_DEDIBDATA;
 
-class FILE_HASH_VAL {
+typedef struct FILE_HASH_VAL {
 public:
     uint8_t file_id_;
     uint8_t file_hash_[16];
@@ -810,9 +811,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} FILE_HASH_VAL;
 
-class TAB_CS_CLINETINFO {
+typedef struct TAB_CS_CLINETINFO {
 public:
     uint8_t file_num_;
     FILE_HASH_VAL file_hash_data_[10];
@@ -826,9 +827,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_CLINETINFO;
 
-class TAB_CS_IATCHECK {
+typedef struct TAB_CS_IATCHECK {
 public:
     uint8_t pad_len_;
     uint8_t pad_[256];
@@ -845,9 +846,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_IATCHECK;
 
-class TAB_SC_RPFMCSCANCMD {
+typedef struct TAB_SC_RPFMCSCANCMD {
 public:
     uint8_t clr_flag_;
     uint16_t rpfmc_scan_cmd_len_;
@@ -862,9 +863,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_RPFMCSCANCMD;
 
-class TQD_SC_CMDDATA {
+typedef struct TQD_SC_CMDDATA {
 public:
     uint32_t crc_;
     uint16_t len_;
@@ -879,9 +880,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TQD_SC_CMDDATA;
 
-class TAB_SC_SENDANTIBOT {
+typedef struct TAB_SC_SENDANTIBOT {
 public:
     uint32_t init_crc_value_;
     uint8_t send_ver_[16];
@@ -899,9 +900,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_SENDANTIBOT;
 
-class TAB_SC_ENCRYPT {
+typedef struct TAB_SC_ENCRYPT {
 public:
     uint32_t test_pkg_crc_;
     uint16_t pkg_size_;
@@ -916,9 +917,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_ENCRYPT;
 
-class ThreadVerifyInfo {
+typedef struct ThreadVerifyInfo {
 public:
     uint16_t thread_id_;
     uint16_t status_;
@@ -934,9 +935,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} ThreadVerifyInfo;
 
-class TAB_CS_TVINFO {
+typedef struct TAB_CS_TVINFO {
 public:
     uint32_t key_crc_;
     uint32_t main_code_offset_;
@@ -956,9 +957,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_TVINFO;
 
-class TAB_CS_LAPKGRESULT {
+typedef struct TAB_CS_LAPKGRESULT {
 public:
     uint32_t hash_;
     uint16_t la_result_len_;
@@ -976,9 +977,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_LAPKGRESULT;
 
-class TQD_CS_VIRUSINFO {
+typedef struct TQD_CS_VIRUSINFO {
 public:
     uint32_t process_type_;
     uint8_t virus_name_[64];
@@ -993,9 +994,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TQD_CS_VIRUSINFO;
 
-class TQD_CS_SCANRESULT {
+typedef struct TQD_CS_SCANRESULT {
 public:
     uint32_t crc_;
     uint16_t data_len_;
@@ -1014,9 +1015,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TQD_CS_SCANRESULT;
 
-class TAB_SC_RESTRICTUIN {
+typedef struct TAB_SC_RESTRICTUIN {
 public:
     uint32_t ban_time_;
     uint8_t pad_data_size_;
@@ -1031,11 +1032,14 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_RESTRICTUIN;
 
-class TAB_CS_RPPKGRESULT {
+typedef struct TAB_CS_RPPKGRESULT {
 public:
-    uint32_t rpcode_data_hash_;
+    uint8_t key_info_len_;
+    uint8_t key_info_[64];
+    uint16_t world_id_;
+    uint32_t service_id_;
     uint16_t rpcode_result_data_size_;
     uint8_t rpcode_result_data_[32727];
     uint8_t rpcode_func_id_;
@@ -1054,9 +1058,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_RPPKGRESULT;
 
-class TAB_CS_ANTITIME {
+typedef struct TAB_CS_ANTITIME {
 public:
     uint32_t uin_;
     uint32_t time_stamp_;
@@ -1073,9 +1077,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_ANTITIME;
 
-class SAB_MAC_INFO {
+typedef struct SAB_MAC_INFO {
 public:
     uint16_t send_data_len_;
     uint8_t ipcs_status_;
@@ -1095,16 +1099,16 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} SAB_MAC_INFO;
 
-class SRP_RPCODE_HASH {
+typedef struct SRP_RPCODE_HASH {
 public:
     uint16_t send_data_len_;
     uint8_t fun_id_;
     uint8_t pad_data_len_;
     uint8_t pad_[256];
     uint8_t hash_count_;
-    uint32_t hash_[40];
+    uint32_t hash_[10];
     uint32_t times_;
     uint32_t send_func_addr_;
     uint32_t no_die_value_;
@@ -1120,7 +1124,7 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} SRP_RPCODE_HASH;
 
 class SanlixScanResult {
 public:
@@ -1160,7 +1164,7 @@ public:
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
 };
 
-class STVMP_REPORT_HASH_INFO {
+typedef struct STVMP_REPORT_HASH_INFO {
 public:
     uint16_t send_data_len_;
     TVMPFuncHashInfo func_hash_info_;
@@ -1174,7 +1178,7 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} STVMP_REPORT_HASH_INFO;
 
 class SSchemeClientGUIDInfo {
 public:
@@ -1230,7 +1234,7 @@ public:
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
 };
 
-class TVMPFuncCallInfo {
+typedef struct TVMPFuncCallInfo {
 public:
     uint32_t call_addr_;
     uint32_t ret_addr_;
@@ -1244,9 +1248,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TVMPFuncCallInfo;
 
-class STVMP_REPORT_CALL_INFO {
+typedef struct STVMP_REPORT_CALL_INFO {
 public:
     uint16_t send_data_len_;
     uint32_t func_call_info_size_;
@@ -1261,9 +1265,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} STVMP_REPORT_CALL_INFO;
 
-class SCS_SLN_DATA_BUF {
+typedef struct SCS_SLN_DATA_BUF {
 public:
     uint16_t send_data_len_;
     uint8_t send_data_[32727];
@@ -1277,9 +1281,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} SCS_SLN_DATA_BUF;
 
-class SAB_SIGN_INFO {
+typedef struct SAB_SIGN_INFO {
 public:
     uint16_t send_data_len_;
     uint32_t mac_id_;
@@ -1295,7 +1299,7 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} SAB_SIGN_INFO;
 
 class SLogReport {
 public:
@@ -1305,7 +1309,7 @@ public:
     uint32_t uin_;
     uint32_t log_type_;
     uint8_t int_count_;
-    int32_t int_values_[256];
+    int32_t int_values_[64];
     char comment_[1024];
 
     tsf4g_tdr::TdrError::ErrorType construct();
@@ -1319,7 +1323,7 @@ public:
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
 };
 
-class STP_ERROR_INFO {
+typedef struct STP_ERROR_INFO {
 public:
     uint16_t send_data_len_;
     uint32_t type_;
@@ -1335,9 +1339,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} STP_ERROR_INFO;
 
-class SSE_ERROR_INFO {
+typedef struct SSE_ERROR_INFO {
 public:
     uint16_t send_data_len_;
     uint32_t error_;
@@ -1351,9 +1355,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} SSE_ERROR_INFO;
 
-class SRP_THREAD_EXP {
+typedef struct SRP_THREAD_EXP {
 public:
     uint16_t send_data_len_;
     uint32_t eip_;
@@ -1369,9 +1373,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} SRP_THREAD_EXP;
 
-class STP_CUSTOM_STRING {
+typedef struct STP_CUSTOM_STRING {
 public:
     uint16_t total_len_;
     uint16_t send_data_len_;
@@ -1386,9 +1390,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} STP_CUSTOM_STRING;
 
-class SAB_CS_SLN_DATA {
+typedef struct SAB_CS_SLN_DATA {
 public:
     union {
         SSE_ERROR_INFO se_error_info_;
@@ -1420,9 +1424,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType unpack(int64_t union_selector, const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer);
     tsf4g_tdr::TdrError::ErrorType visualize(int64_t union_selector, tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     tsf4g_tdr::TdrError::ErrorType visualize(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} SAB_CS_SLN_DATA;
 
-class TAB_CS_SCHEMEDATA {
+typedef struct TAB_CS_SCHEMEDATA {
 public:
     uint16_t scheme_id_;
     uint16_t sub_protocol_id_;
@@ -1437,9 +1441,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_SCHEMEDATA;
 
-class TORDINAL {
+typedef struct TORDINAL {
 public:
     uint8_t count_;
     uint32_t ordinal_;
@@ -1453,9 +1457,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TORDINAL;
 
-class TORDINAL_OR_NAME {
+typedef struct TORDINAL_OR_NAME {
 public:
     union {
         TMODULE_NAME name_;
@@ -1469,9 +1473,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType unpack(int64_t union_selector, const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer);
     tsf4g_tdr::TdrError::ErrorType visualize(int64_t union_selector, tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     tsf4g_tdr::TdrError::ErrorType visualize(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TORDINAL_OR_NAME;
 
-class TMEM_RECOVER_ITEM {
+typedef struct TMEM_RECOVER_ITEM {
 public:
     uint8_t id_;
     TORDINAL_OR_NAME name_or_ordinal_;
@@ -1491,9 +1495,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TMEM_RECOVER_ITEM;
 
-class TMEM_RECOVER {
+typedef struct TMEM_RECOVER {
 public:
     uint16_t count_;
     TMEM_RECOVER_ITEM mem_item_[10];
@@ -1507,9 +1511,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TMEM_RECOVER;
 
-class TAB_SC_MEM_RECOVER {
+typedef struct TAB_SC_MEM_RECOVER {
 public:
     uint16_t buf_len_;
     TMEM_RECOVER mem_info_;
@@ -1523,9 +1527,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_MEM_RECOVER;
 
-class TAB_SC_TESTPKG {
+typedef struct TAB_SC_TESTPKG {
 public:
     uint32_t test_pkg_crc_;
     uint8_t content_size_;
@@ -1540,9 +1544,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_TESTPKG;
 
-class TAB_SC_RANDCHECK {
+typedef struct TAB_SC_RANDCHECK {
 public:
     uint8_t rand_data_[16];
     uint8_t type_;
@@ -1556,9 +1560,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_RANDCHECK;
 
-class TAB_CS_NUMINFO {
+typedef struct TAB_CS_NUMINFO {
 public:
     uint16_t num_info_size_;
     uint8_t num_info_msg_[256];
@@ -1572,9 +1576,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_NUMINFO;
 
-class TAB_CS_P2PSTATINFO {
+typedef struct TAB_CS_P2PSTATINFO {
 public:
     int32_t crc_;
     uint16_t serial_;
@@ -1590,9 +1594,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_P2PSTATINFO;
 
-class TAB_CS_TP_INFO_MSG {
+typedef struct TAB_CS_TP_INFO_MSG {
 public:
     uint8_t msg_[260];
 
@@ -1605,9 +1609,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_TP_INFO_MSG;
 
-class TAB_CS_TPINFO {
+typedef struct TAB_CS_TPINFO {
 public:
     uint16_t tp_info_msg_size_;
     TAB_CS_TP_INFO_MSG tp_info_msg_[64];
@@ -1621,9 +1625,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_TPINFO;
 
-class SSC_SE_SCAN_DATA_ITEM {
+typedef struct SSC_SE_SCAN_DATA_ITEM {
 public:
     uint8_t cfg_id_;
     uint8_t cmd_size_;
@@ -1638,9 +1642,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} SSC_SE_SCAN_DATA_ITEM;
 
-class SSC_SE_SCAN_DATA {
+typedef struct SSC_SE_SCAN_DATA {
 public:
     uint16_t temp_data_len_;
     SSC_SE_SCAN_DATA_ITEM se_scan_data_item_;
@@ -1654,7 +1658,7 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} SSC_SE_SCAN_DATA;
 
 class SanlixScanJudgeResult {
 public:
@@ -1674,7 +1678,7 @@ public:
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
 };
 
-class SSC_SLN_DATA {
+typedef struct SSC_SLN_DATA {
 public:
     uint16_t data_len_;
     uint8_t data_[32727];
@@ -1688,9 +1692,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} SSC_SLN_DATA;
 
-class SC_SCHEMEDATA {
+typedef struct SC_SCHEMEDATA {
 public:
     union {
         SSC_SE_SCAN_DATA se_scan_data_;
@@ -1707,13 +1711,13 @@ public:
     tsf4g_tdr::TdrError::ErrorType unpack(int64_t union_selector, const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer);
     tsf4g_tdr::TdrError::ErrorType visualize(int64_t union_selector, tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     tsf4g_tdr::TdrError::ErrorType visualize(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} SC_SCHEMEDATA;
 
-class TAB_SC_SCHEMEDATA {
+typedef struct TAB_SC_SCHEMEDATA {
 public:
     uint16_t scheme_id_;
-    uint16_t scheme_data_len_;
-    SC_SCHEMEDATA scheme_data_;
+    uint16_t sub_protocol_id_;
+    SC_SCHEMEDATA data_;
 
     tsf4g_tdr::TdrError::ErrorType construct();
     tsf4g_tdr::TdrError::ErrorType pack(tsf4g_tdr::TdrWriteBuf& destBuf, unsigned int cutVer) const;
@@ -1724,9 +1728,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_SCHEMEDATA;
 
-class TAB_CS_ERRPACKET {
+typedef struct TAB_CS_ERRPACKET {
 public:
     uint16_t snd_proto_id_;
     uint32_t snd_size_;
@@ -1742,9 +1746,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_ERRPACKET;
 
-class TAB_SC_SLXSHAREINFO {
+typedef struct TAB_SC_SLXSHAREINFO {
 public:
     uint16_t slx_data_len_;
     uint8_t slx_data_[32727];
@@ -1758,9 +1762,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_SLXSHAREINFO;
 
-class TAB_SC_RESENDDATA {
+typedef struct TAB_SC_RESENDDATA {
 public:
     uint16_t data_proto_id_;
     uint8_t data_type_;
@@ -1774,9 +1778,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_RESENDDATA;
 
-class TAB_CS_DELAY_CHECK {
+typedef struct TAB_CS_DELAY_CHECK {
 public:
     uint64_t secsvr_down_time_;
     uint64_t sdk_down_time_;
@@ -1792,9 +1796,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_DELAY_CHECK;
 
-class TAB_CS_SYSMEM {
+typedef struct TAB_CS_SYSMEM {
 public:
     uint16_t system_error_len_;
     uint8_t system_error_data_[32727];
@@ -1810,9 +1814,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_SYSMEM;
 
-class TQD_SC_CFGDATA {
+typedef struct TQD_SC_CFGDATA {
 public:
     uint32_t crc_;
     uint16_t len_;
@@ -1831,9 +1835,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TQD_SC_CFGDATA;
 
-class TAB_SC_ANTICFGINFO {
+typedef struct TAB_SC_ANTICFGINFO {
 public:
     uint32_t anti_scan_gap_;
 
@@ -1846,9 +1850,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_ANTICFGINFO;
 
-class TAB_CS_LOCALCHECK {
+typedef struct TAB_CS_LOCALCHECK {
 public:
     uint16_t local_check_data_len_;
     uint8_t local_check_data_[32727];
@@ -1864,9 +1868,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_LOCALCHECK;
 
-class TAB_CS_EXTINFO {
+typedef struct TAB_CS_EXTINFO {
 public:
     uint16_t ext_info_len_;
     uint8_t ext_info_[32727];
@@ -1880,9 +1884,9 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_CS_EXTINFO;
 
-class TAB_SC_SUSMODQUEST {
+typedef struct TAB_SC_SUSMODQUEST {
 public:
     uint16_t sus_addr_data_len_;
     uint8_t sus_addr_data_[32727];
@@ -1896,7 +1900,7 @@ public:
     tsf4g_tdr::TdrError::ErrorType visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
     const char* visualize_ex(tsf4g_tdr::TdrWriteBuf& destBuf, int indent, char separator) const;
     const char* visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const;
-};
+} TAB_SC_SUSMODQUEST;
 
 class AntibotPkgBody {
 public:

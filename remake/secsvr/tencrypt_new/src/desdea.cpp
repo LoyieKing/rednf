@@ -27,29 +27,63 @@ struct des_ks_struct {
 
 typedef des_ks_struct des_key_schedule[16];
 
-static const unsigned int DEA_PC1[8][256][2] = {
+/* ORIG desdea.cpp 的命名空间全局对象（DWARF + `nm -S` 证据）：
+     dea_pc1  0x00298a40 0x4000 .data   （导出，大写 D）
+     s_and_p  0x00298240 0x0800 .data   （导出）
+     dea_ls   0x0029ca40 0x0010 .data   （导出）
+     dea_ip   0x0024d8e0 0x4000 .rodata （文件内静态，小写 r）
+     dea_pc2  0x002498e0 0x4000 .rodata （文件内静态）
+     ip_inv   0x002518e0 0x4000 .rodata （文件内静态）
+     dea_obp..dea_b  .bss 暂存（导出，大写 B）
+   元素类型是 ORIG 的匿名 8 字节结构：dea_ip/ip_inv 用 ._30/._31 {l,r}，
+   dea_pc1/dea_pc2 用 ._32/._33 {c,d}。 */
+struct des_dea_lr { unsigned int l; unsigned int r; };   /* ORIG ._30 / ._31 */
+struct des_dea_cd { unsigned int c; unsigned int d; };   /* ORIG ._32 / ._33 */
+
+des_dea_cd dea_pc1[8][256] = {
 #include "dea_pc1.inc"
 };
 
-static const unsigned int DEA_PC2[8][256][2] = {
+static const des_dea_cd dea_pc2[8][256] = {
 #include "dea_pc2.inc"
 };
 
-static const unsigned char DEA_LS[16] = {
+unsigned char dea_ls[16] = {
 #include "dea_ls.inc"
 };
 
-static const unsigned int DEA_IP[8][256][2] = {
+static const des_dea_lr dea_ip[8][256] = {
 #include "dea_ip.inc"
 };
 
-static const unsigned int IP_INV[8][256][2] = {
+static const des_dea_lr ip_inv[8][256] = {
 #include "ip_inv.inc"
 };
 
-static const unsigned int S_AND_P[8][64] = {
+unsigned int s_and_p[8][64] = {
 #include "s_and_p.inc"
 };
+
+/* .bss 暂存（ORIG 导出符号；本实现用局部变量计算，这些对象按 ORIG 保留） */
+unsigned char dea_obp[8];   /* 0x003267e0 */
+unsigned int dea_ol;        /* 0x003267e8 */
+unsigned int dea_or;        /* 0x003267ec */
+unsigned char dea_ksp[8];   /* 0x003267f0 */
+unsigned int dea_oc;        /* 0x003267f8 */
+unsigned int dea_od;        /* 0x003267fc */
+unsigned int dea_r0;        /* 0x00326800 */
+unsigned int dea_er;        /* 0x00326804 */
+unsigned int dea_b[8];      /* 0x00326820 */
+
+typedef char desdea_size_check_pc1[sizeof(dea_pc1) == 0x4000 ? 1 : -1];
+typedef char desdea_size_check_pc2[sizeof(dea_pc2) == 0x4000 ? 1 : -1];
+typedef char desdea_size_check_ls[sizeof(dea_ls) == 0x10 ? 1 : -1];
+typedef char desdea_size_check_ip[sizeof(dea_ip) == 0x4000 ? 1 : -1];
+typedef char desdea_size_check_ip_inv[sizeof(ip_inv) == 0x4000 ? 1 : -1];
+typedef char desdea_size_check_s_and_p[sizeof(s_and_p) == 0x800 ? 1 : -1];
+typedef char desdea_size_check_b[sizeof(dea_b) == 32 ? 1 : -1];
+typedef char desdea_size_check_lr[sizeof(des_dea_lr) == 8 ? 1 : -1];
+typedef char desdea_size_check_cd[sizeof(des_dea_cd) == 8 ? 1 : -1];
 
 static inline unsigned int dea_rotr28(unsigned int v, unsigned int n) {
     v &= 0x0fffffffu;
@@ -65,14 +99,14 @@ int des_sched(unsigned char *key, des_ks_struct *schedule) {
     c = 0;
     d = 0;
     for (r = 0; r < 8; r++) {
-        c |= DEA_PC1[r][key[r]][0];
-        d |= DEA_PC1[r][key[r]][1];
+        c |= dea_pc1[r][key[r]].c;
+        d |= dea_pc1[r][key[r]].d;
     }
     for (n = 0; n < 16; n++) {
         int i;
 
-        c = dea_rotr28(c, DEA_LS[n]);
-        d = dea_rotr28(d, DEA_LS[n]);
+        c = dea_rotr28(c, dea_ls[n]);
+        d = dea_rotr28(d, dea_ls[n]);
         const unsigned char b[8] = {
             (unsigned char)c, (unsigned char)(c >> 8),
             (unsigned char)(c >> 16), (unsigned char)(c >> 24),
@@ -82,8 +116,8 @@ int des_sched(unsigned char *key, des_ks_struct *schedule) {
         tmp = 0;
         tmp2 = 0;
         for (i = 0; i < 8; i++) {
-            tmp |= DEA_PC2[i][b[i]][0];
-            tmp2 |= DEA_PC2[i][b[i]][1];
+            tmp |= dea_pc2[i][b[i]].c;
+            tmp2 |= dea_pc2[i][b[i]].d;
         }
         out[n * 8 + 0] = (unsigned char)tmp;
         out[n * 8 + 1] = (unsigned char)(tmp >> 8);
@@ -103,8 +137,8 @@ static inline void dea_ip_block(const unsigned char *in, unsigned int *X,
     int r;
 
     for (r = 0; r < 8; r++) {
-        x |= DEA_IP[r][in[r]][0];
-        y |= DEA_IP[r][in[r]][1];
+        x |= dea_ip[r][in[r]].l;
+        y |= dea_ip[r][in[r]].r;
     }
     *X = x;
     *Y = y;
@@ -125,7 +159,7 @@ static inline unsigned int dea_feistel(unsigned int L, unsigned int R,
     idx[6] = (R >> 23) & 0x3f;
     idx[7] = (R >> 27) & 0x1f;
     for (i = 0; i < 8; i++) {
-        F |= S_AND_P[i][(idx[i] ^ key8[i]) & 0x3f];
+        F |= s_and_p[i][(idx[i] ^ key8[i]) & 0x3f];
     }
     return F ^ L;
 }
@@ -142,8 +176,8 @@ static inline void dea_fp_block(unsigned int R, unsigned int L,
     int r;
 
     for (r = 0; r < 8; r++) {
-        x |= IP_INV[r][comb[r]][0];
-        y |= IP_INV[r][comb[r]][1];
+        x |= ip_inv[r][comb[r]].l;
+        y |= ip_inv[r][comb[r]].r;
     }
     out[0] = (unsigned char)x;
     out[1] = (unsigned char)(x >> 8);

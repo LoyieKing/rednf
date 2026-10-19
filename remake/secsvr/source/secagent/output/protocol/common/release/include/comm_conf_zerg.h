@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 namespace conf_zerg {
+#pragma pack(push, 1)
 
 struct SvrInfo {
     uint16_t svr_type;
@@ -251,6 +252,8 @@ struct zerg_config {
     tsf4g_tdr::TdrError::ErrorType entryToListXml(tsf4g_tdr::TdrXmlWriter &writer, unsigned int cutVer) const;
     tsf4g_tdr::TdrError::ErrorType entryToAttrXml(tsf4g_tdr::TdrXmlWriter &writer, unsigned int cutVer) const;
 };
+
+#pragma pack(pop)
 
 } // namespace conf_zerg
 

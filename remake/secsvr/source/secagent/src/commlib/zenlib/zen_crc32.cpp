@@ -6,6 +6,7 @@
 // 与原版逐指令对照：nsize==0 时直接返回 0（不经过 ~crc），其余返回 ~crc。
 
 #include "src/commlib/zenlib/zen_crc32.h"
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 
 static const unsigned int crc32_table[256] = {
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba,

@@ -13,6 +13,13 @@
 #include "output/protocol/common/release/include/comm_conf_framework.h"
 #include "output/protocol/common/release/include/comm_conf_svcid.h"
 
+// ORIG declares the three aggregate members through these typedef names;
+// GCC 4.1 then emits the member type as a DW_TAG_typedef (one member of
+// anon<size>), which is the ORIG Comm_Svrd_Config DWARF shape (19 members).
+typedef conf_zerg::zerg_config ZERG_CONFIG;
+typedef conf_framework::framework_config FRAMEWORK_CONFIG;
+typedef conf_svcid::svcid_config SVCID_CONFIG;
+
 // sizeof = 166692
 struct Comm_Svrd_Config {
 public:
@@ -22,9 +29,9 @@ public:
     bool app_run_daemon_;                         // +0x11
     bool app_install_service_;                    // +0x12
     bool app_uninstall_service_;                  // +0x13
-    conf_zerg::zerg_config zerg_config_;          // +0x14  (43277 bytes)
-    conf_framework::framework_config framework_config_; // +0xa921 (456 bytes)
-    conf_svcid::svcid_config svcid_config_;       // +0xaae9 (122884 bytes)
+    ZERG_CONFIG zerg_config_;                     // +0x14  (43277 bytes)
+    FRAMEWORK_CONFIG framework_config_;           // +0xa921 (456 bytes)
+    SVCID_CONFIG svcid_config_;                   // +0xaae9 (122884 bytes)
     std::string log_file_prefix_;                 // +0x28af0
     std::string zerg_cfg_file_;                   // +0x28af4
     std::string app_cfg_file_;                    // +0x28af8

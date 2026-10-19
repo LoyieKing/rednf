@@ -1,0 +1,6 @@
+# tree: tencrypt_new
+# minimized: yes (greedy set-minimisation; every CU of this tree recompiled with the reduced list produced the same defined symbols as with the full list)
+# verified: 57/57
+# full-roots: 9
+# minimized-roots: 1
+/home/loyieking/dnf_workspace/dnf_secsvr/tencrypt_new

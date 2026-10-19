@@ -9,6 +9,7 @@
 
 #include "src/commlib/zenlib/zen_os_adapt_process.h"
 
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 #include <errno.h>
 #include <signal.h>
 #include <stdio.h>

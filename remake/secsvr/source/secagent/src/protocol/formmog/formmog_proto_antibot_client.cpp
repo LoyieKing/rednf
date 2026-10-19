@@ -1152,6 +1152,8 @@ TdrError::ErrorType TAB_CS_INITINFO::pack(TdrWriteBuf& destBuf, unsigned int cut
     if (ret != TdrError::TDR_NO_ERROR) return ret;
     ret = destBuf.writeUInt8(sig_flag_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(cs_channel_state_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
     if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
     for (unsigned int i = 0; i < 16; ++i) {
         ret = destBuf.writeUInt8(rccp_ver_[i]);
@@ -1226,6 +1228,8 @@ TdrError::ErrorType TAB_CS_INITINFO::unpack(TdrReadBuf& srcBuf, unsigned int cut
     ret = srcBuf.readUInt8(is_init_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
     ret = srcBuf.readUInt8(sig_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(cs_channel_state_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
     if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
     for (unsigned int i = 0; i < 16; ++i) {
@@ -1313,6 +1317,8 @@ TdrError::ErrorType TAB_CS_INITINFO::visualize(TdrWriteBuf& destBuf, int indent,
     ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[is_init_]", "0x%02x", is_init_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
     ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sig_flag_]", "0x%02x", sig_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_channel_state_]", "0x%02x", cs_channel_state_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
     ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rccp_ver_]", 16);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
@@ -6502,7 +6508,17 @@ TdrError::ErrorType TAB_CS_RPPKGRESULT::construct() {
 
 TdrError::ErrorType TAB_CS_RPPKGRESULT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
     TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
-    ret = destBuf.writeUInt32(rpcode_data_hash_);
+    ret = destBuf.writeUInt8(key_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (key_info_len_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < key_info_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < key_info_len_; ++i) {
+        ret = destBuf.writeUInt8(key_info_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt16(world_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(service_id_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
     ret = destBuf.writeUInt16(rpcode_result_data_size_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
@@ -6541,7 +6557,19 @@ TdrError::ErrorType TAB_CS_RPPKGRESULT::pack(char* buffer, unsigned int size, un
 
 TdrError::ErrorType TAB_CS_RPPKGRESULT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
     TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
-    ret = srcBuf.readUInt32(rpcode_data_hash_);
+    ret = srcBuf.readUInt8(key_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (key_info_len_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < key_info_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < key_info_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        key_info_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt16(world_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(service_id_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
     ret = srcBuf.readUInt16(rpcode_result_data_size_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
@@ -6584,7 +6612,24 @@ TdrError::ErrorType TAB_CS_RPPKGRESULT::unpack(const char* buffer, unsigned int 
 
 TdrError::ErrorType TAB_CS_RPPKGRESULT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
     TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
-    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rpcode_data_hash_]", "%u", rpcode_data_hash_);
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[key_info_len_]", "0x%02x", key_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (key_info_len_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[key_info_]", key_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (key_info_len_ != 0) {
+        for (uint32_t i = 0; i < key_info_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", key_info_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[world_id_]", "%d", world_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[service_id_]", "%u", service_id_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
     ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rpcode_result_data_size_]", "%d", rpcode_result_data_size_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
@@ -10722,9 +10767,9 @@ TdrError::ErrorType TAB_SC_SCHEMEDATA::pack(TdrWriteBuf& destBuf, unsigned int c
     TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
     ret = destBuf.writeUInt16(scheme_id_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
-    ret = destBuf.writeUInt16(scheme_data_len_);
+    ret = destBuf.writeUInt16(sub_protocol_id_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
-    ret = scheme_data_.pack((int64_t)scheme_data_len_, destBuf, 1);
+    ret = data_.pack((int64_t)sub_protocol_id_, destBuf, 1);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
     return TdrError::TDR_NO_ERROR;
 }
@@ -10741,9 +10786,9 @@ TdrError::ErrorType TAB_SC_SCHEMEDATA::unpack(TdrReadBuf& srcBuf, unsigned int c
     TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
     ret = srcBuf.readUInt16(scheme_id_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
-    ret = srcBuf.readUInt16(scheme_data_len_);
+    ret = srcBuf.readUInt16(sub_protocol_id_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
-    ret = scheme_data_.unpack((int64_t)scheme_data_len_, srcBuf, 1);
+    ret = data_.unpack((int64_t)sub_protocol_id_, srcBuf, 1);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
     return TdrError::TDR_NO_ERROR;
 }
@@ -10760,14 +10805,14 @@ TdrError::ErrorType TAB_SC_SCHEMEDATA::visualize(TdrWriteBuf& destBuf, int inden
     TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
     ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[scheme_id_]", "%d", scheme_id_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
-    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[scheme_data_len_]", "%d", scheme_data_len_);
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sub_protocol_id_]", "%d", sub_protocol_id_);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
     ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_]", true);
     if (ret != TdrError::TDR_NO_ERROR) return ret;
     if (indent >= 0) {
-        ret = scheme_data_.visualize((int64_t)scheme_data_len_, destBuf, indent + 1, separator);
+        ret = data_.visualize((int64_t)sub_protocol_id_, destBuf, indent + 1, separator);
     } else {
-        ret = scheme_data_.visualize((int64_t)scheme_data_len_, destBuf, indent, separator);
+        ret = data_.visualize((int64_t)sub_protocol_id_, destBuf, indent, separator);
     }
     return ret;
     return TdrError::TDR_NO_ERROR;

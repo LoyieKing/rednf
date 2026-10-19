@@ -10,6 +10,7 @@
 #include "src/protocol/common/TdrXml.h"
 
 namespace conf_framework {
+#pragma pack(push, 1)
 
 // sizeof 0x1b4 = 436
 struct LogInfo {
@@ -96,6 +97,8 @@ struct framework_config {
     tsf4g_tdr::TdrError::ErrorType entryToListXml(tsf4g_tdr::TdrXmlWriter &writer, unsigned int cutVer) const;
     tsf4g_tdr::TdrError::ErrorType entryToAttrXml(tsf4g_tdr::TdrXmlWriter &writer, unsigned int cutVer) const;
 };
+
+#pragma pack(pop)
 
 } // namespace conf_framework
 

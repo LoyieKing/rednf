@@ -3,6 +3,7 @@
 // Original quirks preserved: is_prime(0) and is_prime(1) are true, and
 // is_prime(2) is false (even numbers are rejected before the trial loop).
 
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 #include <math.h>
 #include <stddef.h>
 #include <stdint.h>

@@ -14,6 +14,8 @@
 
 using std::string;
 
+#ifndef TSS_ZEN_LOG_PRIORITY_DECLARED
+#define TSS_ZEN_LOG_PRIORITY_DECLARED
 enum ZEN_LOG_PRIORITY {
     RS_TRACE = 1,
     RS_DEBUG = 2,
@@ -22,6 +24,9 @@ enum ZEN_LOG_PRIORITY {
     RS_ALERT = 5,
     RS_FATAL = 6,
 };
+#endif  // TSS_ZEN_LOG_PRIORITY_DECLARED
+#ifndef TSS_RECON_ZEN_LOGFILE_DEVIDE_DECLARED
+#define TSS_RECON_ZEN_LOGFILE_DEVIDE_DECLARED
 enum ZEN_LOGFILE_DEVIDE {
     LOGDEVIDE_NONE = 1,
     LOGDEVIDE_BY_SIZE = 101,
@@ -35,6 +40,8 @@ enum ZEN_LOGFILE_DEVIDE {
     LOGDEVIDE_BY_YEAR = 207,
     LOGDEVIDE_BY_TIMEEND = 208,
 };
+
+#endif  // TSS_RECON_ZEN_LOGFILE_DEVIDE_DECLARED
 // sizeof = 364
 struct ZEN_LogTrace_Basic : public ZEN_NON_Copyable { // line 94
     typedef std::basic_ofstream<char,std::char_traits<char> > ofstream;

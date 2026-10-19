@@ -77,7 +77,7 @@ ZEN_STATUS_ITEM::~ZEN_STATUS_ITEM() {
 // ---------- ZEN_STATUS_ITEM_WITHNAME ----------
 
 ZEN_STATUS_ITEM_WITHNAME::ZEN_STATUS_ITEM_WITHNAME() {
-    item_name_end_ = 0;
+    item_name_[MAX_COUNTER_NAME_LEN] = 0;
 }
 
 ZEN_STATUS_ITEM_WITHNAME::ZEN_STATUS_ITEM_WITHNAME(unsigned int arg0,
@@ -85,7 +85,7 @@ ZEN_STATUS_ITEM_WITHNAME::ZEN_STATUS_ITEM_WITHNAME(unsigned int arg0,
                                                    const char *arg2)
     : statics_item_(arg0, arg1) {
     strncpy(item_name_, arg2, MAX_COUNTER_NAME_LEN);
-    item_name_end_ = 0;
+    item_name_[MAX_COUNTER_NAME_LEN] = 0;
 }
 
 ZEN_STATUS_ITEM_WITHNAME::~ZEN_STATUS_ITEM_WITHNAME() {

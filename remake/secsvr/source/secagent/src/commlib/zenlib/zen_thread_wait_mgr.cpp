@@ -4,6 +4,7 @@
 // 然后 erase 的是"递增后的迭代器"（即后一节点），且循环继续使用已释放的迭代器
 // （与二进制反汇编逐指令一致，见验证）。
 #include "src/commlib/zenlib/zen_thread_wait_mgr.h"
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 
 namespace ZEN_OS {
 int pthread_join(unsigned long threadid);

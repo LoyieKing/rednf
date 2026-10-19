@@ -18,18 +18,21 @@ struct CFastDes { // line 12
     CFastDes::keystage KS[16];
     };
 private:
-void *m_pSys;
-void *m_pLocal;
-static const unsigned char FUCKING_PRESHIFT[];
+void *m_pSys;    /* ORIG +0x00 */
+void *m_pLocal;  /* ORIG +0x04 */
+public:
+/* ORIG 静态数据成员（inc/fastdes.h；维度按 ORIG DWARF，符号 _ZN8CFastDes*）。
+   声明放 public 只为 emission TU 的字节转储可读。 */
+static const unsigned char FUCKING_PRESHIFT[16];
 static const unsigned int hKS_C4[7][16];
 static const unsigned int lKS_D4[7][16];
-static const unsigned int wL_I8[];
-static const unsigned int wO_L4[];
+static const unsigned int wL_I8[86];
+static const unsigned int wO_L4[16];
 static const unsigned int wPS[8][64];
-static const unsigned int wC_K4[128];
-static const unsigned int wC_K3[64];
-static const unsigned int wD_K4[128];
-static const unsigned int wD_K3[64];
+static const unsigned int wC_K4[8][16];
+static const unsigned int wC_K3[8][8];
+static const unsigned int wD_K4[8][16];
+static const unsigned int wD_K3[8][8];
 public:
 CFastDes(); // line 14
 ~CFastDes(); // line 15

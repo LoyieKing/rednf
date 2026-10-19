@@ -1,5 +1,6 @@
 /* md4.h -- RFC 1320 MD4 的 tencrypt_new 变体
-   由 DWARF + mangled 名重建：MD4_CTX / class CMD4
+   类布局来自 ORIG DWARF（inc/md4.h:16，sizeof = 4）：唯一成员是私有
+   m_pszPadding（+0），Init() 分配 64 字节填充块，MD4Final 直接用它。
    符号核对：_ZN4CMD47MD4InitEP7MD4_CTX（参数类型名 MD4_CTX，7 字符）。 */
 
 #ifndef TENCRYPT_INC_MD4_H_
@@ -24,6 +25,7 @@ public:
     void MD4Update(MD4_CTX *context, unsigned char *input, unsigned int inputLen);
     void MD4Final(unsigned char *digest, MD4_CTX *context);
 private:
+    unsigned char *m_pszPadding;   /* ORIG +0x00 */
     void MD4Transform(unsigned int *state, unsigned char *block);
     void Encode(unsigned char *output, unsigned int *input, unsigned int len);
     void Decode(unsigned int *output, unsigned char *input, unsigned int len);

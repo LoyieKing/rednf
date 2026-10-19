@@ -230,9 +230,9 @@ void CDesToo::DesToo(unsigned char *key, bool benc, unsigned char *buf,
     nLen = buflen / 8;
     for (i = 0; i < nLen; i++)
         if (benc)
-            doencrypt(buf + i * 8);
+            doencrypt(buf);
         else
-            dodecrypt(buf + i * 8);
+            dodecrypt(buf);
     pLocal = CreateTsLocal();
     pLocal->ProcessLastBytes(key, benc, buflen, 8, buf);
 }

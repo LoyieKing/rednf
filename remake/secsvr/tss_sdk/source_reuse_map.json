@@ -1,0 +1,1769 @@
+{
+ "schema": "tss-sdk-source-reuse-map-v1",
+ "source_tree": "/home/loyieking/dnf_workspace/dnf_secsvr",
+ "identity_claim": "none; basename candidates only",
+ "cu_count": 214,
+ "with_candidates": 129,
+ "without_candidates": 85,
+ "with_candidates_cus": [
+  {
+   "cu": "src/3way.cpp",
+   "basename": "3way.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/3way.cpp",
+    "./tencrypt_new/src/3way.cpp"
+   ]
+  },
+  {
+   "cu": "src/adder.cpp",
+   "basename": "adder.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/adder.cpp",
+    "./tencrypt_new/src/adder.cpp"
+   ]
+  },
+  {
+   "cu": "src/adler32.cpp",
+   "basename": "adler32.cpp",
+   "candidate_count": 4,
+   "candidates": [
+    "./source/gunnersvr/src/adler32.cpp",
+    "./source/secagent/src/adler32.cpp",
+    "./source/zergsvr/src/adler32.cpp",
+    "./tencrypt_new/src/adler32.cpp"
+   ]
+  },
+  {
+   "cu": "src/amoeba.cpp",
+   "basename": "amoeba.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/amoeba.cpp",
+    "./tencrypt_new/src/amoeba.cpp"
+   ]
+  },
+  {
+   "cu": "src/blowfish.cpp",
+   "basename": "blowfish.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/secagent/src/blowfish.cpp",
+    "./tencrypt_new/src/blowfish.cpp",
+    "./third_party/mysql-5.0.92/extra/yassl/taocrypt/src/blowfish.cpp"
+   ]
+  },
+  {
+   "cu": "src/cast.cpp",
+   "basename": "cast.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/cast.cpp",
+    "./tencrypt_new/src/cast.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/framework/comm_app_frame.cpp",
+   "basename": "comm_app_frame.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/framework/comm_app_frame.cpp",
+    "./source/secagent/src/commlib/framework/comm_app_frame.cpp",
+    "./source/zergsvr/src/commlib/framework/comm_app_frame.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/framework/comm_bill_record.cpp",
+   "basename": "comm_bill_record.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/framework/comm_bill_record.cpp",
+    "./source/secagent/src/commlib/framework/comm_bill_record.cpp",
+    "./source/zergsvr/src/commlib/framework/comm_bill_record.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/framework/comm_cfgsvr_sdk.cpp",
+   "basename": "comm_cfgsvr_sdk.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/framework/comm_cfgsvr_sdk.cpp",
+    "./source/secagent/src/commlib/framework/comm_cfgsvr_sdk.cpp",
+    "./source/zergsvr/src/commlib/framework/comm_cfgsvr_sdk.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/framework/comm_service_info.cpp",
+   "basename": "comm_service_info.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/framework/comm_service_info.cpp",
+    "./source/secagent/src/commlib/framework/comm_service_info.cpp",
+    "./source/zergsvr/src/commlib/framework/comm_service_info.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/framework/comm_sndrcv_base.cpp",
+   "basename": "comm_sndrcv_base.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/framework/comm_sndrcv_base.cpp",
+    "./source/secagent/src/commlib/framework/comm_sndrcv_base.cpp",
+    "./source/zergsvr/src/commlib/framework/comm_sndrcv_base.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/framework/comm_sndrcv_zulu.cpp",
+   "basename": "comm_sndrcv_zulu.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/framework/comm_sndrcv_zulu.cpp",
+    "./source/secagent/src/commlib/framework/comm_sndrcv_zulu.cpp",
+    "./source/zergsvr/src/commlib/framework/comm_sndrcv_zulu.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/framework/comm_stat_monitor.cpp",
+   "basename": "comm_stat_monitor.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/framework/comm_stat_monitor.cpp",
+    "./source/secagent/src/commlib/framework/comm_stat_monitor.cpp",
+    "./source/zergsvr/src/commlib/framework/comm_stat_monitor.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/framework/comm_svrd_application.cpp",
+   "basename": "comm_svrd_application.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/framework/comm_svrd_application.cpp",
+    "./source/secagent/src/commlib/framework/comm_svrd_application.cpp",
+    "./source/zergsvr/src/commlib/framework/comm_svrd_application.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/framework/comm_svrd_config.cpp",
+   "basename": "comm_svrd_config.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/framework/comm_svrd_config.cpp",
+    "./source/secagent/src/commlib/framework/comm_svrd_config.cpp",
+    "./source/zergsvr/src/commlib/framework/comm_svrd_config.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/framework/comm_time_provider.cpp",
+   "basename": "comm_time_provider.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/framework/comm_time_provider.cpp",
+    "./source/secagent/src/commlib/framework/comm_time_provider.cpp",
+    "./source/zergsvr/src/commlib/framework/comm_time_provider.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/framework/comm_timer_handler.cpp",
+   "basename": "comm_timer_handler.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/framework/comm_timer_handler.cpp",
+    "./source/secagent/src/commlib/framework/comm_timer_handler.cpp",
+    "./source/zergsvr/src/commlib/framework/comm_timer_handler.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/framework/comm_zerg_mmappipe.cpp",
+   "basename": "comm_zerg_mmappipe.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/framework/comm_zerg_mmappipe.cpp",
+    "./source/secagent/src/commlib/framework/comm_zerg_mmappipe.cpp",
+    "./source/zergsvr/src/commlib/framework/comm_zerg_mmappipe.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_bus_mmap_pipe.cpp",
+   "basename": "zen_bus_mmap_pipe.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_bus_mmap_pipe.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_bus_mmap_pipe.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_bus_mmap_pipe.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_bus_two_way.cpp",
+   "basename": "zen_bus_two_way.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_bus_two_way.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_bus_two_way.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_bus_two_way.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_code_engine.cpp",
+   "basename": "zen_code_engine.cpp",
+   "candidate_count": 1,
+   "candidates": [
+    "./source/secagent/src/commlib/zenlib/zen_code_engine.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_config_getopt.cpp",
+   "basename": "zen_config_getopt.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_config_getopt.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_config_getopt.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_config_getopt.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_config_ini_implement.cpp",
+   "basename": "zen_config_ini_implement.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_config_ini_implement.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_config_ini_implement.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_config_ini_implement.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_config_property_tree.cpp",
+   "basename": "zen_config_property_tree.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_config_property_tree.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_config_property_tree.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_config_property_tree.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_crc32.cpp",
+   "basename": "zen_crc32.cpp",
+   "candidate_count": 1,
+   "candidates": [
+    "./source/secagent/src/commlib/zenlib/zen_crc32.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_event_handle_base.cpp",
+   "basename": "zen_event_handle_base.cpp",
+   "candidate_count": 1,
+   "candidates": [
+    "./source/zergsvr/src/commlib/zenlib/zen_event_handle_base.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_event_reactor_base.cpp",
+   "basename": "zen_event_reactor_base.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_event_reactor_base.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_event_reactor_base.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_event_reactor_base.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_event_reactor_epoll.cpp",
+   "basename": "zen_event_reactor_epoll.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_event_reactor_epoll.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_event_reactor_epoll.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_event_reactor_epoll.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_lock_base.cpp",
+   "basename": "zen_lock_base.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_lock_base.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_lock_base.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_lock_base.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_lock_null_lock.cpp",
+   "basename": "zen_lock_null_lock.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_lock_null_lock.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_lock_null_lock.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_lock_null_lock.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_lock_thread_mutex.cpp",
+   "basename": "zen_lock_thread_mutex.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_lock_thread_mutex.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_lock_thread_mutex.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_lock_thread_mutex.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_dirent.cpp",
+   "basename": "zen_os_adapt_dirent.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_os_adapt_dirent.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_os_adapt_dirent.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_os_adapt_dirent.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_file.cpp",
+   "basename": "zen_os_adapt_file.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_os_adapt_file.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_os_adapt_file.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_os_adapt_file.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_flock.cpp",
+   "basename": "zen_os_adapt_flock.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_os_adapt_flock.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_os_adapt_flock.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_os_adapt_flock.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_math.cpp",
+   "basename": "zen_os_adapt_math.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_os_adapt_math.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_os_adapt_math.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_os_adapt_math.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_mutex.cpp",
+   "basename": "zen_os_adapt_mutex.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_os_adapt_mutex.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_os_adapt_mutex.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_os_adapt_mutex.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_process.cpp",
+   "basename": "zen_os_adapt_process.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_os_adapt_process.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_os_adapt_process.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_os_adapt_process.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_shm.cpp",
+   "basename": "zen_os_adapt_shm.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_os_adapt_shm.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_os_adapt_shm.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_os_adapt_shm.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_socket.cpp",
+   "basename": "zen_os_adapt_socket.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_os_adapt_socket.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_os_adapt_socket.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_os_adapt_socket.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_string.cpp",
+   "basename": "zen_os_adapt_string.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_os_adapt_string.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_os_adapt_string.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_os_adapt_string.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_sysinfo.cpp",
+   "basename": "zen_os_adapt_sysinfo.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_os_adapt_sysinfo.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_os_adapt_sysinfo.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_os_adapt_sysinfo.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_thread.cpp",
+   "basename": "zen_os_adapt_thread.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_os_adapt_thread.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_os_adapt_thread.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_os_adapt_thread.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_time.cpp",
+   "basename": "zen_os_adapt_time.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_os_adapt_time.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_os_adapt_time.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_os_adapt_time.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_server_status.cpp",
+   "basename": "zen_server_status.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_server_status.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_server_status.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_server_status.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_server_toolkit.cpp",
+   "basename": "zen_server_toolkit.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_server_toolkit.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_server_toolkit.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_server_toolkit.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_share_mem_mmap.cpp",
+   "basename": "zen_share_mem_mmap.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_share_mem_mmap.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_share_mem_mmap.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_share_mem_mmap.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_share_mem_posix.cpp",
+   "basename": "zen_share_mem_posix.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_share_mem_posix.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_share_mem_posix.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_share_mem_posix.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_shm_lockfree_deque.cpp",
+   "basename": "zen_shm_lockfree_deque.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_shm_lockfree_deque.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_shm_lockfree_deque.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_shm_lockfree_deque.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_socket_addr_base.cpp",
+   "basename": "zen_socket_addr_base.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_socket_addr_base.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_socket_addr_base.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_socket_addr_base.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_socket_addr_in.cpp",
+   "basename": "zen_socket_addr_in.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_socket_addr_in.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_socket_addr_in.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_socket_addr_in.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_socket_base.cpp",
+   "basename": "zen_socket_base.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_socket_base.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_socket_base.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_socket_base.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_socket_connector.cpp",
+   "basename": "zen_socket_connector.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_socket_connector.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_socket_connector.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_socket_connector.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_socket_stream.cpp",
+   "basename": "zen_socket_stream.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_socket_stream.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_socket_stream.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_socket_stream.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_thread_task.cpp",
+   "basename": "zen_thread_task.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_thread_task.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_thread_task.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_thread_task.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_thread_wait_mgr.cpp",
+   "basename": "zen_thread_wait_mgr.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_thread_wait_mgr.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_thread_wait_mgr.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_thread_wait_mgr.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_time_value.cpp",
+   "basename": "zen_time_value.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_time_value.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_time_value.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_time_value.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_timer_handler_base.cpp",
+   "basename": "zen_timer_handler_base.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_timer_handler_base.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_timer_handler_base.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_timer_handler_base.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_timer_queue_base.cpp",
+   "basename": "zen_timer_queue_base.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_timer_queue_base.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_timer_queue_base.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_timer_queue_base.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_timer_queue_wheel.cpp",
+   "basename": "zen_timer_queue_wheel.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_timer_queue_wheel.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_timer_queue_wheel.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_timer_queue_wheel.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_trace_log_basic.cpp",
+   "basename": "zen_trace_log_basic.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_trace_log_basic.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_trace_log_basic.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_trace_log_basic.cpp"
+   ]
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_trace_log_msg.cpp",
+   "basename": "zen_trace_log_msg.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/commlib/zenlib/zen_trace_log_msg.cpp",
+    "./source/secagent/src/commlib/zenlib/zen_trace_log_msg.cpp",
+    "./source/zergsvr/src/commlib/zenlib/zen_trace_log_msg.cpp"
+   ]
+  },
+  {
+   "cu": "src/crc32.cpp",
+   "basename": "crc32.cpp",
+   "candidate_count": 4,
+   "candidates": [
+    "./source/gunnersvr/src/crc32.cpp",
+    "./source/secagent/src/crc32.cpp",
+    "./source/zergsvr/src/crc32.cpp",
+    "./tencrypt_new/src/crc32.cpp"
+   ]
+  },
+  {
+   "cu": "src/d3des.cpp",
+   "basename": "d3des.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/d3des.cpp",
+    "./tencrypt_new/src/d3des.cpp"
+   ]
+  },
+  {
+   "cu": "src/des.cpp",
+   "basename": "des.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/secagent/src/des.cpp",
+    "./tencrypt_new/src/des.cpp",
+    "./third_party/mysql-5.0.92/extra/yassl/taocrypt/src/des.cpp"
+   ]
+  },
+  {
+   "cu": "src/des2p.cpp",
+   "basename": "des2p.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/des2p.cpp",
+    "./tencrypt_new/src/des2p.cpp"
+   ]
+  },
+  {
+   "cu": "src/desbig.cpp",
+   "basename": "desbig.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/desbig.cpp",
+    "./tencrypt_new/src/desbig.cpp"
+   ]
+  },
+  {
+   "cu": "src/desdea.cpp",
+   "basename": "desdea.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/desdea.cpp",
+    "./tencrypt_new/src/desdea.cpp"
+   ]
+  },
+  {
+   "cu": "src/desmo.cpp",
+   "basename": "desmo.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/desmo.cpp",
+    "./tencrypt_new/src/desmo.cpp"
+   ]
+  },
+  {
+   "cu": "src/desnew.cpp",
+   "basename": "desnew.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/desnew.cpp",
+    "./tencrypt_new/src/desnew.cpp"
+   ]
+  },
+  {
+   "cu": "src/despc.cpp",
+   "basename": "despc.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/despc.cpp",
+    "./tencrypt_new/src/despc.cpp"
+   ]
+  },
+  {
+   "cu": "src/destoo.cpp",
+   "basename": "destoo.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/destoo.cpp",
+    "./tencrypt_new/src/destoo.cpp"
+   ]
+  },
+  {
+   "cu": "src/diamond.cpp",
+   "basename": "diamond.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/diamond.cpp",
+    "./tencrypt_new/src/diamond.cpp"
+   ]
+  },
+  {
+   "cu": "src/fastdes.cpp",
+   "basename": "fastdes.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/fastdes.cpp",
+    "./tencrypt_new/src/fastdes.cpp"
+   ]
+  },
+  {
+   "cu": "src/feal8.cpp",
+   "basename": "feal8.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/feal8.cpp",
+    "./tencrypt_new/src/feal8.cpp"
+   ]
+  },
+  {
+   "cu": "src/frog.cpp",
+   "basename": "frog.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/frog.cpp",
+    "./tencrypt_new/src/frog.cpp"
+   ]
+  },
+  {
+   "cu": "src/gene.cpp",
+   "basename": "gene.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/gene.cpp",
+    "./tencrypt_new/src/gene.cpp"
+   ]
+  },
+  {
+   "cu": "src/genenew.cpp",
+   "basename": "genenew.cpp",
+   "candidate_count": 1,
+   "candidates": [
+    "./source/secagent/src/genenew.cpp"
+   ]
+  },
+  {
+   "cu": "src/gost.cpp",
+   "basename": "gost.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/gost.cpp",
+    "./tencrypt_new/src/gost.cpp"
+   ]
+  },
+  {
+   "cu": "src/gosthash.cpp",
+   "basename": "gosthash.cpp",
+   "candidate_count": 4,
+   "candidates": [
+    "./source/gunnersvr/src/gosthash.cpp",
+    "./source/secagent/src/gosthash.cpp",
+    "./source/zergsvr/src/gosthash.cpp",
+    "./tencrypt_new/src/gosthash.cpp"
+   ]
+  },
+  {
+   "cu": "src/gramary.cpp",
+   "basename": "gramary.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/gramary.cpp",
+    "./tencrypt_new/src/gramary.cpp"
+   ]
+  },
+  {
+   "cu": "src/haval128.cpp",
+   "basename": "haval128.cpp",
+   "candidate_count": 4,
+   "candidates": [
+    "./source/gunnersvr/src/haval128.cpp",
+    "./source/secagent/src/haval128.cpp",
+    "./source/zergsvr/src/haval128.cpp",
+    "./tencrypt_new/src/haval128.cpp"
+   ]
+  },
+  {
+   "cu": "src/haval160.cpp",
+   "basename": "haval160.cpp",
+   "candidate_count": 4,
+   "candidates": [
+    "./source/gunnersvr/src/haval160.cpp",
+    "./source/secagent/src/haval160.cpp",
+    "./source/zergsvr/src/haval160.cpp",
+    "./tencrypt_new/src/haval160.cpp"
+   ]
+  },
+  {
+   "cu": "src/hpc.cpp",
+   "basename": "hpc.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/hpc.cpp",
+    "./tencrypt_new/src/hpc.cpp"
+   ]
+  },
+  {
+   "cu": "src/idea.cpp",
+   "basename": "idea.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/idea.cpp",
+    "./tencrypt_new/src/idea.cpp"
+   ]
+  },
+  {
+   "cu": "src/loki89.cpp",
+   "basename": "loki89.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/loki89.cpp",
+    "./tencrypt_new/src/loki89.cpp"
+   ]
+  },
+  {
+   "cu": "src/loki91.cpp",
+   "basename": "loki91.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/loki91.cpp",
+    "./tencrypt_new/src/loki91.cpp"
+   ]
+  },
+  {
+   "cu": "src/loki97.cpp",
+   "basename": "loki97.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/loki97.cpp",
+    "./tencrypt_new/src/loki97.cpp"
+   ]
+  },
+  {
+   "cu": "src/magic.cpp",
+   "basename": "magic.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/magic.cpp",
+    "./tencrypt_new/src/magic.cpp"
+   ]
+  },
+  {
+   "cu": "src/mars.cpp",
+   "basename": "mars.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/mars.cpp",
+    "./tencrypt_new/src/mars.cpp"
+   ]
+  },
+  {
+   "cu": "src/mbc.cpp",
+   "basename": "mbc.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/mbc.cpp",
+    "./tencrypt_new/src/mbc.cpp"
+   ]
+  },
+  {
+   "cu": "src/md2.cpp",
+   "basename": "md2.cpp",
+   "candidate_count": 5,
+   "candidates": [
+    "./source/gunnersvr/src/md2.cpp",
+    "./source/secagent/src/md2.cpp",
+    "./source/zergsvr/src/md2.cpp",
+    "./tencrypt_new/src/md2.cpp",
+    "./third_party/mysql-5.0.92/extra/yassl/taocrypt/src/md2.cpp"
+   ]
+  },
+  {
+   "cu": "src/md4.cpp",
+   "basename": "md4.cpp",
+   "candidate_count": 5,
+   "candidates": [
+    "./source/gunnersvr/src/md4.cpp",
+    "./source/secagent/src/md4.cpp",
+    "./source/zergsvr/src/md4.cpp",
+    "./tencrypt_new/src/md4.cpp",
+    "./third_party/mysql-5.0.92/extra/yassl/taocrypt/src/md4.cpp"
+   ]
+  },
+  {
+   "cu": "src/md5.cpp",
+   "basename": "md5.cpp",
+   "candidate_count": 5,
+   "candidates": [
+    "./source/gunnersvr/src/md5.cpp",
+    "./source/secagent/src/md5.cpp",
+    "./source/zergsvr/src/md5.cpp",
+    "./tencrypt_new/src/md5.cpp",
+    "./third_party/mysql-5.0.92/extra/yassl/taocrypt/src/md5.cpp"
+   ]
+  },
+  {
+   "cu": "src/mmb.cpp",
+   "basename": "mmb.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/mmb.cpp",
+    "./tencrypt_new/src/mmb.cpp"
+   ]
+  },
+  {
+   "cu": "src/nsea.cpp",
+   "basename": "nsea.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/nsea.cpp",
+    "./tencrypt_new/src/nsea.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/common/comm_conf_cfgsdk.cpp",
+   "basename": "comm_conf_cfgsdk.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/protocol/common/comm_conf_cfgsdk.cpp",
+    "./source/secagent/src/protocol/common/comm_conf_cfgsdk.cpp",
+    "./source/zergsvr/src/protocol/common/comm_conf_cfgsdk.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/common/comm_conf_framework.cpp",
+   "basename": "comm_conf_framework.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/protocol/common/comm_conf_framework.cpp",
+    "./source/secagent/src/protocol/common/comm_conf_framework.cpp",
+    "./source/zergsvr/src/protocol/common/comm_conf_framework.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/common/comm_conf_svcid.cpp",
+   "basename": "comm_conf_svcid.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/protocol/common/comm_conf_svcid.cpp",
+    "./source/secagent/src/protocol/common/comm_conf_svcid.cpp",
+    "./source/zergsvr/src/protocol/common/comm_conf_svcid.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/common/comm_conf_zerg.cpp",
+   "basename": "comm_conf_zerg.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/protocol/common/comm_conf_zerg.cpp",
+    "./source/secagent/src/protocol/common/comm_conf_zerg.cpp",
+    "./source/zergsvr/src/protocol/common/comm_conf_zerg.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/common/TdrBufUtil.cpp",
+   "basename": "TdrBufUtil.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/protocol/common/TdrBufUtil.cpp",
+    "./source/secagent/src/protocol/common/TdrBufUtil.cpp",
+    "./source/zergsvr/src/protocol/common/TdrBufUtil.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/common/TdrIO.cpp",
+   "basename": "TdrIO.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/protocol/common/TdrIO.cpp",
+    "./source/secagent/src/protocol/common/TdrIO.cpp",
+    "./source/zergsvr/src/protocol/common/TdrIO.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/common/TdrParse.cpp",
+   "basename": "TdrParse.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/protocol/common/TdrParse.cpp",
+    "./source/secagent/src/protocol/common/TdrParse.cpp",
+    "./source/zergsvr/src/protocol/common/TdrParse.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/common/TdrTime.cpp",
+   "basename": "TdrTime.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/protocol/common/TdrTime.cpp",
+    "./source/secagent/src/protocol/common/TdrTime.cpp",
+    "./source/zergsvr/src/protocol/common/TdrTime.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/common/TdrTypeUtil.cpp",
+   "basename": "TdrTypeUtil.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/protocol/common/TdrTypeUtil.cpp",
+    "./source/secagent/src/protocol/common/TdrTypeUtil.cpp",
+    "./source/zergsvr/src/protocol/common/TdrTypeUtil.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/common/TdrXml.cpp",
+   "basename": "TdrXml.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/protocol/common/TdrXml.cpp",
+    "./source/secagent/src/protocol/common/TdrXml.cpp",
+    "./source/zergsvr/src/protocol/common/TdrXml.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/formmog/comm_proto_public_cfgsvr.cpp",
+   "basename": "comm_proto_public_cfgsvr.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/protocol/common/comm_proto_public_cfgsvr.cpp",
+    "./source/secagent/src/protocol/common/comm_proto_public_cfgsvr.cpp",
+    "./source/zergsvr/src/protocol/common/comm_proto_public_cfgsvr.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/formmog/comm_proto_public_logsvr.cpp",
+   "basename": "comm_proto_public_logsvr.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/gunnersvr/src/protocol/common/comm_proto_public_logsvr.cpp",
+    "./source/secagent/src/protocol/common/comm_proto_public_logsvr.cpp",
+    "./source/zergsvr/src/protocol/common/comm_proto_public_logsvr.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_proto_antibot_client.cpp",
+   "basename": "formmog_proto_antibot_client.cpp",
+   "candidate_count": 1,
+   "candidates": [
+    "./source/secagent/src/protocol/formmog/formmog_proto_antibot_client.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_proto_public_secsvr.cpp",
+   "basename": "formmog_proto_public_secsvr.cpp",
+   "candidate_count": 1,
+   "candidates": [
+    "./source/secagent/src/protocol/formmog/formmog_proto_public_secsvr.cpp"
+   ]
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_proto_public_tsssdk.cpp",
+   "basename": "formmog_proto_public_tsssdk.cpp",
+   "candidate_count": 1,
+   "candidates": [
+    "./source/secagent/src/protocol/formmog/formmog_proto_public_tsssdk.cpp"
+   ]
+  },
+  {
+   "cu": "src/rc2.cpp",
+   "basename": "rc2.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/rc2.cpp",
+    "./tencrypt_new/src/rc2.cpp"
+   ]
+  },
+  {
+   "cu": "src/rc4.cpp",
+   "basename": "rc4.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/rc4.cpp",
+    "./tencrypt_new/src/rc4.cpp"
+   ]
+  },
+  {
+   "cu": "src/rc5.cpp",
+   "basename": "rc5.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/rc5.cpp",
+    "./tencrypt_new/src/rc5.cpp"
+   ]
+  },
+  {
+   "cu": "src/rc6.cpp",
+   "basename": "rc6.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/rc6.cpp",
+    "./tencrypt_new/src/rc6.cpp"
+   ]
+  },
+  {
+   "cu": "src/rijndael.cpp",
+   "basename": "rijndael.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/rijndael.cpp",
+    "./tencrypt_new/src/rijndael.cpp"
+   ]
+  },
+  {
+   "cu": "src/ring.cpp",
+   "basename": "ring.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/ring.cpp",
+    "./tencrypt_new/src/ring.cpp"
+   ]
+  },
+  {
+   "cu": "src/ripemd128.cpp",
+   "basename": "ripemd128.cpp",
+   "candidate_count": 4,
+   "candidates": [
+    "./source/gunnersvr/src/ripemd128.cpp",
+    "./source/secagent/src/ripemd128.cpp",
+    "./source/zergsvr/src/ripemd128.cpp",
+    "./tencrypt_new/src/ripemd128.cpp"
+   ]
+  },
+  {
+   "cu": "src/ripemd160.cpp",
+   "basename": "ripemd160.cpp",
+   "candidate_count": 4,
+   "candidates": [
+    "./source/gunnersvr/src/ripemd160.cpp",
+    "./source/secagent/src/ripemd160.cpp",
+    "./source/zergsvr/src/ripemd160.cpp",
+    "./tencrypt_new/src/ripemd160.cpp"
+   ]
+  },
+  {
+   "cu": "src/safer.cpp",
+   "basename": "safer.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/safer.cpp",
+    "./tencrypt_new/src/safer.cpp"
+   ]
+  },
+  {
+   "cu": "src/seattos.cpp",
+   "basename": "seattos.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/seattos.cpp",
+    "./tencrypt_new/src/seattos.cpp"
+   ]
+  },
+  {
+   "cu": "src/sha1.cpp",
+   "basename": "sha1.cpp",
+   "candidate_count": 4,
+   "candidates": [
+    "./source/gunnersvr/src/sha1.cpp",
+    "./source/secagent/src/sha1.cpp",
+    "./source/zergsvr/src/sha1.cpp",
+    "./tencrypt_new/src/sha1.cpp"
+   ]
+  },
+  {
+   "cu": "src/shift.cpp",
+   "basename": "shift.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/shift.cpp",
+    "./tencrypt_new/src/shift.cpp"
+   ]
+  },
+  {
+   "cu": "src/square.cpp",
+   "basename": "square.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/square.cpp",
+    "./tencrypt_new/src/square.cpp"
+   ]
+  },
+  {
+   "cu": "src/subtracter.cpp",
+   "basename": "subtracter.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/subtracter.cpp",
+    "./tencrypt_new/src/subtracter.cpp"
+   ]
+  },
+  {
+   "cu": "src/tean.cpp",
+   "basename": "tean.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/tean.cpp",
+    "./tencrypt_new/src/tean.cpp"
+   ]
+  },
+  {
+   "cu": "src/TencBase.cpp",
+   "basename": "TencBase.cpp",
+   "candidate_count": 2,
+   "candidates": [
+    "./source/secagent/src/TencBase.cpp",
+    "./tencrypt_new/src/TencBase.cpp"
+   ]
+  },
+  {
+   "cu": "src/TenCrypt.cpp",
+   "basename": "TenCrypt.cpp",
+   "candidate_count": 1,
+   "candidates": [
+    "./source/secagent/src/TenCrypt.cpp"
+   ]
+  },
+  {
+   "cu": "src/TenHash.cpp",
+   "basename": "TenHash.cpp",
+   "candidate_count": 4,
+   "candidates": [
+    "./source/gunnersvr/src/TenHash.cpp",
+    "./source/secagent/src/TenHash.cpp",
+    "./source/zergsvr/src/TenHash.cpp",
+    "./tencrypt_new/src/TenHash.cpp"
+   ]
+  },
+  {
+   "cu": "src/twofish.cpp",
+   "basename": "twofish.cpp",
+   "candidate_count": 3,
+   "candidates": [
+    "./source/secagent/src/twofish.cpp",
+    "./tencrypt_new/src/twofish.cpp",
+    "./third_party/mysql-5.0.92/extra/yassl/taocrypt/src/twofish.cpp"
+   ]
+  }
+ ],
+ "without_candidates_cus": [
+  {
+   "cu": "src/commlib/framework/comm_buddy_alloc.cpp",
+   "basename": "comm_buddy_alloc.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/commlib/framework/comm_socket_channel.cpp",
+   "basename": "comm_socket_channel.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/commlib/framework/comm_socket_channel_base_handler.cpp",
+   "basename": "comm_socket_channel_base_handler.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/commlib/framework/comm_socket_channel_bus.cpp",
+   "basename": "comm_socket_channel_bus.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/commlib/framework/comm_socket_channel_info.cpp",
+   "basename": "comm_socket_channel_info.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/commlib/framework/comm_socket_channel_tcp_handler.cpp",
+   "basename": "comm_socket_channel_tcp_handler.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_base64.cpp",
+   "basename": "zen_base64.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_lock_file_lock.cpp",
+   "basename": "zen_lock_file_lock.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_lock_thread_rw_mutex.cpp",
+   "basename": "zen_lock_thread_rw_mutex.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_os_adapt_rwlock.cpp",
+   "basename": "zen_os_adapt_rwlock.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/commlib/zenlib/zen_thread_error_info.cpp",
+   "basename": "zen_thread_error_info.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/appcomm/app_bus_channel_id_mgr.cpp",
+   "basename": "app_bus_channel_id_mgr.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/adapter/antibotinterface.cpp",
+   "basename": "antibotinterface.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/busi_interf/anti/tss_sdk_anti_impl.cpp",
+   "basename": "tss_sdk_anti_impl.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/busi_interf/busi_impl/tss_sdk_busi_impl.cpp",
+   "basename": "tss_sdk_busi_impl.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/busi_interf/captcha/tss_sdk_captcha_impl.cpp",
+   "basename": "tss_sdk_captcha_impl.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/busi_interf/safemode/tss_sdk_safemode_impl.cpp",
+   "basename": "tss_sdk_safemode_impl.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/busi_interf/uic/tss_sdk_uic_impl.cpp",
+   "basename": "tss_sdk_uic_impl.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/framework/tss_sdk_comm_svc.cpp",
+   "basename": "tss_sdk_comm_svc.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/framework/tss_sdk_framework.cpp",
+   "basename": "tss_sdk_framework.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/framework/tss_sdk_pkg_packer.cpp",
+   "basename": "tss_sdk_pkg_packer.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/framework/tss_sdk_plugin.cpp",
+   "basename": "tss_sdk_plugin.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/framework/tss_sdk_plugin_mgr.cpp",
+   "basename": "tss_sdk_plugin_mgr.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/framework/tss_sdk_predefine.cpp",
+   "basename": "tss_sdk_predefine.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/framework/tss_sdk_time_handler.cpp",
+   "basename": "tss_sdk_time_handler.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/captcha/captcha_plugin.cpp",
+   "basename": "captcha_plugin.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/channel/channel_plugin.cpp",
+   "basename": "channel_plugin.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/channel/ipc_channel.cpp",
+   "basename": "ipc_channel.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/channel/uic_socket_tcp_handler.cpp",
+   "basename": "uic_socket_tcp_handler.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/data_trans/datatrans_plugin.cpp",
+   "basename": "datatrans_plugin.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_bill_adapter.cpp",
+   "basename": "dp_bill_adapter.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_bill_recorder.cpp",
+   "basename": "dp_bill_recorder.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_cf_extract_user_info.cpp",
+   "basename": "dp_cf_extract_user_info.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_cf_forward_room_master_msg.cpp",
+   "basename": "dp_cf_forward_room_master_msg.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_cf_record_user_info.cpp",
+   "basename": "dp_cf_record_user_info.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_cf_room_qtalk.cpp",
+   "basename": "dp_cf_room_qtalk.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_cmd_drop_hacker.cpp",
+   "basename": "dp_cmd_drop_hacker.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_code_mgr.cpp",
+   "basename": "dp_code_mgr.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_config.cpp",
+   "basename": "dp_config.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_delay_hacker.cpp",
+   "basename": "dp_delay_hacker.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_filter_foward_hacker.cpp",
+   "basename": "dp_filter_foward_hacker.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_forbid_mode_hacker.cpp",
+   "basename": "dp_forbid_mode_hacker.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_hack_mgr.cpp",
+   "basename": "dp_hack_mgr.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_mail_verify_hacker.cpp",
+   "basename": "dp_mail_verify_hacker.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_monitor_reporter.cpp",
+   "basename": "dp_monitor_reporter.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_msg_handler.cpp",
+   "basename": "dp_msg_handler.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_msg_packer.cpp",
+   "basename": "dp_msg_packer.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_pkg_delay_hacker.cpp",
+   "basename": "dp_pkg_delay_hacker.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_pkg_drop_hacker.cpp",
+   "basename": "dp_pkg_drop_hacker.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_pkg_dump_hacker.cpp",
+   "basename": "dp_pkg_dump_hacker.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_pkg_foward_hacker.cpp",
+   "basename": "dp_pkg_foward_hacker.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_property_trans_hacker.cpp",
+   "basename": "dp_property_trans_hacker.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_safe_mode_hacker.cpp",
+   "basename": "dp_safe_mode_hacker.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_uic_trans_hacker.cpp",
+   "basename": "dp_uic_trans_hacker.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dp_vmbase_engine.cpp",
+   "basename": "dp_vmbase_engine.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/dpinterface.cpp",
+   "basename": "dpinterface.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/proto_proc/proto_proc_plugin.cpp",
+   "basename": "proto_proc_plugin.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/safemode/safemode_plugin.cpp",
+   "basename": "safemode_plugin.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/uic/uic_plugin.cpp",
+   "basename": "uic_plugin.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/uic/uic_tdirty.cpp",
+   "basename": "uic_tdirty.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/uic/uic_user_input_info.cpp",
+   "basename": "uic_user_input_info.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/user_control/user_control_plugin.cpp",
+   "basename": "user_control_plugin.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/user_control/user_info.cpp",
+   "basename": "user_info.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/formmog/tss_sdk/plugins/user_control/user_mgr.cpp",
+   "basename": "user_mgr.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_conf_tsssdk_conf.cpp",
+   "basename": "formmog_conf_tsssdk_conf.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_conf_tsssdk_conf_path.cpp",
+   "basename": "formmog_conf_tsssdk_conf_path.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_conf_tsssdk_dp.cpp",
+   "basename": "formmog_conf_tsssdk_dp.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_proto_captcha_client.cpp",
+   "basename": "formmog_proto_captcha_client.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_proto_captcha_client_old.cpp",
+   "basename": "formmog_proto_captcha_client_old.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_proto_public_latransadapt.cpp",
+   "basename": "formmog_proto_public_latransadapt.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_proto_public_safemodetransadapt.cpp",
+   "basename": "formmog_proto_public_safemodetransadapt.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_proto_public_uictransadapt.cpp",
+   "basename": "formmog_proto_public_uictransadapt.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_proto_tss_sdk_client.cpp",
+   "basename": "formmog_proto_tss_sdk_client.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_proto_tss_sdk_qt.cpp",
+   "basename": "formmog_proto_tss_sdk_qt.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/protocol/formmog/formmog_proto_tss_sdk_uic.cpp",
+   "basename": "formmog_proto_tss_sdk_uic.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/VMCore/codeengine.cpp",
+   "basename": "codeengine.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/VMCore/CommonProc.cpp",
+   "basename": "CommonProc.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/VMCore/cryptdata.cpp",
+   "basename": "cryptdata.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/VMCore/ServerCryptCodeMgr.cpp",
+   "basename": "ServerCryptCodeMgr.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/VMCore/UPVM.cpp",
+   "basename": "UPVM.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "src/VMCore/VM.cpp",
+   "basename": "VM.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "tdirty/api/CharacterMap.cpp",
+   "basename": "CharacterMap.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "tdirty/api/OIDirty.cpp",
+   "basename": "OIDirty.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "tdirty/api/OIDirtyInterface.cpp",
+   "basename": "OIDirtyInterface.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  },
+  {
+   "cu": "tdirty/api/tdirtyapi.cpp",
+   "basename": "tdirtyapi.cpp",
+   "candidate_count": 0,
+   "candidates": []
+  }
+ ]
+}

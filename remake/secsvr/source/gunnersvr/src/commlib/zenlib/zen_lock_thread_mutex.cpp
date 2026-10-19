@@ -7,6 +7,7 @@
 // Recursive::systime_lock 超时也记日志后返回 false。
 #include "src/commlib/zenlib/zen_lock_thread_mutex.h"
 
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 #include <errno.h>
 #include <sys/time.h>
 

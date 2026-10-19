@@ -62,15 +62,16 @@ private:
 
 char *strip(char *str, char *prefix);
 
-// Layout confirmed from gunnersvr disassembly:
+// Layout confirmed from ORIG DWARF (CU comm_bill_record.cpp / antibotinterface.cpp;
+// the ORIG member spelling is _format/_isSimple/_indentLvl, the vendor tree
+// keeps its historical format_/_indentPending/_indentLen names - same bytes):
 //   +0x00 TdrOutStream _out   (fp_/data_/pos_/limit_/allocated_/error_, sizeof 0x18)
 //   +0x18 TdrXmlFormat format_
 //   +0x1c TdrError::ErrorType _state
 //   +0x20 bool _isPartial
 //   +0x21 bool _indentPending
 //   +0x24 unsigned int _indentLen
-//   +0x28 char _indentStr[32]
-//   +0x48 bool _reserved
+//   +0x28 char _indentStr[33]
 //   sizeof = 0x4c
 class TdrXmlWriter {
 public:
@@ -103,8 +104,7 @@ public:
     bool _isPartial;
     bool _indentPending;
     unsigned int _indentLen;
-    char _indentStr[32];
-    bool _reserved;
+    char _indentStr[33];
 };
 
 } // namespace tsf4g_tdr

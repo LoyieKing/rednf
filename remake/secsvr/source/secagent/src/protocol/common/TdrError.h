@@ -4,6 +4,8 @@
 #ifndef SECSVR_SRC_PROTOCOL_COMMON_TDRERROR_H_H_
 #define SECSVR_SRC_PROTOCOL_COMMON_TDRERROR_H_H_
 
+#ifndef TSF4G_TDR_TDRERROR_DECLARED
+#define TSF4G_TDR_TDRERROR_DECLARED
 namespace tsf4g_tdr {
     namespace TdrError {
         enum ErrorType {
@@ -41,5 +43,6 @@ namespace tsf4g_tdr {
         };
     } // namespace TdrError
 } // namespace tsf4g_tdr
+#endif  // TSF4G_TDR_TDRERROR_DECLARED
 
 #endif // SECSVR_SRC_PROTOCOL_COMMON_TDRERROR_H_H_

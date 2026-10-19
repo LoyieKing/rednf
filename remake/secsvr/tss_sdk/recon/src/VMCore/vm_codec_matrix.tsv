@@ -1,0 +1,35 @@
+# vm_codec size matrix: reconstructed vs libtss_sdk.so.1.0.394
+# sizes: ORIG = DWARF DW_AT_high_pc - DW_AT_low_pc; recon = nm -S on the c5build object (vendor GCC 4.1.2, -O2 -fPIC -m32)
+# status OK = recon/orig within +-15%; DELTA-EXPLAINED = outside, cause measured and stated in the note
+cu	symbol	mangled	orig_addr	orig_size	recon_size	ratio	status	note
+CommonProc.cpp	rol(unsigned char*, int)	_Z3rolPhi	0x193190	71	71	1.000	OK	
+CommonProc.cpp	ror(unsigned char*, int)	_Z3rorPhi	0x1931e0	76	76	1.000	OK	
+CommonProc.cpp	xora(unsigned char*, int, unsigned int)	_Z4xoraPhij	0x193230	59	59	1.000	OK	
+CommonProc.cpp	anda(unsigned char*, int, unsigned int)	_Z4andaPhij	0x193270	59	59	1.000	OK	
+CommonProc.cpp	ora(unsigned char*, int, unsigned int)	_Z3oraPhij	0x1932b0	59	59	1.000	OK	
+CommonProc.cpp	nota(unsigned char*, int)	_Z4notaPhi	0x1932f0	31	31	1.000	OK	
+CommonProc.cpp	GetLinkData(tagKEYLINKNODE*, int)	_Z11GetLinkDataP14tagKEYLINKNODEi	0x193310	49	53	1.082	OK	
+CommonProc.cpp	GetTreeData(tagKEYTREENODE*, unsigned int&)	_Z11GetTreeDataP14tagKEYTREENODERj	0x193350	135	124	0.919	OK	
+CommonProc.cpp	GetMatrixData(unsigned int**, int, int, int)	_Z13GetMatrixDataPPjiii	0x1933e0	62	69	1.113	OK	
+CommonProc.cpp	GenKey(int, unsigned int, unsigned char*&)	_Z6GenKeyijRPh	0x193420	157	157	1.000	OK	
+CommonProc.cpp	Cipher(int, unsigned char*, unsigned int, unsigned int, bool)	_Z6CipheriPhjjb	0x1934c0	826	906	1.097	OK	
+CommonProc.cpp	CallDecrypt(int, unsigned char*, unsigned int, unsigned char*, unsigned int, bool)	_Z11CallDecryptiPhjS_jb	0x193800	689	731	1.061	OK	
+CommonProc.cpp	UninitKeyMatrix(unsigned int**, int)	_Z15UninitKeyMatrixPPji	0x193ac0	75	75	1.000	OK	
+CommonProc.cpp	InitKeyMatrix(unsigned int*, int, int)	_Z13InitKeyMatrixPjii	0x193b10	204	204	1.000	OK	
+CommonProc.cpp	UninitKeyTree(tagKEYTREENODE*)	_Z13UninitKeyTreeP14tagKEYTREENODE	0x193be0	104	104	1.000	OK	
+CommonProc.cpp	UninitKeyLink(tagKEYLINKNODE*)	_Z13UninitKeyLinkP14tagKEYLINKNODE	0x193c50	60	60	1.000	OK	
+CommonProc.cpp	InitKeyTree(unsigned int*, int, int&)	_Z11InitKeyTreePjiRi	0x193c90	363	365	1.006	OK	
+CommonProc.cpp	InitKeyLink(unsigned int*, int)	_Z11InitKeyLinkPji	0x193e00	194	187	0.964	OK	
+codeengine.cpp	EncodeChar(char**, unsigned char)	_Z10EncodeCharPPch	0x196fe0	36	36	1.000	OK	
+codeengine.cpp	DecodeChar(char**, unsigned char*)	_Z10DecodeCharPPcPh	0x197010	42	42	1.000	OK	
+codeengine.cpp	DecodeMemInt(char**, char*, int)	_Z12DecodeMemIntPPcS_i	0x197040	97	90	0.928	OK	
+codeengine.cpp	EncodeMemInt(char**, char*, int)	_Z12EncodeMemIntPPcS_i	0x1970b0	97	90	0.928	OK	
+codeengine.cpp	DecodeMem(char**, char*, short)	_Z9DecodeMemPPcS_s	0x197120	95	100	1.053	OK	
+codeengine.cpp	EncodeMem(char**, char*, short)	_Z9EncodeMemPPcS_s	0x197180	95	100	1.053	OK	
+codeengine.cpp	DecodeString(char**, char*, short)	_Z12DecodeStringPPcS_s	0x1971e0	148	140	0.946	OK	
+codeengine.cpp	DecodeInt(char**, unsigned int*)	_Z9DecodeIntPPcPj	0x197280	58	69	1.190	DELTA-EXPLAINED	ORIG folds the 32-bit byte reversal into ror $8,%ax / ror $0x10,%eax / ror $8,%ax (11 bytes); this GCC 4.1.2 build emits the same function as shr/rol/rol/shl/movzwl/or (21 bytes). Same behaviour (oracle-tested).
+codeengine.cpp	EncodeInt(char**, unsigned int)	_Z9EncodeIntPPcj	0x1972c0	56	61	1.089	OK	
+codeengine.cpp	DecodeShort(char**, unsigned short*)	_Z11DecodeShortPPcPt	0x197300	54	53	0.981	OK	
+codeengine.cpp	EncodeShort(char**, unsigned short)	_Z11EncodeShortPPct	0x197340	52	43	0.827	DELTA-EXPLAINED	ORIG spills usTemp to its frame (mov %dx,-0x2(%ebp)) inside a 16-byte frame; this build keeps it in a register, so the body is 9 bytes smaller. Same behaviour (oracle-tested).
+codeengine.cpp	EncodeString(char**, char*, short)	_Z12EncodeStringPPcS_s	0x197380	157	164	1.045	OK	
+# rows=30 within_15pct=28 delta_explained=2

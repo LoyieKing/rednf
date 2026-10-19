@@ -1,0 +1,52 @@
+cu	symbol	orig_size	new_size	ratio	status
+comm_buddy_alloc.cpp	BuddyBitSet::BuddyBitSet(unsigned int)	26	26	1.000	identical
+comm_buddy_alloc.cpp	BuddyBitSet::BuddyBitSet(unsigned int)	26	26	1.000	identical
+comm_buddy_alloc.cpp	BuddyBitSet::is_need_merge(unsigned int)	35	35	1.000	identical
+comm_buddy_alloc.cpp	BuddyBitSet::reset(unsigned int)	34	34	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::put_desc_obj_to_pool(BuddyBufDesc*)	66	68	1.030	ok
+comm_buddy_alloc.cpp	__static_initialization_and_destruction_0(int, int)	92	92	1.000	identical
+comm_buddy_alloc.cpp	global constructors keyed to BuddyBitSet::BuddyBitSet(unsigned int)	16	16	1.000	identical
+comm_buddy_alloc.cpp	__tcf_0	38	38	1.000	identical
+comm_buddy_alloc.cpp	MultiBuddyAlloc::print_info()	543	543	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::print_info()	320	320	1.000	identical
+comm_buddy_alloc.cpp	BuddyBitSet::~BuddyBitSet()	56	56	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::fini_bitset()	84	84	1.000	identical
+comm_buddy_alloc.cpp	BuddyBitSet::~BuddyBitSet()	56	56	1.000	identical
+comm_buddy_alloc.cpp	MultiBuddyAlloc::count_total_size(unsigned int, int, unsigned int*)	223	251	1.126	ok
+comm_buddy_alloc.cpp	BuddyAlloc::get_block_index_by_order(BuddyBufDesc*)	176	183	1.040	ok
+comm_buddy_alloc.cpp	BuddyAlloc::del_desc_from_free_list_array(BuddyBufDesc*)	116	116	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::insert_desc_to_free_list_array(BuddyBufDesc*)	129	132	1.023	ok
+comm_buddy_alloc.cpp	BuddyAlloc::get_power_by_order(int, unsigned int*)	92	92	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::init_find_array()	90	90	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::get_next_order_and_power(unsigned int, int*, unsigned int*)	259	241	0.931	ok
+comm_buddy_alloc.cpp	BuddyAlloc::count_total_size(unsigned int, unsigned int, int*, unsigned int*)	155	155	1.000	identical
+comm_buddy_alloc.cpp	BuddyBitSet::reverse(unsigned int)	128	128	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::modify_bitset(BuddyBufDesc*)	64	64	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::init_buffer()	90	90	1.000	identical
+comm_buddy_alloc.cpp	BuddyBitSet::init()	111	111	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::init_bitset()	333	330	0.991	ok
+comm_buddy_alloc.cpp	BuddyAlloc::fini_desc_pool()	110	110	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::fini()	80	80	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::init_desc_pool()	197	192	0.975	ok
+comm_buddy_alloc.cpp	BuddyAlloc::get_desc_obj_from_pool()	242	242	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::get_ptr_desc(void*)	128	128	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::find_buddy(BuddyBufDesc*)	131	131	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::init_free_list_array()	154	156	1.013	ok
+comm_buddy_alloc.cpp	BuddyAlloc::init_buddy_on_buffer(unsigned int, unsigned int, unsigned char*, unsigned int, unsigned int*, bool)	365	365	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::init(unsigned int*, unsigned int, bool)	386	386	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::merge(BuddyBufDesc*, int*)	517	510	0.986	ok
+comm_buddy_alloc.cpp	BuddyAlloc::free(void*)	326	326	1.000	identical
+comm_buddy_alloc.cpp	MultiBuddyAlloc::free(void*)	324	324	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::split(int, int)	462	444	0.961	ok
+comm_buddy_alloc.cpp	BuddyAlloc::alloc(unsigned int)	723	633	0.876	ok
+comm_buddy_alloc.cpp	BuddyAlloc::~BuddyAlloc()	62	62	1.000	identical
+comm_buddy_alloc.cpp	MultiBuddyAlloc::fini()	133	133	1.000	identical
+comm_buddy_alloc.cpp	MultiBuddyAlloc::alloc(unsigned int)	597	589	0.987	ok
+comm_buddy_alloc.cpp	BuddyAlloc::~BuddyAlloc()	62	62	1.000	identical
+comm_buddy_alloc.cpp	MultiBuddyAlloc::~MultiBuddyAlloc()	102	102	1.000	identical
+comm_buddy_alloc.cpp	BuddyAlloc::BuddyAlloc()	341	330	0.968	ok
+comm_buddy_alloc.cpp	MultiBuddyAlloc::init(unsigned int*, int, bool)	649	643	0.991	ok
+comm_buddy_alloc.cpp	BuddyAlloc::BuddyAlloc()	341	330	0.968	ok
+comm_buddy_alloc.cpp	MultiBuddyAlloc::MultiBuddyAlloc()	487	459	0.943	ok
+comm_buddy_alloc.cpp	MultiBuddyAlloc::~MultiBuddyAlloc()	102	102	1.000	identical
+comm_buddy_alloc.cpp	MultiBuddyAlloc::MultiBuddyAlloc()	487	459	0.943	ok

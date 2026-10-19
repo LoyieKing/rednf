@@ -12,7 +12,10 @@
 #include <sys/stat.h>
 
 #include "src/commlib/zenlib/zen_bus_mmap_pipe.h"
-
+// The 24-byte ZEN_LIB::shm_dequechunk (base _shm_memory_base + five members)
+// comes from its owning header.  A TU-local declaration-only model here
+// registered a 1-byte ODR variant of the class (see audit/report/remaining.md).
+#include "src/commlib/zenlib/zen_shm_lockfree_deque.h"
 // ---------------------------------------------------------------------------
 // 外部依赖：只声明、不定义；链接时由 zen_os_adapt_file / zen_os_adapt_shm /
 // zen_shm_lockfree_deque 提供同名符号（mangled 名与二进制一致）。
@@ -24,29 +27,6 @@ int shm_stat(char *shm_name, struct stat *buf);          // _ZN6ZEN_OS8shm_statE
 int shm_unlink(const char *shm_name);                    // _ZN6ZEN_OS10shm_unlinkEPKc
 }
 
-namespace ZEN_LIB {
-struct dequechunk_node {
-    unsigned int size_of_node_;
-    char chunkdata[];
-};
-
-struct shm_dequechunk {
-    static size_t getallocsize(unsigned int size_of_pipe); // _ZN7ZEN_LIB14shm_dequechunk12getallocsizeEj
-    static shm_dequechunk *initialize(unsigned int size_of_pipe,
-                                      unsigned int max_frame_len,
-                                      char *pt_pipe,
-                                      bool if_restore,
-                                      bool if_check_pthread); // _ZN7ZEN_LIB14shm_dequechunk10initializeEjjPcbb
-    bool push_end(const dequechunk_node *node);               // _ZN7ZEN_LIB14shm_dequechunk8push_endEPKNS_15dequechunk_nodeE
-    int pop_front(dequechunk_node *node);                     // _ZN7ZEN_LIB14shm_dequechunk9pop_frontEPNS_15dequechunk_nodeE
-    int read_front_new(dequechunk_node *&node);               // _ZN7ZEN_LIB14shm_dequechunk14read_front_newERPNS_15dequechunk_nodeE
-    int discard_frond();                                      // _ZN7ZEN_LIB14shm_dequechunk13discard_frondEv
-    size_t freesize();                                        // _ZN7ZEN_LIB14shm_dequechunk8freesizeEv
-    bool empty();                                             // _ZN7ZEN_LIB14shm_dequechunk5emptyEv
-    bool full();                                              // _ZN7ZEN_LIB14shm_dequechunk4fullEv
-    ~shm_dequechunk(); // _ZN7ZEN_LIB14shm_dequechunkD1Ev
-};
-}
 
 // 真实符号为 debug_errorex(char const*, ...)（mangled 带 'z'）；
 // DWARF 桩头把省略号丢了，这里用 asm label 直接绑定到原符号。

@@ -32,6 +32,19 @@ void add2(unsigned char *arg0, unsigned char *arg1, int arg2); // line 29
 void rot(unsigned char *arg0, int arg1, int arg2); // line 30
 void perm(unsigned char *arg0, const unsigned char *arg1, unsigned char *arg2, int arg3); // line 31
 void pkbit(unsigned char *arg0, unsigned char *arg1, int arg2); // line 32
+public:
+    /* ORIG 静态数据成员（inc/des2p.h；ELF 符号 _ZN6CDes2p12FUCKING_P2_*E）。
+       ORIG 把它们声明在 private 段；这里放 public 只是让 emission TU 的字节
+       转储能读它们，访问权限不参与类布局；尺寸断言在
+       emission/crypto_static_data.cpp。 */
+    static const unsigned char FUCKING_P2_LS[16];
+    static const unsigned char FUCKING_P2_PC1[64];
+    static const unsigned char FUCKING_P2_PC2[48];
+    static const unsigned char FUCKING_P2_IP[64];
+    static const unsigned char FUCKING_P2_E[48];
+    static const unsigned char FUCKING_P2_ST[8][64];
+    static const unsigned char FUCKING_P2_P[32];
+    static const unsigned char FUCKING_P2_FP[64];
 };
 
 #endif // SECSVR_INC_DES2P_H_H_

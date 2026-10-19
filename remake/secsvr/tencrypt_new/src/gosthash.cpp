@@ -5,43 +5,49 @@
 
 #include <string.h>
 
+/* ORIG 0x1db730：4 个 256 项 S 盒表是 .rodata 常量
+   CGostHash::InitBoxData()::C.0/C.2/C.4/C.6
+   @0x258b80/0x258780/0x258380/0x257f80（各 1024 字节）；每个 m_psbox_N
+   为空时按 ORIG 的 0x410 字节分配后整表拷入。表字节取自 ORIG 镜像
+   （gosthash_sbox{1..4}.inc）。最后一行的 asm 标注把这三个常量的 ELF 名
+   固定成 ORIG 的名字：GCC 自己只会把它编号成 C.0/C.1/C.2/C.3。 */
 void CGostHash::InitBoxData() {
-    int a, b, i;
-    unsigned int ax, bx, cx, dx;
-    unsigned int gost_sbox_1[256];
-    unsigned int gost_sbox_2[256];
-    unsigned int gost_sbox_3[256];
-    unsigned int gost_sbox_4[256];
-
-    /* 标准 8x16 4-bit S-Boxes（D-TEST，GOST R 34.11-94） */
-    unsigned int sbox[8][16] = {
-        { 4, 10,  9,  2, 13,  8,  0, 14,  6, 11,  1, 12,  7, 15,  5,  3 },
-        { 14, 11,  4, 12,  6, 13, 15, 10,  2,  3,  8,  1,  0,  7,  5,  9 },
-        { 5,  8,  1, 13, 10,  3,  4,  2, 14, 15, 12,  7,  6,  0,  9, 11 },
-        { 7, 13, 10,  1,  0,  8,  9, 15, 14,  4,  6, 12, 11,  2,  5,  3 },
-        { 6, 12,  7,  1,  5, 15, 13,  8,  4, 10,  9, 14,  0,  3, 11,  2 },
-        { 4, 11, 10,  0,  7,  2,  1, 13,  3,  6,  8,  5,  9, 12, 15, 14 },
-        { 13, 11,  4,  1,  3, 15,  5,  9,  0, 10, 14,  7,  6,  8,  2, 12 },
-        { 1, 15, 13,  0,  5,  7, 10,  4,  9,  2,  3, 14,  6, 11,  8, 12 }
+    static const unsigned int gost_sbox_1[256]
+        __asm__("_ZZN9CGostHash11InitBoxDataEvE3C.0") = {
+#include "gosthash_sbox1.inc"
+    };
+    static const unsigned int gost_sbox_2[256]
+        __asm__("_ZZN9CGostHash11InitBoxDataEvE3C.2") = {
+#include "gosthash_sbox2.inc"
+    };
+    static const unsigned int gost_sbox_3[256]
+        __asm__("_ZZN9CGostHash11InitBoxDataEvE3C.4") = {
+#include "gosthash_sbox3.inc"
+    };
+    static const unsigned int gost_sbox_4[256]
+        __asm__("_ZZN9CGostHash11InitBoxDataEvE3C.6") = {
+#include "gosthash_sbox4.inc"
     };
 
-    i = 0;
-    for (a = 0; a < 16; a++) {
-        ax = sbox[1][a] << 15;
-        bx = sbox[3][a] << 23;
-        cx = sbox[5][a];
-        cx = (cx >> 1) | (cx << 31);
-        dx = sbox[7][a] << 7;
-        for (b = 0; b < 16; b++) {
-            gost_sbox_1[i] = ax | (sbox[0][b] << 11);
-            gost_sbox_2[i] = bx | (sbox[2][b] << 19);
-            gost_sbox_3[i] = cx | (sbox[4][b] << 27);
-            gost_sbox_4[i++] = dx | (sbox[6][b] << 3);
-        }
+    if (!m_psbox_1) {
+        m_psbox_1 = new unsigned int[0x104];
+        memset(m_psbox_1, 0, 0x410);
     }
     memcpy(m_psbox_1, gost_sbox_1, sizeof(gost_sbox_1));
+    if (!m_psbox_2) {
+        m_psbox_2 = new unsigned int[0x104];
+        memset(m_psbox_2, 0, 0x410);
+    }
     memcpy(m_psbox_2, gost_sbox_2, sizeof(gost_sbox_2));
+    if (!m_psbox_3) {
+        m_psbox_3 = new unsigned int[0x104];
+        memset(m_psbox_3, 0, 0x410);
+    }
     memcpy(m_psbox_3, gost_sbox_3, sizeof(gost_sbox_3));
+    if (!m_psbox_4) {
+        m_psbox_4 = new unsigned int[0x104];
+        memset(m_psbox_4, 0, 0x410);
+    }
     memcpy(m_psbox_4, gost_sbox_4, sizeof(gost_sbox_4));
 }
 

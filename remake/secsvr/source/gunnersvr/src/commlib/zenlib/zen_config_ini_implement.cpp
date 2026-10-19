@@ -6,6 +6,7 @@
 #include "src/commlib/zenlib/zen_config_ini_implement.h"
 #include "src/commlib/zenlib/zen_config_property_tree.h"
 #include "src/commlib/zenlib/zen_boost_non_copyable.h"
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 #include <cstring>
 #include <fstream>
 #include <string>

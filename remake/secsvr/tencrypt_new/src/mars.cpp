@@ -291,6 +291,13 @@ void CMars::Mars(unsigned char *key, bool benc, unsigned char *buf,
         else
             mars_dec(buf + 16 * i, buf + 16 * i);
     }
+
+    // ORIG 0x001f03d2..0x001f0402: the remainder is processed by the
+    // shared TsLocal layer (ITsLocal vtable slot +0xc = Seattos), exactly as
+    // in the other block ciphers.  Omitting this leaves the final
+    // buflen & 15 bytes as ciphertext and breaks the CRC/decrypt consumer.
+    CreateTsLocal()->Seattos(key, benc, buf + blocks * 16,
+                             buflen - blocks * 16);
 }
 
 // mangled: _Z7TenMarsPhbS_j

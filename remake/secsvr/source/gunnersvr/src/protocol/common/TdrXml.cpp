@@ -232,7 +232,6 @@ TdrXmlWriter::TdrXmlWriter(FILE *fp, TdrXmlFormat format) : _out(fp) {
     _indentPending = false;
     _indentLen = 0;
     _indentStr[0] = '\0';
-    _reserved = false;
 }
 
 // line 210
@@ -248,7 +247,6 @@ TdrXmlWriter::TdrXmlWriter(char *buf, unsigned int size, TdrXmlFormat format) : 
     _indentPending = false;
     _indentLen = 0;
     _indentStr[0] = '\0';
-    _reserved = false;
 }
 
 // line 220

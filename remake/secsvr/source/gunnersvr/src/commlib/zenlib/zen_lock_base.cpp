@@ -4,6 +4,7 @@
 //   try_lock/systime_lock/duration_lock/timed_lock_* 等返回 true；
 //   仅 duration_wait 返回 false。
 #include "src/commlib/zenlib/zen_lock_base.h"
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 
 ZEN_Lock_Base::ZEN_Lock_Base(const char *) {}
 ZEN_Lock_Base::~ZEN_Lock_Base() {}

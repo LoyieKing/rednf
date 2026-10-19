@@ -68,12 +68,11 @@ public:
     ~ZEN_STATUS_ITEM(); // line 114
 };
 
-// sizeof = 92（item_name_ 64 字节 + 0x58 结束符 + 对齐填充）
+// sizeof = 92（ORIG DWARF: item_name_[65] @0x18; item_name_[64] 为结尾 NUL）
 struct ZEN_STATUS_ITEM_WITHNAME { // line 132
 public:
     ZEN_STATUS_ITEM statics_item_;      // 0x00 (24)
-    char item_name_[64];                // 0x18
-    char item_name_end_;                // 0x58
+    char item_name_[65];                // 0x18
     ZEN_STATUS_ITEM_WITHNAME(unsigned int arg0, ZEN_STATUS_STATICS_TYPE arg1, const char *arg2); // line 138
     ZEN_STATUS_ITEM_WITHNAME(); // line 139
     ~ZEN_STATUS_ITEM_WITHNAME(); // line 140

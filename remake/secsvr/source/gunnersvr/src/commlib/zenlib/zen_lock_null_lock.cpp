@@ -1,6 +1,7 @@
 // 还原自 gunnersvr 二进制（zen_lock_null_lock.cpp，GCC 4.1.0 SUSE -O2，2026-08-10）
 // 空锁/空条件变量：所有锁操作 no-op，查询类返回 true，duration_wait 返回 false。
 #include "src/commlib/zenlib/zen_lock_null_lock.h"
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 
 ZEN_Null_Mutex::ZEN_Null_Mutex(const char *) : ZEN_Lock_Base(0), lock_(0) {}
 ZEN_Null_Mutex::~ZEN_Null_Mutex() {}

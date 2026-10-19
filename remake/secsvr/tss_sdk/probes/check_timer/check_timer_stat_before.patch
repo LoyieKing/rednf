@@ -1,0 +1,11 @@
+--- dp_msg_handler_recv_agent.cpp
++++ dp_msg_handler_recv_agent.cpp
+@@ -526,7 +526,7 @@
+     int fix_decrypt_mismatch =
+         (int)user->user_stat_.game_fix_decrypt_count_ +
+         (int)user->user_stat_.internal_fix_decrypt_count_ -
+-        (int)cmd.fix_encrypt_count_;
++        (int)cmd.game_dynamic_decrypt_count_;
+ 
+     if (fix_encrypt_mismatch > 2 || fix_decrypt_mismatch > 2) {
+         DPBillAdapter bill("fix encrypt mismatch", 0x29, user);

@@ -73,6 +73,7 @@ protected:
     void deque_lock(); // line 135 (declared only)
     void deque_unlock(); // line 137 (declared only)
     shm_dequechunk(); // line 142
+public:
     ~shm_dequechunk(); // line 144
 
 public:

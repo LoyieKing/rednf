@@ -7,6 +7,7 @@
 //    used = cachedram+freeram+bufferram；ratio = (totalram - used) * 1000 / totalram（无符号 64 位）。
 //  - fmt3 中展示的 cpu 比值为 10.0f / ratio（原版如此，保留）。
 
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>

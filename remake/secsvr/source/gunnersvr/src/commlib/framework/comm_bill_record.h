@@ -138,6 +138,11 @@ protected:
     }
 };
 
+// Layout contract (ORIG tag-394 DWARF, CU comm_bill_record.cpp): sizeof == 5984.
+// A negative bound fails the build on drift.
+typedef char comm_bill_record_size_must_be_5984[
+    sizeof(CommBillRecord) == 5984 ? 1 : -1];
+
 extern CommBillRecord g_bill; // line 251
 extern CommBillRecord g_stat; // line 253
 extern const size_t LEN_OF_LOGGER_COMMENT_INFO; // line 165

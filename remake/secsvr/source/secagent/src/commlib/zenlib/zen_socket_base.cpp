@@ -3,6 +3,7 @@
 
 #include "zen_socket_base.h"
 
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 #include <errno.h>
 #include <stddef.h>
 #include <sys/socket.h>

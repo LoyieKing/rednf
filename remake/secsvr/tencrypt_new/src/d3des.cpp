@@ -6,7 +6,9 @@
      deskey(key,0)；dec 时密钥顺序相反（key+16 先）
    - Ddes = desfunc(KnL/KnR/Kn3) 三次（16 字节密钥的 3DES）
    - D3des161=des2key+Ddes(8字节块)、D3des162=des2key+D2des(16字节块)、
-     D3des24=des3key+D3des(24字节块)；余数交 TsLocal->Seattos
+     D3des24=des3key+D3des(24字节块)；D3des161 余数交
+     ProcessLastBytes(key,benc,buflen,0x10,buf)（ORIG 0x1c466f），
+     D3des162/24 余数交 TsLocal->Seattos（ORIG vtable +0xc）。
    验证：uni_call 调二进制 deskey/Ddes/D2des/D3des/包装层逐字节一致。 */
 
 #include "inc/d3des.h"
@@ -501,8 +503,10 @@ void CD3des::D3des161(unsigned char *key, bool benc, unsigned char *buf,
     blocks = buflen >> 3;
     for (i = 0; i < blocks; i++)
         Ddes(buf + 8 * i, buf + 8 * i);
-    CreateTsLocal()->Seattos(key, benc, buf + blocks * 8,
-                             buflen - blocks * 8);
+    // ORIG CD3des::D3des161 tail 0x001c466f..0x001c469e:
+    // ProcessLastBytes(key, benc, buflen, 0x10, buf).  D3des162/24 use
+    // Seattos (vtable +0xc); 161 is the odd one out.
+    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 0x10, buf);
 }
 
 // mangled: _ZN6CD3des8D3des162EPhbS0_j

@@ -1,0 +1,18 @@
+{
+  "probe": "probes/check_timer/build_and_run.sh",
+  "oracle": "reference/libtss_sdk.so.1.0.394.orig",
+  "oracle_sha256": "8f6263dae6fcd1eb19baece6f7c9408d2161abd1a05bd492d398d5cb7783d2a7",
+  "result": "PASS",
+  "cases": 24,
+  "checks": 272,
+  "failures": 0,
+  "negative_before_cases": 16,
+  "elapsed_boundaries": [199, 200, 201],
+  "switch_combinations": 8,
+  "fixed_config_wire": "0008001400 + three switch bytes",
+  "old_config_wire": "0014000800",
+  "fixed_config_bytes": 8,
+  "old_config_bytes": 5,
+  "scope": "Real original and rebuilt check_timer; output hook calls original DPInterData::pack. Encryption/network tail not covered.",
+  "server_deployment": "not_performed"
+}

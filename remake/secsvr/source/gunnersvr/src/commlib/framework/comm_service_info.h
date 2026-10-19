@@ -4,6 +4,8 @@
 #ifndef SECSVR_SRC_COMMLIB_FRAMEWORK_COMM_SERVICE_INFO_H_H_
 #define SECSVR_SRC_COMMLIB_FRAMEWORK_COMM_SERVICE_INFO_H_H_
 
+#ifndef TSS_RECON_SERVICES_ID_DECLARED
+#define TSS_RECON_SERVICES_ID_DECLARED
 #pragma pack(push, 1)
 struct SERVICES_ID { // line 13
 public:
@@ -24,6 +26,7 @@ bool operator!=(const SERVICES_ID &others) const; // line 54
 bool operator<(const SERVICES_ID &others) const; // line 56
 };
 #pragma pack(pop)
+#endif  // TSS_RECON_SERVICES_ID_DECLARED
 
 // sizeof = 60
 struct SERVICES_IP_INFO { // line 68

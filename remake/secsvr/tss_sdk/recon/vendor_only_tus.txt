@@ -1,0 +1,5 @@
+# TUs that must be compiled with the vendor toolchain (GCC 4.1.2) because the
+# ORIG emits weak out-of-line copies of their inline members (the host GCC in
+# link_check.sh drops them).  Paths are relative to recon/.
+src/VMCore/tencrypt_ts_local.cpp
+src/VMCore/ts_local_imp.cpp

@@ -1,6 +1,7 @@
 // Restored from gunnersvr binary (DWARF + objdump), 语义与 gunnersvr 一致。
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_bus_two_way.cpp
 
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 #include <stddef.h>
 #include <stdint.h>
 

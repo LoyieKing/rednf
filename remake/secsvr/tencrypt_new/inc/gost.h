@@ -22,6 +22,10 @@ private:
     void encry_data(unsigned int *arg0, unsigned int *arg1, unsigned int *arg2);
     void gost_swap(unsigned int *arg0, unsigned int *arg1);
     unsigned int f(unsigned int arg0);
+public:
+    /* ORIG 静态数据成员（inc/gost.h；符号 _ZN5CGost*FUCKING_WZ_SP*E）。 */
+    static const unsigned int FUCKING_WZ_SPKEY[32];
+    static const unsigned char FUCKING_WZ_SP[8][16];
 };
 
 #endif /* TENCRYPT_INC_GOST_H_ */

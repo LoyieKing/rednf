@@ -5,7 +5,7 @@
    Encrypt/Decrypt(SBlock)：标准 16 轮；BytesToBlock/BlockToBytes 大端。
    Encrypt(in,out,len,flag)：flag0=ECB；flag1=CBC（m_oChain 链）；len%8!=0 返回。
    BlowFish8/16/24/32/56：分别 8/16/24/32/56 字节密钥 + 8 字节块 ECB +
-   TsLocal->ProcessLastBytes(块大小 0x10) 余数。
+   TsLocal->ProcessLastBytes(原始缓冲区、对应密钥长度) 处理余数。
    验证：uni_call 调二进制 BlowFish/Encrypt/Decrypt 逐字节一致。 */
 
 #include "inc/blowfish.h"
@@ -279,8 +279,7 @@ void CBlowFish::BlowFish8(unsigned char *key, bool benc, unsigned char *buf,
         Encrypt(buf, buf, (buflen >> 3) << 3, 0);
     else
         Decrypt(buf, buf, (buflen >> 3) << 3, 0);
-    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 0x10,
-                                      buf + ((buflen >> 3) << 3));
+    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 8, buf);
 }
 
 // mangled: _ZN9CBlowFish10BlowFish16EPhbS0_j
@@ -293,8 +292,7 @@ void CBlowFish::BlowFish16(unsigned char *key, bool benc, unsigned char *buf,
         Encrypt(buf, buf, (buflen >> 3) << 3, 0);
     else
         Decrypt(buf, buf, (buflen >> 3) << 3, 0);
-    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 0x10,
-                                      buf + ((buflen >> 3) << 3));
+    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 0x10, buf);
 }
 
 // mangled: _ZN9CBlowFish10BlowFish24EPhbS0_j
@@ -307,8 +305,7 @@ void CBlowFish::BlowFish24(unsigned char *key, bool benc, unsigned char *buf,
         Encrypt(buf, buf, (buflen >> 3) << 3, 0);
     else
         Decrypt(buf, buf, (buflen >> 3) << 3, 0);
-    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 0x10,
-                                      buf + ((buflen >> 3) << 3));
+    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 0x18, buf);
 }
 
 // mangled: _ZN9CBlowFish10BlowFish32EPhbS0_j
@@ -321,8 +318,7 @@ void CBlowFish::BlowFish32(unsigned char *key, bool benc, unsigned char *buf,
         Encrypt(buf, buf, (buflen >> 3) << 3, 0);
     else
         Decrypt(buf, buf, (buflen >> 3) << 3, 0);
-    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 0x10,
-                                      buf + ((buflen >> 3) << 3));
+    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 0x20, buf);
 }
 
 // mangled: _ZN9CBlowFish10BlowFish56EPhbS0_j
@@ -335,8 +331,7 @@ void CBlowFish::BlowFish56(unsigned char *key, bool benc, unsigned char *buf,
         Encrypt(buf, buf, (buflen >> 3) << 3, 0);
     else
         Decrypt(buf, buf, (buflen >> 3) << 3, 0);
-    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 0x10,
-                                      buf + ((buflen >> 3) << 3));
+    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 0x38, buf);
 }
 
 // mangled: _Z11TenBlowFish8PhbS_j

@@ -4,6 +4,7 @@
 #include "zen_socket_connector.h"
 #include "zen_os_adapt_socket.h"
 
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 #include <errno.h>
 #include <fcntl.h>
 #include <sys/socket.h>

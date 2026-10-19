@@ -31,22 +31,29 @@ public:
     TdrError::ErrorType error_;
 };
 
+// ORIG (tag-394 DWARF, CU formmog_conf_tsssdk_conf.cpp and comm_bill_record.cpp):
+//   +0x00 char* _buffer
+//   +0x04 TdrError::ErrorType _state
+//   sizeof = 8
+// load() returns the error to the caller; the generated config code stores it
+// in _state (TdrIO.h's inline wrapper in the ORIG, inlined at every call site).
 class TdrXmlFile {
 public:
-    TdrXmlFile() : buf_(NULL) {}
+    TdrXmlFile() : _buffer(NULL), _state(TdrError::TDR_NO_ERROR) {}
     ~TdrXmlFile() {
-        if (buf_ != NULL) {
-            delete[] buf_;
-            buf_ = NULL;
+        if (_buffer != NULL) {
+            delete[] _buffer;
+            _buffer = NULL;
         }
     }
 
     TdrError::ErrorType load(const char *file);
-    char *buf() const { return buf_; }
-    char *content() const { return buf_; }
+    char *buf() const { return _buffer; }
+    char *content() const { return _buffer; }
 
 private:
-    char *buf_;
+    char *_buffer;
+    TdrError::ErrorType _state;
 };
 
 } // namespace tsf4g_tdr

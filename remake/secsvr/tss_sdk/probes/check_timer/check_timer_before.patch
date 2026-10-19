@@ -1,0 +1,13 @@
+--- dp_msg_handler_recv_agent.cpp
++++ dp_msg_handler_recv_agent.cpp
+@@ -1011,8 +1011,8 @@
+             pkg.body.cs_test_data_[9] = '9';
+             SendDpMsgToClient(user, pkg, 0, 0);
+ 
+-            pkg.head.packet_size_ = 8;
+-            pkg.head.protocol_type_ = 0x14;
++            pkg.head.packet_size_ = 20;
++            pkg.head.protocol_type_ = 8;
+             pkg.head.data_type_ = 0;
+             pkg.body.config_data_.proto_check_switch_ =
+                 tss_dp_comm::DP_CONFIG::glb_dp_config_->dp_proto_conf.proto_check_switch;

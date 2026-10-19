@@ -28,6 +28,18 @@ void doencrypt(unsigned char *arg0); // line 21
 void round(int arg0, unsigned int *arg1); // line 22
 void too_permute(unsigned char *arg0, unsigned char (*arg1)[16][8], unsigned char *arg2); // line 23
 unsigned int fsf(unsigned int arg0, unsigned char *arg1); // line 24
+public:
+    /* ORIG 静态数据成员（inc/destoo.h；ELF 符号 _ZN7CDesToo*FUCKING_TOO_*E）。 */
+    static const unsigned char FUCKING_TOO_PC1[56];
+    static const unsigned int FUCKING_TOO_BYTEBIT[8];
+    static const unsigned char FUCKING_TOO_TOTROT[16];
+    static const unsigned char FUCKING_TOO_PC2[48];
+    static const unsigned char FUCKING_TOO_IP[64];
+    static const unsigned char FUCKING_TOO_FP[64];
+    static const unsigned int FUCKING_TOO_NIBBLEBIT[4];
+    static const unsigned char FUCKING_TOO_P32I[32];
+    static const unsigned char FUCKING_TOO_SI[8][64];
+    static const unsigned int FUCKING_TOO_SP[8][64];
 };
 
 #endif // SECSVR_INC_DESTOO_H_H_

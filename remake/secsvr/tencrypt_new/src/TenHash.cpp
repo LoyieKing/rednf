@@ -1,6 +1,6 @@
 /* TenHash.cpp -- tencrypt_new 对外哈希 API（复刻）
-   签名/局部变量来自 DWARF 桩（TenHash.cpp）。
-   返回值语义（0=成功）为推断，待反汇编逐字节核对。
+   签名/局部变量来自 DWARF 桩（TenHash.cpp）。TenMd5 的返回值 16 由
+   libtss_sdk.so.1.0.394 的 `_Z6TenMd5PhjS_` 反汇编确认。
    TODO(haval/ripemd/gost)：CHaval128/160、CRipeMD128/160、CGostHash 实现就绪后补全
    TenHaval160/TenHaval128/TenRipeMd160/TenRipeMd128/TenGostHash。 */
 
@@ -26,7 +26,7 @@ unsigned int TenMd5(unsigned char *pbyBuf, unsigned int dwSize, unsigned char *p
     md5_append(&state, pbyBuf, (int)dwSize);
     md5_finish(&state, digest);
     memcpy(pbyResult, digest, 16);
-    return 0;
+    return 16;
 }
 
 unsigned int TenMd2(unsigned char *pbyBuf, unsigned int dwSize, unsigned char *pbyResult) {

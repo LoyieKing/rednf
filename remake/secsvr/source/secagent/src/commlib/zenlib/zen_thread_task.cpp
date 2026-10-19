@@ -3,6 +3,7 @@
 //   activate 经 ZEN_OS::pthread_createex(svc_run, this, ...) 创建；
 //   svc_run 调用虚函数 svc() 并把返回值存入 thread_return_ 后 pthread_exit。
 #include "src/commlib/zenlib/zen_thread_task.h"
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 
 namespace ZEN_OS {
 int pthread_createex(void (*start_routine)(void *), void *arg, unsigned long *threadid,

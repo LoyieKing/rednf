@@ -1,6 +1,19 @@
 // Restored from gunnersvr binary (DWARF + objdump), 语义与 gunnersvr 一致。
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_bus_mmap_pipe.cpp
+//
+// tag394 check (reference/libtss_sdk.so.1.0.394.orig):
+//   7-arg initialize both paths -> one memcpy(local -> mmap) after the
+//   restore consistency check (0x1b4af9-0x1b4b19, source line 258);
+//   3-arg attach -> memcpy(mmap -> local) (0x1b4d40-0x1b4d5f, line 350).
 
+// The ORIG TU was compiled with _FILE_OFFSET_BITS=64: ZEN_OS::stat() and
+// ZEN_OS::shm_stat() take a 96-byte LFS struct stat (both wrapper TUs define
+// that macro).  Without it this TU sees an 88-byte struct stat and the
+// callee's stat64 write overruns initialize()'s saved ebx/esi, which showed
+// up as a resume-path SIGSEGV.  Keep this before every system include.
+#define _FILE_OFFSET_BITS 64
+
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 #include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -9,6 +22,10 @@
 #include <sys/stat.h>
 
 #include "src/commlib/zenlib/zen_bus_mmap_pipe.h"
+// The real 24-byte shm_dequechunk (base _shm_memory_base, five data members)
+// must come from its owning header: a local declaration-only model here made
+// this TU register a 1-byte ODR variant of ZEN_LIB::shm_dequechunk.
+#include "src/commlib/zenlib/zen_shm_lockfree_deque.h"
 
 // ---------------------------------------------------------------------------
 // 外部依赖：只声明、不定义；链接时由 zen_os_adapt_file / zen_os_adapt_shm /
@@ -21,29 +38,6 @@ int shm_stat(char *shm_name, struct stat *buf);          // _ZN6ZEN_OS8shm_statE
 int shm_unlink(const char *shm_name);                    // _ZN6ZEN_OS10shm_unlinkEPKc
 }
 
-namespace ZEN_LIB {
-struct dequechunk_node {
-    unsigned int size_of_node_;
-    char chunkdata[];
-};
-
-struct shm_dequechunk {
-    static size_t getallocsize(unsigned int size_of_pipe); // _ZN7ZEN_LIB14shm_dequechunk12getallocsizeEj
-    static shm_dequechunk *initialize(unsigned int size_of_pipe,
-                                      unsigned int max_frame_len,
-                                      char *pt_pipe,
-                                      bool if_restore,
-                                      bool if_check_pthread); // _ZN7ZEN_LIB14shm_dequechunk10initializeEjjPcbb
-    bool push_end(const dequechunk_node *node);               // _ZN7ZEN_LIB14shm_dequechunk8push_endEPKNS_15dequechunk_nodeE
-    int pop_front(dequechunk_node *node);                     // _ZN7ZEN_LIB14shm_dequechunk9pop_frontEPNS_15dequechunk_nodeE
-    int read_front_new(dequechunk_node *&node);               // _ZN7ZEN_LIB14shm_dequechunk14read_front_newERPNS_15dequechunk_nodeE
-    int discard_frond();                                      // _ZN7ZEN_LIB14shm_dequechunk13discard_frondEv
-    size_t freesize();                                        // _ZN7ZEN_LIB14shm_dequechunk8freesizeEv
-    bool empty();                                             // _ZN7ZEN_LIB14shm_dequechunk5emptyEv
-    bool full();                                              // _ZN7ZEN_LIB14shm_dequechunk4fullEv
-    ~shm_dequechunk(); // _ZN7ZEN_LIB14shm_dequechunkD1Ev
-};
-}
 
 // 真实符号为 debug_errorex(char const*, ...)（mangled 带 'z'）；
 // DWARF 桩头把省略号丢了，这里用 asm label 直接绑定到原符号。
@@ -233,7 +227,12 @@ int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t number_of_pip
         }
     }
 
-    memcpy(&bus_head_, mmap_addr_, sizeof(ZEN_BUS_PIPE_HEAD));
+    // ORIG tag394 0x1b4af9-0x1b4b19 (line 258): after the restore consistency
+    // check BOTH paths run one unordered memcpy with dst=mmap_addr_ and
+    // src=&bus_head_, i.e. local -> mmap.  The mapping is never copied into
+    // bus_head_ here; only the 3-arg attach overload does mmap -> local
+    // (0x1b4d40-0x1b4d5f, line 350).
+    memcpy(mmap_addr_, &bus_head_, sizeof(ZEN_BUS_PIPE_HEAD));
     return init_all_pipe(max_frame_len, if_restore, if_check_pthread);
 }
 
@@ -286,6 +285,8 @@ int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t max_frame_len
         return -1;
     }
 
+    // ORIG tag394 0x1b4d40-0x1b4d5f (line 350): attach copies the mapped
+    // header into the local model before init_all_pipe(..., true, false).
     memcpy(&bus_head_, mmap_addr_, sizeof(ZEN_BUS_PIPE_HEAD));
     return init_all_pipe(max_frame_len, true, false);
 }

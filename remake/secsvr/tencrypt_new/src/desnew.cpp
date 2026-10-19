@@ -169,8 +169,11 @@ void CDesNew::Des_New(unsigned char *key, bool benc, unsigned char *buf,
             decrypt(key, buf + 8 * i);
     }
 
-    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 8,
-                                      buf + blocks * 8);
+    // ORIG 0x001d43e7..0x001d4416: ProcessLastBytes(key, benc, buflen, 15,
+    // buf).  The base offset is applied inside ProcessLastBytes; passing the
+    // already-advanced buffer would process past the tail.  The key size is
+    // the original 15-byte key, not the 8-byte block size.
+    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 15, buf);
 }
 
 // mangled: _Z10TenDesNewPhbS_j

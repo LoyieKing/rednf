@@ -1,0 +1,9 @@
+# Reused objects superseded by a reconstructed recon/ TU (recon owns the CU).
+zen_server_status
+comm_cfgsvr_sdk
+# The reuse headers declare ZEN_Epoll_Reactor::initialize() virtual, which adds
+# a 7th slot to _ZTV17ZEN_Epoll_Reactor (44 bytes vs ORIG 40).  The recon TU
+# carries the ORIG vtable shape (see recon/src/commlib/zenlib/
+# zen_event_reactor_epoll.h) plus both CUs' static-init blocks.
+zen_event_reactor_base
+zen_event_reactor_epoll

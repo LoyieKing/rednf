@@ -220,7 +220,9 @@ void CCast::Cast(unsigned char *key, bool benc, unsigned char *buf, unsigned int
                 cast_decrypt(&stkey, buf + i * 8, buf + i * 8);
         }
         pLocal = CreateTsLocal();
-        pLocal->Seattos(key, benc, buf + nLen * 8, buflen - nLen * 8);
+        // ORIG CCast::Cast tail 0x001c34c3..0x001c34f5: ProcessLastBytes(
+        // key, benc, buflen, 0x10, buf).  Not Seattos.
+        pLocal->ProcessLastBytes(key, benc, buflen, 0x10, buf);
     }
 }
 

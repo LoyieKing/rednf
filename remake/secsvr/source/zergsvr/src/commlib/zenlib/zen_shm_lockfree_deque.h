@@ -73,9 +73,11 @@ protected:
     void deque_lock(); // line 135 (declared only)
     void deque_unlock(); // line 137 (declared only)
     shm_dequechunk(); // line 142
-    ~shm_dequechunk(); // line 144
 
 public:
+    // Public in the ORIG: ZEN_Bus_MMAPPipe::~ZEN_Bus_MMAPPipe deletes each
+    // bus_pipe_pointer_ element (see gunnersvr's copy of this header).
+    ~shm_dequechunk(); // line 144
     static size_t getallocsize(size_t szdeque); // line 149
     static shm_dequechunk* initialize(size_t size_of_deque,
                                       size_t max_len_node, char* pmmap,

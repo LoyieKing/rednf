@@ -6,7 +6,9 @@
 
 // sizeof = 8
 struct CDesBig { // line 7
-private:
+public:
+/* ORIG 静态数据成员（inc/desbig.h；ELF 符号 _ZN7CDesBig*）。ORIG 声明在
+   private 段，这里放 public 只为 emission TU 的字节转储可读。 */
 static const unsigned int FUCKING_SX_TAB[8][256];  // @0x081bb8c0 (0x2000)
 static const unsigned char FUCKING_KS_TAB[16];     // @0x081bd8c0 (0x10)
 static const unsigned int FUCKING_P2_TAB[8][64];   // @0x081bd8e0 (0x800)
@@ -24,8 +26,5 @@ void des_ecm(void *arg0, void *arg1, void *arg2); // line 18
 void des_dc(void *arg0, void *arg1, void *arg2); // line 19
 void des_ec(void *arg0, void *arg1, void *arg2); // line 20
 };
-extern const unsigned int FUCKING_SX_TAB[8][256]; // line 24
-extern const unsigned char FUCKING_KS_TAB[16]; // line 26
-extern const unsigned int FUCKING_P2_TAB[8][64]; // line 28
 
 #endif // SECSVR_INC_DESBIG_H_H_

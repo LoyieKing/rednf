@@ -121,8 +121,9 @@ void CShift::Shift(unsigned char *key, bool benc, unsigned char *buf,
     for (i = 0; i < blocks; i++)
         shiftCrypt(k8, buf + 8 * i, benc);
 
-    CreateTsLocal()->Seattos(key, benc, buf + blocks * 8,
-                             buflen - blocks * 8);
+    // ORIG CShift::Shift tail 0x00202ba8..0x00202bd6: ProcessLastBytes(
+    // key, benc, buflen, 8, buf).  Not Seattos.
+    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 8, buf);
 }
 
 // mangled: _Z8TenShiftPhbS_j

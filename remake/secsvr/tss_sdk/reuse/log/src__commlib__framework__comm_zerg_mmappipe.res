@@ -1,0 +1,8 @@
+cu=src/commlib/framework/comm_zerg_mmappipe.cpp
+family=commlib-framework
+tree=source/gunnersvr
+candidate=source/gunnersvr/src/commlib/framework/comm_zerg_mmappipe.cpp
+flags=
+compiled=1
+roots=minimized
+first_error=

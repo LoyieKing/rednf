@@ -230,7 +230,9 @@ void CFeal8::Feal8(unsigned char *key, bool benc, unsigned char *buf, unsigned i
                 Decrypt(buf + i * 8, buf + i * 8);
         }
         pLocal = CreateTsLocal();
-        pLocal->Seattos(key, benc, buf + nLen * 8, buflen - nLen * 8);
+        // ORIG CFeal8::Feal8 tail 0x001d80c8..0x001d80f7: ProcessLastBytes(
+        // key, benc, buflen, 8, buf).  Not Seattos.
+        pLocal->ProcessLastBytes(key, benc, buflen, 8, buf);
     }
 }
 

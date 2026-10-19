@@ -1,0 +1,38 @@
+{
+  "time_ns": 1792342724851888176,
+  "library_sha256": "8f6263dae6fcd1eb19baece6f7c9408d2161abd1a05bd492d398d5cb7783d2a7",
+  "processes": [
+    {
+      "pid": 9971,
+      "command": "./df_game_r siroco11 nofork ",
+      "executable": "/opt/dnf1031/data/df_game_r (deleted)",
+      "sdk_maps": [
+        "d84fc000-d878e000 r-xp 00000000 08:30 859238                             /opt/dnf1031/home/template/neople/game/libtss_sdk.so.1.0.394",
+        "d878e000-d8799000 rw-p 00291000 08:30 859238                             /opt/dnf1031/home/template/neople/game/libtss_sdk.so.1.0.394",
+        "f7f39000-f7f3a000 r--p 00000000 08:30 848632                             /opt/dnf1031/home/template/neople/game/libtss_shmfix.so",
+        "f7f3a000-f7f3b000 r-xp 00001000 08:30 848632                             /opt/dnf1031/home/template/neople/game/libtss_shmfix.so",
+        "f7f3b000-f7f3c000 r--p 00002000 08:30 848632                             /opt/dnf1031/home/template/neople/game/libtss_shmfix.so",
+        "f7f3c000-f7f3d000 r--p 00002000 08:30 848632                             /opt/dnf1031/home/template/neople/game/libtss_shmfix.so",
+        "f7f3d000-f7f3e000 rw-p 00003000 08:30 848632                             /opt/dnf1031/home/template/neople/game/libtss_shmfix.so"
+      ]
+    },
+    {
+      "pid": 54811,
+      "command": "./df_game_r siroco52 nofork ",
+      "executable": "/opt/dnf1031/data/df_game_r",
+      "sdk_maps": [
+        "d8520000-d87b2000 r-xp 00000000 08:30 859238                             /opt/dnf1031/home/template/neople/game/libtss_sdk.so.1.0.394",
+        "d87b2000-d87bd000 rw-p 00291000 08:30 859238                             /opt/dnf1031/home/template/neople/game/libtss_sdk.so.1.0.394",
+        "f7f5d000-f7f5e000 r--p 00000000 08:30 848632                             /opt/dnf1031/home/template/neople/game/libtss_shmfix.so",
+        "f7f5e000-f7f5f000 r-xp 00001000 08:30 848632                             /opt/dnf1031/home/template/neople/game/libtss_shmfix.so",
+        "f7f5f000-f7f60000 r--p 00002000 08:30 848632                             /opt/dnf1031/home/template/neople/game/libtss_shmfix.so",
+        "f7f60000-f7f61000 r--p 00002000 08:30 848632                             /opt/dnf1031/home/template/neople/game/libtss_shmfix.so",
+        "f7f61000-f7f62000 rw-p 00003000 08:30 848632                             /opt/dnf1031/home/template/neople/game/libtss_shmfix.so"
+      ]
+    }
+  ],
+  "services": {
+    "game_siroco11": "up (pid 8981 pgid 8981) 191864 seconds, ready 191836 seconds\n",
+    "game_siroco52": "up (pid 28901 pgid 28901) 28905 seconds, ready 28878 seconds\n"
+  }
+}

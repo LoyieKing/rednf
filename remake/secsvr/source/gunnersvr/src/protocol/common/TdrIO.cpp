@@ -64,16 +64,16 @@ tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrXmlFile::load(const char *file) {
     fseek(fp, 0, SEEK_END);
     long length = ftell(fp);
     fseek(fp, 0, SEEK_SET);
-    buf_ = new (std::nothrow) char[length + 1];
-    if (buf_ == NULL) {
+    _buffer = new (std::nothrow) char[length + 1];
+    if (_buffer == NULL) {
         fclose(fp);
         return TdrError::TDR_ERR_ALLOC_MEMORY_FAILED;
     }
-    if (fread(buf_, 1, length, fp) != (size_t)length) {
+    if (fread(_buffer, 1, length, fp) != (size_t)length) {
         fclose(fp);
         return TdrError::TDR_ERR_READ_FILE_FAILED;
     }
-    buf_[length] = 0;
+    _buffer[length] = 0;
     fclose(fp);
     return TdrError::TDR_NO_ERROR;
 }

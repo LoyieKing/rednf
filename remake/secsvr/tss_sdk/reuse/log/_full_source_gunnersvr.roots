@@ -1,0 +1,13 @@
+/home/loyieking/dnf_workspace/dnf_secsvr/source/gunnersvr
+/home/loyieking/dnf_workspace/dnf_secsvr/source/gunnersvr/import/include
+/home/loyieking/dnf_workspace/dnf_secsvr/source/gunnersvr/output/commlib/framework/release/include
+/home/loyieking/dnf_workspace/dnf_secsvr/source/gunnersvr/output/commlib/zenlib/release/include
+/home/loyieking/dnf_workspace/dnf_secsvr/source/gunnersvr/output/protocol/common/release/include
+/home/loyieking/dnf_workspace/dnf_secsvr/source/gunnersvr/output/commsvr/gunnersvr/release/include
+/home/loyieking/dnf_workspace/dnf_secsvr/source/secagent/output/commlib/framework/release/include
+/home/loyieking/dnf_workspace/dnf_secsvr/source/secagent/output/commlib/zenlib/release/include
+/home/loyieking/dnf_workspace/dnf_secsvr/source/secagent/output/protocol/common/release/include
+/home/loyieking/dnf_workspace/dnf_secsvr/source/secagent/output/protocol/formmog/release/include
+/home/loyieking/dnf_workspace/dnf_secsvr/source/secagent/output/formmog/appcomm/release/include
+/home/loyieking/dnf_workspace/dnf_secsvr/source/secagent/output/formmog/secagent/release/include
+/home/loyieking/dnf_workspace/dnf_secsvr/third_party/import/include/opensource

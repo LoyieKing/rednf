@@ -6,6 +6,7 @@
 // 2 字节大端长度前缀 + 数据。所有函数失败返回 0，成功返回消耗的字节数。
 
 #include "src/commlib/zenlib/zen_code_engine.h"
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
 #include <cstring>
 
 namespace AB_NS_CODEENGINE {

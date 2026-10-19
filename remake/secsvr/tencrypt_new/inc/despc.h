@@ -34,6 +34,17 @@ void pc_permute(unsigned char *arg0, unsigned char (*arg1)[16][8], unsigned char
 unsigned char getcomp(unsigned int arg0, unsigned int arg1); // line 37
 void kinit(unsigned char *arg0); // line 38
 void pc_perminit(unsigned char (*arg0)[16][8], const unsigned char *arg1); // line 39
+public:
+    /* ORIG 静态数据成员（inc/despc.h；ELF 符号 _ZN6CDesPC*FUCKING_PC_*E）。 */
+    static const unsigned int FUCKING_PC_NIBB[4];
+    static const unsigned int FUCKING_PC_BBIT[8];
+    static const unsigned char FUCKING_PC_IP[64];
+    static const unsigned char FUCKING_PC_FP[64];
+    static const unsigned char FUCKING_PC_PC1[64];
+    static const unsigned char FUCKING_PC_PC2[48];
+    static const unsigned char FUCKING_PC_P32I[32];
+    static const unsigned char FUCKING_PC_SI[8][64];
+    static const unsigned char FUCKING_PC_TTT[16];
 };
 
 #endif // SECSVR_INC_DESPC_H_H_

@@ -160,8 +160,9 @@ void CGramary::Gramary(unsigned char *key, bool benc, unsigned char *buf,
     for (i = 0; i < blocks; i++)
         gra_crypt(benc, key, buf + 8 * i);
 
-    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 8,
-                                      buf + blocks * 8);
+    // ORIG 0x001dc31f..0x001dc34d: ProcessLastBytes(key, benc, buflen, 8,
+    // buf).  ProcessLastBytes adds (buflen & ~7) to the buffer itself.
+    CreateTsLocal()->ProcessLastBytes(key, benc, buflen, 8, buf);
 }
 
 // mangled: _Z10TenGramaryPhbS_j
