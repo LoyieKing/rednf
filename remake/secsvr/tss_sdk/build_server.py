@@ -17,6 +17,22 @@ C5_CANDIDATES = (
 )
 C5 = next((p for p in C5_CANDIDATES if p.exists()), C5_CANDIDATES[0])
 
+def resolve_include_root(root):
+    """Map recorded dnf_workspace absolute roots onto the current layout."""
+    path = Path(root)
+    if path.exists():
+        return path
+    prefixes = (
+        ('/dnf_workspace/dnf_secsvr/', SECSVR),
+        ('/dnf_workspace/dnf_remake/toolchains/', C5.parent),
+    )
+    for prefix, base in prefixes:
+        if root.startswith(prefix):
+            candidate = base / root[len(prefix):]
+            if candidate.exists():
+                return candidate
+    return path
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -70,8 +86,9 @@ def main():
                                           + '_' + row['tree'].replace('/', '_') + '.roots')
         includes = []
         for line in roots_file.read_text().splitlines():
-            if line.strip() and not line.startswith('#'):
-                includes.extend(['-I', line.strip()])
+            line = line.strip()
+            if line and not line.startswith('#'):
+                includes.extend(['-I', str(resolve_include_root(line))])
         add('reuse', SECSVR / row['candidate'], str(C5 / 'usr/bin/g++'),
             [*vendor_flags, *shlex.split(row.get('flags', '')), *includes], vendor_env)
 
