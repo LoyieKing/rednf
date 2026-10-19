@@ -95,7 +95,7 @@ TdrError::ErrorType TdrXmlReader::_parse(char *buf) {
                 doc->append_node(node);
             }
         }
-    } catch (rapidxml::parse_error &) {
+    } catch (rapidxml::parse_error &e) {
         return TdrError::TDR_ERR_PARSE_XML_FAILED;
     }
 

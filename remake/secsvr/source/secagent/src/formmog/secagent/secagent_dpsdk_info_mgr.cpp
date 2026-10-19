@@ -15,10 +15,16 @@
 const unsigned int SecAgentDPInfo::MAX_PATH_LEN;
 
 // line 48
+// ORIG C1 0x080a42c0 / C2 0x080a4310, size 0x4f each:
+// ZEN_Thread_Mutex::ZEN_Thread_Mutex(this+0); ZEN_ShareMem_Mmap::ZEN_ShareMem_Mmap(this+0x1c);
+// EH landing calls ~ZEN_Thread_Mutex. Empty user body reproduces the implicit member ctors.
 SecAgentDPsdkInfoMgr::SecAgentDPsdkInfoMgr() {
 }
 
 // line 49
+// ORIG D1 0x080a4220 / D2 0x080a4270, size 0x4f each:
+// ~ZEN_ShareMem_Mmap(this+0x1c); ~ZEN_Thread_Mutex(this); EH landing.
+// Empty user body reproduces the implicit member dtors.
 SecAgentDPsdkInfoMgr::~SecAgentDPsdkInfoMgr() {
 }
 

@@ -30,10 +30,14 @@ RUN A=dnf-gate-server-${GATE_VERSION}-x86_64-unknown-linux-musl \
 COPY remake remake
 RUN cmake -S remake/source -B remake/build \
  && cmake --build remake/build -j"$(nproc)" \
+ && cmake -S remake/secsvr -B remake/secsvr-build -DCMAKE_BUILD_TYPE=Release \
+ && cmake --build remake/secsvr-build -j"$(nproc)" \
  && gcc -m32 -O2 -shared -fPIC -o remake/build/libtss_shmfix.so remake/runtime/libtss_shmfix.c -ldl \
  && mkdir -p /out/bin && for s in auction bridge channel community coserver dbmw game guild manager monitor point relay statics stun; do \
         cp remake/build/$s/df_${s}_r /out/bin/; done \
- && cp remake/build/geoip/libGeoIP.so.1 remake/build/libtss_shmfix.so /out/bin/
+ && cp remake/build/geoip/libGeoIP.so.1 remake/build/libtss_shmfix.so /out/bin/ \
+ && mkdir -p /out/secsvr \
+ && cp remake/secsvr-build/bin/gunnersvr remake/secsvr-build/bin/zergsvr remake/secsvr-build/bin/secagent /out/secsvr/
 
 # ---------- 阶段 2：运行 ----------
 FROM ${DEBIAN_IMAGE} AS runtime
@@ -48,6 +52,7 @@ COPY .origin_1031/build/dnf_data/home/template /home/template
 COPY .origin_1031/build/dnf_data/TeaEncrypt /usr/local/bin/TeaEncrypt
 # remake 产物覆盖上游 ORIG ELF
 COPY --from=build /out/bin /opt/remake/bin
+COPY --from=build /out/secsvr /opt/remake/bin/secsvr
 COPY docker/runtime/ /opt/remake/runtime/
 COPY docker/mysql/initdb/20-periodic-tables.sh /opt/remake/runtime/periodic_tables.sh
 RUN chmod +x /usr/local/bin/TeaEncrypt /opt/remake/runtime/*.sh \

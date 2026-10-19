@@ -616,7 +616,7 @@ TdrError::ErrorType LogCfg::fromXml(TdrXmlReader &reader, unsigned int cutVer) {
 }
 
 TdrError::ErrorType LogCfg::entryFromXml(TdrXmlReader &reader, unsigned int cutVer) {
-    TdrError::ErrorType ret;
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
     const char *value4log_level;
 
     value4log_level = reader.getEntryValue("log_level");
@@ -3080,7 +3080,7 @@ TdrError::ErrorType RestrictCfg::fromXml(TdrXmlReader &reader, unsigned int cutV
 }
 
 TdrError::ErrorType RestrictCfg::entryFromXml(TdrXmlReader &reader, unsigned int cutVer) {
-    TdrError::ErrorType ret;
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
     const char *value4allow_ips;
     const char *value4reject_ips;
 
@@ -3576,7 +3576,8 @@ TdrError::ErrorType zerg_config::fromXmlString(char *str, TdrXmlFormat format, u
 
 TdrError::ErrorType zerg_config::fromXml(TdrXmlReader &reader, unsigned int cutVer) {
     TdrError::ErrorType ret = TdrError::TDR_ERR_INVALID_ROOT_NODE;
-    if (reader.stepIn("zerg_config") == TdrXmlReader::WS_NORMAL) {
+    TdrXmlReader::WalkState ws = reader.stepIn("zerg_config");
+    if (ws == TdrXmlReader::WS_NORMAL) {
         ret = entryFromXml(reader, cutVer);
         if (ret == TdrError::TDR_NO_ERROR) {
             reader.stepOut("zerg_config");
@@ -3591,6 +3592,7 @@ TdrError::ErrorType zerg_config::entryFromXml(TdrXmlReader &reader, unsigned int
     if (reader.stepIn("self_cfg") != TdrXmlReader::WS_NORMAL) {
         ret = this->self_cfg.construct();
         if (ret != TdrError::TDR_NO_ERROR) {
+            fprintf(stderr, "ZERG_SELF_CONSTRUCT_ERR=%d\n", (int)ret);
             return ret;
         }
     } else {

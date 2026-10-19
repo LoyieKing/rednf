@@ -1,4 +1,4 @@
-# remake/secsvr —— secsvr 三件套还原工作区
+# dnf_secsvr —— secsvr 三件套还原工作区
 
 状态（2026-10-20）：三件套的 DWARF 结构/符号镜像已基本齐全；**可运行、可部署的重建尚未完成**。
 此前“2026-08-10 全部完成 / 0 MISSING / 行为对拍通过”的表述不再作为完成依据：
@@ -15,7 +15,7 @@ secsvr 是 TSS 安全平台的三个独立进程，与 `df_game_r` 中的 `libts
 | **zergsvr** | zerg 内部通信/控制服务；15 个专属 CU，负责 TCP/UDP 控制、自动连接、计费、IP 限制等。 |
 | **secagent** | 反外挂 agent；16 个专属 CU，处理 AntiBot/DP/TSS 消息、用户与游戏服通道、封禁/限制、账单与监控。 |
 | **tss_sdk** | `df_game_r` 进程内的安全 SDK（`libtss_sdk.so.1.0.394`），不是独立进程；负责 DP 协议、AntiBot 通道、SafeMode/Captcha/UIC 插件。 |
-| **tencrypt_new** | 三件套静态链接的 TenCrypt/TenHash 加密库复刻；gunnersvr/zergsvr 使用哈希子集，secagent 使用全部工程 TU。 |
+| **tencrypt_new** | 三件套静态链接的 TenCrypt/TenHash 加密库复刻；gunnersvr/zergsvr 使用哈希子集，secagent 使用全部 59 个工程 TU。 |
 | **third_party** | 构建期第三方依赖：rapidxml 1.13、MySQL client 5.0.92，以及 TSS 头/参考材料。 |
 
 主要数据路径：
@@ -28,12 +28,12 @@ df_game_r (libtss_sdk)
 ```
 
 `secagent` 与游戏服通过共享内存通道交换 TSS/AntiBot 数据；`libtss_sdk` 在游戏进程内完成
-DP 加解密与包过滤。SDK 的源码与构建说明见 [`tss_sdk/README.md`](tss_sdk/README.md)。
+DP 加解密与包过滤。`tss_sdk` 的源码与构建说明见 [`tss_sdk/README.md`](tss_sdk/README.md)。
 
 ## 2. 目录结构
 
 ```text
-remake/secsvr/
+dnf_secsvr/
 ├── README.md                  # 本文（角色、真实状态、TODO、验收口径）
 ├── CMakeLists.txt             # 三件套 CMake 构建入口（gunnersvr/zergsvr/secagent）
 ├── cmake/SecsvrCommon.cmake   # 编译/链接规则
@@ -45,94 +45,85 @@ remake/secsvr/
 ├── tools/                     # DWARF 提取、符号/行为对拍、uni_call 等工具
 └── tss_sdk/                   # 游戏服安全 SDK 重建（独立构建，228 个 TU）
 
-原始 ELF 位于 `.origin_1031/build/dnf_data/home/template/neople/secsvr/...`；
-Docker 运行时相关脚本在仓库根 `docker/`，不在本目录。
-
 ## 3. 当前完成度（按“可运行/可替换原版”标准）
 
 | 组件 | 源码规模 | 当前状态 | 结论 |
 |---|---|---|---|
-| **gunnersvr** | 88 个 C++ CU，362 个文件 | 入口 `main` 已实现；CMake 构建通过；7/88 个 `.cpp` 仍带 DWARF stub 标记 | 可构建，行为未验收 |
-| **zergsvr** | 98 个 C++ CU，418 个文件 | 入口 `main` 已实现；CMake 构建通过；9/98 个 `.cpp` 仍带 stub 标记 | 可构建，行为未验收 |
-| **secagent** | 150 个 C++ CU，538 个文件 | `secagent_main.cpp` 的 `main()` 为空；CMake 构建通过；16/150 个 `.cpp` 仍带 stub 标记；`TenHash.cpp` 有 HAVAL/RIPEMD/GOST TODO | 可构建但**不可运行** |
+| **gunnersvr** | 88 个 C++ CU，362 个文件 | 入口 `main` 已实现；CMake 构建通过；ORIG 对拍的空体仅剩编译期等价形式 | 可构建，启动/行为未验收 |
+| **zergsvr** | 98 个 C++ CU，418 个文件 | 入口 `main` 已实现；CMake 构建通过；ORIG 对拍的空体仅剩编译期等价形式 | 可构建，启动/行为未验收 |
+| **secagent** | 150 个 C++ CU，538 个文件 | `main`/启动链/账单/TenHash 已实现；配置解析已通过 zerg、framework、secagent app 配置；在 `ZEN_Bus_MMAPPipe::initialize` 末尾出现栈金丝雀破坏，尚未启动成功 | 可构建；**启动未验收**；live 已恢复原版 |
 | **tss_sdk** | 228 个编译单元 | `build_server.py` 构建通过（228/228），链接无未解析符号 | 可构建；独立于 secsvr 三件套 |
-| **tencrypt_new** | 58 个对象（Makefile） | 编译通过；`make test` 的哈希/向量测试 **ALL PASS** | 算法库主体可用；待接 secsvr 全量符号/行为验收 |
-| **third_party** | 头文件/参考材料 | rapidxml、MySQL client 已 vendor；TSS 头由 DWARF 复刻 | 构建期依赖，当前无独立运行时 |
+| **tencrypt_new** | 58 个对象（Makefile） | 编译通过；`make test` 哈希/向量测试 **ALL PASS** | 算法库主体可用 |
+| **third_party** | 头文件/参考材料 | rapidxml、MySQL client 已 vendor；TSS 头由 DWARF 复刻 | 构建期依赖 |
 
 ### 3.1 必须明确的事实
 
-1. `source/secagent/src/formmog/secagent/secagent_main.cpp:178-183`：
-   `init_cfg_info()` 与 `main()` 均为空函数。按当前源码链接出的 secagent 不会执行启动逻辑。
-2. `source/secagent/src/TenHash.cpp` 仍有 `TODO(haval/ripemd/gost)`；
-   `tencrypt_new` 的实现不能自动视为 `source/secagent` 对应 TU 已完成。
-3. CMake 入口已存在并可构建三目标（`CMakeLists.txt` / `cmake/SecsvrCommon.cmake`）；
-   `docs/build_recon/` 仍是结构骨架。构建通过只是格式/链接门槛，行为与 live 验收仍未完成。
-4. `0 MISSING`、`nm` 符号命中、仓库中存在文件，都不能证明函数体、启动流程或协议行为完成。
-5. **rednf 当前部署仍使用原版 secsvr**：`docker/Dockerfile` 从 `.origin_1031` 复制
-   `home/template`；`docker/runtime/dnfctl.sh` 启动原版 `gunnersvr` / `zergsvr` / `secagent`，
-   不是本目录源码构建的 ELF。
+1. `secagent_main.cpp` 的 `init_cfg_info()`/`main()` 已按 ORIG 反汇编实现；`secagent_bill.cpp`
+   的 18 个账单函数已按 `CommBillRecord` 链补全；空 `main()` 的旧描述不再成立。
+2. `source/{secagent,gunnersvr,zergsvr}/src/TenHash.cpp` 已按 ORIG 修正返回值、缺失的
+   Haval init、RipeMD reset、Gost reset；`md2.cpp`/`md4.cpp` 已换成 `tencrypt_new` 的
+   ORIG 对拍实现；`tencrypt_new` 哈希向量测试 ALL PASS。
+3. CMake 入口可构建三目标；`docs/build_recon/` 只是结构骨架。构建通过不等于启动或行为验收。
+4. secagent 重建体已修通 `conf_zerg` 的 packed 布局、`Comm_Svrd_Config` 的 app 配置路径、
+   `LogCfg`/`RestrictCfg`/`config` 的未初始化返回值；当前阻塞点是
+   `ZEN_Bus_MMAPPipe::initialize` 返回前的栈金丝雀破坏。live 上已恢复原版 secagent，
+   不能把本次重建体当作可部署产物。
+5. rednf 的 Dockerfile 已加入 secsvr CMake 构建并暂存 `/opt/remake/bin/secsvr`，但运行时仍
+   使用 `.origin_1031` 复制的原版三件套；未切换。
 6. 原版 secagent/gunnersvr/zergsvr 使用 `shm_open("sec/tss_sdk_bus_N")`；现代 glibc 对含 `/`
-   的名字返回 `EINVAL`。因此 `docker/runtime/dnfctl.sh` 仍通过
-   `LD_PRELOAD=libtss_shmfix.so` 归一化名字；在三个对端全部换成使用合法 POSIX 名的重建 ELF
-   之前，`remake/runtime/libtss_shmfix.c` 不能删除。
+   的名字返回 `EINVAL`。rednf 仍通过 `LD_PRELOAD=libtss_shmfix.so` 归一化名字；
+   在三个对端全部换成合法 POSIX 名的重建 ELF 之前，`libtss_shmfix.c` 不能删除。
 
 ## 4. 未完成项与 TODO
 
-### P0：让 secagent 能启动
+### P0：secagent 启动
 
-- [ ] 实现 `secagent_main.cpp` 的 `init_cfg_info()` 与 `main()`：参数解析、配置加载、
-      `SecAgentApp` 初始化/运行/退出、信号与日志。
-- [ ] 逐项核对 `SecAgentApp::init/proc/process_recv_appframe` 与 `SecAgentGamesvrChannel`
-      的启动顺序，确认共享内存通道在 game 之前/之后建立的时序。
-- [ ] 清掉 secagent 剩余 16 个 stub 标记 TU 中真正未实现的函数，至少覆盖启动、消息处理、
-      用户管理、限制/封禁、账单、定时器与文件加载路径。
+- [x] 实现 `secagent_main.cpp` 的 `init_cfg_info()` 与 `main()`。
+- [x] 补齐 `secagent_bill.cpp` 的账单函数。
+- [x] 修正 TenHash/MD2/MD4 的 ORIG 行为。
+- [x] 修正 conf_zerg packed 布局、app 配置路径、解析器未初始化返回值。
+- [ ] 修复 `ZEN_Bus_MMAPPipe::initialize` 的栈金丝雀破坏，并定位剩余结构/ABI 不一致。
+- [ ] 在修复后重新验证 `SecAgentApp::init/proc/process_recv_appframe` 与共享内存通道时序。
 
-### P0：建立可复现构建
+### P0：可复现构建
 
-- [ ] 为 gunnersvr / zergsvr / secagent 增加检入的构建入口（Makefile 或 CMake），固定：
-      GCC 4.1.x/4.1.2 工具链、`-m32 -O2 -DNDEBUG -pthread`、include 顺序、
-      `tencrypt_new` 与 `third_party` 的链接方式。
-- [ ] 产出到固定输出目录，并记录命令、版本、SHA-256 与符号清单。
-- [ ] 禁止再用 `/tmp` 临时链接结果作为完成证据；重建 ELF 必须可重复生成。
+- [x] 三目标 CMake 构建入口（`CMakeLists.txt` / `cmake/SecsvrCommon.cmake`）。
+- [x] 构建产出固定到 `${CMAKE_BINARY_DIR}/bin`，本轮为 `/tmp/secsvr_build/bin`。
+- [ ] 记录工具链版本与产物 SHA-256；禁止把 `/tmp` 产物当作完成证据。
 
-### P1：补齐三件套行为
+### P1：三件套行为
 
-- [ ] `gunnersvr`：补齐剩余 7 个 stub TU，验证文件扫描、上报、统计与超时路径。
-- [ ] `zergsvr`：补齐剩余 9 个 stub TU，验证 TCP/UDP 控制、自动连接、计费与 IP 限制。
-- [ ] `secagent`：完成 AntiBot/DP 消息、加解密、用户/频道、限制与封禁、账单与监控。
-- [ ] `tencrypt_new`：对 secagent 全量符号与调用点做最终对拍；把
-      `source/secagent/TenHash.cpp` 的 HAVAL/RIPEMD/GOST TODO 与已实现算法对齐。
-- [ ] 清理 `tencrypt_new/libtencrypt_new.a` 的 root 所有权；普通用户执行 `make` 会因无法覆盖
-      该归档报 `Permission denied`（可临时用 `make LIB=/tmp/libtencrypt_new.a test`）。
+- [ ] `gunnersvr`：验证文件扫描、上报、统计与超时路径。
+- [ ] `zergsvr`：验证 TCP/UDP 控制、自动连接、计费与 IP 限制。
+- [ ] `secagent`：完成 AntiBot/DP 消息、加解密、用户/频道、限制/封禁、账单与监控。
+- [x] `TenHash` 与 `tencrypt_new` 的 HAVAL/RIPEMD/GOST 对齐；哈希向量 ALL PASS。
 
 ### P1：真实运行验收
 
 - [ ] 在同一 IPC 命名空间启动 game + secsvr 三件套，确认
       `AntibotInterface::Initialize, rc=0`、共享内存通道建立、选角/进城镇/换线正常。
 - [ ] 对 `gunnersvr`/`zergsvr`/`secagent` 分别记录启动、收包、超时、退出与重启行为。
-- [ ] 用真实 `df_game_r` 会话验证 AntiBot 上报、DP 包、SafeMode/Captcha/UIC 路径；
-      不以“进程能起来”或“日志有输出”代替协议/状态验收。
+- [ ] 用真实 `df_game_r` 会话验证 AntiBot 上报、DP 包、SafeMode/Captcha/UIC 路径。
 
 ### P2：切换 rednf 部署
 
-- [ ] 用重建 ELF 替换 `docker/Dockerfile` 中来自 `.origin_1031` 的 secsvr 运行时，
-      同步更新 `docker/runtime/dnfctl.sh` 与相关文档。
-- [ ] 只有在所有对端都使用合法 POSIX 共享内存名（如 `/sec_tss_sdk_bus_N`）后，
-      才删除 `remake/runtime/libtss_shmfix.c` 及 `dnfctl.sh` 中的 `LD_PRELOAD`；
-      否则保留 shim，并把它标注为“原版 secsvr 兼容层”。
+- [x] Dockerfile 加入 `remake/secsvr` CMake 构建并暂存 `/opt/remake/bin/secsvr`。
+- [ ] 用重建 ELF 替换 Docker 运行时，更新 `dnfctl.sh` 与相关文档。
+- [ ] 只有在所有对端都使用合法 POSIX 共享内存名后，才删除 `libtss_shmfix.c` 及 `LD_PRELOAD`。
 - [ ] 切换前保留原版 ELF 与回滚路径，记录逐进程 SHA-256 与 live 对照结果。
 
 ## 5. 构建与运行现状
 
-- **secsvr 三件套**：`cmake -S remake/secsvr -B build/secsvr -DCMAKE_BUILD_TYPE=Release` +
-  `cmake --build build/secsvr -j`。`docs/build_recon/` 仅用于还原 CI 目录结构，不是可执行构建；
-  三目标仍待行为/live 验收。
-- **tss_sdk**：`cd remake/secsvr/tss_sdk && python3 build_server.py --jobs 8 --output-dir /tmp/tss_sdk_build`
-  （首次需运行 `toolchains/bootstrap.sh` 生成 `toolchains/c5root`）。
+- **secsvr 三件套**：`cmake -S dnf_secsvr -B /tmp/secsvr_build -DCMAKE_BUILD_TYPE=Release` +
+  `cmake --build /tmp/secsvr_build -j`。`docs/build_recon/` 仅用于还原 CI 目录结构，不是可执行构建；
+  三目标可构建；secagent 启动仍被 `ZEN_Bus_MMAPPipe::initialize` 栈金丝雀破坏阻塞。
+- **tss_sdk**：`cd dnf_secsvr/tss_sdk && python3 build_server.py --jobs 8 --output-dir /tmp/tss_sdk_build`
+  （rednf 为 `cd remake/secsvr/tss_sdk`；首次需运行 `toolchains/bootstrap.sh`）。
 - **tencrypt_new**：`make` / `make test`；当前工作区归档文件被 root 占用时使用
   `make LIB=/tmp/libtencrypt_new.a test`。
-- **原始 ELF**：`.origin_1031/build/dnf_data/home/template/neople/secsvr/...`。
-- **共享内存兼容层**：`remake/runtime/libtss_shmfix.c`，当前仍是原版 secsvr 运行的必要条件。
+- **原始 ELF**：dnf_workspace 位于 `dnf_installer/build/dnf_data/home/template/neople/secsvr/...`；
+  rednf 位于 `.origin_1031/build/dnf_data/home/template/neople/secsvr/...`。
+- **共享内存兼容层**：rednf `remake/runtime/libtss_shmfix.c`，当前仍是原版 secsvr 运行的必要条件。
 
 ## 6. 完成标准
 
@@ -148,10 +139,12 @@ secsvr 三件套只有同时满足以下条件才算完成：
 
 ## 7. 证据与相关文档
 
-- `docs/df_secsvr_build_recon.md`（dnf_workspace）：原始构建方法、工具链、三方库与模块依赖。
+- `docs/remake_order.md`：三件套还原顺序；明确“桩已生成、函数体为空”。
+- `docs/df_secsvr_dwarf_restoration.md`：DWARF 桩范围；本次只做文件/结构/签名还原。
+- `docs/df_secsvr_build_recon.md`：原始构建方法、工具链、三方库与模块依赖。
+- `docs/df_secsvr_thirdparty_restoration.md`：三方库与加密库还原记录。
 - `source/secagent/src/formmog/secagent/secagent_main.cpp:178-183`：空 `main()`。
 - `source/secagent/src/TenHash.cpp`：HAVAL/RIPEMD/GOST TODO。
 - `tss_sdk/README.md`：SDK 构建、协议与 TerSafe 交互边界。
-- `docker/Dockerfile`：从 `.origin_1031` 复制原版 secsvr 运行时。
-- `docker/runtime/dnfctl.sh`：原版三件套 + `libtss_shmfix.so` 预加载。
-- `remake/runtime/libtss_shmfix.c`：共享内存名兼容层。
+- rednf：`docker/Dockerfile:46-47`（复制原版 secsvr）、`docker/runtime/dnfctl.sh:50-58`
+  （原版三件套 + shim）、`remake/runtime/libtss_shmfix.c`。

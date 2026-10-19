@@ -71,7 +71,7 @@ TdrError::ErrorType SanlixChecker::fromXml(TdrXmlReader &reader, unsigned int cu
 }
 
 TdrError::ErrorType SanlixChecker::entryFromXml(TdrXmlReader &reader, unsigned int cutVer) {
-    TdrError::ErrorType ret;
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
     const char *value4is_use_;
     const char *value4is_distribute_tenparty_data_;
     const char *value4tp_data_path_;
@@ -627,7 +627,7 @@ TdrError::ErrorType CmdListInfo::fromXml(TdrXmlReader &reader, unsigned int cutV
 }
 
 TdrError::ErrorType CmdListInfo::entryFromXml(TdrXmlReader &reader, unsigned int cutVer) {
-    TdrError::ErrorType ret;
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
     const char *value4cmd_list_count_;
     const char *value4cmd_;
     unsigned int tempCount4cmd_;
@@ -891,7 +891,7 @@ TdrError::ErrorType CryptCheckerConf::fromXml(TdrXmlReader &reader, unsigned int
 }
 
 TdrError::ErrorType CryptCheckerConf::entryFromXml(TdrXmlReader &reader, unsigned int cutVer) {
-    TdrError::ErrorType ret;
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
     const char *value4is_use_;
     const char *value4crypt_test_gap_;
     const char *value4dib_base_path_;
@@ -1403,7 +1403,7 @@ TdrError::ErrorType config::fromXml(TdrXmlReader &reader, unsigned int cutVer) {
 }
 
 TdrError::ErrorType config::entryFromXml(TdrXmlReader &reader, unsigned int cutVer) {
-    TdrError::ErrorType ret;
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
     const char *value4is_for_mmog_;
     const char *value4if_restore_gmsvr_channel_;
     const char *value4if_check_pthread_;

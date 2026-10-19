@@ -30,14 +30,22 @@ const unsigned int SecAgentGamesvrChannel::MIN_CHANNEL_ID;
 const unsigned int SecAgentGamesvrChannel::MAX_CHANNEL_ID;
 
 // line 7
+// ORIG C1 0x080a6040 / C2 0x080a6070, size 0x28 each: only
+// ZEN_Thread_Mutex::ZEN_Thread_Mutex(this+0x20000); no scalar stores.
+// Empty user body + member declaration reproduces the implicit member ctor call.
 SecAgentGamesvrChannel::SecAgentGamesvrChannel() {
 }
 
 // line 8
+// ORIG D1 0x080a5fe0 / D2 0x080a6010, size 0x28 each: only
+// ZEN_Thread_Mutex::~ZEN_Thread_Mutex(this+0x20000).
+// Empty user body reproduces the implicit member dtor call.
 SecAgentGamesvrChannel::~SecAgentGamesvrChannel() {
 }
 
 // line 126
+// ORIG 0x080a51f0, size 0x07: push %ebp; xor %eax,%eax; mov %esp,%ebp; pop %ebp; ret.
+// No teardown, unconditional return 0.
 int SecAgentGamesvrChannel::close() {
     return 0;
 }

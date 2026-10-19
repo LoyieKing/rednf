@@ -178,6 +178,8 @@ void SecAgentApp::register_timer() {
 }
 
 // line 126
+// ORIG 0x0809fc80, size 0x05: push %ebp; mov %esp,%ebp; pop %ebp; ret.
+// Empty body (no call/store/branch) => nothing to implement (P57/P152).
 void SecAgentApp::exit() {
 }
 

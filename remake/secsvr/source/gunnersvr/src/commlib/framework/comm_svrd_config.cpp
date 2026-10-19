@@ -313,17 +313,13 @@ int Comm_Svrd_Config::proc_start_arg(int argc, const char **argv) {
 
     std::string tmp_str = app_run_dir_ + "/log/";
     log_file_prefix_ = tmp_str;
-    if (tmp_str.empty()) {
-        log_file_prefix_ += Comm_Svrd_Appliction::instance()->get_app_basename();
-        log_file_prefix_ += "_init";
-    }
+    log_file_prefix_ += Comm_Svrd_Appliction::instance()->get_app_basename();
+    log_file_prefix_ += "_init";
 
     tmp_str = app_run_dir_ + "/cfg/";
     app_cfg_file_ = tmp_str;
-    if (tmp_str.empty()) {
-        app_cfg_file_ += Comm_Svrd_Appliction::instance()->get_app_basename();
-        app_cfg_file_ += "_config.xml";
-    }
+    app_cfg_file_ += Comm_Svrd_Appliction::instance()->get_app_basename();
+    app_cfg_file_ += "_config.xml";
 
     zerg_cfg_file_ = app_run_dir_ + "/cfg/zergsvrd.xml";
     svcid_cfg_file_ = app_run_dir_ + "/cfg/svcid.xml";

@@ -155,7 +155,6 @@ int Zerg_MMAP_BusPipe::getpara_from_zergcfg(const Zerg_MMAP_BusPipe::ZERG_CONFIG
     int ret = 0;
     unsigned short svrtype = 0;
     unsigned int svrid = 0;
-
     bus_head_.size_of_pipe_[0] = zerg_config.comm_cfg.recv_pipe_len;
     if (bus_head_.size_of_pipe_[0] <= 0x200000
             || bus_head_.size_of_pipe_[0] > 0x31ffffff) {

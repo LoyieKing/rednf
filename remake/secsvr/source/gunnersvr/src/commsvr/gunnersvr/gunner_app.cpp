@@ -11,10 +11,19 @@
 
 GunnerSvrApp *GunnerSvrApp::instance_ = NULL;
 
+// ORIG _ZN12GunnerSvrApp21process_recv_appframeEP14Comm_App_Frame
+// @0x08070cc0..0x08070cc7 (size 0x7; DWARF low_pc/high_pc, decl_line 45):
+//   push %ebp; mov %esp,%ebp; xor %eax,%eax; pop %ebp; ret
+// => ORIG body is exactly "return 0;" (empty handler); nothing else to restore.
 int GunnerSvrApp::process_recv_appframe(Comm_App_Frame *recv_frame) {
     return 0;
 }
 
+// ORIG _ZN12GunnerSvrApp4procERj @0x08070cd0..0x08070ce0 (size 0x10,
+// DWARF low_pc/high_pc, param proc_data_num decl_line 62):
+//   mov 0xc(%ebp),%eax; test %eax,%eax; jne 0x08070cdc;
+//   0x08070cda: jmp 0x08070cda; 0x08070cdc: pop %ebp; xor %eax,%eax; ret
+// => ORIG really contains this null-reference while loop; keep it verbatim.
 int GunnerSvrApp::proc(size_t &proc_data_num) {
     while (&proc_data_num == NULL) {
     }

@@ -19,12 +19,6 @@
 #define S33 11
 #define S34 15
 
-static const unsigned char PADDING[64] = {
-    0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-};
 
 #define F(x, y, z) (((x) & (y)) | ((~x) & (z)))
 #define G(x, y, z) (((x) & (y)) | ((x) & (z)) | ((y) & (z)))
@@ -170,28 +164,39 @@ void CMD4::MD4Final(unsigned char *digest, MD4_CTX *context) {
     Encode(bits, context->count, 8);
     index = (unsigned int)((context->count[0] >> 3) & 0x3f);
     padLen = (index < 56) ? (56 - index) : (120 - index);
-    MD4Update(context, (unsigned char *)PADDING, padLen);
+    MD4Update(context, this->m_pszPadding, padLen);
     MD4Update(context, bits, 8);
     Encode(digest, context->state, 16);
 
     memset((void *)context, 0, sizeof(*context));
 }
 
+/* ORIG 0x1f2c20：new[] 64 字节填充块并写入 {0x80,0,...}；
+   成员先清零、不判空即分配（与 ORIG 一致）。 */
 void CMD4::Init() {
-    unsigned char _padding[64] = {
-        0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-    };
-    (void)_padding;
+    unsigned char padding[64];
+
+    this->m_pszPadding = 0;
+    this->m_pszPadding = new unsigned char[64];
+    memset(this->m_pszPadding, 0, 64);
+    memset(padding, 0, sizeof(padding));
+    padding[0] = 0x80;
+    memmove(this->m_pszPadding, padding, 64);
 }
 
+/* ORIG 0x1f2b80 */
 void CMD4::UnInit() {
+    if (this->m_pszPadding) {
+        delete [] this->m_pszPadding;
+        this->m_pszPadding = 0;
+    }
 }
 
+/* ORIG 0x1f2ca0/0x1f2bc0：构造即 Init()，析构即 UnInit() */
 CMD4::CMD4() {
+    Init();
 }
 
 CMD4::~CMD4() {
+    UnInit();
 }

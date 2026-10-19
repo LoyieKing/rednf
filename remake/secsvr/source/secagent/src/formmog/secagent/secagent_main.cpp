@@ -172,13 +172,27 @@
 #include "src/formmog/secagent/secagent_bill.h"
 #include "src/formmog/secagent/secagent_antibot_sanlixdata.h"
 #include "src/formmog/secagent/secagent_game_exe.h"
+#include "src/commlib/framework/comm_cfgsvr_sdk.h"
 
-// mangled: _Z13init_cfg_infov
+// Reconstructed from secagent ORIG 0x080a6d00 / 0x080a6dd0.
 // line 4
 void init_cfg_info() {
+    CfgSvrSdk::instance()->add_config("secagent_config.xml");
+    CfgSvrSdk::instance()->add_config("dp_config.xml");
+    CfgSvrSdk::instance()->add_config("game.zip");
+    CfgSvrSdk::instance()->add_config("secagent_cfgdata.zip");
+    CfgSvrSdk::instance()->add_config("dib.zip");
+    CfgSvrSdk::instance()->add_config("sanlix.zip");
+    CfgSvrSdk::instance()->add_config("base_cfg.zip");
+    CfgSvrSdk::instance()->set_service_type(0x1e);
 }
 
 // line 18
 int main(int argc, const char **argv) {
+    init_cfg_info();
+    SecAgentApp::instance()->set_service_info(
+        "Tencent Secure Agent",
+        "\xcc\xda\xd1\xb6\xd3\xce\xcf\xb7\xb0\xb2\xc8\xab\xd2\xfd\xc7\xe6");
+    return SecAgentApp::instance()->run(argc, argv);
 }
 

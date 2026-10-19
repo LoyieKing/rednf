@@ -1,8 +1,9 @@
 /* TenHash.cpp -- tencrypt_new 对外哈希 API（复刻）
    签名/局部变量来自 DWARF 桩（TenHash.cpp）。
-   返回值语义（0=成功）为推断，待反汇编逐字节核对。
-   TODO(haval/ripemd/gost)：CHaval128/160、CRipeMD128/160、CGostHash 实现就绪后补全
-   TenHaval160/TenHaval128/TenRipeMd160/TenRipeMd128/TenGostHash。 */
+   返回值 = 摘要字节数（ORIG 反汇编：MD5/MD2/MD4/HAVAL128/RIPEMD128=0x10，
+   SHA1/HAVAL160/RIPEMD160=0x14，GOST=0x20；Crc32/Adler32 返回算法值）。
+   调用序列按 ORIG 反汇编核对：HAVAL 显式 havalInit、RIPEMD 显式 Reset、
+   GOST 显式 gosthash_reset；MD2 的 md2_finish 第 3 参为 dwSize（非固定 16）。 */
 
 #include "include/TenHash.h"
 #include "inc/md5.h"
@@ -25,8 +26,8 @@ unsigned int TenMd5(unsigned char *pbyBuf, unsigned int dwSize, unsigned char *p
     md5_init(&state);
     md5_append(&state, pbyBuf, (int)dwSize);
     md5_finish(&state, digest);
-    memcpy(pbyResult, digest, 16);
-    return 0;
+    memmove(pbyResult, digest, 16);
+    return 16;
 }
 
 unsigned int TenMd2(unsigned char *pbyBuf, unsigned int dwSize, unsigned char *pbyResult) {
@@ -34,8 +35,8 @@ unsigned int TenMd2(unsigned char *pbyBuf, unsigned int dwSize, unsigned char *p
     CMd2 objMd2;
     objMd2.md2_init(&ctx);
     objMd2.md2_update_data(&ctx, pbyBuf, dwSize);
-    objMd2.md2_finish(&ctx, pbyResult, 16);
-    return 0;
+    objMd2.md2_finish(&ctx, pbyResult, dwSize);
+    return 16;
 }
 
 unsigned int TenMd4(unsigned char *pbyBuf, unsigned int dwSize, unsigned char *pbyResult) {
@@ -45,8 +46,8 @@ unsigned int TenMd4(unsigned char *pbyBuf, unsigned int dwSize, unsigned char *p
     objMD4.MD4Init(&ctx);
     objMD4.MD4Update(&ctx, pbyBuf, dwSize);
     objMD4.MD4Final(digest, &ctx);
-    memcpy(pbyResult, digest, 16);
-    return 0;
+    memmove(pbyResult, digest, 16);
+    return 16;
 }
 
 unsigned int TenSha1(unsigned char *pbyBuf, unsigned int dwSize, unsigned char *pbyResult) {
@@ -55,7 +56,7 @@ unsigned int TenSha1(unsigned char *pbyBuf, unsigned int dwSize, unsigned char *
     objSha1.SHA1_Init(&ctx);
     objSha1.SHA1_Update(&ctx, pbyBuf, dwSize);
     objSha1.SHA1_Final(pbyResult, &ctx);
-    return 0;
+    return 20;
 }
 
 unsigned int TenCrc32(unsigned char *pbyBuf, unsigned int dwSize) {
@@ -70,35 +71,40 @@ unsigned int TenAdler32(unsigned int dwAdler, unsigned char *pbyBuf, unsigned in
 
 unsigned int TenRipeMd160(unsigned char *pbyData, unsigned int dwSize, unsigned char *pbyResult) {
     CRipeMD160 objMd160;
+    objMd160.Reset();
     objMd160.AddData(pbyData, dwSize);
     objMd160.FinalDigest(pbyResult);
-    return 0;
+    return 20;
 }
 
 unsigned int TenRipeMd128(unsigned char *pbyData, unsigned int dwSize, unsigned char *pbyResult) {
     CRipeMD128 objMd128;
+    objMd128.Reset();
     objMd128.AddData(pbyData, dwSize);
     objMd128.FinalDigest(pbyResult);
-    return 0;
+    return 16;
 }
 
 unsigned int TenHaval160(unsigned char *pbyData, unsigned int dwSize, unsigned char *pbyResult) {
     CHaval160 objHaval160;
+    objHaval160.havalInit();
     objHaval160.havalUpdate(pbyData, dwSize);
     objHaval160.havalFinal(pbyResult);
-    return 0;
+    return 20;
 }
 
 unsigned int TenHaval128(unsigned char *pbyData, unsigned int dwSize, unsigned char *pbyResult) {
     CHaval128 objHaval128;
+    objHaval128.havalInit();
     objHaval128.havalUpdate(pbyData, dwSize);
     objHaval128.havalFinal(pbyResult);
-    return 0;
+    return 16;
 }
 
 unsigned int TenGostHash(unsigned char *pbyData, unsigned int dwSize, unsigned char *pbyResult) {
     CGostHash objGost;
+    objGost.gosthash_reset();
     objGost.gosthash_update(pbyData, dwSize);
     objGost.gosthash_final(pbyResult);
-    return 0;
+    return 32;
 }

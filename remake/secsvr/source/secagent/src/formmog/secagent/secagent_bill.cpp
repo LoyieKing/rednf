@@ -147,6 +147,7 @@
 #include "src/commlib/framework/comm_bill_record.h"
 #include "src/commlib/framework/comm_time_provider.h"
 #include "src/commlib/framework/comm_cfgsvr_sdk.h"
+#include "src/commlib/framework/comm_stat_monitor.h"
 #include "output/formmog/appcomm/release/include/app_punish_mode.h"
 #include "output/formmog/appcomm/release/include/app_svr_type.h"
 #include "output/formmog/appcomm/release/include/app_error_code.h"
@@ -166,76 +167,139 @@ SecAgentBillHandler::SecAgentBillHandler() {
 SecAgentBillHandler::~SecAgentBillHandler() {
 }
 
-// line 32
+// ORIG 0x080a2800: statistic id range 0x493e1..0x49406, then
+// ZEN_Server_Status::increase_by_statid(id, game_id, 0, incre).
 void SecAgentBillHandler::add_statistic_bill(unsigned int statistic_id, unsigned int incre) {
+    if (statistic_id - 0x493e1 > 0x25) {
+        return;
+    }
+    Comm_Stat_Monitor::instance()->increase_by_statid(
+        statistic_id, CfgSvrSdk::instance()->get_game_id(), 0, incre);
 }
 
 // line 17
 void SecAgentBillHandler::clean_instance() {
+    if (instance_ != NULL) {
+        delete instance_;
+    }
+    instance_ = NULL;
 }
 
 // line 6
 SecAgentBillHandler * SecAgentBillHandler::instance() {
+    if (instance_ == NULL) {
+        instance_ = new SecAgentBillHandler();
+    }
+    return instance_;
 }
 
 // line 45
 void SecAgentBillHandler::write_bill_add_user_from_sdk(unsigned int game_id, unsigned int uin, unsigned int cmd, unsigned int ret, short unsigned int channel_id) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(1)
+           << GameID(game_id) << LogComment("add user pkg from sdk")
+           << (int64_t)cmd << (int64_t)ret << (int64_t)channel_id << endl;
 }
 
 // line 63
 void SecAgentBillHandler::write_bill_del_user_from_sdk(unsigned int game_id, unsigned int uin, unsigned int cmd, unsigned int ret, short unsigned int channel_id) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(2)
+           << GameID(game_id) << LogComment("del user pkg from sdk")
+           << (int64_t)cmd << (int64_t)ret << (int64_t)channel_id << endl;
 }
 
-// line 277
+// line 223
 void SecAgentBillHandler::write_bill_antibot_cmd_list(unsigned int uin, unsigned int appid, uint8_t cmd_count) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(0xe)
+           << GameID(appid) << LogComment("send client antibot cmd list")
+           << (int64_t)cmd_count << endl;
 }
 
-// line 260
+// line 206
 void SecAgentBillHandler::write_bill_antibot_crypt_info(unsigned int uin, unsigned int appid, unsigned int dib_id, unsigned int key_len, unsigned int key_offset, unsigned int crc) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(0xe)
+           << GameID(appid) << LogComment("send client antibot crypt info")
+           << (int64_t)dib_id << (int64_t)key_len << (int64_t)key_offset
+           << (int64_t)crc << endl;
 }
 
-// line 243
+// line 188
 void SecAgentBillHandler::write_bill_notify_rpcode_info(unsigned int uin, unsigned int appid, unsigned int dib_id, unsigned int key_offset) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(0xd)
+           << GameID(appid) << LogComment("secsvr notify rpcode crypt info")
+           << (int64_t)dib_id << (int64_t)key_offset << endl;
 }
 
-// line 228
+// line 172
 void SecAgentBillHandler::write_bill_notify_is_change_svr(unsigned int uin, unsigned int appid, unsigned int is_change_sv) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(0xc)
+           << GameID(appid) << LogComment("secsvr notify is change svr")
+           << (int64_t)is_change_sv << endl;
 }
 
-// line 212
+// line 155
 void SecAgentBillHandler::write_bill_antibot_de_log(unsigned int uin, unsigned int appid, unsigned int error_id, unsigned int error, unsigned int pad_size) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(0xb)
+           << GameID(appid) << LogComment("antibot client de log")
+           << (int64_t)error_id << (int64_t)error << (int64_t)pad_size << endl;
 }
 
-// line 196
+// line 139
 void SecAgentBillHandler::write_bill_antibot_nocrypt_fail(unsigned int uin, unsigned int appid, unsigned int cmd_id) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(0xa)
+           << GameID(appid) << LogComment("antibot up cmd list no crypt")
+           << (int64_t)cmd_id << endl;
 }
 
-// line 180
+// line 123
 void SecAgentBillHandler::write_bill_antibot_decrypt_fail(unsigned int uin, unsigned int appid, unsigned int dib_id, unsigned int key_offset, unsigned int key_len) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(8)
+           << GameID(appid) << LogComment("antibot decrypt fail")
+           << (int64_t)dib_id << (int64_t)key_offset << (int64_t)key_len << endl;
 }
 
-// line 160
+// line 107
 void SecAgentBillHandler::write_bill_antibot_ready_pkg(unsigned int uin, unsigned int appid, unsigned int pkg_dibid, unsigned int local_dibid, unsigned int pkg_crc, unsigned int local_crc, uint8_t is_ready) {
-}
-
-// line 140
-void SecAgentBillHandler::write_bill_rpcode_check_fail(unsigned int uin, unsigned int appid, unsigned int local_hash, unsigned int client_hash, unsigned int dib_id) {
-}
-
-// line 121
-void SecAgentBillHandler::write_bill_antibot_test_decypt_fail(unsigned int uin, unsigned int appid, unsigned int pkg_crc, unsigned int tmp_crc, unsigned int content1, unsigned int content2) {
-}
-
-// line 104
-void SecAgentBillHandler::write_bill_send_to_secsvr(unsigned int uin, unsigned int appid, unsigned int cmd) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(9)
+           << GameID(appid) << LogComment("antibot ready pkg")
+           << (int64_t)pkg_dibid << (int64_t)local_dibid
+           << (int64_t)pkg_crc << (int64_t)local_crc
+           << (int64_t)is_ready << endl;
 }
 
 // line 90
-void SecAgentBillHandler::write_bill_send_secsvr_error(unsigned int uin, unsigned int appid, unsigned int error_id) {
+void SecAgentBillHandler::write_bill_rpcode_check_fail(unsigned int uin, unsigned int appid, unsigned int local_hash, unsigned int client_hash, unsigned int dib_id) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(0x11)
+           << GameID(appid) << LogComment("antibot rpcode check fail")
+           << (int64_t)local_hash << (int64_t)client_hash << (int64_t)dib_id
+           << endl;
 }
 
-// line 77
+// line 74
+void SecAgentBillHandler::write_bill_antibot_test_decypt_fail(unsigned int uin, unsigned int appid, unsigned int pkg_crc, unsigned int tmp_crc, unsigned int content1, unsigned int content2) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(7)
+           << GameID(appid) << LogComment("antibot test pkg decrypt fail")
+           << (int64_t)pkg_crc << (int64_t)tmp_crc
+           << (int64_t)content1 << (int64_t)content2 << endl;
+}
+
+// line 58
+void SecAgentBillHandler::write_bill_send_to_secsvr(unsigned int uin, unsigned int appid, unsigned int cmd) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(0x10)
+           << GameID(appid) << LogComment("send pkg to secsvr")
+           << (int64_t)cmd << endl;
+}
+
+// line 42
+void SecAgentBillHandler::write_bill_send_secsvr_error(unsigned int uin, unsigned int appid, unsigned int error_id) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(6)
+           << GameID(appid) << LogComment("send secsvr error info pkg")
+           << (int64_t)error_id << endl;
+}
+
+// line 26
 void SecAgentBillHandler::write_bill_expire_user(unsigned int uin, unsigned int appid) {
+    g_bill << ConstDataSource(0x1e) << UserID(uin) << LogType(5)
+           << GameID(appid) << LogComment("expire timeout user") << endl;
 }
 
 SecAgentBillHandler *SecAgentBillHandler::instance_ = NULL;

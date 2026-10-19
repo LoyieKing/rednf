@@ -34,6 +34,10 @@ SecAgentTimerHandler::SecAgentTimerHandler(ZEN_Timer_Queue *timer_queue)
 }
 
 // line 19
+// ORIG D1 0x080aaef0 / D2 0x080aaf70, size 0x74 each (D0 0x080aae70, size 0x7c):
+// store SecAgentTimerHandler vptr; ~ZEN_Time_Value(last_check_user_time_ @+0x1c);
+// ~ZEN_Time_Value(last_heartbeat_time_ @+0x14); ~ZEN_Timer_Handler(this).
+// Empty user body reproduces the implicit member/base destruction.
 SecAgentTimerHandler::~SecAgentTimerHandler() {
 }
 
