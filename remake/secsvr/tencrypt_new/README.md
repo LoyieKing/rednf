@@ -17,7 +17,7 @@
   2. 标准测试向量（本目录 `test_hash.cpp`）；
   3. 行为级对照二进制反汇编（逐函数，后续阶段）。
 
-## 状态（2026-08-10，对称加密族 47 个全部完成）
+## 状态（2026-10-20 复核：58 个对象可编译，测试 ALL PASS）
 
 | 文件 | 状态 |
 |---|---|
@@ -28,8 +28,18 @@
 | src/gosthash.cpp | ✅ 已实现（Saarinen 考古的失传老版本参考，t1 向量过） |
 | src/TenHash.cpp | ✅ 已实现 11/11 个 Ten* 哈希封装 |
 | src/{rc4,tean,idea,gost,des,3way,rc5,rc6,rc2,safer,mmb,mbc,cast,loki89,loki91,feal8,nsea}.cpp | ✅ 已实现（行为对照二进制逐字节一致） |
-| src/TenCrypt.cpp、TencBase.cpp、其余块密码 ~28 个 | ⏳ 下一阶段 |
-| include/TenCrypt.h（ITsLocal 等） | ✅ 头已重建，实现待做 |
+| src/TencBase.cpp（BOX3D1..7） | ✅ 已实现；3500+ 组随机对拍 |
+| 其余块密码与包装对象（Makefile 共 58 个对象） | ✅ 已纳入构建；`make test` ALL PASS |
+| include/TenCrypt.h / ts_local.cpp（ITsLocal） | ✅ 头已重建，`ts_local.cpp` 已实现 |
+
+> 2026-10-20 复核：源码树中没有单独的 `src/TenCrypt.cpp`，旧表该项已过时；TenCrypt 包装分散在
+> 各算法包装 TU 中，`TencBase.cpp` 与全部块密码均已进入 Makefile 的 58 个对象。
+>
+> 验证命令与结果：`make LIB=/tmp/libtencrypt_new.a test` -> 哈希/向量 `ALL PASS`。
+> 工作区 `libtencrypt_new.a` 为 root 所有，普通用户直接 `make` 覆盖归档会 `Permission denied`。
+>
+> TODO：对 secagent 全量符号/调用点对拍；把 `source/secagent/src/TenHash.cpp` 的
+> HAVAL/RIPEMD/GOST TODO 与本库已实现算法对齐；接入三件套统一构建。
 
 ## 哈希族验收结果
 

@@ -6,6 +6,14 @@
 - **运行形态**：**进程内动态库**，不是独立守护进程，也不直接持有玩家 TCP socket。玩家网络收发始终经过 `df_game_r` 的 `CUser`；SDK 通过虚表被 `df_game_r` 调用，并通过 `IBusiness` 回调把待下发安全包或判罚指令投递回 `df_game_r` 消息队列。
 - **证据边界**：本文关于服务端、SDK 内部插件与协议结构的描述均直接取自 `dnf_secsvr/tss_sdk` 及 `dnf_remake/source/DNFServer/GameServer` 源码；客户端 `TerSafe.dll` 无源码，所有关于客户端内部实现的推断均显式标为 **`[INFERENCE]`**。
 
+## 0. 与 secsvr 的关系（2026-10-20）
+
+- `tss_sdk` 是 `df_game_r` 进程内 SDK；`gunnersvr` / `zergsvr` / `secagent` 是独立安全服务进程。
+- `secagent` 通过 `/dev/shm/sec_tss_sdk_bus_N` 与游戏服交换 AntiBot/DP 数据；共享内存名为
+  `sec/tss_sdk_bus_%d`，现代 glibc 需要 `libtss_shmfix.so` 归一化。
+- 当前 rednf 仍运行 `.origin_1031` 的原版 secsvr 三件套；重建 secsvr 未完成（`secagent` 的
+  `main()` 仍为空），因此 shim 不能删除。详见 [`../README.md`](../README.md)。
+
 ---
 
 ## 1. 核心功能概览
