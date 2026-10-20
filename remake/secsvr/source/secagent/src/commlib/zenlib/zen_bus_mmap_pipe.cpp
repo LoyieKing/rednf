@@ -112,7 +112,10 @@ int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t number_of_pip
     int ret = 0;
     size_t sz_malloc = 0;
     size_t i = 0;
-    struct stat mmapfile_stat;
+    struct {
+        struct stat st;
+        unsigned char pad[64];
+    } mmapfile_stat;
     size_t sz_room = 0;
     ZEN_BUS_PIPE_HEAD *pipe_head = NULL;
 
@@ -142,10 +145,10 @@ int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t number_of_pip
     } else {
         switch (sharemem_type_) {
         case 1:
-            ret = ZEN_OS::stat(bus_mmap_name_, &mmapfile_stat);
+            ret = ZEN_OS::stat(bus_mmap_name_, &mmapfile_stat.st);
             break;
         case 2:
-            ret = ZEN_OS::shm_stat(bus_mmap_name_, &mmapfile_stat);
+            ret = ZEN_OS::shm_stat(bus_mmap_name_, &mmapfile_stat.st);
             break;
         default:
             ZEN_ERREX("[zenlib], unsupport type=%u", sharemem_type_);
@@ -218,7 +221,10 @@ int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t number_of_pip
 // ---------------------------------------------------------------------------
 int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t max_frame_len, uint8_t mem_type) {
     int ret = 0;
-    struct stat mmapfile_stat;
+    struct {
+        struct stat st;
+        unsigned char pad[64];
+    } mmapfile_stat;
     ZEN_BUS_PIPE_HEAD *pipe_head = NULL;
 
     sharemem_type_ = mem_type;
@@ -226,10 +232,10 @@ int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t max_frame_len
 
     switch (sharemem_type_) {
     case 1:
-        ret = ZEN_OS::stat(bus_mmap_name_, &mmapfile_stat);
+        ret = ZEN_OS::stat(bus_mmap_name_, &mmapfile_stat.st);
         break;
     case 2:
-        ret = ZEN_OS::shm_stat(bus_mmap_name_, &mmapfile_stat);
+        ret = ZEN_OS::shm_stat(bus_mmap_name_, &mmapfile_stat.st);
         break;
     default:
         ZEN_ERREX("[zenlib], unsupport type=%u", sharemem_type_);
@@ -238,17 +244,17 @@ int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t max_frame_len
     if (ret != 0) {
         return -1;
     }
-    if (mmapfile_stat.st_size <= (off_t)sizeof(ZEN_BUS_PIPE_HEAD)) {
+    if (mmapfile_stat.st.st_size <= (off_t)sizeof(ZEN_BUS_PIPE_HEAD)) {
         return -1;
     }
 
     switch (sharemem_type_) {
     case 1:
-        ret = mmap_file_.open(bus_mmap_name_, mmapfile_stat.st_size, true, false, true, NULL, 0);
+        ret = mmap_file_.open(bus_mmap_name_, mmapfile_stat.st.st_size, true, false, true, NULL, 0);
         mmap_addr_ = mmap_file_.addr();
         break;
     case 2:
-        ret = posix_file_.open(bus_mmap_name_, mmapfile_stat.st_size, true, false, true, NULL, 0);
+        ret = posix_file_.open(bus_mmap_name_, mmapfile_stat.st.st_size, true, false, true, NULL, 0);
         mmap_addr_ = posix_file_.addr();
         break;
     default:

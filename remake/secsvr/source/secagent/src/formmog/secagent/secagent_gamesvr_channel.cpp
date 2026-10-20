@@ -78,13 +78,14 @@ int SecAgentGamesvrChannel::send(unsigned int channel_id, const void *send_buf,
     }
     ZEN_BusPipe_TwoWay *node = bus_channel_ + channel_id;
     ZEN_LIB::shm_dequechunk *send_pipe =
-        reinterpret_cast<ZEN_LIB::shm_dequechunk *>(reinterpret_cast<char *>(node) + 0x200c);
+        *reinterpret_cast<ZEN_LIB::shm_dequechunk **>(
+            reinterpret_cast<char *>(node) + 0x200c + sizeof(void *));
+    if (send_pipe == NULL) {
+        return -1;
+    }
     if (send_pipe->push_end(reinterpret_cast<const ZEN_LIB::dequechunk_node *>(send_buf))) {
         return 0;
     }
-    size_t free_size = send_pipe->freesize();
-    ZEN_Trace_LogMsg::debug_alertex("[zenlib] %u Pipe is full or data small?,",
-                                    0, *(const unsigned int *)send_buf, free_size);
     return -1;
 }
 
@@ -93,9 +94,16 @@ int SecAgentGamesvrChannel::recv(unsigned int channel_id, void **recv_buf,
                                  unsigned int *recv_buf_size) {
     *recv_buf = NULL;
     *recv_buf_size = RECV_BUF_SIZE;
+    if (channel_id < MIN_CHANNEL_ID || channel_id >= max_channel_id_) {
+        return -1;
+    }
     ZEN_BusPipe_TwoWay *node = bus_channel_ + channel_id;
     ZEN_LIB::shm_dequechunk *recv_pipe =
-        reinterpret_cast<ZEN_LIB::shm_dequechunk *>(reinterpret_cast<char *>(node) + 0x2010);
+        *reinterpret_cast<ZEN_LIB::shm_dequechunk **>(
+            reinterpret_cast<char *>(node) + 0x200c);
+    if (recv_pipe == NULL) {
+        return -1;
+    }
     if (recv_pipe->empty()) {
         return -1;
     }
@@ -136,7 +144,7 @@ int SecAgentGamesvrChannel::open() {
         reinterpret_cast<ZEN_BusPipe_TwoWay *>(raw_buf + 4);
     *(unsigned int *)raw_buf = max_channel_id_;
     if (channel_count != 0xffffffff) {
-        for (unsigned int i = 0; i < channel_count; ++i) {
+        for (unsigned int i = 0; i < max_channel_id_; ++i) {
             new (&node_array[i]) ZEN_BusPipe_TwoWay();
         }
     }

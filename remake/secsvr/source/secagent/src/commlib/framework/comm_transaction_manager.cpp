@@ -59,7 +59,7 @@ TRANS_LOCK_RECORD::~TRANS_LOCK_RECORD() {
 Transaction_Manager::Transaction_Manager()
     : transc_map_(100),
       regtrans_pool_map_(100),
-      trans_lock_pool_((size_t)-5),
+      trans_lock_pool_(),
       max_trans_(0),
       trans_id_builder_(0),
       self_services_id_(0, 0),

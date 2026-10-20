@@ -3592,7 +3592,6 @@ TdrError::ErrorType zerg_config::entryFromXml(TdrXmlReader &reader, unsigned int
     if (reader.stepIn("self_cfg") != TdrXmlReader::WS_NORMAL) {
         ret = this->self_cfg.construct();
         if (ret != TdrError::TDR_NO_ERROR) {
-            fprintf(stderr, "ZERG_SELF_CONSTRUCT_ERR=%d\n", (int)ret);
             return ret;
         }
     } else {
