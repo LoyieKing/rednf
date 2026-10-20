@@ -212,7 +212,11 @@ int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t number_of_pip
         }
     }
 
-    memcpy(&bus_head_, mmap_addr_, sizeof(ZEN_BUS_PIPE_HEAD));
+    if (if_restore) {
+        memcpy(&bus_head_, mmap_addr_, sizeof(ZEN_BUS_PIPE_HEAD));
+    } else {
+        memcpy(mmap_addr_, &bus_head_, sizeof(ZEN_BUS_PIPE_HEAD));
+    }
     return init_all_pipe(max_frame_len, if_restore, if_check_pthread);
 }
 
@@ -280,7 +284,6 @@ int ZEN_Bus_MMAPPipe::init_all_pipe(size_t max_frame_len, bool if_restore, bool 
     size_t i = 0;
     char *pt_pipe = NULL;
     size_t sz_room = 0;
-
     for (i = 0; i < bus_head_.number_of_pipe_; ++i) {
         if (i > 0) {
             sz_room = ZEN_LIB::shm_dequechunk::getallocsize(bus_head_.size_of_pipe_[i - 1]);

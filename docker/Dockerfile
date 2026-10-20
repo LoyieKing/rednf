@@ -59,6 +59,9 @@ RUN chmod +x /usr/local/bin/TeaEncrypt /opt/remake/runtime/*.sh \
  && for s in auction bridge channel community coserver guild manager monitor point relay statics stun; do \
         cp /opt/remake/bin/df_${s}_r /home/template/neople/$s/; done \
  && for d in dbmw_guild dbmw_mnt dbmw_stat; do cp /opt/remake/bin/df_dbmw_r /home/template/neople/$d/; done \
- && cp /opt/remake/bin/df_game_r /opt/remake/bin/libGeoIP.so.1 /opt/remake/bin/libtss_shmfix.so /home/template/neople/game/
+ && cp /opt/remake/bin/df_game_r /opt/remake/bin/libGeoIP.so.1 /opt/remake/bin/libtss_shmfix.so /home/template/neople/game/ \
+ && cp /opt/remake/bin/secsvr/gunnersvr /home/template/neople/secsvr/gunnersvr/ \
+ && cp /opt/remake/bin/secsvr/zergsvr /home/template/neople/secsvr/zergsvr/ \
+ && cp /opt/remake/bin/secsvr/secagent /home/template/neople/secsvr/zergsvr/
 VOLUME ["/data"]
 ENTRYPOINT ["/opt/remake/runtime/entrypoint.sh"]

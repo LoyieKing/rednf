@@ -108,7 +108,10 @@ int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t number_of_pip
     int ret = 0;
     size_t sz_malloc = 0;
     size_t i = 0;
-    struct stat mmapfile_stat;
+    struct {
+        struct stat st;
+        unsigned char pad[64];
+    } mmapfile_stat;
     size_t sz_room = 0;
     ZEN_BUS_PIPE_HEAD *pipe_head = NULL;
 
@@ -125,7 +128,7 @@ int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t number_of_pip
     if (!if_restore) {
         ret = ZEN_OS::unlink(bus_mmap_name_);
     } else {
-        ret = ZEN_OS::stat(bus_mmap_name_, &mmapfile_stat);
+        ret = ZEN_OS::stat(bus_mmap_name_, &mmapfile_stat.st);
         if (ret != 0) {
             if_restore = false;
         }
@@ -181,19 +184,22 @@ int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t number_of_pip
 // ---------------------------------------------------------------------------
 int ZEN_Bus_MMAPPipe::initialize(const char *bus_mmap_name, size_t max_frame_len) {
     int ret = 0;
-    struct stat mmapfile_stat;
+    struct {
+        struct stat st;
+        unsigned char pad[64];
+    } mmapfile_stat;
 
     strncpy(bus_mmap_name_, bus_mmap_name, sizeof(bus_mmap_name_) - 1);
 
-    ret = ZEN_OS::stat(bus_mmap_name_, &mmapfile_stat);
+    ret = ZEN_OS::stat(bus_mmap_name_, &mmapfile_stat.st);
     if (ret != 0) {
         return -1;
     }
-    if ((unsigned long)mmapfile_stat.st_size <= sizeof(ZEN_BUS_PIPE_HEAD)) {
+    if ((unsigned long)mmapfile_stat.st.st_size <= sizeof(ZEN_BUS_PIPE_HEAD)) {
         return -1;
     }
 
-    ret = mmap_file_.open(bus_mmap_name_, mmapfile_stat.st_size, true, false, true, NULL, 0);
+    ret = mmap_file_.open(bus_mmap_name_, mmapfile_stat.st.st_size, true, false, true, NULL, 0);
 
     if (ret != 0) {
         ZEN_ERREX("[zenlib] MMAP map a file (%s) to share memory fail,ret =%d, last error=%d|%s.",

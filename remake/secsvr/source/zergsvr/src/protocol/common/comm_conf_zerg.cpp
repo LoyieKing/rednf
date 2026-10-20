@@ -616,7 +616,7 @@ TdrError::ErrorType LogCfg::fromXml(TdrXmlReader &reader, unsigned int cutVer) {
 }
 
 TdrError::ErrorType LogCfg::entryFromXml(TdrXmlReader &reader, unsigned int cutVer) {
-    TdrError::ErrorType ret;
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
     const char *value4log_level;
 
     value4log_level = reader.getEntryValue("log_level");
@@ -3080,7 +3080,7 @@ TdrError::ErrorType RestrictCfg::fromXml(TdrXmlReader &reader, unsigned int cutV
 }
 
 TdrError::ErrorType RestrictCfg::entryFromXml(TdrXmlReader &reader, unsigned int cutVer) {
-    TdrError::ErrorType ret;
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
     const char *value4allow_ips;
     const char *value4reject_ips;
 

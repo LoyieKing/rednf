@@ -49,9 +49,9 @@ dnf_secsvr/
 
 | 组件 | 源码规模 | 当前状态 | 结论 |
 |---|---|---|---|
-| **gunnersvr** | 88 个 C++ CU，362 个文件 | 入口 `main` 已实现；CMake 构建通过；ORIG 对拍的空体仅剩编译期等价形式 | 可构建，启动/行为未验收 |
-| **zergsvr** | 98 个 C++ CU，418 个文件 | 入口 `main` 已实现；CMake 构建通过；ORIG 对拍的空体仅剩编译期等价形式 | 可构建，启动/行为未验收 |
-| **secagent** | 150 个 C++ CU，538 个文件 | `main`/启动链/账单/TenHash 已实现；配置解析通过；已修 `struct stat` canary 溢出、channel 数组构造、事务锁池初始化和通道空指针保护；重建体不再崩溃，但手动环境 `bus_pipe_pointer_` 仍为 nil，通道未验收 | 可构建；启动未验收；live 已恢复原版 |
+| **gunnersvr** | 88 个 C++ CU，362 个文件 | 重建 main/构建通过；已部署 live，s6 运行正常 | 可构建；live 启动通过 |
+| **zergsvr** | 98 个 C++ CU，418 个文件 | 重建 main/构建通过；已修 stat canary 与 conf_zerg 解析；s6 端口就绪探针仍判失败，live 已恢复原版 | 可构建；**live 启动未验收** |
+| **secagent** | 150 个 C++ CU，538 个文件 | 重建体 live：配置、通道 pipe、账单/哈希启动通过；已修复 `struct stat` canary、channel 构造、事务锁池、pipe 头写入/空指针；已部署 | 可构建；live 启动通过 |
 | **tss_sdk** | 228 个编译单元 | `build_server.py` 构建通过（228/228），链接无未解析符号 | 可构建；独立于 secsvr 三件套 |
 | **tencrypt_new** | 58 个对象（Makefile） | 编译通过；`make test` 哈希/向量测试 **ALL PASS** | 算法库主体可用 |
 | **third_party** | 头文件/参考材料 | rapidxml、MySQL client 已 vendor；TSS 头由 DWARF 复刻 | 构建期依赖 |
@@ -84,7 +84,8 @@ dnf_secsvr/
 - [x] 修正 conf_zerg packed 布局、app 配置路径、解析器未初始化返回值。
 - [x] 修复 `ZEN_Bus_MMAPPipe::initialize` 的栈金丝雀破坏（`struct stat` 80/88 ABI 差异）。
 - [x] 修复 `SecAgentGamesvrChannel::recv` 的空指针崩溃（增加通道边界与空 pipe 保护）。
-- [ ] 定位 `bus_pipe_pointer_` 为何未写入/为何手动 shm 头失效，并完成通道时序验证。
+- [x] 修复 `ZEN_Bus_MMAPPipe::initialize` 对新建 shm 未写入 `bus_head_` 的问题，通道 pipe 指针已正常。
+- [ ] 修复 zergsvr s6 端口就绪探针失败并部署重建体。
 - [ ] 在修复后重新验证 `SecAgentApp::init/proc/process_recv_appframe` 与共享内存通道时序。
 
 ### P0：可复现构建
@@ -118,7 +119,7 @@ dnf_secsvr/
 
 - **secsvr 三件套**：`cmake -S dnf_secsvr -B /tmp/secsvr_build -DCMAKE_BUILD_TYPE=Release` +
   `cmake --build /tmp/secsvr_build -j`。`docs/build_recon/` 仅用于还原 CI 目录结构，不是可执行构建；
-  三目标可构建；secagent 已越过栈金丝雀与初始崩溃点，但通道 pipe 指针仍为空，不能作为可部署产物。
+  三目标可构建；secagent/gunnersvr 重建体已在 live 启动，登录→选角→进城镇链通过；zergsvr 重建体仍待 s6 端口探针验收。
 - **tss_sdk**：`cd dnf_secsvr/tss_sdk && python3 build_server.py --jobs 8 --output-dir /tmp/tss_sdk_build`
   （rednf 为 `cd remake/secsvr/tss_sdk`；首次需运行 `toolchains/bootstrap.sh`）。
 - **tencrypt_new**：`make` / `make test`；当前工作区归档文件被 root 占用时使用
